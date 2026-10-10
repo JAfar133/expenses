@@ -1,0 +1,21 @@
+# Публичный доступ к приложению с HTTPS и паролем. Подключается поверх основного файла:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.public.yml up -d
+#
+# Что меняется:
+#   - web слушает порты 80 и 443 на всех адресах (нужны для выдачи сертификата и для HTTPS);
+#   - весь сайт, включая /api, закрыт логином и паролем (Basic Auth в Caddy);
+#   - pgAdmin и PostgreSQL по-прежнему доступны только на localhost сервера.
+#
+# Это временная защита. Полноценная авторизация пользователей будет в самом приложении.
+services:
+  web:
+    volumes:
+      - ./infra/Caddyfile.public:/etc/caddy/Caddyfile:ro
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?Задайте SITE_ADDRESS в .env (домен или вид 85-209-51-95.nip.io)}
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:?Задайте BASIC_AUTH_USER в .env}
+      BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:?Задайте BASIC_AUTH_HASH в .env (см. README)}
+    ports: !override
+      - "80:80"
+      - "443:443"
