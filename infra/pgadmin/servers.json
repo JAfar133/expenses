@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Expenses Tracker",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "expenses",
+      "Username": "expenses",
+      "SSLMode": "prefer"
+    }
+  }
+}

@@ -35,6 +35,17 @@ export function buildApp({
     logController: new LogController({ requestIdLogLabel: 'requestId' }),
   });
 
+  // Клиенты часто шлют `Content-Type: application/json` и для запросов без тела (например, POST /api/sync).
+  // Пустое тело допустимо, а битый JSON по-прежнему даёт 400.
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_request, body, done) => {
+    if (body === '') return done(null, undefined);
+    try {
+      done(null, JSON.parse(body as string));
+    } catch (error) {
+      done(Object.assign(error as Error, { statusCode: 400 }), undefined);
+    }
+  });
+
   app.addHook('onSend', async (request, reply) => {
     reply.header('X-Request-Id', request.id);
   });

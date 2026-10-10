@@ -282,3 +282,28 @@ describe('справочники и health', () => {
     expect(t.sync.cycles).toBe(0);
   });
 });
+
+describe('запросы без тела', () => {
+  it('POST /api/sync с Content-Type: application/json и пустым телом работает', async () => {
+    const response = await t.app.inject({
+      method: 'POST',
+      url: '/api/sync',
+      headers: { 'content-type': 'application/json' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().success).toBe(true);
+  });
+
+  it('битый JSON по-прежнему даёт 400', async () => {
+    const response = await t.app.inject({
+      method: 'POST',
+      url: '/api/sync',
+      headers: { 'content-type': 'application/json' },
+      payload: '{not json',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('BAD_REQUEST');
+  });
+});

@@ -1,6 +1,6 @@
 import { ExpenseForm } from '../features/expenses/components/ExpenseForm.tsx';
 import { useExpenseReference } from '../features/expenses/hooks/useExpenseReference.ts';
-import { SyncPanel } from '../features/sync/components/SyncPanel.tsx';
+import { SyncIndicator } from '../features/sync/components/SyncIndicator.tsx';
 import { Notice } from '../shared/ui/Notice.tsx';
 
 export function AddExpensePage() {
@@ -8,7 +8,10 @@ export function AddExpensePage() {
 
   return (
     <main className="mx-auto min-h-dvh w-full max-w-[560px] px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))]">
-      <h1 className="mb-6 text-center text-2xl font-bold">💳 Мои расходы</h1>
+      <header className="mb-6 flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">💳 Мои расходы</h1>
+        <SyncIndicator />
+      </header>
 
       <section className="rounded-2xl bg-white p-5 shadow-sm dark:bg-zinc-900">
         <h2 className="mb-5 text-lg font-semibold">Добавить расход</h2>
@@ -32,8 +35,6 @@ export function AddExpensePage() {
           </p>
         )}
       </section>
-
-      <SyncPanel />
     </main>
   );
 }

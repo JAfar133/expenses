@@ -23,7 +23,11 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   try {
     response = await fetch(`/api${path}`, {
       ...init,
-      headers: { 'Content-Type': 'application/json', ...init.headers },
+      // Заголовок только для запросов с телом: Fastify отвечает 400 на JSON-запрос без тела
+      headers: {
+        ...(init.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...init.headers,
+      },
     });
   } catch {
     throw new ApiError(0, NETWORK_ERROR_CODE, 'Нет соединения с сервером');

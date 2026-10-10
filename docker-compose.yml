@@ -4,7 +4,8 @@
 #   mkdir -p secrets && cp ~/.config/rclone/rclone.conf secrets/rclone.conf
 #   docker compose up -d --build
 #
-# Только база для локальной разработки:  docker compose up -d --wait postgres
+# Только база для локальной разработки:  docker compose up -d --wait postgres pgadmin
+# pgAdmin: http://127.0.0.1:5051 (вход: PGADMIN_EMAIL / PGADMIN_PASSWORD из .env)
 name: expenses-tracker
 
 services:
@@ -17,14 +18,33 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Задайте POSTGRES_PASSWORD в файле .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    # Порт открыт только на localhost: нужен для запуска backend вне Docker (npm run dev)
+    # Порт открыт только на localhost: нужен для запуска backend вне Docker (npm run dev).
+    # Не 5432, чтобы не конфликтовать с другими Postgres на компьютере.
     ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U expenses -d expenses"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?Задайте PGADMIN_PASSWORD в файле .env}
+      # Не отключайте вход: pgAdmin даёт полный доступ к базе
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+      - ./infra/pgadmin/servers.json:/pgadmin4/servers.json:ro
+    ports:
+      - "127.0.0.1:${PGADMIN_PORT:-5051}:80"
 
   backend:
     build:
@@ -87,6 +107,7 @@ secrets:
 
 volumes:
   pgdata:
+  pgadmin-data:
   backend-data:
   caddy-data:
   caddy-config:
