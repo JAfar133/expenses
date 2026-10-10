@@ -1,9 +1,12 @@
+import { execFileSync } from 'node:child_process';
 import { copyFile, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RcloneOneDriveService } from '../../src/services/onedrive.service.ts';
-import { createRcloneRunner } from '../../src/services/onedrive/rclone-runner.ts';
+import { CliRcloneClient } from '../../src/services/onedrive/cli-client.ts';
+import { RcdRcloneClient } from '../../src/services/onedrive/rcd-client.ts';
+import { RcloneDaemon } from '../../src/services/onedrive/rcd-daemon.ts';
 
 /**
  * Работает с настоящим OneDrive, поэтому запускается только явно:
@@ -14,50 +17,59 @@ const enabled = process.env.RUN_ONEDRIVE_TESTS === '1';
 const REMOTE = process.env.ONEDRIVE_REMOTE ?? 'onedrive';
 const TEST_PATH = process.env.ONEDRIVE_TEST_FILE_PATH ?? 'Документы/expenses-tracker-test.xlsx';
 const FIXTURE = new URL('../fixtures/expenses-dev.xlsx', import.meta.url).pathname;
+const TIMEOUT_MS = 60_000;
 
-describe.skipIf(!enabled)('OneDrive через rclone (live)', { timeout: 60_000 }, () => {
-  const run = createRcloneRunner({ timeoutMs: 60_000 });
-  const service = new RcloneOneDriveService({ remote: REMOTE, filePath: TEST_PATH, run });
+const rclone = (...args: string[]) => execFileSync('rclone', args, { stdio: 'ignore' });
 
-  beforeAll(async () => {
-    await run(['copyto', FIXTURE, `${REMOTE}:${TEST_PATH}`]);
-  });
+describe.skipIf(!enabled)('OneDrive через rclone (live)', { timeout: 120_000 }, () => {
+  beforeAll(() => rclone('copyto', FIXTURE, `${REMOTE}:${TEST_PATH}`));
+  afterAll(() => rclone('deletefile', `${REMOTE}:${TEST_PATH}`));
 
-  afterAll(async () => {
-    await run(['deletefile', `${REMOTE}:${TEST_PATH}`]);
-  });
+  const daemon = new RcloneDaemon();
+  afterAll(() => daemon.stop());
 
-  it('скачивает файл и возвращает версию', async () => {
-    const file = await service.downloadFile();
+  describe.each([
+    ['постоянный процесс (rcd)', () => new RcdRcloneClient(daemon, TIMEOUT_MS)],
+    ['CLI', () => new CliRcloneClient({ timeoutMs: TIMEOUT_MS })],
+  ])('%s', (_name, createClient) => {
+    const createService = (filePath = TEST_PATH) =>
+      new RcloneOneDriveService({ remote: REMOTE, filePath, client: createClient() });
 
-    expect(file.size).toBeGreaterThan(0);
-    expect((await readFile(file.localPath)).length).toBe(file.size);
-  });
+    it('скачивает файл и возвращает версию', async () => {
+      const file = await createService().downloadFile();
 
-  it('загружает изменённый файл и сверяет хеш', async () => {
-    const downloaded = await service.downloadFile();
-    const modified = join(await mkdtemp(join(tmpdir(), 'live-')), 'modified.xlsx');
-    await copyFile(downloaded.localPath, modified);
-    await writeFile(modified, Buffer.concat([await readFile(modified), Buffer.from('x')]));
-
-    const result = await service.uploadFile(modified, downloaded.version);
-
-    expect(result.version).not.toBe(downloaded.version);
-  });
-
-  it('отклоняет загрузку по устаревшей версии', async () => {
-    await expect(service.uploadFile(FIXTURE, 'stale:version')).rejects.toMatchObject({
-      code: 'VERSION_CONFLICT',
-    });
-  });
-
-  it('сообщает об отсутствующем файле', async () => {
-    const missing = new RcloneOneDriveService({
-      remote: REMOTE,
-      filePath: 'Документы/нет-такого.xlsx',
-      run,
+      expect(file.size).toBeGreaterThan(0);
+      expect((await readFile(file.localPath)).length).toBe(file.size);
     });
 
-    await expect(missing.getFileMetadata()).rejects.toMatchObject({ code: 'FILE_NOT_FOUND' });
+    it('загружает изменённый файл и сверяет хеш', async () => {
+      const service = createService();
+      const downloaded = await service.downloadFile();
+      const modified = join(await mkdtemp(join(tmpdir(), 'live-')), 'modified.xlsx');
+      await copyFile(downloaded.localPath, modified);
+      await writeFile(modified, Buffer.concat([await readFile(modified), Buffer.from('x')]));
+
+      const started = performance.now();
+      const result = await service.uploadFile(modified, downloaded.version);
+      console.log(
+        `  загрузка с проверками: ${((performance.now() - started) / 1000).toFixed(1)} c`,
+      );
+
+      expect(result.version).not.toBe(downloaded.version);
+      expect((await service.getFileMetadata()).version).toBe(result.version);
+    });
+
+    it('отклоняет загрузку по устаревшей версии', async () => {
+      await expect(createService().uploadFile(FIXTURE, 'stale-version')).rejects.toMatchObject({
+        code: 'VERSION_CONFLICT',
+      });
+    });
+
+    it('сообщает об отсутствующем файле', async () => {
+      const missing = createService('Документы/нет-такого.xlsx');
+
+      await expect(missing.getFileMetadata()).rejects.toMatchObject({ code: 'FILE_NOT_FOUND' });
+      await expect(missing.downloadFile()).rejects.toMatchObject({ code: 'FILE_NOT_FOUND' });
+    });
   });
 });

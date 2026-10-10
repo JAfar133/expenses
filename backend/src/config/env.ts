@@ -20,7 +20,22 @@ const envSchema = z.object({
   // Без значения по умолчанию, чтобы случайно не писать в рабочий файл
   ONEDRIVE_FILE_PATH: z.string().min(1),
   RCLONE_CONFIG: z.string().min(1).optional(),
+  // daemon — постоянный процесс rclone (быстро), cli — отдельный запуск на каждую команду
+  RCLONE_MODE: z.enum(['daemon', 'cli']).default('daemon'),
   RCLONE_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
+
+  // PostgreSQL: основное хранилище расходов, ключи идемпотентности, состояние синхронизации
+  DATABASE_URL: z.string().min(1),
+
+  BACKUP_DIR: z.string().default('./backups'),
+  BACKUP_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
+
+  // Синхронизация PostgreSQL ↔ Excel
+  SYNC_INTERVAL_MINUTES: z.coerce.number().positive().default(5),
+  /** Как часто повторять, пока в очереди есть записи, которые не удалось записать в Excel */
+  SYNC_RETRY_SECONDS: z.coerce.number().positive().default(60),
+  /** Сколько ждать записи в Excel перед ответом на создание расхода */
+  SYNC_INLINE_WAIT_SECONDS: z.coerce.number().positive().default(15),
 
   CARDS: z.string().default('Миша,Настя').transform(list),
   CATEGORIES: z.string().default('кафе,одежда,продукты,жилье,маркетплейс,другое').transform(list),

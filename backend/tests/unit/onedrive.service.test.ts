@@ -1,17 +1,66 @@
-import { writeFile } from 'node:fs/promises';
-import { describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
+import { readFile, stat, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
+import { describe, expect, it } from 'vitest';
 import { classifyStderr, OneDriveError } from '../../src/services/onedrive/errors.ts';
+import type {
+  RcloneClient,
+  RemoteFile,
+  RemoteFileStat,
+} from '../../src/services/onedrive/rclone-client.ts';
 import { RcloneOneDriveService } from '../../src/services/onedrive.service.ts';
-import type { RcloneRunner } from '../../src/services/onedrive/rclone-runner.ts';
 
-const listing = (hash: string, modTime = '2026-10-10T16:17:42Z') =>
-  JSON.stringify([{ Size: 100, ModTime: modTime, Hashes: { quickxor: hash } }]);
+const sha = (content: string | Buffer) => createHash('sha1').update(content).digest('hex');
 
-function createService(run: RcloneRunner, downloadAttempts = 3) {
+/** Поддельный rclone: «удалённый» файл хранится в памяти, обращения записываются в `calls`. */
+class FakeRclone implements RcloneClient {
+  calls: string[] = [];
+  remoteContent: string | undefined = 'original';
+  /** Ошибки, которые нужно выбросить при следующих вызовах соответствующих операций */
+  failures: { stat?: Error[]; download?: Error[]; upload?: Error[] } = {};
+  /** Подменяет содержимое удалённого файла после скачивания (имитация чужой правки) */
+  afterDownload?: () => void;
+
+  async stat(): Promise<RemoteFileStat | undefined> {
+    this.calls.push('stat');
+    const error = this.failures.stat?.shift();
+    if (error) throw error;
+    return this.remoteContent === undefined
+      ? undefined
+      : {
+          size: this.remoteContent.length,
+          modifiedAt: 't',
+          hash: sha(this.remoteContent).toUpperCase(),
+        };
+  }
+
+  async download(_file: RemoteFile, localPath: string) {
+    this.calls.push('download');
+    const error = this.failures.download?.shift();
+    if (error) throw error;
+    if (this.remoteContent === undefined) throw new OneDriveError('FILE_NOT_FOUND', 'not found');
+    await writeFile(localPath, this.remoteContent);
+    this.afterDownload?.();
+  }
+
+  async upload(localPath: string) {
+    this.calls.push('upload');
+    const error = this.failures.upload?.shift();
+    if (error) throw error;
+    this.remoteContent = (await readFile(localPath)).toString();
+  }
+
+  async hashLocal(localPath: string) {
+    this.calls.push('hashLocal');
+    return sha(await readFile(localPath));
+  }
+}
+
+function createService(client: FakeRclone, downloadAttempts = 3) {
   return new RcloneOneDriveService({
     remote: 'onedrive',
     filePath: 'Документы/test.xlsx',
-    run,
+    client,
     tempDir: '/tmp/expenses-tracker-unit',
     downloadAttempts,
     retryBaseDelayMs: 1,
@@ -33,122 +82,173 @@ describe('classifyStderr', () => {
 });
 
 describe('getFileMetadata', () => {
-  it('собирает версию из хеша, размера и времени изменения', async () => {
-    const service = createService(async () => ({ stdout: listing('abc') }));
+  it('версия — хеш содержимого в нижнем регистре', async () => {
+    const metadata = await createService(new FakeRclone()).getFileMetadata();
 
-    const metadata = await service.getFileMetadata();
-
-    expect(metadata.hash).toBe('abc');
-    expect(metadata.version).toBe('abc:100:2026-10-10T16:17:42Z');
+    expect(metadata.hash).toBe(sha('original'));
+    expect(metadata.version).toBe(sha('original'));
   });
 
-  it('передаёт путь одним аргументом, без shell', async () => {
-    const run = vi.fn<RcloneRunner>(async () => ({ stdout: listing('abc') }));
+  it('бросает FILE_NOT_FOUND, если файла нет', async () => {
+    const client = new FakeRclone();
+    client.remoteContent = undefined;
 
-    await createService(run).getFileMetadata();
-
-    expect(run).toHaveBeenCalledWith([
-      'lsjson',
-      '--hash',
-      '--no-mimetype',
-      'onedrive:Документы/test.xlsx',
-    ]);
+    await expect(createService(client).getFileMetadata()).rejects.toMatchObject({
+      code: 'FILE_NOT_FOUND',
+    });
   });
 
-  it('бросает FILE_NOT_FOUND на пустом списке', async () => {
-    const service = createService(async () => ({ stdout: '[]' }));
+  it('не работает без хеша: проверить конфликт было бы нечем', async () => {
+    const client = new FakeRclone();
+    client.stat = async () => ({ size: 1, modifiedAt: 't' });
 
-    await expect(service.getFileMetadata()).rejects.toMatchObject({ code: 'FILE_NOT_FOUND' });
+    await expect(createService(client).getFileMetadata()).rejects.toThrow(/hash is unavailable/);
   });
 });
 
 describe('downloadFile', () => {
+  it('версия считается по скачанным байтам и не требует обращения к метаданным', async () => {
+    const client = new FakeRclone();
+
+    const file = await createService(client).downloadFile();
+
+    expect(file.version).toBe(sha('original'));
+    expect(file.size).toBe('original'.length);
+    expect((await stat(file.localPath)).isFile()).toBe(true);
+    expect(client.calls).toEqual(['download', 'hashLocal']);
+  });
+
+  it('версия соответствует скачанному, даже если файл на OneDrive изменился сразу после', async () => {
+    const client = new FakeRclone();
+    client.afterDownload = () => void (client.remoteContent = 'changed by someone');
+
+    const file = await createService(client).downloadFile();
+
+    expect(file.version).toBe(sha('original'));
+  });
+
   it('повторяет скачивание при временной ошибке', async () => {
-    let copyCalls = 0;
-    const run: RcloneRunner = async (args) => {
-      if (args[0] === 'lsjson') return { stdout: listing('abc') };
-      copyCalls++;
-      if (copyCalls === 1) throw new OneDriveError('NETWORK', 'connection reset');
-      await writeFile(args[2]!, 'xlsx-content');
-      return { stdout: '' };
-    };
+    const client = new FakeRclone();
+    client.failures.download = [new OneDriveError('NETWORK', 'connection reset')];
 
-    const file = await createService(run).downloadFile();
+    const file = await createService(client).downloadFile();
 
-    expect(copyCalls).toBe(2);
-    expect(file.size).toBe('xlsx-content'.length);
+    expect(file.size).toBeGreaterThan(0);
+    expect(client.calls.filter((call) => call === 'download')).toHaveLength(2);
   });
 
-  it('не повторяет нетемпорарные ошибки', async () => {
-    const run = vi.fn<RcloneRunner>(async (args) => {
-      if (args[0] === 'lsjson') throw new OneDriveError('AUTH_FAILED', 'invalid_grant');
-      return { stdout: '' };
-    });
+  it('повторяет скачивание, если процесс rclone временно недоступен', async () => {
+    const client = new FakeRclone();
+    client.failures.download = [new OneDriveError('RCLONE_UNAVAILABLE', 'daemon restarting')];
 
-    await expect(createService(run).downloadFile()).rejects.toMatchObject({ code: 'AUTH_FAILED' });
-    expect(run).toHaveBeenCalledTimes(1);
+    await expect(createService(client).downloadFile()).resolves.toBeDefined();
   });
 
-  it('считает конфликтом смену версии во время скачивания', async () => {
-    let listCalls = 0;
-    const run: RcloneRunner = async (args) => {
-      if (args[0] !== 'lsjson') return { stdout: '' };
-      return { stdout: listing(`hash-${listCalls++}`) };
+  it('не повторяет остальные ошибки', async () => {
+    const client = new FakeRclone();
+    client.failures.download = [new OneDriveError('AUTH_FAILED', 'invalid_grant')];
+
+    await expect(createService(client).downloadFile()).rejects.toMatchObject({
+      code: 'AUTH_FAILED',
+    });
+    expect(client.calls.filter((call) => call === 'download')).toHaveLength(1);
+  });
+
+  it('прекращает попытки после лимита', async () => {
+    const client = new FakeRclone();
+    client.failures.download = [
+      new OneDriveError('NETWORK', 'a'),
+      new OneDriveError('NETWORK', 'b'),
+    ];
+
+    await expect(createService(client, 2).downloadFile()).rejects.toMatchObject({
+      code: 'NETWORK',
+    });
+  });
+
+  it('не оставляет временный каталог после неудачи', async () => {
+    const client = new FakeRclone();
+    client.failures.download = [new OneDriveError('AUTH_FAILED', 'x')];
+    let localPath = '';
+    const original = client.download.bind(client);
+    client.download = async (file, path) => {
+      localPath = path;
+      await writeFile(path, 'partial').catch(() => undefined);
+      return original(file, path);
     };
 
-    await expect(createService(run, 1).downloadFile()).rejects.toMatchObject({
-      code: 'VERSION_CONFLICT',
-    });
+    await expect(createService(client).downloadFile()).rejects.toThrow();
+    await expect(stat(dirname(localPath))).rejects.toThrow();
   });
 });
 
 describe('uploadFile', () => {
-  it('не загружает, если версия на OneDrive изменилась', async () => {
-    const run = vi.fn<RcloneRunner>(async () => ({ stdout: listing('new-hash') }));
+  it('полный цикл: скачивание, проверка версии, загрузка и сверка хеша', async () => {
+    const client = new FakeRclone();
+    const service = createService(client);
+    const file = await service.downloadFile();
+    await writeFile(file.localPath, 'updated');
+    client.calls = [];
 
-    await expect(createService(run).uploadFile('/tmp/x.xlsx', 'old-version')).rejects.toMatchObject(
-      {
-        code: 'VERSION_CONFLICT',
-      },
-    );
-    expect(run).not.toHaveBeenCalledWith(expect.arrayContaining(['copyto']));
+    const result = await service.uploadFile(file.localPath, file.version);
+
+    expect(result.version).toBe(sha('updated'));
+    expect(client.remoteContent).toBe('updated');
+    // Минимум обращений к OneDrive: проверка версии, загрузка, сверка
+    expect(client.calls).toEqual(['stat', 'upload', 'hashLocal', 'stat']);
   });
 
-  it('загружает и сверяет хеш', async () => {
-    const version = 'abc:100:2026-10-10T16:17:42Z';
-    const run: RcloneRunner = async (args) => {
-      if (args[0] === 'hashsum') return { stdout: 'abc  /tmp/x.xlsx\n' };
-      return { stdout: args[0] === 'lsjson' ? listing('abc') : '' };
-    };
+  it('не загружает, если файл на OneDrive изменили с момента скачивания', async () => {
+    const client = new FakeRclone();
+    const service = createService(client);
+    const file = await service.downloadFile();
+    client.remoteContent = 'edited in Excel';
+    client.calls = [];
 
-    await expect(createService(run).uploadFile('/tmp/x.xlsx', version)).resolves.toEqual({
-      version,
+    await expect(service.uploadFile(file.localPath, file.version)).rejects.toMatchObject({
+      code: 'VERSION_CONFLICT',
     });
+    expect(client.calls).not.toContain('upload');
+    expect(client.remoteContent).toBe('edited in Excel');
   });
 
   it('сообщает, если хеш после загрузки не совпал, и не повторяет запись', async () => {
-    const version = 'abc:100:2026-10-10T16:17:42Z';
-    const run = vi.fn<RcloneRunner>(async (args) => {
-      if (args[0] === 'hashsum') return { stdout: 'zzz  /tmp/x.xlsx\n' };
-      return { stdout: args[0] === 'lsjson' ? listing('abc') : '' };
-    });
+    const client = new FakeRclone();
+    const service = createService(client);
+    const file = await service.downloadFile();
+    client.upload = async () => {
+      client.calls.push('upload');
+      client.remoteContent = 'corrupted';
+    };
+    client.calls = [];
 
-    await expect(createService(run).uploadFile('/tmp/x.xlsx', version)).rejects.toMatchObject({
+    await expect(service.uploadFile(file.localPath, file.version)).rejects.toMatchObject({
       code: 'UPLOAD_NOT_VERIFIED',
     });
-    expect(run.mock.calls.filter(([args]) => args[0] === 'copyto')).toHaveLength(1);
+    expect(client.calls.filter((call) => call === 'upload')).toHaveLength(1);
   });
 
   it('не повторяет запись при сетевой ошибке', async () => {
-    const version = 'abc:100:2026-10-10T16:17:42Z';
-    const run = vi.fn<RcloneRunner>(async (args) => {
-      if (args[0] === 'copyto') throw new OneDriveError('NETWORK', 'reset');
-      return { stdout: listing('abc') };
-    });
+    const client = new FakeRclone();
+    const service = createService(client);
+    const file = await service.downloadFile();
+    client.failures.upload = [new OneDriveError('NETWORK', 'reset')];
+    client.calls = [];
 
-    await expect(createService(run).uploadFile('/tmp/x.xlsx', version)).rejects.toMatchObject({
+    await expect(service.uploadFile(file.localPath, file.version)).rejects.toMatchObject({
       code: 'NETWORK',
     });
-    expect(run.mock.calls.filter(([args]) => args[0] === 'copyto')).toHaveLength(1);
+    expect(client.calls.filter((call) => call === 'upload')).toHaveLength(1);
+  });
+
+  it('передаёт ошибку блокировки файла', async () => {
+    const client = new FakeRclone();
+    const service = createService(client);
+    const file = await service.downloadFile();
+    client.failures.upload = [new OneDriveError('FILE_LOCKED', '423 Locked')];
+
+    await expect(service.uploadFile(file.localPath, file.version)).rejects.toMatchObject({
+      code: 'FILE_LOCKED',
+    });
   });
 });

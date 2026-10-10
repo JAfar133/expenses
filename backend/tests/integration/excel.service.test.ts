@@ -4,6 +4,8 @@ import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import {
   appendExpenseToBuffer,
+  appendExpensesToBuffer,
+  readExcelExpenses,
   toExcelSerial,
   type Expense,
 } from '../../src/services/excel.service.ts';
@@ -124,5 +126,65 @@ describe('appendExpenseToBuffer', () => {
 
   it('падает на повреждённом файле', async () => {
     await expect(appendExpenseToBuffer(Buffer.from('not a zip'), exp(), opts)).rejects.toThrow();
+  });
+});
+
+describe('readExcelExpenses', () => {
+  it('читает все заполненные строки таблицы, пустые игнорирует', async () => {
+    const { expenses, skippedCount } = await readExcelExpenses(fixture, opts);
+
+    // В файле 40 заполненных строк данных и 2 пустых внутри таблицы
+    expect(expenses.length).toBeGreaterThan(30);
+    expect(skippedCount).toBe(0);
+    expect(expenses.at(-1)).toMatchObject({ amount: 2847, card: 'Настя' });
+  });
+
+  it('даты читаются как ISO без сдвига', async () => {
+    const { expenses } = await readExcelExpenses(fixture, opts);
+
+    expect(expenses.every((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.date))).toBe(true);
+    // Строка 40 в файле — серийный номер 46305
+    expect(expenses.at(-1)!.date).toBe('2026-10-10');
+  });
+
+  it('видит добавленные приложением строки', async () => {
+    const before = (await readExcelExpenses(fixture, opts)).expenses.length;
+    const { buf } = await addN(2, (i) => exp({ name: `Новый ${i}`, amount: 100 + i }));
+
+    const { expenses } = await readExcelExpenses(buf, opts);
+
+    expect(expenses).toHaveLength(before + 2);
+    expect(expenses.slice(-2)).toEqual([
+      exp({ name: 'Новый 0', amount: 100 }),
+      exp({ name: 'Новый 1', amount: 101 }),
+    ]);
+  });
+
+  it('пропускает и описывает некорректные строки', async () => {
+    const { buf } = await addN(1);
+    const zip = await JSZip.loadAsync(buf);
+    const path = 'xl/worksheets/sheet1.xml';
+    const xml = await zip.file(path)!.async('string');
+    // Портим стоимость в добавленной строке 41: дробное число
+    zip.file(path, xml.replace(/(<c r="E41"[^>]*>)<v>1500<\/v>/, '$1<v>12.5</v>'));
+    const broken = await zip.generateAsync({ type: 'nodebuffer' });
+
+    const result = await readExcelExpenses(broken, opts);
+
+    expect(result.skippedCount).toBe(1);
+    expect(result.skipped).toEqual([
+      { row: 41, reason: 'стоимость должна быть положительным целым числом' },
+    ]);
+  });
+});
+
+describe('appendExpensesToBuffer', () => {
+  it('добавляет несколько операций за один проход', async () => {
+    const list = [exp({ name: 'А' }), exp({ name: 'Б' }), exp({ name: 'В' })];
+
+    const { output, results } = await appendExpensesToBuffer(fixture, list, opts);
+
+    expect(results.map((r) => r.row)).toEqual([41, 42, 43]);
+    expect((await readExcelExpenses(output, opts)).expenses.slice(-3)).toEqual(list);
   });
 });

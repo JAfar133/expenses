@@ -1,8 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { Database } from '../../src/infrastructure/database/database.ts';
 import { ExpenseService } from '../../src/modules/expenses/expenses.service.ts';
-import type { Expense, ExpenseRepository } from '../../src/storage/expense.repository.ts';
+import type { ExpenseRepository } from '../../src/storage/expense.repository.ts';
+import { PostgresExpenseRepository } from '../../src/storage/postgres/postgres.repository.ts';
+import { createTestDatabase } from '../helpers/test-database.ts';
 
-const input: Expense = {
+const input = {
   date: '2026-10-10',
   card: 'Миша',
   category: 'продукты',
@@ -10,91 +13,70 @@ const input: Expense = {
   amount: 9703,
 };
 
-function createRepository(storedCategories: string[] = []) {
-  return {
-    create: vi.fn(async (expense: Expense) => expense),
-    listCategories: vi.fn(async () => storedCategories),
-  } satisfies ExpenseRepository;
-}
+let database: Database;
+let repository: PostgresExpenseRepository;
 
-function createService(repository: ExpenseRepository, now = () => 0) {
-  return new ExpenseService(repository, {
+const createService = (repo: ExpenseRepository = repository) =>
+  new ExpenseService(repo, {
     reference: { cards: ['Миша', 'Настя'], categories: ['кафе', 'продукты'] },
-    categoriesCacheMs: 1000,
-    now,
   });
-}
+
+beforeAll(async () => {
+  database = await createTestDatabase();
+  repository = new PostgresExpenseRepository(database);
+});
+
+afterAll(() => database.close());
+
+beforeEach(() => database.query('DELETE FROM expenses'));
 
 describe('create', () => {
-  it('сохраняет операцию и присваивает id', async () => {
-    const repository = createRepository();
+  it('сохраняет расход в БД в очередь Excel', async () => {
+    const created = await createService().create(database, input, 'misha');
 
-    const created = await createService(repository).create(input);
-
-    expect(repository.create).toHaveBeenCalledWith(input);
-    expect(created).toMatchObject(input);
-    expect(created.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(created).toMatchObject({ ...input, source: 'app', excelStatus: 'pending' });
+    expect(await repository.findById(created.id)).toEqual(created);
   });
 
   it('отклоняет карту, которой нет в справочнике', async () => {
-    const repository = createRepository();
-
     await expect(
-      createService(repository).create({ ...input, card: 'Вася' }),
+      createService().create(database, { ...input, card: 'Вася' }, 'misha'),
     ).rejects.toMatchObject({
       statusCode: 422,
       code: 'INVALID_CARD',
     });
-    expect(repository.create).not.toHaveBeenCalled();
+    expect(await repository.countQueue()).toBe(0);
   });
 
   it('принимает неизвестную категорию как есть', async () => {
-    const repository = createRepository();
-
-    await createService(repository).create({ ...input, category: 'путешествия' });
-
-    expect(repository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ category: 'путешествия' }),
+    const created = await createService().create(
+      database,
+      { ...input, category: 'путешествия' },
+      'misha',
     );
+
+    expect(created.category).toBe('путешествия');
   });
 });
 
 describe('getCategories', () => {
-  it('объединяет конфигурацию и значения из хранилища без дублей', async () => {
-    const service = createService(createRepository(['продукты', 'путешествия']));
+  it('объединяет конфигурацию и значения из БД без дублей', async () => {
+    await repository.importFromExcel(database, [
+      { ...input, category: 'транспорт' },
+      { ...input, category: 'продукты' },
+    ]);
 
-    expect(await service.getCategories()).toEqual(['кафе', 'продукты', 'путешествия']);
+    expect(await createService().getCategories()).toEqual(['кафе', 'продукты', 'транспорт']);
   });
 
-  it('кеширует результат, пока не истёк срок', async () => {
-    const repository = createRepository();
-    let time = 0;
-    const service = createService(repository, () => time);
+  it('отдаёт категории из конфигурации, если БД недоступна', async () => {
+    const broken = {
+      ...repository,
+      listCategories: async () => {
+        throw new Error('db down');
+      },
+    } as unknown as ExpenseRepository;
 
-    await service.getCategories();
-    await service.getCategories();
-    expect(repository.listCategories).toHaveBeenCalledTimes(1);
-
-    time = 1001;
-    await service.getCategories();
-    expect(repository.listCategories).toHaveBeenCalledTimes(2);
-  });
-
-  it('сбрасывает кеш после создания расхода', async () => {
-    const repository = createRepository();
-    const service = createService(repository);
-
-    await service.getCategories();
-    await service.create(input);
-    await service.getCategories();
-
-    expect(repository.listCategories).toHaveBeenCalledTimes(2);
-  });
-
-  it('отдаёт категории из конфигурации, если хранилище недоступно', async () => {
-    const repository = createRepository();
-    repository.listCategories.mockRejectedValue(new Error('OneDrive down'));
-
-    expect(await createService(repository).getCategories()).toEqual(['кафе', 'продукты']);
+    expect(await createService(broken).getCategories()).toEqual(['кафе', 'продукты']);
   });
 });

@@ -1,0 +1,27 @@
+# SITE_ADDRESS по умолчанию ":80" (обычный HTTP, для локального запуска).
+# Для HTTPS на сервере укажите домен, например expenses.example.com: Caddy сам получит сертификат.
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	# API: запросы идут на backend, он не публикуется наружу отдельным портом
+	handle /api/* {
+		reverse_proxy backend:3000
+	}
+
+	# Frontend: статические файлы, неизвестные пути отдают index.html
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy same-origin
+		X-Frame-Options DENY
+		-Server
+	}
+}

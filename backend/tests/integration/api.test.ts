@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { buildApp } from '../../src/app.ts';
-import { storageUnavailableError, writeStatusUnknownError } from '../../src/errors/app-error.ts';
-import { ExpenseService } from '../../src/modules/expenses/expenses.service.ts';
-import type { Expense, ExpenseRepository } from '../../src/storage/expense.repository.ts';
+import { randomUUID } from 'node:crypto';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { Database } from '../../src/infrastructure/database/database.ts';
+import { createTestApp, type TestApp } from '../helpers/create-test-app.ts';
+import { createTestDatabase } from '../helpers/test-database.ts';
 
 const validBody = {
   date: '2026-10-10',
@@ -12,41 +12,50 @@ const validBody = {
   amount: 9703,
 };
 
-let repository: { create: ReturnType<typeof vi.fn>; listCategories: ReturnType<typeof vi.fn> };
+let database: Database;
+let t: TestApp;
 
-function createApp() {
-  const expenseService = new ExpenseService(repository as ExpenseRepository, {
-    reference: { cards: ['Миша', 'Настя'], categories: ['кафе', 'продукты'] },
-  });
-  return buildApp({ expenseService });
-}
-
-const post = (body: unknown) =>
-  createApp().inject({ method: 'POST', url: '/api/expenses', payload: body as object });
-
-beforeEach(() => {
-  repository = {
-    create: vi.fn(async (expense: Expense) => expense),
-    listCategories: vi.fn(async () => ['путешествия']),
-  };
+beforeAll(async () => {
+  database = await createTestDatabase();
 });
 
+afterAll(() => database.close());
+
+beforeEach(async () => {
+  await database.query('DELETE FROM expenses');
+  await database.query('DELETE FROM idempotency_keys');
+  t = createTestApp(database);
+});
+
+/** Отправляет расход; без явного ключа каждый вызов считается новым запросом. */
+const post = (body: unknown, key: string | null = randomUUID()) =>
+  t.app.inject({
+    method: 'POST',
+    url: '/api/expenses',
+    payload: body as object,
+    headers: key ? { 'idempotency-key': key } : {},
+  });
+
+const expenseCount = async () => (await database.query('SELECT 1 FROM expenses')).length;
+
 describe('POST /api/expenses', () => {
-  it('создаёт расход и возвращает 201', async () => {
+  it('сохраняет расход в БД, записывает в Excel и возвращает 201', async () => {
     const response = await post(validBody);
 
     expect(response.statusCode).toBe(201);
     expect(response.json()).toMatchObject({
       success: true,
-      data: validBody,
+      data: { ...validBody, excelStatus: 'synced' },
       message: 'Расход успешно добавлен',
     });
+    const saved = await t.repository.findById(response.json().data.id);
+    expect(saved).toMatchObject({ ...validBody, source: 'app', excelStatus: 'synced' });
   });
 
   it('обрезает пробелы в наименовании', async () => {
-    await post({ ...validBody, name: '  Кофе  ' });
+    const response = await post({ ...validBody, name: '  Кофе  ' });
 
-    expect(repository.create).toHaveBeenCalledWith(expect.objectContaining({ name: 'Кофе' }));
+    expect(response.json().data.name).toBe('Кофе');
   });
 
   it.each([
@@ -64,14 +73,14 @@ describe('POST /api/expenses', () => {
 
     expect(response.statusCode).toBe(422);
     expect(response.json()).toEqual({ success: false, error: { code, message } });
-    expect(repository.create).not.toHaveBeenCalled();
+    expect(await expenseCount()).toBe(0);
   });
 
   it('возвращает 400 на битый JSON', async () => {
-    const response = await createApp().inject({
+    const response = await t.app.inject({
       method: 'POST',
       url: '/api/expenses',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'idempotency-key': randomUUID() },
       payload: '{not json',
     });
 
@@ -79,52 +88,197 @@ describe('POST /api/expenses', () => {
     expect(response.json().error.code).toBe('BAD_REQUEST');
   });
 
-  it('возвращает 503, если OneDrive недоступен', async () => {
-    repository.create.mockRejectedValue(storageUnavailableError());
-
-    const response = await post(validBody);
-
-    expect(response.statusCode).toBe(503);
-    expect(response.json().error.code).toBe('STORAGE_UNAVAILABLE');
-  });
-
-  it('возвращает WRITE_STATUS_UNKNOWN, если результат записи неизвестен', async () => {
-    repository.create.mockRejectedValue(writeStatusUnknownError());
-
-    const response = await post(validBody);
-
-    expect(response.statusCode).toBe(500);
-    expect(response.json().error.code).toBe('WRITE_STATUS_UNKNOWN');
-  });
-
   it('не раскрывает детали непредвиденных ошибок', async () => {
-    repository.create.mockRejectedValue(new Error('secret internal detail'));
+    await database.exec('ALTER TABLE expenses RENAME TO expenses_broken');
+    try {
+      const response = await post(validBody);
+
+      expect(response.statusCode).toBe(500);
+      expect(response.body).not.toContain('expenses_broken');
+      expect(response.json().error.code).toBe('INTERNAL_ERROR');
+    } finally {
+      await database.exec('ALTER TABLE expenses_broken RENAME TO expenses');
+    }
+  });
+});
+
+describe('очередь, когда Excel недоступен', () => {
+  it('расход сохраняется в БД и ждёт в очереди: ответ 201 со статусом queued', async () => {
+    t.sync.excelAvailable = false;
 
     const response = await post(validBody);
 
-    expect(response.statusCode).toBe(500);
-    expect(response.body).not.toContain('secret');
-    expect(response.json().error.code).toBe('INTERNAL_ERROR');
+    expect(response.statusCode).toBe(201);
+    expect(response.json().data.excelStatus).toBe('queued');
+    expect(response.json().message).toContain('появится позже');
+    expect(await t.repository.countQueue()).toBe(1);
+  });
+
+  it('если Excel отвечает слишком долго, ответ не ждёт: расход остаётся в очереди', async () => {
+    t = createTestApp(database, { inlineExcelWaitMs: 30 });
+    t.sync.delayMs = 300;
+
+    const response = await post(validBody);
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json().data.excelStatus).toBe('queued');
+  });
+
+  it('после освобождения файла очередь записывается при следующей синхронизации', async () => {
+    t.sync.excelAvailable = false;
+    const { id } = (await post(validBody)).json().data;
+
+    t.sync.excelAvailable = true;
+    await t.sync.requestCycle();
+
+    expect((await t.repository.findById(id))?.excelStatus).toBe('synced');
+  });
+});
+
+describe('идемпотентность', () => {
+  const KEY = '5df127c1-787a-4a40-8c1b-3a6a84bcaf18';
+
+  it('повтор запроса возвращает 200 с тем же id и не создаёт второй расход', async () => {
+    const first = await post(validBody, KEY);
+    const second = await post(validBody, KEY);
+
+    expect(first.statusCode).toBe(201);
+    expect(second.statusCode).toBe(200);
+    expect(second.json().data.id).toBe(first.json().data.id);
+    expect(await expenseCount()).toBe(1);
+  });
+
+  it('повтор не запускает синхронизацию заново', async () => {
+    await post(validBody, KEY);
+    const cycles = t.sync.cycles;
+
+    await post(validBody, KEY);
+
+    expect(t.sync.cycles).toBe(cycles);
+  });
+
+  it('повтор отражает актуальное состояние Excel', async () => {
+    t.sync.excelAvailable = false;
+    await post(validBody, KEY);
+
+    t.sync.excelAvailable = true;
+    await t.sync.requestCycle();
+    const replay = await post(validBody, KEY);
+
+    expect(replay.json().data.excelStatus).toBe('synced');
+  });
+
+  it('два одновременных запроса с одним ключом создают один расход', async () => {
+    const [a, b] = await Promise.all([post(validBody, KEY), post(validBody, KEY)]);
+
+    expect([a.statusCode, b.statusCode].sort()).toEqual([200, 201]);
+    expect(await expenseCount()).toBe(1);
+  });
+
+  it('один и тот же расход с разными ключами — это два расхода', async () => {
+    await post(validBody);
+    await post(validBody);
+
+    expect(await expenseCount()).toBe(2);
+  });
+
+  it('без заголовка возвращает 400 и ничего не пишет', async () => {
+    const response = await post(validBody, null);
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
+    expect(await expenseCount()).toBe(0);
+  });
+
+  it('отклоняет ключ в неверном формате', async () => {
+    const response = await post(validBody, 'коротко');
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('INVALID_IDEMPOTENCY_KEY');
+  });
+
+  it('тот же ключ с другими данными — 422', async () => {
+    await post(validBody, KEY);
+
+    const response = await post({ ...validBody, amount: 1 }, KEY);
+
+    expect(response.statusCode).toBe(422);
+    expect(response.json().error.code).toBe('IDEMPOTENCY_KEY_REUSED');
+  });
+
+  it('невалидные данные не расходуют ключ', async () => {
+    await post({ ...validBody, amount: 0 }, KEY);
+
+    expect((await post(validBody, KEY)).statusCode).toBe(201);
+  });
+});
+
+describe('синхронизация', () => {
+  it('GET /api/sync/status возвращает очередь, последний результат и время сервера', async () => {
+    t.sync.excelAvailable = false;
+    await post(validBody);
+
+    const response = await t.app.inject({ method: 'GET', url: '/api/sync/status' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data).toMatchObject({
+      queued: 1,
+      running: false,
+      intervalMs: 300_000,
+      nextRunAt: null,
+      lastResult: { status: 'locked' },
+    });
+    expect(new Date(response.json().data.serverTime).getTime()).not.toBeNaN();
+  });
+
+  it('POST /api/sync запускает синхронизацию и возвращает состояние', async () => {
+    t.sync.excelAvailable = false;
+    await post(validBody);
+    t.sync.excelAvailable = true;
+
+    const response = await t.app.inject({ method: 'POST', url: '/api/sync' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data).toMatchObject({
+      queued: 0,
+      lastResult: { status: 'ok', written: 1 },
+    });
+  });
+});
+
+describe('логирование', () => {
+  it('в каждом ответе есть X-Request-Id', async () => {
+    const response = await t.app.inject({ method: 'GET', url: '/api/health' });
+
+    expect(response.headers['x-request-id']).toMatch(/^[0-9a-f]{8}$/);
   });
 });
 
 describe('справочники и health', () => {
   it('GET /api/cards', async () => {
-    const response = await createApp().inject({ method: 'GET', url: '/api/cards' });
+    const response = await t.app.inject({ method: 'GET', url: '/api/cards' });
 
     expect(response.json()).toEqual({ success: true, data: ['Миша', 'Настя'] });
   });
 
-  it('GET /api/categories объединяет конфигурацию и Excel', async () => {
-    const response = await createApp().inject({ method: 'GET', url: '/api/categories' });
+  it('GET /api/categories объединяет конфигурацию и БД', async () => {
+    await t.repository.importFromExcel(database, [{ ...validBody, category: 'путешествия' }]);
+
+    const response = await t.app.inject({ method: 'GET', url: '/api/categories' });
 
     expect(response.json()).toEqual({ success: true, data: ['кафе', 'продукты', 'путешествия'] });
   });
 
-  it('GET /api/health не обращается к хранилищу', async () => {
-    const response = await createApp().inject({ method: 'GET', url: '/api/health' });
+  it('GET /api/config возвращает валюту', async () => {
+    const response = await t.app.inject({ method: 'GET', url: '/api/config' });
+
+    expect(response.json()).toEqual({ success: true, data: { currency: 'AMD' } });
+  });
+
+  it('GET /api/health не обращается к Excel', async () => {
+    const response = await t.app.inject({ method: 'GET', url: '/api/health' });
 
     expect(response.json()).toEqual({ status: 'ok' });
-    expect(repository.listCategories).not.toHaveBeenCalled();
+    expect(t.sync.cycles).toBe(0);
   });
 });

@@ -3,6 +3,7 @@ export type OneDriveErrorCode =
   | 'AUTH_FAILED'
   | 'ACCESS_DENIED'
   | 'NETWORK'
+  | 'RCLONE_UNAVAILABLE'
   | 'TIMEOUT'
   | 'RATE_LIMITED'
   | 'QUOTA_EXCEEDED'
@@ -10,6 +11,15 @@ export type OneDriveErrorCode =
   | 'VERSION_CONFLICT'
   | 'UPLOAD_NOT_VERIFIED'
   | 'UNKNOWN';
+
+const REJECTED_CODES: OneDriveErrorCode[] = [
+  'VERSION_CONFLICT',
+  'FILE_LOCKED',
+  'FILE_NOT_FOUND',
+  'AUTH_FAILED',
+  'ACCESS_DENIED',
+  'QUOTA_EXCEEDED',
+];
 
 export class OneDriveError extends Error {
   constructor(
@@ -21,9 +31,19 @@ export class OneDriveError extends Error {
     this.name = 'OneDriveError';
   }
 
+  /** Операция отклонена до изменения файла: запись точно не применилась. */
+  get wasRejected(): boolean {
+    return REJECTED_CODES.includes(this.code);
+  }
+
   /** Временные ошибки, при которых безопасно повторять только чтение. */
   get isTransient(): boolean {
-    return this.code === 'NETWORK' || this.code === 'TIMEOUT' || this.code === 'RATE_LIMITED';
+    return (
+      this.code === 'NETWORK' ||
+      this.code === 'RCLONE_UNAVAILABLE' ||
+      this.code === 'TIMEOUT' ||
+      this.code === 'RATE_LIMITED'
+    );
   }
 }
 

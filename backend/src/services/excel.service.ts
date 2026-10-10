@@ -7,7 +7,7 @@ import { verifyAppendedExpense } from './excel/read.ts';
 import { assertTableIsSupported, readTableRange, replaceTableRef } from './excel/table.ts';
 import type { ExcelOptions, ExcelWriteResult, Expense } from './excel/types.ts';
 
-export { readCategories } from './excel/read.ts';
+export { readExcelExpenses } from './excel/read.ts';
 export { toExcelSerial } from './excel/dates.ts';
 export type { ExcelOptions, ExcelWriteResult, Expense } from './excel/types.ts';
 
@@ -45,6 +45,23 @@ export async function appendExpenseToBuffer(
   await verifyAppendedExpense(output, options, result, expense);
 
   return { output, result };
+}
+
+/** Добавляет несколько операций подряд, каждая проверяется после записи. */
+export async function appendExpensesToBuffer(
+  source: Buffer,
+  expenses: Expense[],
+  options: ExcelOptions,
+): Promise<{ output: Buffer; results: ExcelWriteResult[] }> {
+  let output = source;
+  const results: ExcelWriteResult[] = [];
+
+  for (const expense of expenses) {
+    const written = await appendExpenseToBuffer(output, expense, options);
+    output = written.output;
+    results.push(written.result);
+  }
+  return { output, results };
 }
 
 export async function appendExpense(

@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/.env
+.git
+# Данные и секреты не попадают в образы
+**/*.xlsx
+secrets
+backend/backups
+backend/tests
+frontend/tests

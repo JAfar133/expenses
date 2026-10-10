@@ -1,23 +1,128 @@
+import type { CellValue } from 'exceljs';
 import JSZip from 'jszip';
+import { fromExcelSerial } from './dates.ts';
 import { loadWorkbook } from './exceljs.ts';
 import { locateTable } from './locate-table.ts';
 import { readTableRange } from './table.ts';
 import type { ExcelOptions, ExcelWriteResult, Expense } from './types.ts';
 
-/** Уникальные категории из заполненных строк таблицы в порядке первого появления. */
-export async function readCategories(source: Uint8Array, options: ExcelOptions): Promise<string[]> {
+const MAX_NAME_LENGTH = 255;
+/** Сколько описаний пропущенных строк возвращаем (чтобы ответ не разрастался). */
+const MAX_REPORTED_SKIPS = 20;
+
+export interface SkippedRow {
+  row: number;
+  reason: string;
+}
+
+export interface ExcelExpenses {
+  /** Корректные операции в порядке строк таблицы */
+  expenses: Expense[];
+  /** Сколько заполненных строк нельзя импортировать (некорректные значения) */
+  skippedCount: number;
+  skipped: SkippedRow[];
+}
+
+/**
+ * Читает все операции из структурированной таблицы. Пустые строки игнорируются,
+ * а частично заполненные или некорректные пропускаются и перечисляются в `skipped`.
+ */
+export async function readExcelExpenses(
+  source: Uint8Array,
+  options: ExcelOptions,
+): Promise<ExcelExpenses> {
   const { range } = await readRange(source, options);
   const sheet = (await loadWorkbook(source)).getWorksheet(options.sheetName);
-  const categories = new Set<string>();
+  const result: ExcelExpenses = { expenses: [], skippedCount: 0, skipped: [] };
 
-  for (let row = range.headerRow + 1; row <= range.lastRow; row++) {
-    const value = sheet?.getRow(row).getCell(3).value;
-    if (typeof value === 'string' && value.trim()) {
-      categories.add(value.trim());
+  for (let rowNumber = range.headerRow + 1; rowNumber <= range.lastRow; rowNumber++) {
+    const row = sheet?.getRow(rowNumber);
+    const cells = [1, 2, 3, 4, 5].map((column) => row?.getCell(column).value ?? null);
+    if (cells.every(isEmptyCell)) continue;
+
+    const parsed = parseRow(cells);
+    if (typeof parsed === 'string') {
+      result.skippedCount++;
+      if (result.skipped.length < MAX_REPORTED_SKIPS) {
+        result.skipped.push({ row: rowNumber, reason: parsed });
+      }
+    } else {
+      result.expenses.push(parsed);
     }
   }
 
-  return [...categories];
+  return result;
+}
+
+function parseRow([date, card, category, name, amount]: CellValue[]): Expense | string {
+  const isoDate = toIsoDate(date);
+  if (!isoDate) return 'некорректная дата';
+
+  const cardText = toText(card);
+  if (!cardText) return 'не указана карта';
+
+  const categoryText = toText(category);
+  if (!categoryText) return 'не указана категория';
+
+  const nameText = toText(name);
+  if (!nameText) return 'не указано наименование';
+  if (nameText.length > MAX_NAME_LENGTH) return 'слишком длинное наименование';
+
+  const amountValue = toNumber(amount);
+  if (amountValue === null || !Number.isSafeInteger(amountValue) || amountValue <= 0) {
+    return 'стоимость должна быть положительным целым числом';
+  }
+
+  return {
+    date: isoDate,
+    card: cardText,
+    category: categoryText,
+    name: nameText,
+    amount: amountValue,
+  };
+}
+
+const isEmptyCell = (value: CellValue) =>
+  value === null || value === undefined || (typeof value === 'string' && value.trim() === '');
+
+/** Значение ячейки: формулы заменяются результатом, форматированный текст — склеенной строкой. */
+function unwrap(value: CellValue): CellValue {
+  if (value && typeof value === 'object' && 'result' in value) {
+    return (value.result ?? null) as CellValue;
+  }
+  return value;
+}
+
+function toText(value: CellValue): string | null {
+  const cell = unwrap(value);
+  if (typeof cell === 'string') return cell.trim() || null;
+  if (typeof cell === 'number') return String(cell);
+  if (cell && typeof cell === 'object' && 'richText' in cell) {
+    return (
+      cell.richText
+        .map((part) => part.text)
+        .join('')
+        .trim() || null
+    );
+  }
+  return null;
+}
+
+function toNumber(value: CellValue): number | null {
+  const cell = unwrap(value);
+  return typeof cell === 'number' ? cell : null;
+}
+
+/** Даты в Excel — настоящие даты (Date в UTC) или числа, если у ячейки нет формата даты. */
+function toIsoDate(value: CellValue): string | null {
+  const cell = unwrap(value);
+  if (cell instanceof Date && !Number.isNaN(cell.getTime())) {
+    return cell.toISOString().slice(0, 10);
+  }
+  if (typeof cell === 'number' && cell >= 1 && cell < 2_958_466) {
+    return fromExcelSerial(cell);
+  }
+  return null;
 }
 
 /** Повторно открывает записанный файл и убеждается, что операция лежит внутри таблицы. */

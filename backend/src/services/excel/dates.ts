@@ -24,3 +24,8 @@ export function toExcelSerial(isoDate: string): number {
 
   return Math.round((timestamp - EXCEL_EPOCH_UTC) / MS_PER_DAY);
 }
+
+/** Обратное преобразование: серийный номер даты Excel в ISO-дату (YYYY-MM-DD). */
+export function fromExcelSerial(serial: number): string {
+  return new Date(EXCEL_EPOCH_UTC + Math.floor(serial) * MS_PER_DAY).toISOString().slice(0, 10);
+}

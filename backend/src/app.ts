@@ -1,19 +1,50 @@
-import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
-import { AppError } from './errors/app-error.ts';
+import { randomUUID } from 'node:crypto';
+import Fastify, { LogController, type FastifyInstance, type FastifyServerOptions } from 'fastify';
+import { AppError, databaseUnavailableError } from './errors/app-error.ts';
+import type { IdempotencyService } from './infrastructure/idempotency/idempotency.service.ts';
 import { expensesRoutes } from './modules/expenses/expenses.routes.ts';
 import type { ExpenseService } from './modules/expenses/expenses.service.ts';
+import type { SyncScheduler } from './modules/sync/sync.scheduler.ts';
+import { syncRoutes } from './modules/sync/sync.routes.ts';
+import type { SyncService } from './modules/sync/sync.service.ts';
 
 export interface AppDependencies {
   expenseService: ExpenseService;
+  idempotency: IdempotencyService;
+  sync: SyncService;
+  scheduler: SyncScheduler;
+  /** Сколько ждать записи в Excel перед ответом на создание расхода */
+  inlineExcelWaitMs?: number;
+  currency?: string;
   logger?: FastifyServerOptions['logger'];
 }
 
-export function buildApp({ expenseService, logger = false }: AppDependencies): FastifyInstance {
-  const app = Fastify({ logger });
+export function buildApp({
+  expenseService,
+  idempotency,
+  sync,
+  scheduler,
+  inlineExcelWaitMs = 15_000,
+  currency = 'AMD',
+  logger = false,
+}: AppDependencies): FastifyInstance {
+  const app = Fastify({
+    logger,
+    // Короткий идентификатор запроса попадает во все строки лога и в заголовок ответа
+    genReqId: () => randomUUID().slice(0, 8),
+    logController: new LogController({ requestIdLogLabel: 'requestId' }),
+  });
 
-  app.setErrorHandler((error, request, reply) => {
+  app.addHook('onSend', async (request, reply) => {
+    reply.header('X-Request-Id', request.id);
+  });
+
+  app.setErrorHandler((rawError, request, reply) => {
+    // Недоступная БД — это «попробуйте позже», а не внутренняя ошибка
+    const error = isConnectionError(rawError) ? databaseUnavailableError(rawError) : rawError;
+
+    // Для ошибок приложения строка лога уже записана в обработчике операции
     if (error instanceof AppError) {
-      request.log.warn({ err: error, code: error.code }, 'Request failed');
       return reply.code(error.statusCode).send(errorBody(error.code, error.message));
     }
 
@@ -30,7 +61,11 @@ export function buildApp({ expenseService, logger = false }: AppDependencies): F
   });
 
   app.get('/api/health', async () => ({ status: 'ok' }));
-  app.register(expensesRoutes(expenseService), { prefix: '/api' });
+  app.get('/api/config', async () => ({ success: true, data: { currency } }));
+  app.register(expensesRoutes({ expenseService, idempotency, sync, inlineExcelWaitMs }), {
+    prefix: '/api',
+  });
+  app.register(syncRoutes({ sync, scheduler }), { prefix: '/api' });
 
   return app;
 }
@@ -39,3 +74,18 @@ const errorBody = (code: string, message: string) => ({
   success: false,
   error: { code, message },
 });
+
+/** Коды сетевых ошибок Node и ошибок PostgreSQL «сервер недоступен / завершает работу». */
+const CONNECTION_ERROR_CODES = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ENOTFOUND',
+  'ETIMEDOUT',
+  '57P01',
+  '57P03',
+  '08006',
+  '08001',
+]);
+
+const isConnectionError = (error: unknown): boolean =>
+  CONNECTION_ERROR_CODES.has((error as { code?: string })?.code ?? '');

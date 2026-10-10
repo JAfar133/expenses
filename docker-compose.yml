@@ -1,0 +1,92 @@
+# Expenses Tracker: PostgreSQL + backend (Fastify) + web (Caddy: статика и прокси /api).
+#
+#   cp .env.example .env              # и заполните значения
+#   mkdir -p secrets && cp ~/.config/rclone/rclone.conf secrets/rclone.conf
+#   docker compose up -d --build
+#
+# Только база для локальной разработки:  docker compose up -d --wait postgres
+name: expenses-tracker
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: expenses
+      POSTGRES_USER: expenses
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Задайте POSTGRES_PASSWORD в файле .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Порт открыт только на localhost: нужен для запуска backend вне Docker (npm run dev)
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U expenses -d expenses"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+      # Пароль подставляется в URL как есть: используйте буквы и цифры (openssl rand -hex 24)
+      DATABASE_URL: postgres://expenses:${POSTGRES_PASSWORD}@postgres:5432/expenses
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Yerevan}
+      DEFAULT_CURRENCY: ${DEFAULT_CURRENCY:-AMD}
+      EXCEL_SHEET_NAME: ${EXCEL_SHEET_NAME:-Лист1}
+      EXCEL_TABLE_NAME: ${EXCEL_TABLE_NAME:-Операции}
+      ONEDRIVE_REMOTE: ${ONEDRIVE_REMOTE:-onedrive}
+      ONEDRIVE_FILE_PATH: ${ONEDRIVE_FILE_PATH:?Задайте ONEDRIVE_FILE_PATH в файле .env}
+      BACKUP_DIR: /data/backups
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      SYNC_INTERVAL_MINUTES: ${SYNC_INTERVAL_MINUTES:-5}
+      SYNC_RETRY_SECONDS: ${SYNC_RETRY_SECONDS:-60}
+      SYNC_INLINE_WAIT_SECONDS: ${SYNC_INLINE_WAIT_SECONDS:-15}
+      CARDS: ${CARDS:-Миша,Настя}
+      CATEGORIES: ${CATEGORIES:-кафе,одежда,продукты,жилье,маркетплейс,другое}
+    volumes:
+      # Конфигурация rclone (с обновляемыми токенами) и резервные копии Excel
+      - backend-data:/data
+    secrets:
+      - rclone.conf
+    # Наружу не публикуется: доступен только сервису web
+    expose:
+      - "3000"
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      # Для HTTPS на сервере укажите домен, например expenses.example.com
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      # Пока в приложении нет авторизации, порт слушает только localhost
+      - "${WEB_BIND:-127.0.0.1}:${HTTP_PORT:-8080}:80"
+      - "${WEB_BIND:-127.0.0.1}:${HTTPS_PORT:-8443}:443"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+
+secrets:
+  rclone.conf:
+    file: ./secrets/rclone.conf
+
+volumes:
+  pgdata:
+  backend-data:
+  caddy-data:
+  caddy-config:

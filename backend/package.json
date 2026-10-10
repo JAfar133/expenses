@@ -7,7 +7,9 @@
     "format": "prettier --write .",
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R src/infrastructure/database/migrations dist/infrastructure/database/",
+    "start:prod": "node dist/server.js"
   },
   "keywords": [],
   "author": "",
@@ -18,10 +20,14 @@
     "exceljs": "^4.4.0",
     "fastify": "^5.12.5",
     "jszip": "^3.10.2",
+    "pg": "^8.23.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-socket": "^0.2.11",
     "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
     "prettier": "^3.9.10",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
