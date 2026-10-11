@@ -6,9 +6,12 @@ import { MonthlyTotalsChart } from '../components/MonthlyTotalsChart.tsx';
 import { MonthsTable } from '../components/MonthsTable.tsx';
 import { MonthVsMonth } from '../components/MonthVsMonth.tsx';
 import { useAnalyticsReference } from '../hooks/useAnalyticsReference.ts';
+import { useDisplayCurrency } from '../hooks/useDisplayCurrency.tsx';
+import { scaleBreakdown, scaleSeries } from '../model/currency.ts';
 import { useBreakdown, useTimeseries } from '../hooks/useAnalytics.ts';
 import { useFilterState } from '../hooks/useFilterState.ts';
-import { usePersistentChoice } from '../hooks/usePersistentChoice.ts';
+import { usePreference } from '../../preferences/hooks/usePreferences.ts';
+import { PREFERENCES } from '../../preferences/model/preferences.ts';
 import { toCategoryMatrix, toMonthRows } from '../model/compare.ts';
 import { toApiFilters } from '../model/filter-state.ts';
 import {
@@ -20,9 +23,6 @@ import {
   type MonthKey,
 } from '../model/periods.ts';
 
-const RANGES = ['6', '12', '24'] as const;
-const RANGE_OPTIONS = RANGES.map((value) => ({ value, label: `${value} мес.` }));
-
 /** Месяц из адреса, если он в показанном диапазоне; иначе значение по умолчанию. */
 const monthParam = (value: string | null, months: MonthKey[], fallback: MonthKey): MonthKey =>
   isMonthKey(value) && months.includes(value) ? value : fallback;
@@ -31,8 +31,9 @@ const monthParam = (value: string | null, months: MonthKey[], fallback: MonthKey
 export default function ComparePage() {
   const { state, today } = useFilterState();
   const [params, setParams] = useSearchParams();
-  const [range, setRange] = usePersistentChoice('compare.months', RANGES, '12');
-  const { currency, categoryOrder } = useAnalyticsReference();
+  const [range, setRange] = usePreference('compare.months');
+  const { categoryOrder } = useAnalyticsReference();
+  const { code: currency, factor } = useDisplayCurrency();
 
   const latest = monthOf(today);
   const months = monthsEndingAt(latest, Number(range));
@@ -60,8 +61,10 @@ export default function ComparePage() {
     'category',
   );
 
-  const monthRows = totals.data ? toMonthRows(totals.data, today) : undefined;
-  const matrix = byCategory.data ? toCategoryMatrix(byCategory.data, months) : undefined;
+  const monthRows = totals.data ? toMonthRows(scaleSeries(totals.data, factor), today) : undefined;
+  const matrix = byCategory.data
+    ? toCategoryMatrix(scaleSeries(byCategory.data, factor), months)
+    : undefined;
 
   const pickMonths = (next: { a: MonthKey; b: MonthKey }) =>
     setParams(
@@ -80,7 +83,7 @@ export default function ComparePage() {
         <h2 className="text-lg font-semibold">Сравнение по месяцам</h2>
         <ChartTypeSwitch
           label="За сколько месяцев"
-          options={RANGE_OPTIONS}
+          options={PREFERENCES['compare.months'].options}
           mobileColumns={3}
           value={range}
           onChange={setRange}
@@ -113,8 +116,8 @@ export default function ComparePage() {
         a={a}
         b={b}
         onChange={pickMonths}
-        rowsA={rowsA.data}
-        rowsB={rowsB.data}
+        rowsA={rowsA.data && scaleBreakdown(rowsA.data, factor)}
+        rowsB={rowsB.data && scaleBreakdown(rowsB.data, factor)}
         currency={currency}
         loading={rowsA.isPending || rowsB.isPending}
       />

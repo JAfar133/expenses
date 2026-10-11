@@ -6,6 +6,8 @@ import { CategoryNames } from '../components/CategoryNames.tsx';
 import { DailyChart } from '../components/DailyChart.tsx';
 import { StatTile } from '../components/StatTile.tsx';
 import { useAnalyticsReference } from '../hooks/useAnalyticsReference.ts';
+import { useDisplayCurrency } from '../hooks/useDisplayCurrency.tsx';
+import { scaleBreakdown, scaleSeries, scaleSummary } from '../model/currency.ts';
 import { useBreakdown, useSummary, useTimeseries } from '../hooks/useAnalytics.ts';
 import { useFilterState } from '../hooks/useFilterState.ts';
 import { changePercent } from '../model/chart-data.ts';
@@ -17,7 +19,8 @@ export default function OverviewPage() {
   const { state, today } = useFilterState();
   const filters = toApiFilters(state, today);
   const granularity = granularityFor(state, today);
-  const { currency, categoryOrder } = useAnalyticsReference();
+  const { categoryOrder } = useAnalyticsReference();
+  const { code: currency, factor, digits } = useDisplayCurrency();
 
   const summary = useSummary(filters);
   const series = useTimeseries(filters, granularity);
@@ -39,10 +42,12 @@ export default function OverviewPage() {
       { replace: true },
     );
 
-  const current = summary.data?.current;
-  const previous = summary.data?.previous ?? undefined;
+  // В базе суммы в драммах; в выбранную валюту пересчитываем при показе
+  const scaled = summary.data && scaleSummary(summary.data, factor);
+  const current = scaled?.current;
+  const previous = scaled?.previous ?? undefined;
   const money = (value: number | undefined) =>
-    value === undefined ? '…' : `${formatMoney(Math.round(value))} ${currency}`;
+    value === undefined ? '…' : `${formatMoney(value, digits)} ${currency}`;
   const note = current ? `к предыдущим ${current.days} дн.` : undefined;
 
   return (
@@ -85,23 +90,23 @@ export default function OverviewPage() {
       </div>
 
       <DailyChart
-        points={series.data}
+        points={series.data && scaleSeries(series.data, factor)}
         currency={currency}
         granularity={granularity}
         loading={series.isPending}
       />
       <CategoryChart
-        rows={categories.data}
+        rows={categories.data && scaleBreakdown(categories.data, factor)}
         currency={currency}
         categoryOrder={categoryOrder}
         onSelect={selectCategory}
         loading={categories.isPending}
       />
       <CategoryNames
-        categories={categories.data ?? []}
+        categories={scaleBreakdown(categories.data ?? [], factor)}
         selected={drill}
         onSelect={selectCategory}
-        names={drill ? names.data : []}
+        names={drill ? names.data && scaleBreakdown(names.data, factor) : []}
         categoryOrder={categoryOrder}
         currency={currency}
         loading={names.isPending && drill !== undefined}

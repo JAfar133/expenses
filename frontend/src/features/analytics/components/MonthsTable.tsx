@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useDisplayCurrency } from '../hooks/useDisplayCurrency.tsx';
 import { formatMoney } from '../../../shared/utils/money.ts';
 import { sortRows, type MonthRow, type SortDirection } from '../model/compare.ts';
 import { monthLabel } from '../model/periods.ts';
@@ -24,6 +25,7 @@ interface MonthsTableProps {
 
 /** Таблица по месяцам с сортировкой по любому столбцу (по умолчанию новые месяцы сверху). */
 export function MonthsTable({ rows, currency }: MonthsTableProps) {
+  const { digits } = useDisplayCurrency();
   const [sort, setSort] = useState<{ column: Column; direction: SortDirection }>({
     column: 'month',
     direction: 'desc',
@@ -92,7 +94,7 @@ export function MonthsTable({ rows, currency }: MonthsTableProps) {
                   </td>
                   <td className="py-2 text-right tabular-nums">{row.count}</td>
                   <td className="py-2 text-right tabular-nums">
-                    {formatMoney(Math.round(row.perDay))}
+                    {formatMoney(row.perDay, digits)}
                   </td>
                   <td className="py-2 text-right tabular-nums">
                     <Change value={row.change} />

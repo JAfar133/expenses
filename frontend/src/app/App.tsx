@@ -6,6 +6,7 @@ import { AppShell } from './AppShell.tsx';
 import { QueryProvider } from './providers/QueryProvider.tsx';
 
 // Страница анализа и графики грузятся только при открытии: форма добавления расхода остаётся лёгкой
+const SettingsPage = lazy(() => import('../features/settings/pages/SettingsPage.tsx'));
 const AnalyticsRoutes = lazy(() => import('../features/analytics/pages/AnalyticsRoutes.tsx'));
 
 export function App() {
@@ -18,6 +19,7 @@ export function App() {
               <Route element={<AppShell user={user} />}>
                 <Route index element={<AddExpensePage user={user} />} />
                 <Route path="analytics/*" element={<AnalyticsRoutes />} />
+                <Route path="settings" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Route>
             </Routes>

@@ -5,6 +5,10 @@ export interface AuthUser {
   displayName: string;
   /** Карта по умолчанию для формы расхода */
   card: string;
+  /** Может ли править и удалять записи */
+  canEdit: boolean;
+  /** Часовой пояс пользователя (IANA): по нему определяется «сегодня» */
+  timezone: string;
 }
 
 export interface TokenPair {

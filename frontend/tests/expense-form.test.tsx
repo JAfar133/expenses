@@ -72,8 +72,20 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-const MISHA = { username: 'misha', displayName: 'Миша', card: 'Миша', canEdit: true };
-const NASTYA = { username: 'nastya', displayName: 'Настя', card: 'Настя', canEdit: false };
+const MISHA = {
+  username: 'misha',
+  displayName: 'Миша',
+  card: 'Миша',
+  canEdit: true,
+  timezone: 'Asia/Yerevan',
+};
+const NASTYA = {
+  username: 'nastya',
+  displayName: 'Настя',
+  card: 'Настя',
+  canEdit: false,
+  timezone: 'Asia/Yerevan',
+};
 
 async function renderPage(user = MISHA) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -107,7 +119,7 @@ describe('отображение формы', () => {
     expect(screen.getByLabelText('Категория')).toHaveValue('');
     expect(screen.getByLabelText('Наименование')).toBeInTheDocument();
     expect(screen.getByLabelText('Стоимость')).toHaveAttribute('inputmode', 'numeric');
-    expect(screen.getByText('AMD')).toBeInTheDocument();
+    expect(screen.getByText('🇦🇲 AMD')).toBeInTheDocument();
   });
 
   it('предлагает повторить, если справочники не загрузились', async () => {
@@ -145,7 +157,13 @@ describe('карта по умолчанию зависит от пользов�
   });
 
   it('если карты пользователя нет в справочнике, выбирается первая', async () => {
-    await renderPage({ username: 'ivan', displayName: 'Иван', card: 'Иван', canEdit: false });
+    await renderPage({
+      username: 'ivan',
+      displayName: 'Иван',
+      card: 'Иван',
+      canEdit: false,
+      timezone: 'Asia/Yerevan',
+    });
 
     expect(screen.getByRole('radio', { name: /Миша/ })).toBeChecked();
   });
@@ -197,7 +215,7 @@ describe('валюта', () => {
     await renderPage();
 
     expect(screen.queryByRole('combobox', { name: 'Валюта' })).toBeNull();
-    expect(screen.getByText('AMD')).toBeInTheDocument();
+    expect(screen.getByText('🇦🇲 AMD')).toBeInTheDocument();
   });
 
   it('предлагает валюты с сервера, по умолчанию драммы без поля курса', async () => {
@@ -211,7 +229,7 @@ describe('валюта', () => {
       within(select)
         .getAllByRole('option')
         .map((o) => o.textContent),
-    ).toEqual(['AMD', 'RUB', 'USD', 'EUR']);
+    ).toEqual(['🇦🇲 AMD', '🇷🇺 RUB', '🇺🇸 USD', '🇪🇺 EUR']);
     expect(screen.queryByLabelText(/Курс/)).toBeNull();
   });
 

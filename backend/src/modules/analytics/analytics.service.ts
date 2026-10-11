@@ -31,16 +31,16 @@ export interface AnalyticsServiceOptions {
     AnalyticsRepository,
     'summary' | 'breakdown' | 'timeseries' | 'list' | 'authors'
   >;
-  /** Сегодняшняя дата в часовом поясе приложения (YYYY-MM-DD) */
-  today: () => string;
+  /** Сегодняшняя дата в часовом поясе пользователя (YYYY-MM-DD) */
+  today: (timezone: string) => string;
 }
 
 /** Показатели, графики и списки для страницы анализа. */
 export class AnalyticsService {
   constructor(private readonly options: AnalyticsServiceOptions) {}
 
-  async summary(filters: AnalyticsFilters): Promise<SummaryResult> {
-    const today = this.options.today();
+  async summary(filters: AnalyticsFilters, timezone = 'UTC'): Promise<SummaryResult> {
+    const today = this.options.today(timezone);
     const stats = await this.options.repository.summary(filters);
     const current = withPerDay(stats, elapsedDays(filters, stats, today));
 
@@ -70,13 +70,14 @@ export class AnalyticsService {
     filters: AnalyticsFilters,
     granularity: Granularity,
     splitBy?: SeriesSplit,
+    timezone = 'UTC',
   ): Promise<SeriesPoint[]> {
     const points = await this.options.repository.timeseries(filters, granularity, splitBy);
     // Без разбивки и без известного периода заполнять нечем
     const noRange = points.length === 0 && !(filters.from && filters.to);
     if (splitBy || noRange) return points;
 
-    const today = this.options.today();
+    const today = this.options.today(timezone);
     const first = filters.from ?? points[0]!.period;
     const lastWanted = filters.to ?? points[points.length - 1]!.period;
     const last = lastWanted > today ? today : lastWanted;

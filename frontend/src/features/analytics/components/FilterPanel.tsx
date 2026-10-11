@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useFilterOptions } from '../hooks/useFilterOptions.ts';
-import { usePersistentChoice } from '../hooks/usePersistentChoice.ts';
+import { usePreference } from '../../preferences/hooks/usePreferences.ts';
 import { activeFilterCount, type FilterState } from '../model/filter-state.ts';
 import { ActiveFilters } from './ActiveFilters.tsx';
 import { DebouncedInput } from './DebouncedInput.tsx';
@@ -15,8 +15,6 @@ interface FilterPanelProps {
   /** Показывать выбор периода; у сравнения месяцев период свой */
   showPeriod?: boolean;
 }
-
-const OPEN_STATES = ['open', 'closed'] as const;
 
 function FieldGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -38,7 +36,7 @@ export function FilterPanel({
   onReset,
   showPeriod = true,
 }: FilterPanelProps) {
-  const [openState, setOpenState] = usePersistentChoice('filters.panel', OPEN_STATES, 'closed');
+  const [openState, setOpenState] = usePreference('filters.panel');
   const open = openState === 'open';
   const options = useFilterOptions();
   const count = activeFilterCount(state);

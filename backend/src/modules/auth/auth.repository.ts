@@ -5,6 +5,8 @@ import type { AuthUser, ClientContext } from './auth.types.ts';
 
 export interface StoredUser extends AuthUser {
   passwordHash: string | null;
+  /** Хеш последнего применённого пароля из .env (см. миграцию 0007) */
+  envPasswordHash: string | null;
   disabled: boolean;
 }
 
@@ -24,7 +26,10 @@ interface UserRow {
   username: string;
   display_name: string;
   card: string;
+  can_edit: boolean;
+  timezone: string;
   password_hash: string | null;
+  env_password_hash: string | null;
   disabled: boolean;
 }
 
@@ -34,6 +39,8 @@ interface SessionRow {
   username: string;
   display_name: string;
   card: string;
+  can_edit: boolean;
+  timezone: string;
   access_expires_at: string;
   refresh_expires_at: string;
   created_at: string;
@@ -46,12 +53,22 @@ const toUser = (row: UserRow): StoredUser => ({
   username: row.username,
   displayName: row.display_name,
   card: row.card,
+  canEdit: row.can_edit,
+  timezone: row.timezone,
   passwordHash: row.password_hash,
+  envPasswordHash: row.env_password_hash,
   disabled: row.disabled,
 });
 
+/** Значения, которые видит приложение: личный выбор пользователя поверх значений из конфигурации. */
+const EFFECTIVE_USER_COLUMNS = `
+  COALESCE(u.custom_display_name, u.display_name) AS display_name,
+  COALESCE(u.custom_card, u.card) AS card,
+  COALESCE(u.can_edit_override, u.can_edit_default) AS can_edit,
+  COALESCE(u.custom_timezone, u.timezone_default) AS timezone`;
+
 const SESSION_COLUMNS = `
-  s.id, s.user_id, u.username, u.display_name, u.card,
+  s.id, s.user_id, u.username, ${EFFECTIVE_USER_COLUMNS},
   ${timestampText('s.access_expires_at')} AS access_expires_at,
   ${timestampText('s.refresh_expires_at')} AS refresh_expires_at,
   ${timestampText('s.created_at')} AS created_at,
@@ -59,7 +76,14 @@ const SESSION_COLUMNS = `
 
 const toSession = (row: SessionRow): StoredSession => ({
   id: row.id,
-  user: { id: row.user_id, username: row.username, displayName: row.display_name, card: row.card },
+  user: {
+    id: row.user_id,
+    username: row.username,
+    displayName: row.display_name,
+    card: row.card,
+    canEdit: row.can_edit,
+    timezone: row.timezone,
+  },
   accessExpiresAt: new Date(row.access_expires_at),
   refreshExpiresAt: new Date(row.refresh_expires_at),
   createdAt: new Date(row.created_at),
@@ -80,16 +104,77 @@ export interface NewSession {
 export class AuthRepository {
   constructor(private readonly database: Database) {}
 
-  /** Создаёт или обновляет пользователя из настроек. Пароль не трогает. */
-  async upsertUser(username: string, card: string): Promise<void> {
+  /**
+   * Создаёт или обновляет пользователя из настроек (карта, часовой пояс и право правки «по умолчанию»).
+   * Личный выбор пользователя (custom_*) и пароль не трогает.
+   */
+  async upsertUser(
+    username: string,
+    card: string,
+    defaults: { canEdit?: boolean; timezone?: string } = {},
+  ): Promise<void> {
     await this.database.query(
-      `INSERT INTO users (id, username, display_name, card)
-       VALUES ($1, $2, $3, $3)
+      `INSERT INTO users (id, username, display_name, card, can_edit_default, timezone_default)
+       VALUES ($1, $2, $3, $3, $4, $5)
        ON CONFLICT (username) DO UPDATE
          SET display_name = EXCLUDED.display_name, card = EXCLUDED.card,
+             can_edit_default = EXCLUDED.can_edit_default,
+             timezone_default = EXCLUDED.timezone_default,
              disabled_at = NULL, updated_at = now()`,
-      [randomUUID(), username, card],
+      [randomUUID(), username, card, defaults.canEdit ?? false, defaults.timezone ?? 'UTC'],
     );
+  }
+
+  /**
+   * Личные настройки аккаунта. Передано значение: сохраняется; `null`: возврат к значению по умолчанию;
+   * не передано: не меняется.
+   */
+  async updateProfile(
+    userId: string,
+    profile: { displayName?: string | null; card?: string | null; timezone?: string | null },
+  ): Promise<void> {
+    const has = (key: keyof typeof profile) => profile[key] !== undefined;
+    await this.database.query(
+      `UPDATE users
+          SET custom_display_name = CASE WHEN $2 THEN $3 ELSE custom_display_name END,
+              custom_card = CASE WHEN $4 THEN $5 ELSE custom_card END,
+              custom_timezone = CASE WHEN $6 THEN $7 ELSE custom_timezone END,
+              updated_at = now()
+        WHERE id = $1`,
+      [
+        userId,
+        has('displayName'),
+        profile.displayName ?? null,
+        has('card'),
+        profile.card ?? null,
+        has('timezone'),
+        profile.timezone ?? null,
+      ],
+    );
+  }
+
+  async setCanEditOverride(userId: string, canEdit: boolean): Promise<void> {
+    await this.database.query(
+      'UPDATE users SET can_edit_override = $2, updated_at = now() WHERE id = $1',
+      [userId, canEdit],
+    );
+  }
+
+  /** Все включённые пользователи с их эффективными значениями. */
+  async listUsers(): Promise<AuthUser[]> {
+    const rows = await this.database.query<UserRow>(
+      `SELECT u.id, u.username, ${EFFECTIVE_USER_COLUMNS}, u.password_hash, u.env_password_hash,
+              false AS disabled
+         FROM users u WHERE u.disabled_at IS NULL ORDER BY u.username`,
+    );
+    return rows.map(({ id, username, display_name, card, can_edit, timezone }) => ({
+      id,
+      username,
+      displayName: display_name,
+      card,
+      canEdit: can_edit,
+      timezone,
+    }));
   }
 
   /** Пользователи, которых больше нет в настройках, отключаются: войти они не смогут. */
@@ -107,23 +192,42 @@ export class AuthRepository {
 
   async findUser(username: string): Promise<StoredUser | undefined> {
     const [row] = await this.database.query<UserRow>(
-      `SELECT id, username, display_name, card, password_hash, (disabled_at IS NOT NULL) AS disabled
-       FROM users WHERE username = $1`,
+      `SELECT u.id, u.username, ${EFFECTIVE_USER_COLUMNS}, u.password_hash, u.env_password_hash,
+              (u.disabled_at IS NOT NULL) AS disabled
+       FROM users u WHERE u.username = $1`,
       [username],
     );
     return row && toUser(row);
   }
 
-  /** Сохраняет хеш пароля и завершает все сессии пользователя. */
-  async setPasswordHash(userId: string, passwordHash: string): Promise<void> {
+  /** Запоминает, какой пароль из .env уже учтён (сам пароль пользователя не меняется). */
+  async markEnvPassword(userId: string, envPasswordHash: string): Promise<void> {
+    await this.database.query('UPDATE users SET env_password_hash = $2 WHERE id = $1', [
+      userId,
+      envPasswordHash,
+    ]);
+  }
+
+  /**
+   * Сохраняет новый хеш пароля. Если пароль задан из .env, запоминает и его (`envPasswordHash`).
+   * Завершает сессии пользователя, кроме `keepSessionId` (при смене пароля текущая сессия остаётся).
+   */
+  async setPasswordHash(
+    userId: string,
+    passwordHash: string,
+    options: { envPasswordHash?: string; keepSessionId?: string } = {},
+  ): Promise<void> {
     await this.database.transaction(async (tx) => {
-      await tx.query('UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1', [
-        userId,
-        passwordHash,
-      ]);
       await tx.query(
-        'UPDATE auth_sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL',
-        [userId],
+        `UPDATE users SET password_hash = $2, env_password_hash = COALESCE($3, env_password_hash),
+                          updated_at = now()
+          WHERE id = $1`,
+        [userId, passwordHash, options.envPasswordHash ?? null],
+      );
+      await tx.query(
+        `UPDATE auth_sessions SET revoked_at = now()
+          WHERE user_id = $1 AND revoked_at IS NULL AND ($2::uuid IS NULL OR id <> $2::uuid)`,
+        [userId, options.keepSessionId ?? null],
       );
     });
   }

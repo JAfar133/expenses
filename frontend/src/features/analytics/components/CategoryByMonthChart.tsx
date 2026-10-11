@@ -10,21 +10,14 @@ import {
   YAxis,
 } from 'recharts';
 import { formatMoney } from '../../../shared/utils/money.ts';
-import { usePersistentChoice } from '../hooks/usePersistentChoice.ts';
+import { usePreference } from '../../preferences/hooks/usePreferences.ts';
+import { PREFERENCES } from '../../preferences/model/preferences.ts';
 import { assignColors, compactNumber, OTHER_KEY, seriesColor } from '../model/chart-data.ts';
 import type { CategoryMatrix } from '../model/compare.ts';
 import { monthLabel, monthYearShortLabel } from '../model/periods.ts';
 import { ChartCard, ChartMessage, DataTable } from './ChartCard.tsx';
 import { ChartTooltip } from './ChartTooltip.tsx';
 import { ChartTypeSwitch } from './ChartTypeSwitch.tsx';
-
-const TYPES = ['stacked', 'lines'] as const;
-type MatrixType = (typeof TYPES)[number];
-
-const TYPE_OPTIONS = [
-  { value: 'stacked', label: 'С накоплением' },
-  { value: 'lines', label: 'Линии' },
-] satisfies { value: MatrixType; label: string }[];
 
 const axisTick = { fill: 'var(--chart-axis)', fontSize: 12 };
 
@@ -42,7 +35,7 @@ export function CategoryByMonthChart({
   currency,
   loading = false,
 }: CategoryByMonthChartProps) {
-  const [type, setType] = usePersistentChoice<MatrixType>('matrix.type', TYPES, 'stacked');
+  const [type, setType] = usePreference('matrix.type');
   const categories = matrix?.categories ?? [];
   const hasData = matrix?.rows.some((row) => Object.keys(row.values).length > 0) ?? false;
 
@@ -119,7 +112,7 @@ export function CategoryByMonthChart({
       actions={
         <ChartTypeSwitch
           label="Вид графика"
-          options={TYPE_OPTIONS}
+          options={PREFERENCES['matrix.type'].options}
           mobileColumns={2}
           value={type}
           onChange={setType}

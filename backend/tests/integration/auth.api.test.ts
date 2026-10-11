@@ -63,7 +63,13 @@ describe('POST /api/auth/login', () => {
     expect(response.json()).toEqual({
       success: true,
       data: {
-        user: { username: 'nastya', displayName: 'Настя', card: 'Настя', canEdit: false },
+        user: {
+          username: 'nastya',
+          displayName: 'Настя',
+          card: 'Настя',
+          canEdit: false,
+          timezone: 'Asia/Yerevan',
+        },
       },
     });
   });
@@ -208,6 +214,7 @@ describe('защита маршрутов', () => {
       displayName: 'Миша',
       card: 'Миша',
       canEdit: true,
+      timezone: 'Asia/Yerevan',
     });
   });
 
@@ -451,5 +458,130 @@ describe('защита от CSRF (проверка Origin)', () => {
     const response = await t.app.inject({ method: 'GET', url: '/api/cards', cookies });
 
     expect(response.statusCode).toBe(200);
+  });
+});
+
+describe('POST /api/auth/password', () => {
+  const NEW_PASSWORD = 'brand-new-password-9';
+
+  const changePassword = (
+    cookies: Record<string, string>,
+    payload: unknown,
+    headers: Record<string, string> = json,
+  ) =>
+    authed(cookies, {
+      method: 'POST',
+      url: '/api/auth/password',
+      headers,
+      payload: JSON.stringify(payload),
+    });
+
+  it('меняет пароль: новый работает, старый нет', async () => {
+    const { cookies } = await login();
+
+    const response = await changePassword(cookies, {
+      currentPassword: TEST_PASSWORD,
+      newPassword: NEW_PASSWORD,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ success: true });
+    expect((await login('misha', NEW_PASSWORD)).response.statusCode).toBe(200);
+    expect((await login('misha', TEST_PASSWORD)).response.statusCode).toBe(401);
+  });
+
+  it('текущая сессия остаётся, вход с другого устройства закрывается', async () => {
+    const here = await login();
+    const elsewhere = await login();
+
+    await changePassword(here.cookies, {
+      currentPassword: TEST_PASSWORD,
+      newPassword: NEW_PASSWORD,
+    });
+
+    expect((await authed(here.cookies, { method: 'GET', url: '/api/auth/me' })).statusCode).toBe(
+      200,
+    );
+    expect(
+      (await authed(elsewhere.cookies, { method: 'GET', url: '/api/auth/me' })).statusCode,
+    ).toBe(401);
+  });
+
+  it('пароль и токены не попадают в ответ', async () => {
+    const { cookies } = await login();
+
+    const response = await changePassword(cookies, {
+      currentPassword: TEST_PASSWORD,
+      newPassword: NEW_PASSWORD,
+    });
+
+    expect(response.body).not.toContain(NEW_PASSWORD);
+    expect(response.body).not.toContain(TEST_PASSWORD);
+  });
+
+  it.each([
+    [
+      'неверный текущий пароль',
+      { currentPassword: 'wrong-password-1', newPassword: NEW_PASSWORD },
+      'INVALID_CURRENT_PASSWORD',
+    ],
+    ['короткий новый', { currentPassword: TEST_PASSWORD, newPassword: 'short' }, 'WEAK_PASSWORD'],
+    [
+      'новый совпадает с текущим',
+      { currentPassword: TEST_PASSWORD, newPassword: TEST_PASSWORD },
+      'SAME_PASSWORD',
+    ],
+    ['нет полей', {}, 'INVALID_PASSWORD_REQUEST'],
+    ['поля не строки', { currentPassword: 1, newPassword: 2 }, 'INVALID_PASSWORD_REQUEST'],
+  ])('%s: 422 %s, пароль не меняется', async (_title, payload, code) => {
+    const { cookies } = await login();
+
+    const response = await changePassword(cookies, payload);
+
+    expect(response.statusCode).toBe(422);
+    expect(response.json().error.code).toBe(code);
+    expect((await login('misha', TEST_PASSWORD)).response.statusCode).toBe(200);
+  });
+
+  it('после пяти неверных попыток 429 с Retry-After', async () => {
+    const { cookies } = await login();
+
+    for (let i = 0; i < 5; i++) {
+      await changePassword(cookies, {
+        currentPassword: 'wrong-password-1',
+        newPassword: NEW_PASSWORD,
+      });
+    }
+    const blocked = await changePassword(cookies, {
+      currentPassword: TEST_PASSWORD,
+      newPassword: NEW_PASSWORD,
+    });
+
+    expect(blocked.statusCode).toBe(429);
+    expect(blocked.headers['retry-after']).toBeDefined();
+  });
+
+  it('без входа 401, без Origin сайта 403', async () => {
+    expect(
+      (
+        await t.app.inject({
+          method: 'POST',
+          url: '/api/auth/password',
+          headers: { ...json, origin: TEST_ORIGIN },
+          payload: body({ currentPassword: TEST_PASSWORD, newPassword: NEW_PASSWORD }),
+        })
+      ).statusCode,
+    ).toBe(401);
+
+    const { cookies } = await login();
+    const forged = await t.app.inject({
+      method: 'POST',
+      url: '/api/auth/password',
+      cookies,
+      headers: { ...json, origin: 'https://evil.example' },
+      payload: body({ currentPassword: TEST_PASSWORD, newPassword: NEW_PASSWORD }),
+    });
+    expect(forged.statusCode).toBe(403);
+    expect((await login('misha', TEST_PASSWORD)).response.statusCode).toBe(200);
   });
 });

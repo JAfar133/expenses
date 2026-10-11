@@ -6,7 +6,7 @@ interface Option<T extends string> {
 interface ChartTypeSwitchProps<T extends string> {
   /** Что переключаем, для скринридера */
   label: string;
-  options: Option<T>[];
+  options: readonly Option<T>[];
   value: T;
   onChange: (value: T) => void;
   /**

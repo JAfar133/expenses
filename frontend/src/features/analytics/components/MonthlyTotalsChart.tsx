@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { useDisplayCurrency } from '../hooks/useDisplayCurrency.tsx';
 import { formatMoney } from '../../../shared/utils/money.ts';
 import { compactNumber } from '../model/chart-data.ts';
 import { averageOfCompleteMonths, type MonthRow } from '../model/compare.ts';
@@ -27,6 +28,7 @@ interface MonthlyTotalsChartProps {
 
 /** Расходы по месяцам: столбики и линия среднего по завершённым месяцам. Текущий (неполный) месяц светлее. */
 export function MonthlyTotalsChart({ rows, currency, loading = false }: MonthlyTotalsChartProps) {
+  const { digits } = useDisplayCurrency();
   const hasSpending = rows?.some((row) => row.total > 0) ?? false;
   const average = rows ? averageOfCompleteMonths(rows) : null;
 
@@ -36,7 +38,7 @@ export function MonthlyTotalsChart({ rows, currency, loading = false }: MonthlyT
       description={
         average === null
           ? undefined
-          : `Среднее по завершённым месяцам: ${formatMoney(Math.round(average))} ${currency}`
+          : `Среднее по завершённым месяцам: ${formatMoney(average, digits)} ${currency}`
       }
       table={
         rows &&
@@ -95,7 +97,7 @@ export function MonthlyTotalsChart({ rows, currency, loading = false }: MonthlyT
                         { label: 'Операций', value: String(row.count) },
                         {
                           label: 'В день',
-                          value: `${formatMoney(Math.round(row.perDay))} ${currency}`,
+                          value: `${formatMoney(row.perDay, digits)} ${currency}`,
                         },
                         ...(row.change === null
                           ? []

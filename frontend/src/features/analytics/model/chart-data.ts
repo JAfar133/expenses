@@ -103,7 +103,8 @@ export function compactNumber(value: number): string {
   const abs = Math.abs(value);
   if (abs >= 1_000_000) return `${trim(value / 1_000_000)}M`;
   if (abs >= 1_000) return `${trim(value / 1_000)}K`;
-  return String(value);
+  // Мелкие суммы (например, в долларах) бывают дробными: до двух знаков, запятая как разделитель
+  return String(Math.round(value * 100) / 100).replace('.', ',');
 }
 
 const trim = (value: number) => String(Math.round(value * 10) / 10).replace('.', ',');

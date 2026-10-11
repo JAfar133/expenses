@@ -18,6 +18,7 @@ npm run format      # Prettier
 ## Структура
 
 - `src/features/<имя>/` по функциям: `auth`, `expenses`, `sync`, `analytics` (страница анализа: графики на Recharts, цвета и палитра в `index.css`). Внутри `api/`, `hooks/`, `components/`, `schemas/`.
+- Настройки пользователя (виды графиков и т.п.) хранятся на сервере: `features/preferences` (описание в `model/preferences.ts`, хук `usePreference`). Страница настроек `features/settings` собрана из блоков.
 - `src/pages/` страницы, `src/app/` корень приложения, маршруты (React Router) и общая рамка `AppShell`. Страница анализа грузится лениво.
 - `src/shared/` общее: `api/http.ts` (запросы), `ui/` (Button, Field, Notice), `utils/`.
 - Данные с сервера через TanStack Query, формы через React Hook Form + zod.

@@ -11,9 +11,11 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { useDisplayCurrency } from '../hooks/useDisplayCurrency.tsx';
 import { formatMoney } from '../../../shared/utils/money.ts';
 import type { BreakdownRow } from '../api/analytics.api.ts';
-import { usePersistentChoice } from '../hooks/usePersistentChoice.ts';
+import { usePreference } from '../../preferences/hooks/usePreferences.ts';
+import { PREFERENCES } from '../../preferences/model/preferences.ts';
 import {
   assignColors,
   compactNumber,
@@ -24,16 +26,6 @@ import {
 import { ChartCard, ChartMessage, DataTable } from './ChartCard.tsx';
 import { ChartTooltip } from './ChartTooltip.tsx';
 import { ChartTypeSwitch } from './ChartTypeSwitch.tsx';
-
-const TYPES = ['bars', 'columns', 'donut', 'pie'] as const;
-type CategoryType = (typeof TYPES)[number];
-
-const TYPE_OPTIONS = [
-  { value: 'bars', label: 'Полосы' },
-  { value: 'columns', label: 'Столбики' },
-  { value: 'donut', label: 'Кольцо' },
-  { value: 'pie', label: 'Круг' },
-] satisfies { value: CategoryType; label: string }[];
 
 const SERIES_COLOR = 'var(--series-1)';
 const ROW_HEIGHT = 38;
@@ -57,7 +49,7 @@ export function CategoryChart({
   onSelect,
   loading = false,
 }: CategoryChartProps) {
-  const [type, setType] = usePersistentChoice<CategoryType>('category.type', TYPES, 'bars');
+  const [type, setType] = usePreference('category.type');
   const total = rows?.reduce((sum, row) => sum + row.total, 0) ?? 0;
   const slices = toSlices(rows ?? []);
 
@@ -67,7 +59,7 @@ export function CategoryChart({
       actions={
         <ChartTypeSwitch
           label="Вид графика"
-          options={TYPE_OPTIONS}
+          options={PREFERENCES['category.type'].options}
           mobileColumns={4}
           value={type}
           onChange={setType}
@@ -124,6 +116,7 @@ function BarsChart({
   horizontal: boolean;
   onSelect?: (category: string) => void;
 }) {
+  const { digits } = useDisplayCurrency();
   /** Нажатие на полосу: Recharts отдаёт строку данных либо прямо, либо в `payload`. */
   const select = (entry: unknown) => {
     const { key, payload } = entry as { key?: string; payload?: { key?: string } };
@@ -146,7 +139,7 @@ function BarsChart({
                 color: SERIES_COLOR,
               },
               { label: 'Операций', value: String(row.count) },
-              { label: 'Средний чек', value: `${formatMoney(row.average, 0)} ${currency}` },
+              { label: 'Средний чек', value: `${formatMoney(row.average, digits)} ${currency}` },
             ]}
           />
         );

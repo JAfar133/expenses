@@ -106,6 +106,9 @@ export function setupAnalyticsHarness() {
           serverTime: '',
         }),
       '/api/cards': () => ok(['Миша', 'Настя']),
+      // Настройки пользователя: по умолчанию пусты, сохранение возвращает то, что прислали
+      '/api/preferences': () => ok({}),
+      'PUT /api/preferences': () => ok(harness.bodies.at(-1) ?? {}),
       '/api/categories': () => ok(['кафе', 'продукты']),
     };
     vi.stubGlobal(

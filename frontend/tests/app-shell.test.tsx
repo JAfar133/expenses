@@ -11,7 +11,13 @@ const json = (body: unknown) =>
     headers: { 'Content-Type': 'application/json' },
   });
 
-const user = { username: 'misha', displayName: 'Миша', card: 'Миша', canEdit: true };
+const user = {
+  username: 'misha',
+  displayName: 'Миша',
+  card: 'Миша',
+  canEdit: true,
+  timezone: 'Asia/Yerevan',
+};
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -44,6 +50,7 @@ function renderShell(path: string) {
           <Route element={<AppShell user={user} />}>
             <Route index element={<p>Страница формы</p>} />
             <Route path="analytics" element={<p>Страница анализа</p>} />
+            <Route path="settings" element={<p>Страница настроек</p>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -86,5 +93,14 @@ describe('AppShell', () => {
     renderShell('/');
 
     expect(screen.getByRole('main')).toHaveClass('max-w-[560px]');
+  });
+
+  it('рядом с «Выйти» есть ссылка на настройки; страница настроек средней ширины', async () => {
+    const person = renderShell('/');
+
+    await person.click(screen.getByRole('link', { name: 'Настройки' }));
+
+    expect(await screen.findByText('Страница настроек')).toBeInTheDocument();
+    expect(screen.getByRole('main')).toHaveClass('max-w-2xl');
   });
 });

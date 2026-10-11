@@ -13,12 +13,14 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 /** Общая рамка страниц: заголовок, значок синхронизации, навигация и кто вошёл. */
 export function AppShell({ user }: { user: AuthUser }) {
   // Форме достаточно узкой колонки, страница анализа использует всю ширину
-  const wide = useLocation().pathname.startsWith('/analytics');
+  const { pathname } = useLocation();
+  const wide = pathname.startsWith('/analytics');
+  const medium = pathname.startsWith('/settings');
 
   return (
     <main
       className={`mx-auto min-h-dvh w-full px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] ${
-        wide ? 'max-w-5xl' : 'max-w-[560px]'
+        wide ? 'max-w-5xl' : medium ? 'max-w-2xl' : 'max-w-[560px]'
       }`}
     >
       <header className="mb-4 flex items-center justify-between gap-3">

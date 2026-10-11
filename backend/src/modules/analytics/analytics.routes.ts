@@ -24,7 +24,10 @@ export const analyticsRoutes =
   async (app) => {
     app.get('/analytics/summary', async (request) => {
       const query = parseQuery('filters', request.query);
-      return { success: true, data: await analytics.summary(filtersOf(query)) };
+      return {
+        success: true,
+        data: await analytics.summary(filtersOf(query), request.user!.timezone),
+      };
     });
 
     app.get('/analytics/breakdown', async (request) => {
@@ -39,7 +42,12 @@ export const analyticsRoutes =
       const query = parseQuery('timeseries', request.query);
       return {
         success: true,
-        data: await analytics.timeseries(filtersOf(query), query.granularity, query.splitBy),
+        data: await analytics.timeseries(
+          filtersOf(query),
+          query.granularity,
+          query.splitBy,
+          request.user!.timezone,
+        ),
       };
     });
 

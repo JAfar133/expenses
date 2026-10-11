@@ -13,7 +13,8 @@ import {
 } from 'recharts';
 import { formatMoney } from '../../../shared/utils/money.ts';
 import type { Granularity, SeriesPoint } from '../api/analytics.api.ts';
-import { usePersistentChoice } from '../hooks/usePersistentChoice.ts';
+import { PREFERENCES, type PreferenceValue } from '../../preferences/model/preferences.ts';
+import { usePreference } from '../../preferences/hooks/usePreferences.ts';
 import { compactNumber, cumulative } from '../model/chart-data.ts';
 import {
   dayLabel,
@@ -26,22 +27,6 @@ import {
 import { ChartCard, ChartMessage, DataTable } from './ChartCard.tsx';
 import { ChartTooltip } from './ChartTooltip.tsx';
 import { ChartTypeSwitch } from './ChartTypeSwitch.tsx';
-
-const TYPES = ['bars', 'line', 'area'] as const;
-type DailyType = (typeof TYPES)[number];
-const MODES = ['daily', 'cumulative'] as const;
-type DailyMode = (typeof MODES)[number];
-
-const TYPE_OPTIONS = [
-  { value: 'bars', label: 'Столбики' },
-  { value: 'line', label: 'Линия' },
-  { value: 'area', label: 'Область' },
-] satisfies { value: DailyType; label: string }[];
-
-const MODE_OPTIONS = [
-  { value: 'daily', label: 'За день' },
-  { value: 'cumulative', label: 'Накопительно' },
-] satisfies { value: DailyMode; label: string }[];
 
 const SERIES_COLOR = 'var(--series-1)';
 const CHART_HEIGHT = 240;
@@ -82,8 +67,8 @@ export function DailyChart({
   loading = false,
 }: DailyChartProps) {
   const step = STEP[granularity];
-  const [type, setType] = usePersistentChoice<DailyType>('daily.type', TYPES, 'bars');
-  const [mode, setMode] = usePersistentChoice<DailyMode>('daily.mode', MODES, 'daily');
+  const [type, setType] = usePreference('daily.type');
+  const [mode, setMode] = usePreference('daily.mode');
 
   const data = points && mode === 'cumulative' ? cumulative(points) : points;
   const hasSpending = points?.some((point) => point.total > 0) ?? false;
@@ -96,14 +81,14 @@ export function DailyChart({
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <ChartTypeSwitch
             label="Что показывать"
-            options={MODE_OPTIONS}
+            options={PREFERENCES['daily.mode'].options}
             mobileColumns={2}
             value={mode}
             onChange={setMode}
           />
           <ChartTypeSwitch
             label="Вид графика"
-            options={TYPE_OPTIONS}
+            options={PREFERENCES['daily.type'].options}
             mobileColumns={3}
             value={type}
             onChange={setType}
@@ -140,7 +125,7 @@ export function DailyChart({
 }
 
 function renderChart(
-  type: DailyType,
+  type: PreferenceValue<'daily.type'>,
   data: SeriesPoint[],
   currency: string,
   step: (typeof STEP)[Granularity],

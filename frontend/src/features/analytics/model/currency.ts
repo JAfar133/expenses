@@ -1,0 +1,53 @@
+import type {
+  BreakdownRow,
+  PeriodSummary,
+  SeriesPoint,
+  SummaryResult,
+} from '../api/analytics.api.ts';
+
+export { currencyLabel, flagOf } from '../../../shared/utils/currency-flags.ts';
+
+/** Сколько знаков после запятой показывать у суммы: драммы целые, остальные валюты с копейками. */
+export const moneyDigits = (code: string, base: string) => (code === base ? 0 : 2);
+
+/**
+ * Множитель для пересчёта из базовой валюты (драммы) в выбранную: сумма / курс.
+ * Курс это сколько драмм стоит единица валюты; для базовой валюты и валюты без курса множитель 1.
+ */
+export function scaleFactor(
+  code: string,
+  base: string,
+  rates: { currency: string; rate: number }[] | undefined,
+): number {
+  if (code === base) return 1;
+  const rate = rates?.find((item) => item.currency === code)?.rate;
+  return rate && rate > 0 ? 1 / rate : 1;
+}
+
+const scalePeriod = (period: PeriodSummary, factor: number): PeriodSummary => ({
+  ...period,
+  total: period.total * factor,
+  average: period.average * factor,
+  median: period.median * factor,
+  max: period.max * factor,
+  perDay: period.perDay * factor,
+});
+
+/** Показатели в другой валюте. Количества, дни и даты не меняются. */
+export function scaleSummary(summary: SummaryResult, factor: number): SummaryResult {
+  if (factor === 1) return summary;
+  return {
+    current: scalePeriod(summary.current, factor),
+    previous: summary.previous && scalePeriod(summary.previous, factor),
+  };
+}
+
+export function scaleSeries(points: SeriesPoint[], factor: number): SeriesPoint[] {
+  if (factor === 1) return points;
+  return points.map((point) => ({ ...point, total: point.total * factor }));
+}
+
+export function scaleBreakdown(rows: BreakdownRow[], factor: number): BreakdownRow[] {
+  if (factor === 1) return rows;
+  return rows.map((row) => ({ ...row, total: row.total * factor, average: row.average * factor }));
+}

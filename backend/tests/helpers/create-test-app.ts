@@ -9,6 +9,7 @@ import type { Database } from '../../src/infrastructure/database/database.ts';
 import { IdempotencyService } from '../../src/infrastructure/idempotency/idempotency.service.ts';
 import { AnalyticsRepository } from '../../src/modules/analytics/analytics.repository.ts';
 import { AnalyticsService } from '../../src/modules/analytics/analytics.service.ts';
+import { PreferencesRepository } from '../../src/modules/preferences/preferences.repository.ts';
 import { ExpenseEditor } from '../../src/modules/expenses/expense-editor.ts';
 import { ExpenseService } from '../../src/modules/expenses/expenses.service.ts';
 import { SyncScheduler } from '../../src/modules/sync/sync.scheduler.ts';
@@ -166,7 +167,11 @@ export async function createTestApp(
     ['misha', 'Миша'],
     ['nastya', 'Настя'],
   ] as const) {
-    await authRepository.upsertUser(username, card);
+    // Право правки по умолчанию только у misha (как EDITOR_USERS по умолчанию)
+    await authRepository.upsertUser(username, card, {
+      canEdit: username === 'misha',
+      timezone: 'Asia/Yerevan',
+    });
     const user = await authRepository.findUser(username);
     await authRepository.setPasswordHash(user!.id, await passwordHash());
   }
@@ -182,8 +187,8 @@ export async function createTestApp(
       repository: new AnalyticsRepository(database, 'AMD'),
       today: () => TEST_TODAY,
     }),
+    preferences: new PreferencesRepository(database),
     editor: new ExpenseEditor({ database, repository, cards: ['Миша', 'Настя'] }),
-    editors: ['misha'],
     idempotency: new IdempotencyService(database),
     sync: sync as unknown as SyncService,
     scheduler,

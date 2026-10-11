@@ -26,22 +26,14 @@ export interface ExpenseEditRoutesDeps {
   repository: Pick<ExpenseRepository, 'findById'>;
   sync: Pick<SyncService, 'requestCycle' | 'enabled'>;
   inlineExcelWaitMs: number;
-  /** Логины, которым можно править и удалять записи */
-  editors: string[];
 }
 
 export const expenseEditRoutes =
-  ({
-    editor,
-    repository,
-    sync,
-    inlineExcelWaitMs,
-    editors,
-  }: ExpenseEditRoutesDeps): FastifyPluginAsync =>
+  ({ editor, repository, sync, inlineExcelWaitMs }: ExpenseEditRoutesDeps): FastifyPluginAsync =>
   async (app) => {
     /** Правка и удаление доступны только редакторам; остальные пользователи могут лишь смотреть. */
-    const requireEditor = (request: { user?: { username: string } }) => {
-      if (!request.user || !editors.includes(request.user.username)) throw forbiddenError();
+    const requireEditor = (request: { user?: { canEdit: boolean } }) => {
+      if (!request.user?.canEdit) throw forbiddenError();
     };
 
     const parseId = (params: unknown) => {

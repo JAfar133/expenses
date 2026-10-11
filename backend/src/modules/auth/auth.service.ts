@@ -1,7 +1,11 @@
 import {
+  AppError,
+  forbiddenError,
   invalidCredentialsError,
+  notFoundError,
   tooManyAttemptsError,
   unauthenticatedError,
+  validationError,
 } from '../../errors/app-error.ts';
 import type { ConfiguredUser } from '../../config/env.ts';
 import { AuthRepository, type StoredSession } from './auth.repository.ts';
@@ -62,6 +66,8 @@ export class AuthService {
   async syncUsers(
     users: ConfiguredUser[],
     passwords: Map<string, string>,
+    /** Значения по умолчанию из конфигурации: кто может править и часовой пояс. Личный выбор пользователя их перекрывает. */
+    defaults: { editors?: string[]; timezone?: string } = {},
   ): Promise<{ passwordsUpdated: string[]; withoutPassword: string[] }> {
     for (const [username, password] of passwords) {
       if (password.length < this.config.minPasswordLength) {
@@ -72,7 +78,10 @@ export class AuthService {
     }
 
     for (const { username, card } of users) {
-      await this.repository.upsertUser(username, card);
+      await this.repository.upsertUser(username, card, {
+        canEdit: defaults.editors?.includes(username) ?? false,
+        timezone: defaults.timezone,
+      });
     }
     await this.repository.disableUsersExcept(users.map((user) => user.username));
 
@@ -86,11 +95,18 @@ export class AuthService {
         if (!user.passwordHash) result.withoutPassword.push(username);
         continue;
       }
-      const unchanged = user.passwordHash && (await verifyPassword(password, user.passwordHash));
-      if (!unchanged) {
-        await this.repository.setPasswordHash(user.id, await hashPassword(password));
-        result.passwordsUpdated.push(username);
+      // Пароль из .env не менялся с прошлого запуска: оставляем то, что у пользователя сейчас (возможно, он сам его сменил)
+      if (user.envPasswordHash && (await verifyPassword(password, user.envPasswordHash))) continue;
+
+      if (user.passwordHash && (await verifyPassword(password, user.passwordHash))) {
+        // Пароль в базе уже такой же: только запоминаем, что .env учтён
+        await this.repository.markEnvPassword(user.id, user.passwordHash);
+        continue;
       }
+      // .env новый или изменён: администратор задаёт (сбрасывает) пароль
+      const hash = await hashPassword(password);
+      await this.repository.setPasswordHash(user.id, hash, { envPasswordHash: hash });
+      result.passwordsUpdated.push(username);
     }
     return result;
   }
@@ -193,6 +209,93 @@ export class AuthService {
     if (session) await this.repository.revokeSession(session.id);
   }
 
+  /**
+   * Смена пароля самим пользователем. Текущий пароль проверяется и учитывается в защите от подбора:
+   * украденная сессия не даёт перебирать пароль. Остальные сессии пользователя закрываются, текущая остаётся.
+   */
+  async changePassword(
+    user: AuthUser,
+    accessToken: string | undefined,
+    currentPassword: string,
+    newPassword: string,
+    context: ClientContext = {},
+  ): Promise<void> {
+    const wait = this.throttle.retryAfterSeconds(user.username, context.ip);
+    if (wait > 0) throw tooManyAttemptsError(wait);
+
+    const stored = await this.repository.findUser(user.username);
+    const matches =
+      currentPassword.length <= MAX_PASSWORD_LENGTH &&
+      !!stored?.passwordHash &&
+      (await verifyPassword(currentPassword, stored.passwordHash));
+    if (!stored || !matches) {
+      this.throttle.recordFailure(user.username, context.ip);
+      throw validationError('INVALID_CURRENT_PASSWORD', 'Текущий пароль указан неверно');
+    }
+    this.throttle.recordSuccess(user.username, context.ip);
+
+    if (newPassword.length < this.config.minPasswordLength) {
+      throw validationError(
+        'WEAK_PASSWORD',
+        `Новый пароль слишком короткий: нужно не меньше ${this.config.minPasswordLength} символов`,
+      );
+    }
+    if (newPassword.length > MAX_PASSWORD_LENGTH) {
+      throw validationError('WEAK_PASSWORD', 'Новый пароль слишком длинный');
+    }
+    if (newPassword === currentPassword) {
+      throw validationError('SAME_PASSWORD', 'Новый пароль совпадает с текущим');
+    }
+
+    const session = accessToken
+      ? await this.repository.findSessionByAccessHash(hashToken(accessToken), this.now())
+      : undefined;
+    await this.repository.setPasswordHash(stored.id, await hashPassword(newPassword), {
+      keepSessionId: session?.id,
+    });
+  }
+
+  /**
+   * Личные настройки аккаунта: имя, карта по умолчанию, часовой пояс. `null` возвращает значение по умолчанию.
+   * Допустимость значений (карта из списка, существующий часовой пояс) проверяет вызывающий.
+   */
+  async updateProfile(
+    user: AuthUser,
+    profile: { displayName?: string | null; card?: string | null; timezone?: string | null },
+  ): Promise<AuthUser> {
+    await this.repository.updateProfile(user.id, profile);
+    const stored = await this.repository.findUser(user.username);
+    return publicUser(stored!);
+  }
+
+  listUsers(): Promise<AuthUser[]> {
+    return this.repository.listUsers();
+  }
+
+  /**
+   * Право править и удалять записи. Менять его могут только редакторы; последнего редактора лишить права нельзя,
+   * иначе управлять правами станет некому.
+   */
+  async setUserRights(actor: AuthUser, username: string, canEdit: boolean): Promise<AuthUser> {
+    if (!actor.canEdit) throw forbiddenError();
+
+    const target = await this.repository.findUser(username);
+    if (!target || target.disabled) throw notFoundError();
+
+    if (!canEdit && target.canEdit) {
+      const editors = (await this.repository.listUsers()).filter((u) => u.canEdit);
+      if (editors.length <= 1) {
+        throw new AppError(
+          409,
+          'LAST_EDITOR',
+          'Нельзя убрать право у последнего редактора: управлять правами будет некому',
+        );
+      }
+    }
+    await this.repository.setCanEditOverride(target.id, canEdit);
+    return publicUser((await this.repository.findUser(username))!);
+  }
+
   /** Удаляет давно истёкшие и отозванные сессии. Возвращает их число. */
   deleteStaleSessions(): Promise<number> {
     return this.repository.deleteStaleSessions(new Date(this.now().getTime() - 24 * 3_600_000));
@@ -230,9 +333,12 @@ export class AuthService {
   }
 }
 
+/** Пользователь без служебных полей (хешей паролей и т.п.): наружу выходят только эти поля. */
 const publicUser = (user: AuthUser): AuthUser => ({
   id: user.id,
   username: user.username,
   displayName: user.displayName,
   card: user.card,
+  canEdit: user.canEdit,
+  timezone: user.timezone,
 });

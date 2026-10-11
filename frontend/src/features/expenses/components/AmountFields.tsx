@@ -1,5 +1,6 @@
 import type { UseFormReturn } from 'react-hook-form';
 import { Field, inputClassName } from '../../../shared/ui/Field.tsx';
+import { currencyLabel } from '../../../shared/utils/currency-flags.ts';
 import {
   formatAmountInput,
   formatDecimalInput,
@@ -67,7 +68,7 @@ export function AmountFields({ form, base, rates }: AmountFieldsProps) {
             type="text"
             inputMode={isForeign ? 'decimal' : 'numeric'}
             autoComplete="off"
-            className={`${inputClassName} pr-24`}
+            className={`${inputClassName} pr-28`}
             aria-invalid={!!errors.amount}
             {...amountField}
             onChange={(event) => {
@@ -92,13 +93,13 @@ export function AmountFields({ form, base, rates }: AmountFieldsProps) {
             >
               {currencies.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {currencyLabel(item)}
                 </option>
               ))}
             </select>
           ) : (
             <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-zinc-500">
-              {base}
+              {currencyLabel(base)}
             </span>
           )}
         </div>

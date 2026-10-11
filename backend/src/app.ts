@@ -7,6 +7,8 @@ import type { AnalyticsService } from './modules/analytics/analytics.service.ts'
 import { authPlugin } from './modules/auth/auth.plugin.ts';
 import { authRoutes } from './modules/auth/auth.routes.ts';
 import type { AuthService } from './modules/auth/auth.service.ts';
+import { preferencesRoutes } from './modules/preferences/preferences.routes.ts';
+import type { PreferencesRepository } from './modules/preferences/preferences.repository.ts';
 import { ratesRoutes } from './modules/rates/rates.routes.ts';
 import type { RatesService } from './modules/rates/rates.service.ts';
 import { ExpenseEditor } from './modules/expenses/expense-editor.ts';
@@ -22,6 +24,8 @@ export interface AppDependencies {
   auth: AuthService;
   rates: Pick<RatesService, 'snapshot' | 'currencies'>;
   analytics: AnalyticsService;
+  /** Настройки интерфейса пользователя */
+  preferences: Pick<PreferencesRepository, 'get' | 'merge'>;
   /** Правка и удаление записей */
   editor: ExpenseEditor;
   /** Логины, которым разрешены правка и удаление */
@@ -44,8 +48,8 @@ export function buildApp({
   auth,
   rates,
   analytics,
+  preferences,
   editor,
-  editors = [],
   idempotency,
   sync,
   scheduler,
@@ -111,6 +115,7 @@ export function buildApp({
     prefix: '/api',
   });
   app.register(ratesRoutes(rates), { prefix: '/api' });
+  app.register(preferencesRoutes(preferences), { prefix: '/api' });
   app.register(analyticsRoutes(analytics), { prefix: '/api' });
   app.register(
     expenseEditRoutes({
@@ -118,12 +123,11 @@ export function buildApp({
       repository: expenseService,
       sync,
       inlineExcelWaitMs,
-      editors,
     }),
     { prefix: '/api' },
   );
   app.register(syncRoutes({ sync, scheduler }), { prefix: '/api' });
-  app.register(authRoutes(auth, editors), { prefix: '/api' });
+  app.register(authRoutes(auth, expenseService.getCards()), { prefix: '/api' });
 
   return app;
 }

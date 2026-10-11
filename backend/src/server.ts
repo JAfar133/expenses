@@ -13,6 +13,7 @@ import { AuthService } from './modules/auth/auth.service.ts';
 import { ExpenseEditor } from './modules/expenses/expense-editor.ts';
 import { ExpenseService } from './modules/expenses/expenses.service.ts';
 import { createCbaClient } from './modules/rates/cba-client.ts';
+import { PreferencesRepository } from './modules/preferences/preferences.repository.ts';
 import { RatesRepository } from './modules/rates/rates.repository.ts';
 import { RatesService } from './modules/rates/rates.service.ts';
 import { SyncScheduler } from './modules/sync/sync.scheduler.ts';
@@ -90,7 +91,7 @@ const auth = new AuthService({
 
 const analytics = new AnalyticsService({
   repository: new AnalyticsRepository(database, env.DEFAULT_CURRENCY),
-  today: () => todayIn(env.APP_TIMEZONE),
+  today: (timezone) => todayIn(timezone),
 });
 
 const sync = new SyncService({
@@ -122,8 +123,8 @@ const app = buildApp({
   auth,
   rates,
   analytics,
+  preferences: new PreferencesRepository(database),
   editor: new ExpenseEditor({ database, repository: expenses, cards: env.CARDS }),
-  editors: env.EDITOR_USERS,
   trustProxy: env.TRUST_PROXY,
   allowedOrigins: env.ALLOWED_ORIGINS,
   idempotency,
@@ -161,7 +162,10 @@ if (applied.length > 0) {
 }
 
 // Пользователи и пароли берутся из настроек. Пароль хешируется и сохраняется в базе, если он новый или изменился.
-const userSync = await auth.syncUsers(env.AUTH_USERS, readUserPasswords(env.AUTH_USERS));
+const userSync = await auth.syncUsers(env.AUTH_USERS, readUserPasswords(env.AUTH_USERS), {
+  editors: env.EDITOR_USERS,
+  timezone: env.APP_TIMEZONE,
+});
 if (userSync.passwordsUpdated.length > 0) {
   app.log.info({ users: userSync.passwordsUpdated }, 'User passwords updated');
 }

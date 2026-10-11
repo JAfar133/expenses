@@ -385,3 +385,184 @@ describe('очистка', () => {
     expect(await auth.authenticate(old.tokens.accessToken)).toBeUndefined();
   });
 });
+
+describe('пароль из .env и пароль, заданный пользователем', () => {
+  /** Пользователь входит и меняет пароль самостоятельно. */
+  async function changeOwnPassword(newPassword = 'new-misha-password-2') {
+    const { user, tokens } = await login();
+    await auth.changePassword(user, tokens.accessToken, PASSWORDS.get('misha')!, newPassword, {
+      ip: '1.1.1.1',
+    });
+    return { user, tokens };
+  }
+
+  it('при первом запуске запоминается, что пароль из .env учтён', async () => {
+    const misha = await repository.findUser('misha');
+
+    expect(misha?.envPasswordHash).toBe(misha?.passwordHash);
+  });
+
+  it('после смены пароля перезапуск с прежним .env не возвращает старый пароль', async () => {
+    await changeOwnPassword();
+
+    const restart = await createService().syncUsers(USERS, PASSWORDS);
+
+    expect(restart.passwordsUpdated).toEqual([]);
+    await expect(login('misha', 'new-misha-password-2')).resolves.toBeDefined();
+    await expect(login('misha')).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
+  });
+
+  it('если значение в .env изменили, оно побеждает (администратор сбросил пароль) и сессии закрываются', async () => {
+    const { tokens } = await changeOwnPassword();
+
+    const reset = await createService().syncUsers(
+      USERS,
+      new Map([
+        ['misha', 'admin-reset-password-3'],
+        ['nastya', PASSWORDS.get('nastya')!],
+      ]),
+    );
+
+    expect(reset.passwordsUpdated).toEqual(['misha']);
+    await expect(login('misha', 'admin-reset-password-3')).resolves.toBeDefined();
+    await expect(login('misha', 'new-misha-password-2')).rejects.toBeDefined();
+    expect(await auth.authenticate(tokens.accessToken)).toBeUndefined();
+  });
+
+  it('после смены пароля в .env возврат к прежнему значению тоже считается сбросом', async () => {
+    await changeOwnPassword();
+    await createService().syncUsers(
+      USERS,
+      new Map([
+        ['misha', 'admin-reset-password-3'],
+        ['nastya', PASSWORDS.get('nastya')!],
+      ]),
+    );
+
+    const back = await createService().syncUsers(USERS, PASSWORDS);
+
+    expect(back.passwordsUpdated).toEqual(['misha']);
+  });
+
+  it('база без сведений об .env (после миграции): совпадающий пароль не затрагивает сессии', async () => {
+    const { tokens } = await login();
+    await database.query('UPDATE users SET env_password_hash = NULL');
+
+    const result = await createService().syncUsers(USERS, PASSWORDS);
+
+    expect(result.passwordsUpdated).toEqual([]);
+    expect(await auth.authenticate(tokens.accessToken)).toBeDefined();
+    expect((await repository.findUser('misha'))?.envPasswordHash).not.toBeNull();
+  });
+
+  it('база без сведений об .env, а пароль в .env другой: применяется .env', async () => {
+    await database.query('UPDATE users SET env_password_hash = NULL');
+
+    const result = await createService().syncUsers(
+      USERS,
+      new Map([
+        ['misha', 'another-env-password-4'],
+        ['nastya', PASSWORDS.get('nastya')!],
+      ]),
+    );
+
+    expect(result.passwordsUpdated).toEqual(['misha']);
+  });
+});
+
+describe('смена пароля пользователем', () => {
+  const change = (current: string, next: string, accessToken?: string) =>
+    login().then(({ user, tokens }) =>
+      auth.changePassword(user, accessToken ?? tokens.accessToken, current, next, {
+        ip: '1.1.1.1',
+      }),
+    );
+
+  it('новый пароль работает, старый нет', async () => {
+    await change(PASSWORDS.get('misha')!, 'new-misha-password-2');
+
+    await expect(login('misha', 'new-misha-password-2')).resolves.toBeDefined();
+    await expect(login('misha')).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
+  });
+
+  it('текущая сессия остаётся, остальные сессии пользователя закрываются', async () => {
+    const current = await login();
+    const other = await login();
+    const nastya = await login('nastya');
+
+    await auth.changePassword(
+      current.user,
+      current.tokens.accessToken,
+      PASSWORDS.get('misha')!,
+      'new-misha-password-2',
+    );
+
+    expect(await auth.authenticate(current.tokens.accessToken)).toBeDefined();
+    expect(await auth.authenticate(other.tokens.accessToken)).toBeUndefined();
+    expect(await auth.authenticate(nastya.tokens.accessToken)).toBeDefined();
+  });
+
+  it('неверный текущий пароль: ошибка, пароль не меняется', async () => {
+    await expect(change('wrong-current-password', 'new-misha-password-2')).rejects.toMatchObject({
+      code: 'INVALID_CURRENT_PASSWORD',
+    });
+
+    await expect(login()).resolves.toBeDefined();
+  });
+
+  it('пять неверных попыток блокируют смену пароля, как и вход', async () => {
+    const { user, tokens } = await login();
+
+    for (let i = 0; i < 5; i++) {
+      await expect(
+        auth.changePassword(
+          user,
+          tokens.accessToken,
+          'wrong-current-password',
+          'new-misha-password-2',
+          { ip: '1.1.1.1' },
+        ),
+      ).rejects.toMatchObject({ code: 'INVALID_CURRENT_PASSWORD' });
+    }
+
+    await expect(
+      auth.changePassword(
+        user,
+        tokens.accessToken,
+        PASSWORDS.get('misha')!,
+        'new-misha-password-2',
+        { ip: '1.1.1.1' },
+      ),
+    ).rejects.toMatchObject({ code: 'TOO_MANY_ATTEMPTS' });
+  });
+
+  it('слишком короткий, слишком длинный и совпадающий с текущим пароли отклоняются', async () => {
+    await expect(change(PASSWORDS.get('misha')!, 'short')).rejects.toMatchObject({
+      code: 'WEAK_PASSWORD',
+    });
+    await expect(change(PASSWORDS.get('misha')!, 'я'.repeat(1025))).rejects.toMatchObject({
+      code: 'WEAK_PASSWORD',
+    });
+    await expect(change(PASSWORDS.get('misha')!, PASSWORDS.get('misha')!)).rejects.toMatchObject({
+      code: 'SAME_PASSWORD',
+    });
+    await expect(login()).resolves.toBeDefined();
+  });
+
+  it('минимальная длина берётся из настроек', async () => {
+    auth = createService({ minPasswordLength: 8 });
+    const { user, tokens } = await login();
+
+    await expect(
+      auth.changePassword(user, tokens.accessToken, PASSWORDS.get('misha')!, '12345678'),
+    ).resolves.toBeUndefined();
+  });
+
+  it('пароль не хранится открытым текстом', async () => {
+    await change(PASSWORDS.get('misha')!, 'new-misha-password-2');
+
+    expect(JSON.stringify(await database.query('SELECT * FROM users'))).not.toContain(
+      'new-misha-password-2',
+    );
+  });
+});

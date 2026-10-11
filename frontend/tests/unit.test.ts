@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { todayIso } from '../src/shared/utils/date.ts';
+import { setAppTimezone, todayIso } from '../src/shared/utils/date.ts';
+import { offsetLabel, timezoneOptions } from '../src/features/settings/model/timezones.ts';
 import {
   formatAmountInput,
   formatDecimalInput,
@@ -90,5 +91,60 @@ describe('formatMoney', () => {
     expect(formatMoney(3990)).toBe('3 990');
     expect(formatMoney(10.5)).toBe('10,5');
     expect(formatMoney(380.123456, 6)).toBe('380,123456');
+  });
+});
+
+describe('todayIso и часовой пояс пользователя', () => {
+  // Для Еревана (UTC+4) уже 15 октября, для Нью-Йорка (UTC−4) ещё 14-е
+  const instant = new Date('2026-10-14T21:30:00Z');
+
+  it('по часовому поясу пользователя, а не устройства', () => {
+    setAppTimezone('Asia/Yerevan');
+    expect(todayIso(instant)).toBe('2026-10-15');
+
+    setAppTimezone('America/New_York');
+    expect(todayIso(instant)).toBe('2026-10-14');
+  });
+
+  it('граница суток: сразу после полуночи по поясу пользователя наступает новый день', () => {
+    setAppTimezone('Asia/Yerevan');
+
+    expect(todayIso(new Date('2026-10-14T19:59:59Z'))).toBe('2026-10-14');
+    expect(todayIso(new Date('2026-10-14T20:00:00Z'))).toBe('2026-10-15');
+  });
+
+  it('некорректный пояс или undefined: пояс устройства', () => {
+    const local = new Date(2026, 9, 10, 0, 30);
+    setAppTimezone('Mars/Phobos');
+    expect(todayIso(local)).toBe('2026-10-10');
+    setAppTimezone(undefined);
+    expect(todayIso(local)).toBe('2026-10-10');
+  });
+});
+
+describe('часовые пояса для выбора', () => {
+  it('offsetLabel: смещение в виде UTC±часы[:минуты]', () => {
+    const winter = new Date('2026-01-15T12:00:00Z');
+    expect(offsetLabel('Asia/Yerevan', winter)).toBe('UTC+4');
+    expect(offsetLabel('Asia/Kolkata', winter)).toBe('UTC+5:30');
+    expect(offsetLabel('America/New_York', winter)).toBe('UTC-5');
+    expect(offsetLabel('UTC', winter)).toBe('UTC');
+  });
+
+  it('timezoneOptions: все пояса от западных к восточным, текущий всегда в списке', () => {
+    const options = timezoneOptions('Asia/Yerevan');
+    const index = (zone: string) => options.findIndex((o) => o.value === zone);
+
+    expect(options.length).toBeGreaterThan(100);
+    expect(index('America/New_York')).toBeLessThan(index('Europe/Moscow'));
+    expect(index('Europe/Moscow')).toBeLessThan(index('Asia/Yerevan'));
+    expect(options[index('Asia/Yerevan')]!.label).toBe('Asia/Yerevan (UTC+4)');
+    expect(new Set(options.map((o) => o.value)).size).toBe(options.length);
+  });
+
+  it('timezoneOptions: неизвестный браузеру пояс всё равно показан', () => {
+    expect(
+      timezoneOptions('Nowhere/Land'.replace('Nowhere/Land', 'UTC')).some((o) => o.value === 'UTC'),
+    ).toBe(true);
   });
 });

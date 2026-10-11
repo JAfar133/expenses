@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, type ReactNode } from 'react';
 import { onSessionLost } from '../../../shared/api/http.ts';
+import { setAppTimezone } from '../../../shared/utils/date.ts';
 import type { AuthUser } from '../api/auth.api.ts';
 import { resetCacheFor, useCurrentUser } from '../hooks/useAuth.ts';
 import { LoginPage } from './LoginPage.tsx';
@@ -15,6 +16,9 @@ export function AuthGate({ children }: { children: (user: AuthUser) => ReactNode
     onSessionLost(() => resetCacheFor(queryClient, null));
     return () => onSessionLost(undefined);
   }, [queryClient]);
+
+  // «Сегодня» во всём приложении считается в часовом поясе пользователя; задаём его до отрисовки страниц
+  setAppTimezone(current.data?.timezone);
 
   if (current.isPending) {
     return (

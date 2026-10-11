@@ -61,6 +61,9 @@ describe('драйвер pg', () => {
       '0003_auth.sql',
       '0004_currency.sql',
       '0005_edit_delete.sql',
+      '0006_preferences.sql',
+      '0007_password_source.sql',
+      '0008_profile.sql',
     ]);
   });
 
