@@ -187,6 +187,19 @@ describe('вход', () => {
     expect(error.headers['Retry-After']).toBe(String(15 * 60));
   });
 
+  it('параллельные попытки не обходят лимит: проверяются только разрешённые', async () => {
+    const attempts = await Promise.allSettled(
+      Array.from({ length: 25 }, () =>
+        auth.login('misha', 'wrong-password-123', { ip: '1.1.1.1' }),
+      ),
+    );
+
+    const blocked = attempts.filter(
+      (a) => a.status === 'rejected' && (a.reason as { statusCode: number }).statusCode === 429,
+    );
+    expect(blocked).toHaveLength(20);
+  });
+
   it('блокировка проходит со временем', async () => {
     for (let i = 0; i < 5; i++) {
       await auth.login('misha', 'wrong-password-123', { ip: '1.1.1.1' }).catch(() => undefined);
@@ -296,6 +309,20 @@ describe('обновление по refresh-токену', () => {
     expect(last.refreshExpiresAt.getTime()).toBe(Date.parse('2026-10-11T12:00:00Z') + 30 * DAY);
     now = Date.parse('2026-10-11T12:00:00Z') + 30 * DAY + 1000;
     await expect(auth.refresh(last.refreshToken)).rejects.toMatchObject({ statusCode: 401 });
+  });
+
+  it('access-токен тоже не живёт дольше предела сессии', async () => {
+    let { tokens } = await login();
+    for (let day = 5; day <= 25; day += 5) {
+      now = Date.parse('2026-10-11T12:00:00Z') + day * DAY;
+      tokens = (await auth.refresh(tokens.refreshToken)).tokens!;
+    }
+    now = Date.parse('2026-10-11T12:00:00Z') + 29.5 * DAY;
+    tokens = (await auth.refresh(tokens.refreshToken)).tokens!;
+
+    expect(tokens.accessExpiresAt.getTime()).toBe(Date.parse('2026-10-11T12:00:00Z') + 30 * DAY);
+    now = Date.parse('2026-10-11T12:00:00Z') + 30 * DAY + 1000;
+    expect(await auth.authenticate(tokens.accessToken)).toBeUndefined();
   });
 
   it('повторное предъявление старого токена сразу после обновления (гонка вкладок) не ломает сессию', async () => {

@@ -67,6 +67,8 @@ export interface ExpenseRepository {
   importFromExcel(db: SqlExecutor, expenses: Expense[]): Promise<number>;
   markWriting(db: SqlExecutor, ids: string[]): Promise<void>;
   markSynced(db: SqlExecutor, ids: string[]): Promise<void>;
+  /** Marks records as written to Excel with exactly the values that were sent (they may have been edited since). */
+  markSyncedAs(db: SqlExecutor, entries: { id: string; snapshot: Expense }[]): Promise<void>;
   /** Marks records as deleted (soft delete): they are not removed from the database. */
   markDeleted(db: SqlExecutor, ids: string[], reason: DeletedReason): Promise<void>;
   /** Clears the deletion mark (the row is back in Excel). */

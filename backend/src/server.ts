@@ -64,7 +64,9 @@ const backups = new BackupService({
 });
 
 // --- PostgreSQL
-const database = createPostgresDatabase(env.DATABASE_URL);
+const database = createPostgresDatabase(env.DATABASE_URL, (error) =>
+  app.log.error({ err: error }, 'PostgreSQL connection error'),
+);
 const expenses = new PostgresExpenseRepository(database);
 const idempotency = new IdempotencyService(database);
 
@@ -125,6 +127,7 @@ const app = buildApp({
   analytics,
   preferences: new PreferencesRepository(database),
   editor: new ExpenseEditor({ database, repository: expenses, cards: env.CARDS }),
+  checkDatabase: () => database.query('SELECT 1'),
   trustProxy: env.TRUST_PROXY,
   allowedOrigins: env.ALLOWED_ORIGINS,
   idempotency,

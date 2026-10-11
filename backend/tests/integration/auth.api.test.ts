@@ -156,7 +156,9 @@ describe('POST /api/auth/login', () => {
     const { response } = await login('misha', TEST_PASSWORD, { remoteAddress: '10.0.0.1' });
 
     expect(response.statusCode).toBe(429);
-    expect(response.headers['retry-after']).toBe('900');
+    // The clock is real: a couple of milliseconds pass since the first attempt
+    expect(Number(response.headers['retry-after'])).toBeGreaterThanOrEqual(899);
+    expect(Number(response.headers['retry-after'])).toBeLessThanOrEqual(900);
     expect(response.json().error.code).toBe('TOO_MANY_ATTEMPTS');
     expect(response.cookies).toHaveLength(0);
   });

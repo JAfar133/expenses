@@ -52,13 +52,13 @@ rebuild() {
   docker compose up -d --build --remove-orphans || fail "docker compose up завершился с ошибкой."
 }
 
-# Wait for the backend to answer on /api/health (migrations run on start and take a few seconds)
+# Wait for the backend to answer on /api/ready (migrations run on start and take a few seconds)
 wait_for_backend() {
   log "Жду ответа backend"
   local attempt
   for attempt in $(seq 1 30); do
     if docker compose exec -T backend node -e \
-      "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" \
+      "fetch('http://127.0.0.1:3000/api/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))" \
       >/dev/null 2>&1; then
       log "Backend отвечает"
       return

@@ -22,6 +22,12 @@ function isRowEmpty(rowXml: string, rowNumber: number): boolean {
   });
 }
 
+/** Whether the A:E cells of a row hold data (the row is outside the table or empty). */
+export function rowHasData(sheetXml: string, rowNumber: number): boolean {
+  const rowXml = findRow(sheetXml, rowNumber);
+  return rowXml !== undefined && !isRowEmpty(rowXml, rowNumber);
+}
+
 /**
  * Number of the last row with data in the range (firstRow, lastRow].
  * Empty formatted rows do not count as filled.

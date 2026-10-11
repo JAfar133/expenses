@@ -2,7 +2,8 @@ import { readFile, writeFile } from 'node:fs/promises';
 import JSZip from 'jszip';
 import { toExcelSerial } from './excel/dates.ts';
 import { locateTable } from './excel/locate-table.ts';
-import { findLastFilledRow, writeExpenseRow } from './excel/sheet-rows.ts';
+import { ExcelStructureError } from './excel/errors.ts';
+import { findLastFilledRow, rowHasData, writeExpenseRow } from './excel/sheet-rows.ts';
 import { verifyAppendedExpense } from './excel/read.ts';
 import { assertTableIsSupported, readTableRange, replaceTableRef } from './excel/table.ts';
 import type { ExcelOptions, ExcelWriteResult, Expense } from './excel/types.ts';
@@ -33,6 +34,13 @@ export async function appendExpenseToBuffer(
   const lastFilledRow = findLastFilledRow(sheetXml, range.headerRow, range.lastRow);
   const targetRow = lastFilledRow + 1;
   const tableExtended = targetRow > range.lastRow;
+  // Extending the table would overwrite whatever lies right below it: refuse instead of losing it
+  if (tableExtended && rowHasData(sheetXml, targetRow)) {
+    throw new ExcelStructureError(
+      'TABLE_BLOCKED',
+      `Row ${targetRow} below table ${options.tableName} is not empty`,
+    );
+  }
   const newRef = `A${range.headerRow}:E${tableExtended ? targetRow : range.lastRow}`;
 
   zip.file(sheetPath, writeExpenseRow(sheetXml, targetRow, lastFilledRow, expense));

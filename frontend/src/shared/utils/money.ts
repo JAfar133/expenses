@@ -1,5 +1,15 @@
-/** Keeps only digits and groups them by thousands: `25890` → `25 890`. */
+/** Digits and spaces only: the rest (sign, fraction, exponent, letters) must not be silently cut out. */
+const WHOLE_NUMBER_INPUT = /^[\d\s\u00a0]*$/;
+/** Digits and spaces with at most one decimal separator. */
+const DECIMAL_NUMBER_INPUT = /^[\d\s\u00a0]*[.,]?[\d\s\u00a0]*$/;
+
+/**
+ * Groups digits by thousands: `25890` → `25 890`.
+ * Input with other characters (`-500`, `12.50`, `1e3`) is returned as is, so that validation reports it
+ * instead of the amount silently turning into a different number.
+ */
 export function formatAmountInput(value: string): string {
+  if (!WHOLE_NUMBER_INPUT.test(value)) return value;
   const digits = value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
@@ -18,13 +28,15 @@ interface DecimalInputOptions {
 }
 
 /**
- * Normalizes an entered number with a fraction to `1 234,56`: keeps digits and one separator (dot or comma),
+ * Normalizes an entered number with a fraction to `1 234,56`: digits and one separator (dot or comma),
  * the fraction is truncated to `maxDecimals` digits.
+ * Input with a sign, an exponent, letters or several separators is returned as is (validation rejects it).
  */
 export function formatDecimalInput(
   value: string,
   { maxDecimals, group = false }: DecimalInputOptions,
 ): string {
+  if (!DECIMAL_NUMBER_INPUT.test(value)) return value;
   const cleaned = value.replace(/[^\d.,]/g, '');
   const separatorAt = cleaned.search(/[.,]/);
   const hasSeparator = separatorAt >= 0;

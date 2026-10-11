@@ -147,7 +147,16 @@ curl -s -b cookies.txt -X POST http://127.0.0.1:3000/api/sync -H 'Origin: http:/
 ```
 
 (`cookies.txt` holds the login cookies: see the login example below; with public access, use the site address instead of `127.0.0.1:3000`). The confirmation
-applies once, to the next cycle.
+applies once, to the next cycle and only to users with the editing right (others get `403`).
+
+**Workbook safety checks.** The structure of the table is checked before anything is read or changed:
+
+- the table must span `A:E`, have the expected headers and no totals row, otherwise the cycle stops with
+  `TABLE_UNSUPPORTED` and the database is not touched;
+- if a new row would land on cells that already hold data right below the table, nothing is uploaded
+  (`TABLE_BLOCKED`), and the entries stay in the queue until the space is freed;
+- while the table has rows that cannot be read (for example the cost became text), entries are **not** marked
+  deleted (warning `UNREADABLE_ROWS`): fix the rows in the file and the deletions are applied.
 
 ### View deleted entries and restore them
 
@@ -185,7 +194,8 @@ Prefix `/api`, JSON format.
 
 | Method and path                   | Purpose                                                                                                                                      |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/health`                 | Liveness check, does not touch OneDrive. **The only route without login** (besides `/api/auth/login`, `/refresh`, `/logout`)                 |
+| `GET /api/health`                 | Liveness check, does not touch OneDrive or the database. Public (like `/api/ready` and `/api/auth/login`, `/refresh`, `/logout`)              |
+| `GET /api/ready`                  | Readiness check: `SELECT 1` against the database, `503` if it does not answer. `deploy.sh` waits for it                                      |
 | `POST /api/auth/login`            | Login: `{"username","password"}`, sets cookies, returns the user and their default card                                                      |
 | `POST /api/auth/refresh`          | Refreshes the tokens using the refresh cookie (called by the app itself)                                                                     |
 | `POST /api/auth/logout`           | Logout: ends the session, clears the cookies                                                                                                 |

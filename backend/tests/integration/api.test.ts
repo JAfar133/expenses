@@ -407,6 +407,29 @@ describe('запросы без тела', () => {
   });
 });
 
+describe('GET /api/ready', () => {
+  it('готов, когда база отвечает', async () => {
+    const ready = await createTestApp(database, { checkDatabase: async () => 1 });
+
+    const response = await ready.inject({ method: 'GET', url: '/api/ready' });
+
+    expect(response.statusCode).toBe(200);
+    await ready.app.close();
+  });
+
+  it('503, когда база недоступна; /api/health при этом отвечает', async () => {
+    const ready = await createTestApp(database, {
+      checkDatabase: async () => {
+        throw new Error('connection refused');
+      },
+    });
+
+    expect((await ready.inject({ method: 'GET', url: '/api/ready' })).statusCode).toBe(503);
+    expect((await ready.inject({ method: 'GET', url: '/api/health' })).statusCode).toBe(200);
+    await ready.app.close();
+  });
+});
+
 describe('подтверждение удалений через POST /api/sync', () => {
   const sync = (payload?: unknown) =>
     t.inject({
@@ -429,10 +452,31 @@ describe('подтверждение удалений через POST /api/sync'
     expect(t.sync.lastOptions?.applyDeletions).toBeFalsy();
   });
 
-  it('некорректное значение игнорируется как «не подтверждено»', async () => {
+  it('некорректное значение отклоняется, синхронизация не запускается', async () => {
     const response = await sync({ applyDeletions: 'yes' });
 
+    expect(response.statusCode).toBe(422);
+    expect(t.sync.lastOptions).toBeUndefined();
+  });
+
+  it('подтвердить удаления может только редактор', async () => {
+    const response = await t.inject(
+      {
+        method: 'POST',
+        url: '/api/sync',
+        headers: { 'content-type': 'application/json' },
+        payload: { applyDeletions: true },
+      },
+      'nastya',
+    );
+
+    expect(response.statusCode).toBe(403);
+    expect(t.sync.lastOptions).toBeUndefined();
+  });
+
+  it('обычная синхронизация доступна и без права редактирования', async () => {
+    const response = await t.inject({ method: 'POST', url: '/api/sync' }, 'nastya');
+
     expect(response.statusCode).toBe(200);
-    expect(t.sync.lastOptions?.applyDeletions).toBeFalsy();
   });
 });

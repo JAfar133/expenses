@@ -3,7 +3,7 @@ import JSZip from 'jszip';
 import { fromExcelSerial } from './dates.ts';
 import { loadWorkbook } from './exceljs.ts';
 import { locateTable } from './locate-table.ts';
-import { readTableRange } from './table.ts';
+import { assertTableIsSupported, readTableRange } from './table.ts';
 import type { ExcelOptions, ExcelWriteResult, Expense } from './types.ts';
 
 const MAX_NAME_LENGTH = 255;
@@ -44,7 +44,9 @@ export async function readExcelTable(
   source: Uint8Array,
   options: ExcelOptions,
 ): Promise<ExcelTable> {
-  const { range } = await readRange(source, options);
+  const { range, tableXml } = await readRange(source, options);
+  // The structure is checked before anything is read: a changed table must not turn into "rows vanished"
+  assertTableIsSupported(tableXml, range);
   const sheet = (await loadWorkbook(source)).getWorksheet(options.sheetName);
   const table: ExcelTable = {
     expenses: [],
@@ -187,5 +189,5 @@ export async function verifyAppendedExpense(
 async function readRange(source: Uint8Array, options: ExcelOptions) {
   const zip = await JSZip.loadAsync(source);
   const { tableXml } = await locateTable(zip, options);
-  return readTableRange(tableXml);
+  return { ...readTableRange(tableXml), tableXml };
 }

@@ -1,9 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { forbiddenError, validationError } from '../../errors/app-error.ts';
 import type { SyncScheduler } from './sync.scheduler.ts';
 import type { SyncService } from './sync.service.ts';
 
-/** Request body is optional. applyDeletions confirms a mass deletion blocked by the safeguard. */
+/** Request body is optional. applyDeletions confirms a mass deletion blocked by the safeguard (editors only). */
 const runSyncBodySchema = z.object({ applyDeletions: z.boolean().optional() }).optional();
 
 export interface SyncRoutesDeps {
@@ -34,7 +35,11 @@ export const syncRoutes =
     /** Manual run. If a sync is already in progress, it joins it. */
     app.post('/sync', async (request) => {
       const body = runSyncBodySchema.safeParse(request.body);
-      await scheduler.syncNow({ applyDeletions: body.success ? body.data?.applyDeletions : false });
+      if (!body.success) throw validationError('INVALID_REQUEST', 'Некорректный запрос');
+
+      const applyDeletions = body.data?.applyDeletions === true;
+      if (applyDeletions && !request.user?.canEdit) throw forbiddenError();
+      await scheduler.syncNow({ applyDeletions });
       return view();
     });
   };

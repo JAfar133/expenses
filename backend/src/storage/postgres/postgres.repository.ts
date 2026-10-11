@@ -179,6 +179,18 @@ export class PostgresExpenseRepository implements ExpenseRepository {
     );
   }
 
+  async markSyncedAs(db: SqlExecutor, entries: { id: string; snapshot: Expense }[]): Promise<void> {
+    for (const { id, snapshot } of entries) {
+      await db.query(
+        `UPDATE expenses
+         SET excel_status = 'synced', excel_synced_at = now(), excel_last_error = NULL, updated_at = now(),
+             excel_snapshot = $2::jsonb
+         WHERE id = $1`,
+        [id, JSON.stringify(snapshot)],
+      );
+    }
+  }
+
   async markPending(db: SqlExecutor, ids: string[], error?: string): Promise<void> {
     if (ids.length === 0) return;
     await db.query(

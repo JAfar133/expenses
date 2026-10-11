@@ -17,12 +17,25 @@ export class LoginThrottle {
   private readonly maxPerIp: number;
   private readonly windowMs: number;
   private readonly now: () => number;
+  private lastPrune = 0;
 
   constructor(options: LoginThrottleOptions = {}) {
     this.maxPerUser = options.maxPerUser ?? 5;
     this.maxPerIp = options.maxPerIp ?? 20;
     this.windowMs = options.windowMs ?? 15 * 60_000;
     this.now = options.now ?? Date.now;
+  }
+
+  /**
+   * Checks the limit and, if the attempt is allowed, counts it right away as a failure.
+   * Counting before the (slow) password check keeps parallel requests from all seeing the same counter.
+   * A successful login takes the attempt back with `recordSuccess`. Returns the wait in seconds; 0 if allowed.
+   */
+  reserve(username: string, ip = 'unknown'): number {
+    this.pruneExpired();
+    const wait = this.retryAfterSeconds(username, ip);
+    if (wait === 0) this.recordFailure(username, ip);
+    return wait;
   }
 
   /** In how many seconds one may try again; 0 if the attempt is allowed. */
@@ -40,9 +53,28 @@ export class LoginThrottle {
     }
   }
 
-  /** A successful login clears the counter of the "login + address" pair. */
+  /**
+   * A successful login clears the counter of the "login + address" pair
+   * and takes back the attempt reserved for the address.
+   */
   recordSuccess(username: string, ip = 'unknown'): void {
     this.failures.delete(userKey(username, ip));
+    const attempts = this.failures.get(ipKey(ip));
+    attempts?.pop();
+    if (attempts?.length === 0) this.failures.delete(ipKey(ip));
+  }
+
+  /** Number of tracked keys (for tests and diagnostics). */
+  get trackedKeys(): number {
+    return this.failures.size;
+  }
+
+  /** Drops expired keys, at most once per window fraction: memory does not grow with one-off guesses. */
+  private pruneExpired(): void {
+    const now = this.now();
+    if (now - this.lastPrune < PRUNE_INTERVAL_MS) return;
+    this.lastPrune = now;
+    for (const key of [...this.failures.keys()]) this.recent(key);
   }
 
   private recent(key: string): number[] {
@@ -60,6 +92,8 @@ export class LoginThrottle {
     return Math.max(oldestCounted + this.windowMs - this.now(), 0);
   }
 }
+
+const PRUNE_INTERVAL_MS = 60_000;
 
 const userKey = (username: string, ip: string) => `user:${username}|${ip}`;
 const ipKey = (ip: string) => `ip:${ip}`;

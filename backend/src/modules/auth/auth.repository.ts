@@ -153,11 +153,28 @@ export class AuthRepository {
     );
   }
 
-  async setCanEditOverride(userId: string, canEdit: boolean): Promise<void> {
-    await this.database.query(
-      'UPDATE users SET can_edit_override = $2, updated_at = now() WHERE id = $1',
-      [userId, canEdit],
-    );
+  /**
+   * Sets the editing right. Taking it away is refused (returns false) if it would leave no editor.
+   * The users are locked for the check and the update, so two concurrent revocations cannot both pass.
+   */
+  async setCanEditKeepingEditor(userId: string, canEdit: boolean): Promise<boolean> {
+    return this.database.transaction(async (tx) => {
+      await tx.query('SELECT id FROM users WHERE disabled_at IS NULL ORDER BY id FOR UPDATE');
+      if (!canEdit) {
+        const [others] = await tx.query<{ editors: string }>(
+          `SELECT count(*) AS editors FROM users u
+            WHERE u.disabled_at IS NULL AND u.id <> $1
+              AND COALESCE(u.can_edit_override, u.can_edit_default)`,
+          [userId],
+        );
+        if (Number(others?.editors ?? 0) === 0) return false;
+      }
+      await tx.query('UPDATE users SET can_edit_override = $2, updated_at = now() WHERE id = $1', [
+        userId,
+        canEdit,
+      ]);
+      return true;
+    });
   }
 
   /** All enabled users with their effective values. */

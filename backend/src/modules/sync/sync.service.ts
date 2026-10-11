@@ -245,7 +245,10 @@ export class SyncService {
           excelRows: excel.expenses.length,
           maxPercent,
         });
-      const toDelete = blocked ? [] : plan.toDelete;
+      // Unreadable rows may be records whose values were damaged by hand: they are not "vanished" yet,
+      // so no deletions are applied until the rows are fixed
+      const unreadable = excel.skippedCount > 0 && plan.toDelete.length > 0;
+      const toDelete = blocked || unreadable ? [] : plan.toDelete;
 
       await expenses.restoreDeleted(tx, plan.toRestore);
       await expenses.clearSnapshots(tx, plan.toClearSnapshot);
@@ -257,7 +260,8 @@ export class SyncService {
         imported: await expenses.importFromExcel(tx, plan.toImport),
         deleted: toDelete.length,
         restored: plan.toRestore.length,
-        deletionsBlocked: blocked ? plan.toDelete.length : 0,
+        deletionsBlocked: blocked && !unreadable ? plan.toDelete.length : 0,
+        deletionsDeferred: unreadable ? plan.toDelete.length : 0,
       };
     });
 
@@ -268,7 +272,16 @@ export class SyncService {
     result.skipped = excel.skippedCount;
     result.skippedRows = excel.skipped;
 
-    if (outcome.deletionsBlocked > 0) {
+    if (outcome.deletionsDeferred > 0) {
+      result.warning = {
+        code: 'UNREADABLE_ROWS',
+        message: `В Excel есть строки, которые не удалось прочитать (${excel.skippedCount}), поэтому ${outcome.deletionsDeferred} записей не помечены удалёнными. Исправьте строки в файле — удаления применятся после этого`,
+      };
+      this.deps.logger?.warn(
+        { deferred: outcome.deletionsDeferred, unreadable: excel.skippedCount },
+        'Deletions deferred: unreadable rows in Excel',
+      );
+    } else if (outcome.deletionsBlocked > 0) {
       result.warning = {
         code: 'MASS_DELETION_BLOCKED',
         message: `В Excel пропало ${outcome.deletionsBlocked} записей сразу: это похоже на ошибку (пустой или подменённый файл), поэтому в базе они не помечены удалёнными. Проверьте файл`,
@@ -315,7 +328,10 @@ export class SyncService {
 
     // The snapshot gets what was written to the file, not what the record holds now: if the record was
     // edited again in the meantime, the next sync will replace the row once more.
-    await expenses.markSynced(database, ids);
+    await expenses.markSyncedAs(
+      database,
+      queue.map((item) => ({ id: item.id, snapshot: toExcelRow(item) })),
+    );
     await expenses.setSnapshots(
       database,
       updates.map(({ id, to }) => ({ id, snapshot: to })),

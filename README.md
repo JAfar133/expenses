@@ -19,7 +19,7 @@ The detailed deployment, pipeline and planning guides live in `docs/` and are wr
 
 MVP v0.1, work in progress. Done: writing to PostgreSQL and Excel, a queue for when Excel is open, synchronization
 on a timer and on a button, OneDrive via rclone, the form, duplicate protection, backups, Docker Compose.
-Login with a username and password (users Misha and Nastya, a session valid for a day and refreshed for up to a week) is also done. Not done yet: history and analytics.
+Login with a username and password (users Misha and Nastya, a session valid for a day and refreshed for up to a week) is also done. History of operations (with editing and deleting) and analytics are done as well.
 
 A short overview of how it all works (login, recording an expense, synchronization, deployment): [docs/PIPELINE.md](docs/PIPELINE.md) (in Russian).
 

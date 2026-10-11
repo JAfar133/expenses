@@ -118,7 +118,8 @@ export class AuthService {
   ): Promise<LoginResult> {
     const login = username.trim().toLowerCase();
 
-    const wait = this.throttle.retryAfterSeconds(login, context.ip);
+    // The attempt is counted before the password check: parallel requests cannot bypass the limit
+    const wait = this.throttle.reserve(login, context.ip);
     if (wait > 0) throw tooManyAttemptsError(wait);
 
     const user =
@@ -132,7 +133,6 @@ export class AuthService {
     );
 
     if (!user || !usable || !matches) {
-      this.throttle.recordFailure(login, context.ip);
       throw invalidCredentialsError();
     }
 
@@ -220,7 +220,7 @@ export class AuthService {
     newPassword: string,
     context: ClientContext = {},
   ): Promise<void> {
-    const wait = this.throttle.retryAfterSeconds(user.username, context.ip);
+    const wait = this.throttle.reserve(user.username, context.ip);
     if (wait > 0) throw tooManyAttemptsError(wait);
 
     const stored = await this.repository.findUser(user.username);
@@ -229,7 +229,6 @@ export class AuthService {
       !!stored?.passwordHash &&
       (await verifyPassword(currentPassword, stored.passwordHash));
     if (!stored || !matches) {
-      this.throttle.recordFailure(user.username, context.ip);
       throw validationError('INVALID_CURRENT_PASSWORD', 'Текущий пароль указан неверно');
     }
     this.throttle.recordSuccess(user.username, context.ip);
@@ -282,17 +281,14 @@ export class AuthService {
     const target = await this.repository.findUser(username);
     if (!target || target.disabled) throw notFoundError();
 
-    if (!canEdit && target.canEdit) {
-      const editors = (await this.repository.listUsers()).filter((u) => u.canEdit);
-      if (editors.length <= 1) {
-        throw new AppError(
-          409,
-          'LAST_EDITOR',
-          'Нельзя убрать право у последнего редактора: управлять правами будет некому',
-        );
-      }
+    const done = await this.repository.setCanEditKeepingEditor(target.id, canEdit);
+    if (!done) {
+      throw new AppError(
+        409,
+        'LAST_EDITOR',
+        'Нельзя убрать право у последнего редактора: управлять правами будет некому',
+      );
     }
-    await this.repository.setCanEditOverride(target.id, canEdit);
     return publicUser((await this.repository.findUser(username))!);
   }
 
@@ -321,7 +317,7 @@ export class AuthService {
     const sessionEnd = sessionCreatedAt.getTime() + this.config.sessionMaxMs;
     return {
       accessToken: generateToken(),
-      accessExpiresAt: new Date(now.getTime() + this.config.accessTtlMs),
+      accessExpiresAt: new Date(Math.min(now.getTime() + this.config.accessTtlMs, sessionEnd)),
       refreshToken: generateToken(),
       refreshExpiresAt: new Date(Math.min(now.getTime() + this.config.refreshTtlMs, sessionEnd)),
     };

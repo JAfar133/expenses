@@ -251,6 +251,19 @@ describe('права на правку и удаление', () => {
     expect((await me('misha')).canEdit).toBe(true);
   });
 
+  it('два редактора одновременно снимают право: одному из них отказ, редактор остаётся', async () => {
+    await rights('nastya', true);
+
+    const responses = await Promise.all([
+      rights('misha', false, 'misha'),
+      rights('nastya', false, 'nastya'),
+    ]);
+
+    expect(responses.map((r) => r.statusCode).sort()).toEqual([200, 409]);
+    const editors = [(await me('misha')).canEdit, (await me('nastya')).canEdit];
+    expect(editors.filter(Boolean)).toHaveLength(1);
+  });
+
   it('не редактор не может менять права, в том числе себе', async () => {
     for (const response of [
       await rights('nastya', true, 'nastya'),

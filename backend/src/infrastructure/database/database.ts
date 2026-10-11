@@ -15,9 +15,24 @@ export interface Database extends SqlExecutor {
   close(): Promise<void>;
 }
 
-/** Connection to a real PostgreSQL. */
-export function createPostgresDatabase(connectionString: string): Database {
-  const pool = new pg.Pool({ connectionString, max: 10 });
+/** Limits that keep a dead or blocked database from hanging requests forever. */
+const CONNECTION_TIMEOUT_MS = 10_000;
+const STATEMENT_TIMEOUT_MS = 30_000;
+const IDLE_IN_TRANSACTION_TIMEOUT_MS = 60_000;
+
+/** Connection to a real PostgreSQL. `onPoolError` receives errors of idle connections (a lost connection must not crash the process). */
+export function createPostgresDatabase(
+  connectionString: string,
+  onPoolError: (error: Error) => void = () => undefined,
+): Database {
+  const pool = new pg.Pool({
+    connectionString,
+    max: 10,
+    connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
+    statement_timeout: STATEMENT_TIMEOUT_MS,
+    idle_in_transaction_session_timeout: IDLE_IN_TRANSACTION_TIMEOUT_MS,
+  });
+  pool.on('error', onPoolError);
 
   const executorFor = (client: pg.Pool | pg.PoolClient): SqlExecutor => ({
     query: async (text, params) => (await client.query(text, params)).rows,

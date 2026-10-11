@@ -135,6 +135,7 @@ export interface TestAppOptions {
   trustProxy?: boolean;
   allowedOrigins?: string[];
   throttle?: LoginThrottle;
+  checkDatabase?: () => Promise<unknown>;
 }
 
 /** "Today" in tests: a fixed date so calculations do not depend on the calendar. */
@@ -193,6 +194,7 @@ export async function createTestApp(
     sync: sync as unknown as SyncService,
     scheduler,
     inlineExcelWaitMs: options.inlineExcelWaitMs ?? 1000,
+    checkDatabase: options.checkDatabase,
     trustProxy: options.trustProxy,
     allowedOrigins: options.allowedOrigins,
   });

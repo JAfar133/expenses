@@ -33,6 +33,8 @@ export interface AppDependencies {
   idempotency: IdempotencyService;
   sync: SyncService;
   scheduler: SyncScheduler;
+  /** Database check for `/api/ready`; without it the endpoint always reports ready */
+  checkDatabase?: () => Promise<unknown>;
   /** How long to wait for the Excel write before responding to expense creation */
   inlineExcelWaitMs?: number;
   currency?: string;
@@ -53,6 +55,7 @@ export function buildApp({
   idempotency,
   sync,
   scheduler,
+  checkDatabase,
   inlineExcelWaitMs = 15_000,
   currency = 'AMD',
   trustProxy = false,
@@ -109,7 +112,16 @@ export function buildApp({
   // Cookie parsing and login checks first, then routes: the hooks must be registered before them
   app.register(authPlugin, { auth, allowedOrigins });
 
+  // Liveness: the process answers. Readiness: the database answers too
   app.get('/api/health', { config: { public: true } }, async () => ({ status: 'ok' }));
+  app.get('/api/ready', { config: { public: true } }, async (_request, reply) => {
+    try {
+      await checkDatabase?.();
+      return { status: 'ok' };
+    } catch {
+      return reply.code(503).send({ status: 'unavailable' });
+    }
+  });
   app.get('/api/config', async () => ({ success: true, data: { currency } }));
   app.register(expensesRoutes({ expenseService, idempotency, sync, inlineExcelWaitMs }), {
     prefix: '/api',

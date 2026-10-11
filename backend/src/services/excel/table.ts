@@ -1,3 +1,4 @@
+import { ExcelStructureError } from './errors.ts';
 import { TABLE_HEADERS } from './types.ts';
 import { findTags, getAttr } from './xml.ts';
 
@@ -30,17 +31,23 @@ export function readTableRange(tableXml: string): { ref: string; range: TableRan
 /** Checks that the table is suitable for writing: columns A:E, required headers, no totals row. */
 export function assertTableIsSupported(tableXml: string, range: TableRange): void {
   if (range.firstColumn !== 'A' || range.lastColumn !== 'E') {
-    throw new Error(`Table must span A:E, got ${range.firstColumn}:${range.lastColumn}`);
+    throw new ExcelStructureError(
+      'TABLE_UNSUPPORTED',
+      `Table must span A:E, got ${range.firstColumn}:${range.lastColumn}`,
+    );
   }
 
   const totalsRowCount = Number(getAttr(findTags(tableXml, 'table')[0] ?? '', 'totalsRowCount'));
   if (totalsRowCount > 0) {
-    throw new Error('Tables with totals row are not supported');
+    throw new ExcelStructureError('TABLE_UNSUPPORTED', 'Tables with totals row are not supported');
   }
 
   const columnNames = findTags(tableXml, 'tableColumn').map((tag) => getAttr(tag, 'name'));
   if (columnNames.join('|') !== TABLE_HEADERS.join('|')) {
-    throw new Error(`Unexpected table columns: ${columnNames.join(', ')}`);
+    throw new ExcelStructureError(
+      'TABLE_UNSUPPORTED',
+      `Unexpected table columns: ${columnNames.join(', ')}`,
+    );
   }
 }
 

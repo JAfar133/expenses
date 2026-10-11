@@ -73,3 +73,28 @@ describe('попытки входа', () => {
     expect(throttle.retryAfterSeconds('misha', '1.1.1.1')).toBe(0);
   });
 });
+
+describe('резервирование попытки', () => {
+  it('считает попытку сразу, до проверки пароля', () => {
+    for (let i = 0; i < 5; i++) expect(throttle.reserve('misha', '1.1.1.1')).toBe(0);
+
+    expect(throttle.reserve('misha', '1.1.1.1')).toBeGreaterThan(0);
+  });
+
+  it('успешный вход возвращает попытку и сбрасывает счётчик пары', () => {
+    for (let i = 0; i < 4; i++) throttle.reserve('misha', '1.1.1.1');
+    throttle.recordSuccess('misha', '1.1.1.1');
+
+    for (let i = 0; i < 5; i++) expect(throttle.reserve('misha', '1.1.1.1')).toBe(0);
+  });
+
+  it('устаревшие ключи удаляются сами, без повторного обращения к ним', () => {
+    for (let i = 0; i < 50; i++) throttle.reserve(`user${i}`, `10.0.0.${i}`);
+    expect(throttle.trackedKeys).toBeGreaterThan(50);
+
+    time += 16 * MINUTE;
+    throttle.reserve('someone', '7.7.7.7');
+
+    expect(throttle.trackedKeys).toBe(2);
+  });
+});

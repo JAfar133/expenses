@@ -27,6 +27,22 @@ export function describeSyncError(error: unknown): SyncErrorInfo {
           'Результат записи в Excel не прошёл проверку, файл не изменён. Подробности в логе сервера',
       };
     }
+    if (code === 'TABLE_UNSUPPORTED') {
+      return {
+        status: 'error',
+        code,
+        message:
+          'Таблица в Excel изменена (столбцы, заголовки или строка итогов). Синхронизация остановлена, база не тронута: верните прежнюю структуру',
+      };
+    }
+    if (code === 'TABLE_BLOCKED') {
+      return {
+        status: 'error',
+        code,
+        message:
+          'Под таблицей в Excel есть данные: добавить строку некуда, не затерев их. Записи ждут в очереди — освободите место под таблицей',
+      };
+    }
     if (code === 'BACKUP_FAILED') {
       return {
         status: 'error',
