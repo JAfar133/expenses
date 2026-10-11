@@ -5,7 +5,8 @@
 # Что меняется:
 #   - web слушает порты 80 и 443 на всех адресах (нужны для выдачи сертификата и для HTTPS);
 #   - весь сайт, включая /api, закрыт логином и паролем (Basic Auth в Caddy);
-#   - pgAdmin и PostgreSQL по-прежнему доступны только на localhost сервера.
+#   - pgAdmin доступен через тот же Caddy на отдельном адресе PGADMIN_ADDRESS (HTTPS, тот же пароль Caddy
+#     и собственный вход pgAdmin); его порт 5051 и порт PostgreSQL наружу по-прежнему не открыты.
 #
 # Это временная защита. Полноценная авторизация пользователей будет в самом приложении.
 services:
@@ -16,6 +17,15 @@ services:
       SITE_ADDRESS: ${SITE_ADDRESS:?Задайте SITE_ADDRESS в .env (домен или вид 85-209-51-95.nip.io)}
       BASIC_AUTH_USER: ${BASIC_AUTH_USER:?Задайте BASIC_AUTH_USER в .env}
       BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:?Задайте BASIC_AUTH_HASH в .env (см. README)}
+      PGADMIN_ADDRESS: ${PGADMIN_ADDRESS:?Задайте PGADMIN_ADDRESS в .env (например, pgadmin.85-209-51-95.nip.io)}
     ports: !override
       - "80:80"
       - "443:443"
+
+  # pgAdmin стоит за прокси: пусть учитывает заголовки X-Forwarded-* (адрес, протокол HTTPS), которые добавляет Caddy
+  pgadmin:
+    environment:
+      PGADMIN_CONFIG_PROXY_X_FOR_COUNT: "1"
+      PGADMIN_CONFIG_PROXY_X_PROTO_COUNT: "1"
+      PGADMIN_CONFIG_PROXY_X_HOST_COUNT: "1"
+      PGADMIN_CONFIG_PROXY_X_PORT_COUNT: "1"

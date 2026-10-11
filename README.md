@@ -83,7 +83,8 @@ docker compose up -d --build
 
 По умолчанию все порты слушают только `127.0.0.1`. Если нужно открыть приложение из интернета, подключите
 `docker-compose.public.yml`: он открывает порты 80/443, включает HTTPS и закрывает весь сайт (включая `/api`)
-логином и паролем. pgAdmin и PostgreSQL остаются доступны только на localhost сервера.
+логином и паролем. PostgreSQL остаётся доступен только на localhost сервера, а pgAdmin открывается отдельным
+адресом через тот же Caddy (ниже).
 
 Домен не нужен: возьмите бесплатный адрес из IP сервера с дефисами, например `85-209-51-95.nip.io`
 (или `85.209.51.95.sslip.io`). Caddy сам получит для него сертификат Let's Encrypt, для этого порты 80 и 443
@@ -95,6 +96,7 @@ docker run --rm -it expenses-tracker-web caddy hash-password
 
 # 2. В .env (хеш ОБЯЗАТЕЛЬНО в одинарных кавычках, в нём есть символы $):
 #    SITE_ADDRESS=85-209-51-95.nip.io
+#    PGADMIN_ADDRESS=pgadmin.85-209-51-95.nip.io
 #    BASIC_AUTH_USER=misha
 #    BASIC_AUTH_HASH='$2a$14$...'
 #    COMPOSE_FILE=docker-compose.yml:docker-compose.public.yml     # чтобы обычный `docker compose up -d` подключал оба файла
@@ -103,6 +105,10 @@ docker run --rm -it expenses-tracker-web caddy hash-password
 docker compose up -d
 docker compose logs web | grep -iE "certificate|obtained|error"
 ```
+
+pgAdmin в этом режиме тоже доступен из интернета, но не открытым портом, а отдельным адресом через тот же Caddy
+(`PGADMIN_ADDRESS=pgadmin.85-209-51-95.nip.io`): HTTPS, тот же логин и пароль, затем вход в сам pgAdmin. Для просмотра
+записей лучше подключаться пользователем базы только для чтения: см. [docs/DEPLOY.md](docs/DEPLOY.md#87-pgadmin-из-интернета-чтобы-смотреть-записи).
 
 Ограничения: это защита одним общим паролем без ограничения числа попыток, поэтому пароль должен быть длинным
 и случайным. Раздельных пользователей (Миша, Настя) по-прежнему нет, они появятся вместе с авторизацией в самом

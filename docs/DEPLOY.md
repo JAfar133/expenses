@@ -232,7 +232,7 @@ nano .env
 | `BACKUP_RETENTION_DAYS` | Сколько дней хранить резервные копии Excel (30)                                           |
 | `HTTP_PORT`, `HTTPS_PORT`, `PGADMIN_PORT`, `POSTGRES_PORT` | Порты на сервере (8080, 8443, 5051, 5433)              |
 | `WEB_BIND`              | Адрес, на котором слушает web. Оставьте `127.0.0.1`                                       |
-| `SITE_ADDRESS`, `BASIC_AUTH_USER`, `BASIC_AUTH_HASH`, `COMPOSE_FILE` | Публичный доступ (раздел 8)                  |
+| `SITE_ADDRESS`, `PGADMIN_ADDRESS`, `BASIC_AUTH_USER`, `BASIC_AUTH_HASH`, `COMPOSE_FILE` | Публичный доступ (раздел 8) |
 
 Файл `.env` может содержать русские комментарии. Редактируйте его без `sudo`: иначе владельцем станет root
 (исправить: `sudo chown $USER:$USER .env`).
@@ -281,7 +281,8 @@ ssh -N -L 8080:127.0.0.1:8080 -L 5051:127.0.0.1:5051 user@SERVER_IP
 
 Приложение можно открыть из интернета с HTTPS и паролем, не имея домена. Для этого есть
 `docker-compose.public.yml`: он публикует порты 80/443 и закрывает весь сайт, включая `/api`,
-логином и паролем (Basic Auth в Caddy). pgAdmin и PostgreSQL остаются доступны только на сервере.
+логином и паролем (Basic Auth в Caddy). PostgreSQL остаётся доступен только на сервере, а pgAdmin открывается
+отдельным адресом через тот же Caddy (раздел 8.7).
 
 **Без домена HTTPS даёт бесплатный адрес из IP сервера:** `1-2-3-4.nip.io` для IP `1.2.3.4` (можно и
 `1.2.3.4.sslip.io`). Он всегда указывает на этот IP, а Caddy получает для него настоящий сертификат
@@ -314,6 +315,7 @@ ssh -t user@SERVER_IP 'docker run --rm -it expenses-tracker-web caddy hash-passw
 
 ```
 SITE_ADDRESS=1-2-3-4.nip.io
+PGADMIN_ADDRESS=pgadmin.1-2-3-4.nip.io
 BASIC_AUTH_USER=misha
 BASIC_AUTH_HASH='$2a$14$...'
 COMPOSE_FILE=docker-compose.yml:docker-compose.public.yml
@@ -346,6 +348,53 @@ curl -sI http://1-2-3-4.nip.io/ | head -1                       # 308: реди�
 1. Создайте новый хеш (8.2).
 2. В `.env` замените строку `BASIC_AUTH_HASH`, не меняя остальные (хеш в одинарных кавычках).
 3. `docker compose up -d`. Старый пароль перестаёт работать сразу. Если браузер помнит старый, закройте вкладку.
+
+### 8.7. pgAdmin из интернета (чтобы смотреть записи)
+
+Порт pgAdmin (`5051`) наружу **не открывается**: это админка с полным доступом ко всем данным, а по обычному HTTP
+её пароль уходил бы по сети открытым текстом. Вместо этого pgAdmin доступен через тот же Caddy на отдельном адресе:
+
+- **HTTPS** с настоящим сертификатом;
+- первый слой: **логин и пароль Caddy** (те же, что на сайте);
+- второй слой: **вход в сам pgAdmin** (`PGADMIN_EMAIL` / `PGADMIN_PASSWORD`);
+- третий слой: **пароль базы**, который pgAdmin спрашивает при подключении (`POSTGRES_PASSWORD`).
+
+Адрес: имя сервера с приставкой `pgadmin.` (для nip.io работает любая приставка перед IP). В `.env`:
+
+```
+PGADMIN_ADDRESS=pgadmin.1-2-3-4.nip.io        # для своего домена: pgadmin.example.com (нужна ещё одна A-запись)
+```
+
+Затем `docker compose config --quiet`, `docker compose up -d` (пересоздадутся `web` и `pgadmin`) и проверка:
+
+```bash
+docker compose logs web | grep -iE "certificate obtained|error"
+curl -sI https://pgadmin.1-2-3-4.nip.io/ | head -1                        # 401 без пароля
+curl -sI -u логин:пароль https://pgadmin.1-2-3-4.nip.io/login | head -1   # 200
+```
+
+Откройте https://pgadmin.1-2-3-4.nip.io: сначала запросит логин и пароль Caddy, затем форма входа pgAdmin. В списке
+серверов уже есть «Expenses Tracker». Пароль базы при подключении **не сохраняйте** в pgAdmin. Записи расходов: сервер →
+база `expenses` → Schemas → public → Tables → `expenses` → правая кнопка → View/Edit Data → All Rows. Строки, которые удалили
+в Excel, отличаются непустым `deleted_at`.
+
+Рекомендуется **завести пользователя базы только для чтения** и подключаться им: для просмотра записей полный доступ не
+нужен, а такой пользователь не сможет ничего изменить или удалить, даже если кто-то получит доступ к pgAdmin:
+
+```bash
+VIEWPASS=$(openssl rand -hex 16); echo "пароль viewer: $VIEWPASS"       # сохраните в менеджер паролей
+docker compose exec -T postgres psql -U expenses -d expenses <<SQL
+CREATE ROLE viewer LOGIN PASSWORD '$VIEWPASS';
+GRANT CONNECT ON DATABASE expenses TO viewer;
+GRANT USAGE ON SCHEMA public TO viewer;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO viewer;
+ALTER DEFAULT PRIVILEGES FOR ROLE expenses IN SCHEMA public GRANT SELECT ON TABLES TO viewer;
+SQL
+```
+
+Затем в pgAdmin: правая кнопка на «Expenses Tracker» → Properties → Connection → Username `viewer` (или зарегистрируйте
+второй сервер с этим пользователем). Если имя `pgadmin.…` не открывается из вашей сети, это может быть DNS (см. раздел 11):
+используйте `sslip.io` или свой домен.
 
 ### 8.6. Ограничения этого режима
 
@@ -407,6 +456,9 @@ curl -sI https://expenses.example.com/ | head -1       # HTTP/2 401 без па�
 ```
 
 Откройте https://expenses.example.com в браузере, войдите и проверьте, что форма и значок синхронизации работают.
+
+Если pgAdmin тоже открыт через Caddy (8.7), создайте вторую A-запись `pgadmin.example.com` → `SERVER_IP` и задайте
+`PGADMIN_ADDRESS=pgadmin.example.com` в том же `.env`.
 
 ### 9.3. После переезда
 

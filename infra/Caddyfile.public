@@ -34,3 +34,23 @@
 		-Server
 	}
 }
+
+# pgAdmin (веб-интерфейс к базе) на отдельном адресе: тот же логин и пароль Caddy, затем собственный вход pgAdmin.
+# Порт pgAdmin наружу не публикуется: до него можно добраться только через этот сайт, по HTTPS и под паролем.
+# PGADMIN_ADDRESS — отдельное имя, например pgadmin.85-209-51-95.nip.io (для домена: pgadmin.example.com).
+{$PGADMIN_ADDRESS} {
+	encode zstd gzip
+
+	basic_auth {
+		{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+	}
+
+	reverse_proxy pgadmin:80
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy same-origin
+		Strict-Transport-Security "max-age=604800"
+		-Server
+	}
+}
