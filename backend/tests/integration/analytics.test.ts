@@ -320,6 +320,34 @@ describe('list', () => {
     expect((await page()).items.find((i) => i.name === 'Хлеб')!.original).toBeNull();
   });
 
+  it('валюта записи: пустая original_currency означает базовую (AMD), иначе валюта ввода', async () => {
+    const items = (await page()).items;
+
+    expect(items.find((i) => i.name === 'Хлеб')).toMatchObject({ currency: 'AMD', original: null });
+    expect(items.find((i) => i.name === 'Молоко')).toMatchObject({
+      currency: 'USD',
+      original: { currency: 'USD' },
+    });
+    // Запись, пришедшая из Excel, тоже в базовой валюте
+    await database.query(
+      `INSERT INTO expenses (id, date, card, category, name, amount, source, excel_status, created_by)
+       VALUES (gen_random_uuid(), '2026-10-04', 'Миша', 'кафе', 'Из Excel', 50, 'excel', 'synced', 'excel')`,
+    );
+    const fromExcel = (await page()).items.find((i) => i.name === 'Из Excel')!;
+    expect(fromExcel.currency).toBe('AMD');
+  });
+
+  it('фильтр по валюте: пустая валюта попадает в базовую, а не пропадает', async () => {
+    const amd = await service.list(
+      { ...OCTOBER, currencies: ['AMD'] },
+      { sort: 'amount', direction: 'desc', limit: 50, offset: 0 },
+    );
+
+    expect(amd.items.every((i) => i.currency === 'AMD')).toBe(true);
+    expect(amd.total).toBe(4);
+    expect(amd.items.map((i) => i.name)).not.toContain('Молоко');
+  });
+
   it('при включённых удалённых показывает и их', async () => {
     const result = await service.list(
       { ...OCTOBER, includeDeleted: true },
@@ -331,6 +359,38 @@ describe('list', () => {
   });
 });
 
+describe('authors', () => {
+  it('отдаёт имена пользователей и «Из Excel», от самых активных; удалённые не считаются', async () => {
+    const authRepository = new (
+      await import('../../src/modules/auth/auth.repository.ts')
+    ).AuthRepository(database);
+    await authRepository.upsertUser('misha', 'Миша');
+    await authRepository.upsertUser('nastya', 'Настя');
+    await add('2026-10-02', 'Миша', 'кафе', 'Ещё', 10, 'excel');
+    const gone = await add('2026-10-02', 'Миша', 'кафе', 'Удалим', 10, 'nastya');
+    await expenses.markDeleted(database, [gone.id], 'excel');
+
+    const authors = await service.authors();
+
+    // misha: 4 записи (две по умолчанию в октябре + две в других местах), nastya: 2, excel: 1
+    expect(authors.map((a) => [a.value, a.label])).toEqual([
+      ['misha', 'Миша'],
+      ['nastya', 'Настя'],
+      ['excel', 'Из Excel'],
+    ]);
+    expect(authors.find((a) => a.value === 'excel')!.count).toBe(1);
+    expect(authors.find((a) => a.value === 'nastya')!.count).toBe(2);
+  });
+
+  it('без пользователя в справочнике показывает логин', async () => {
+    await database.query('DELETE FROM users');
+
+    const authors = await service.authors();
+
+    expect(authors.find((a) => a.value === 'nastya')!.label).toBe('nastya');
+  });
+});
+
 describe('HTTP API', () => {
   const get = (url: string) => t.inject({ method: 'GET', url });
 
@@ -339,7 +399,7 @@ describe('HTTP API', () => {
   });
 
   it('требует входа', async () => {
-    for (const url of ['summary', 'breakdown?by=category', 'timeseries']) {
+    for (const url of ['summary', 'breakdown?by=category', 'timeseries', 'authors']) {
       expect((await t.app.inject({ method: 'GET', url: `/api/analytics/${url}` })).statusCode).toBe(
         401,
       );

@@ -22,7 +22,7 @@ export function ChartTypeSwitch<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
-      className="inline-flex rounded-lg bg-zinc-100 p-0.5 dark:bg-zinc-800"
+      className="inline-flex max-w-full flex-wrap rounded-lg bg-zinc-100 p-0.5 dark:bg-zinc-800"
     >
       {options.map((option) => {
         const active = option.value === value;

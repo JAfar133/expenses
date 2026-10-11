@@ -80,11 +80,20 @@ export interface ExpenseListItem {
   name: string;
   /** Сумма в драммах */
   amount: number;
+  /** Валюта ввода; у расходов без исходной суммы (original_currency пусто) это базовая валюта */
+  currency: string;
   original: { amount: number; currency: string; rate: number } | null;
   createdBy: string;
   source: 'app' | 'excel';
   excelStatus: 'pending' | 'writing' | 'synced';
   deletedAt: string | null;
+}
+
+/** Кто добавлял расходы: логин для фильтра и имя для показа. */
+export interface Author {
+  value: string;
+  label: string;
+  count: number;
 }
 
 export interface ExpenseListPage {

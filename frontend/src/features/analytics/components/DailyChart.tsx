@@ -12,10 +12,17 @@ import {
   YAxis,
 } from 'recharts';
 import { formatMoney } from '../../../shared/utils/money.ts';
-import type { SeriesPoint } from '../api/analytics.api.ts';
+import type { Granularity, SeriesPoint } from '../api/analytics.api.ts';
 import { usePersistentChoice } from '../hooks/usePersistentChoice.ts';
 import { compactNumber, cumulative } from '../model/chart-data.ts';
-import { dayLabel, dayOfMonth } from '../model/periods.ts';
+import {
+  dayLabel,
+  dayOfMonth,
+  monthLabel,
+  monthOf,
+  monthYearShortLabel,
+  shortDayLabel,
+} from '../model/periods.ts';
 import { ChartCard, ChartMessage, DataTable } from './ChartCard.tsx';
 import { ChartTooltip } from './ChartTooltip.tsx';
 import { ChartTypeSwitch } from './ChartTypeSwitch.tsx';
@@ -41,14 +48,40 @@ const CHART_HEIGHT = 240;
 
 const axisTick = { fill: 'var(--chart-axis)', fontSize: 12 };
 
+/** Подписи по шагу графика: по дням, неделям или месяцам. */
+const STEP = {
+  day: { title: 'Расходы по дням', tick: dayOfMonth, full: dayLabel },
+  week: {
+    title: 'Расходы по неделям',
+    tick: shortDayLabel,
+    full: (period: string) => `Неделя с ${shortDayLabel(period)}`,
+  },
+  month: {
+    title: 'Расходы по месяцам',
+    tick: (period: string) => monthYearShortLabel(monthOf(period)),
+    full: (period: string) => monthLabel(monthOf(period)),
+  },
+} satisfies Record<
+  Granularity,
+  { title: string; tick: (p: string) => string; full: (p: string) => string }
+>;
+
 interface DailyChartProps {
   points: SeriesPoint[] | undefined;
+  /** Шаг графика; по умолчанию дни */
+  granularity?: Granularity;
   currency: string;
   loading?: boolean;
 }
 
 /** Расходы по дням: столбики, линия или область; за день или нарастающим итогом. Вид запоминается. */
-export function DailyChart({ points, currency, loading = false }: DailyChartProps) {
+export function DailyChart({
+  points,
+  currency,
+  granularity = 'day',
+  loading = false,
+}: DailyChartProps) {
+  const step = STEP[granularity];
   const [type, setType] = usePersistentChoice<DailyType>('daily.type', TYPES, 'bars');
   const [mode, setMode] = usePersistentChoice<DailyMode>('daily.mode', MODES, 'daily');
 
@@ -57,7 +90,7 @@ export function DailyChart({ points, currency, loading = false }: DailyChartProp
 
   return (
     <ChartCard
-      title="Расходы по дням"
+      title={step.title}
       description={mode === 'cumulative' ? 'Нарастающим итогом с начала периода' : undefined}
       actions={
         <div className="flex flex-wrap gap-2">
@@ -79,8 +112,12 @@ export function DailyChart({ points, currency, loading = false }: DailyChartProp
         points &&
         hasSpending && (
           <DataTable
-            columns={['День', `Сумма, ${currency}`, 'Операций']}
-            rows={(data ?? []).map((p) => [dayLabel(p.period), formatMoney(p.total), p.count])}
+            columns={[
+              granularity === 'day' ? 'День' : granularity === 'week' ? 'Неделя' : 'Месяц',
+              `Сумма, ${currency}`,
+              'Операций',
+            ]}
+            rows={(data ?? []).map((p) => [step.full(p.period), formatMoney(p.total), p.count])}
           />
         )
       }
@@ -90,9 +127,9 @@ export function DailyChart({ points, currency, loading = false }: DailyChartProp
       ) : !data || !hasSpending ? (
         <ChartMessage>За выбранный период расходов нет</ChartMessage>
       ) : (
-        <div style={{ height: CHART_HEIGHT }} role="img" aria-label="График расходов по дням">
+        <div style={{ height: CHART_HEIGHT }} role="img" aria-label={step.title}>
           <ResponsiveContainer width="100%" height="100%">
-            {renderChart(type, data, currency)}
+            {renderChart(type, data, currency, step)}
           </ResponsiveContainer>
         </div>
       )}
@@ -100,7 +137,12 @@ export function DailyChart({ points, currency, loading = false }: DailyChartProp
   );
 }
 
-function renderChart(type: DailyType, data: SeriesPoint[], currency: string) {
+function renderChart(
+  type: DailyType,
+  data: SeriesPoint[],
+  currency: string,
+  step: (typeof STEP)[Granularity],
+) {
   const margin = { top: 8, right: 8, bottom: 0, left: 0 };
   const common = { data, margin };
 
@@ -108,7 +150,7 @@ function renderChart(type: DailyType, data: SeriesPoint[], currency: string) {
   const xAxis = (
     <XAxis
       dataKey="period"
-      tickFormatter={dayOfMonth}
+      tickFormatter={step.tick}
       tick={axisTick}
       tickLine={false}
       axisLine={{ stroke: 'var(--chart-grid)' }}
@@ -133,7 +175,7 @@ function renderChart(type: DailyType, data: SeriesPoint[], currency: string) {
         if (!active || !point) return null;
         return (
           <ChartTooltip
-            title={dayLabel(point.period)}
+            title={step.full(point.period)}
             rows={[
               {
                 label: 'Потрачено',

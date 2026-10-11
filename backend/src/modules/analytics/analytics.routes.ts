@@ -43,6 +43,9 @@ export const analyticsRoutes =
       };
     });
 
+    /** Авторы расходов для фильтра «кто добавил». */
+    app.get('/analytics/authors', async () => ({ success: true, data: await analytics.authors() }));
+
     /** Список операций: сортировка и страницы выполняет база. */
     app.get('/expenses', async (request) => {
       const query = parseQuery('list', request.query);

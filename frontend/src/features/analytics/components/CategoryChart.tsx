@@ -44,6 +44,8 @@ interface CategoryChartProps {
   currency: string;
   /** Порядок категорий из справочника: по нему закрепляются цвета */
   categoryOrder: string[];
+  /** Нажатие на категорию (полосу, сектор или строку легенды) открывает её наименования */
+  onSelect?: (category: string) => void;
   loading?: boolean;
 }
 
@@ -52,6 +54,7 @@ export function CategoryChart({
   rows,
   currency,
   categoryOrder,
+  onSelect,
   loading = false,
 }: CategoryChartProps) {
   const [type, setType] = usePersistentChoice<CategoryType>('category.type', TYPES, 'bars');
@@ -96,9 +99,15 @@ export function CategoryChart({
           currency={currency}
           categoryOrder={categoryOrder}
           donut={type === 'donut'}
+          onSelect={onSelect}
         />
       ) : (
-        <BarsChart rows={rows} currency={currency} horizontal={type === 'bars'} />
+        <BarsChart
+          rows={rows}
+          currency={currency}
+          horizontal={type === 'bars'}
+          onSelect={onSelect}
+        />
       )}
     </ChartCard>
   );
@@ -108,11 +117,19 @@ function BarsChart({
   rows,
   currency,
   horizontal,
+  onSelect,
 }: {
   rows: BreakdownRow[];
   currency: string;
   horizontal: boolean;
+  onSelect?: (category: string) => void;
 }) {
+  /** Нажатие на полосу: Recharts отдаёт строку данных либо прямо, либо в `payload`. */
+  const select = (entry: unknown) => {
+    const { key, payload } = entry as { key?: string; payload?: { key?: string } };
+    const category = payload?.key ?? key;
+    if (category) onSelect?.(category);
+  };
   const tooltip = (
     <Tooltip
       cursor={{ fill: 'var(--chart-grid)', fillOpacity: 0.5 }}
@@ -167,6 +184,8 @@ function BarsChart({
               maxBarSize={24}
               radius={[0, 4, 4, 0]}
               isAnimationActive={false}
+              className={onSelect ? 'cursor-pointer' : undefined}
+              onClick={select}
             >
               <LabelList
                 dataKey="total"
@@ -208,6 +227,8 @@ function BarsChart({
             maxBarSize={24}
             radius={[4, 4, 0, 0]}
             isAnimationActive={false}
+            className={onSelect ? 'cursor-pointer' : undefined}
+            onClick={select}
           />
         </BarChart>
       </ResponsiveContainer>
@@ -222,12 +243,14 @@ function ShareChart({
   currency,
   categoryOrder,
   donut,
+  onSelect,
 }: {
   slices: Slice[];
   total: number;
   currency: string;
   categoryOrder: string[];
   donut: boolean;
+  onSelect?: (category: string) => void;
 }) {
   const colors = assignColors(
     slices.filter((slice) => !slice.isOther).map((slice) => slice.key),
@@ -245,6 +268,8 @@ function ShareChart({
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Tooltip
+              // Подсказка выше подписи в центре кольца, иначе подпись просвечивает сквозь неё
+              wrapperStyle={{ zIndex: 20 }}
               content={({ active, payload }) => {
                 const slice = payload?.[0]?.payload as Slice | undefined;
                 if (!active || !slice) return null;
@@ -276,7 +301,12 @@ function ShareChart({
               isAnimationActive={false}
             >
               {slices.map((slice) => (
-                <Cell key={slice.key} fill={colorOf(slice)} />
+                <Cell
+                  key={slice.key}
+                  fill={colorOf(slice)}
+                  className={onSelect && !slice.isOther ? 'cursor-pointer' : undefined}
+                  onClick={() => !slice.isOther && onSelect?.(slice.key)}
+                />
               ))}
             </Pie>
           </PieChart>
@@ -291,22 +321,41 @@ function ShareChart({
       </div>
 
       <ul className="w-full min-w-0 flex-1 space-y-1.5 text-sm">
-        {slices.map((slice) => (
-          <li key={slice.key} className="flex items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="size-3 shrink-0 rounded-sm"
-              style={{ background: colorOf(slice) }}
-            />
-            <span className="min-w-0 flex-1 truncate">{slice.key}</span>
-            <span className="tabular-nums text-zinc-500 dark:text-zinc-400">
-              {formatMoney(slice.share * 100, 0)}%
-            </span>
-            <span className="w-24 text-right font-medium tabular-nums">
-              {formatMoney(slice.total)}
-            </span>
-          </li>
-        ))}
+        {slices.map((slice) => {
+          const row = (
+            <>
+              <span
+                aria-hidden="true"
+                className="size-3 shrink-0 rounded-sm"
+                style={{ background: colorOf(slice) }}
+              />
+              <span className="min-w-0 flex-1 truncate text-left">{slice.key}</span>
+              <span className="tabular-nums text-zinc-500 dark:text-zinc-400">
+                {formatMoney(slice.share * 100, 0)}%
+              </span>
+              <span className="w-24 text-right font-medium tabular-nums">
+                {formatMoney(slice.total)}
+              </span>
+            </>
+          );
+          const rowClass = 'flex w-full items-center gap-2 rounded-md px-1 py-0.5';
+          return (
+            <li key={slice.key}>
+              {onSelect && !slice.isOther ? (
+                <button
+                  type="button"
+                  onClick={() => onSelect(slice.key)}
+                  aria-label={`${slice.key}: показать наименования`}
+                  className={`${rowClass} hover:bg-zinc-100 dark:hover:bg-zinc-800`}
+                >
+                  {row}
+                </button>
+              ) : (
+                <div className={rowClass}>{row}</div>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

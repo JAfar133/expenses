@@ -1,5 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
+  fetchAuthors,
   fetchBreakdown,
   fetchSummary,
   fetchTimeseries,
@@ -24,16 +25,33 @@ export const useSummary = (filters: AnalyticsFilters) =>
     ...options,
   });
 
-export const useBreakdown = (filters: AnalyticsFilters, by: BreakdownBy) =>
+export const useBreakdown = (
+  filters: AnalyticsFilters,
+  by: BreakdownBy,
+  { enabled = true }: { enabled?: boolean } = {},
+) =>
   useQuery({
     queryKey: [...ANALYTICS_KEY, 'breakdown', by, filters],
     queryFn: () => fetchBreakdown(filters, by),
+    enabled,
     ...options,
   });
 
-export const useTimeseries = (filters: AnalyticsFilters, granularity: Granularity) =>
+export const useTimeseries = (
+  filters: AnalyticsFilters,
+  granularity: Granularity,
+  splitBy?: 'category' | 'card',
+) =>
   useQuery({
-    queryKey: [...ANALYTICS_KEY, 'timeseries', granularity, filters],
-    queryFn: () => fetchTimeseries(filters, granularity),
+    queryKey: [...ANALYTICS_KEY, 'timeseries', granularity, splitBy ?? null, filters],
+    queryFn: () => fetchTimeseries(filters, granularity, splitBy),
     ...options,
+  });
+
+/** Список авторов для фильтра; меняется редко. */
+export const useAuthors = () =>
+  useQuery({
+    queryKey: [...ANALYTICS_KEY, 'authors'],
+    queryFn: fetchAuthors,
+    staleTime: 5 * 60_000,
   });

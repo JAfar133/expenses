@@ -80,6 +80,22 @@ export const fetchSummary = async (filters: AnalyticsFilters) =>
 export const fetchBreakdown = async (filters: AnalyticsFilters, by: BreakdownBy) =>
   (await apiRequest<BreakdownRow[]>(`/analytics/breakdown${toSearch(filters, { by })}`)).data;
 
-export const fetchTimeseries = async (filters: AnalyticsFilters, granularity: Granularity) =>
-  (await apiRequest<SeriesPoint[]>(`/analytics/timeseries${toSearch(filters, { granularity })}`))
-    .data;
+export const fetchTimeseries = async (
+  filters: AnalyticsFilters,
+  granularity: Granularity,
+  splitBy?: 'category' | 'card',
+) =>
+  (
+    await apiRequest<SeriesPoint[]>(
+      `/analytics/timeseries${toSearch(filters, { granularity, splitBy })}`,
+    )
+  ).data;
+
+/** Кто добавлял расходы: логин для фильтра, имя для показа. */
+export interface Author {
+  value: string;
+  label: string;
+  count: number;
+}
+
+export const fetchAuthors = async () => (await apiRequest<Author[]>('/analytics/authors')).data;

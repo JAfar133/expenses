@@ -44,3 +44,37 @@ export const shortDayLabel = (isoDate: string) => shortDayFormat.format(atUtc(is
 
 /** Число месяца: `2026-10-05` → `5`. */
 export const dayOfMonth = (isoDate: string) => String(Number(isoDate.slice(8, 10)));
+
+const DAY_MS = 86_400_000;
+const atUtcMs = (isoDate: string) => Date.parse(`${isoDate}T00:00:00Z`);
+
+/** Сдвиг даты на заданное число дней. */
+export const addDays = (isoDate: string, days: number) =>
+  new Date(atUtcMs(isoDate) + days * DAY_MS).toISOString().slice(0, 10);
+
+/** Сколько дней от `from` до `to` включительно (0, если `to` раньше). */
+export const daysBetween = (from: string, to: string) =>
+  Math.max(0, Math.round((atUtcMs(to) - atUtcMs(from)) / DAY_MS) + 1);
+
+export const daysInMonth = (month: MonthKey) => {
+  const { from, to } = monthRange(month);
+  return daysBetween(from, to);
+};
+
+/** Последние `count` месяцев, заканчивая `end`, от старого к новому. */
+export const monthsEndingAt = (end: MonthKey, count: number): MonthKey[] =>
+  Array.from({ length: count }, (_, index) => shiftMonth(end, index - (count - 1)));
+
+const monthShortFormat = formatter({ month: 'short' });
+const monthYearShortFormat = formatter({ month: 'short', year: '2-digit' });
+
+/** «окт.» */
+export const monthShortLabel = (month: MonthKey) =>
+  monthShortFormat.format(atUtc(`${month}-01`)).replace('.', '');
+
+/** «окт 26» */
+export const monthYearShortLabel = (month: MonthKey) =>
+  monthYearShortFormat
+    .format(atUtc(`${month}-01`))
+    .replace(/\./g, '')
+    .replace(/\s*г$/, '');

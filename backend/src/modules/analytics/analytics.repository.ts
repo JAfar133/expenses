@@ -3,6 +3,7 @@ import { dateText, timestampText } from '../../infrastructure/database/sql.ts';
 import { buildWhere } from './analytics.query.ts';
 import type {
   AnalyticsFilters,
+  Author,
   BreakdownBy,
   BreakdownRow,
   ExpenseListItem,
@@ -159,6 +160,20 @@ export class AnalyticsRepository {
     );
   }
 
+  /** Авторы расходов (без удалённых) от самых активных; записи, пришедшие из Excel, подписаны «Из Excel». */
+  async authors(): Promise<Author[]> {
+    return this.database.query<Author>(
+      `SELECT e.created_by AS value,
+              COALESCE(u.display_name, CASE WHEN e.created_by = 'excel' THEN 'Из Excel' ELSE e.created_by END) AS label,
+              count(*)::int AS count
+         FROM expenses e
+         LEFT JOIN users u ON u.username = e.created_by
+        WHERE e.deleted_at IS NULL
+        GROUP BY e.created_by, u.display_name
+        ORDER BY count(*) DESC, e.created_by`,
+    );
+  }
+
   async list(filters: AnalyticsFilters, options: ListOptions): Promise<ExpenseListPage> {
     const where = buildWhere(filters, this.baseCurrency);
     const direction = options.direction === 'asc' ? 'ASC' : 'DESC';
@@ -183,7 +198,7 @@ export class AnalyticsRepository {
     ]);
 
     return {
-      items: items.map(toListItem),
+      items: items.map((row) => toListItem(row, this.baseCurrency)),
       total: totals!.total,
       totalAmount: totals!.total_amount,
     };
@@ -206,13 +221,15 @@ interface ListRow {
   exchange_rate: number | null;
 }
 
-const toListItem = (row: ListRow): ExpenseListItem => ({
+/** Пустая валюта (`original_currency IS NULL`) означает базовую: расход введён в драммах или пришёл из Excel. */
+const toListItem = (row: ListRow, baseCurrency: string): ExpenseListItem => ({
   id: row.id,
   date: row.date,
   card: row.card,
   category: row.category,
   name: row.name,
   amount: row.amount,
+  currency: row.original_currency ?? baseCurrency,
   original:
     row.original_amount === null
       ? null

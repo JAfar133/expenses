@@ -2,6 +2,7 @@ import { addDays, daysInclusive, nextPeriod, periodStart } from './date-math.ts'
 import type { AnalyticsRepository } from './analytics.repository.ts';
 import type {
   AnalyticsFilters,
+  Author,
   BreakdownBy,
   BreakdownRow,
   ExpenseListPage,
@@ -26,7 +27,10 @@ export interface SummaryResult {
 }
 
 export interface AnalyticsServiceOptions {
-  repository: Pick<AnalyticsRepository, 'summary' | 'breakdown' | 'timeseries' | 'list'>;
+  repository: Pick<
+    AnalyticsRepository,
+    'summary' | 'breakdown' | 'timeseries' | 'list' | 'authors'
+  >;
   /** Сегодняшняя дата в часовом поясе приложения (YYYY-MM-DD) */
   today: () => string;
 }
@@ -77,6 +81,10 @@ export class AnalyticsService {
     const lastWanted = filters.to ?? points[points.length - 1]!.period;
     const last = lastWanted > today ? today : lastWanted;
     return fillGaps(points, periodStart(first, granularity), last, granularity);
+  }
+
+  authors(): Promise<Author[]> {
+    return this.options.repository.authors();
   }
 
   list(filters: AnalyticsFilters, options: ListOptions): Promise<ExpenseListPage> {

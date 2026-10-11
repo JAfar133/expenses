@@ -224,6 +224,8 @@ curl -s -b cookies.txt -X POST $SITE/api/expenses -H "Origin: $SITE" -H 'content
 `"rate":380.5` (драммы за единицу валюты). `amount` в ответе всегда в драммах, а исходная сумма и курс лежат в `original`
 (`{"amount":10.5,"currency":"USD","rate":380}`; для расхода в драммах `null`). Нет курса и он не указан — `422 RATE_UNAVAILABLE`.
 
+**Пустая валюта это базовая.** Если у записи нет `original_currency` (введена в драммах или пришла из Excel), её валюта считается базовой (`DEFAULT_CURRENCY`, AMD): так её видят фильтр по валюте, разрез `breakdown?by=currency` и поле `currency` в `GET /api/expenses`.
+
 `GET /api/sync/status` и `POST /api/sync` возвращают состояние:
 
 ```json

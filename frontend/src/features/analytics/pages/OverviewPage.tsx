@@ -1,29 +1,43 @@
 import { useSearchParams } from 'react-router';
 import { Notice } from '../../../shared/ui/Notice.tsx';
-import { todayIso } from '../../../shared/utils/date.ts';
 import { formatMoney } from '../../../shared/utils/money.ts';
 import { CategoryChart } from '../components/CategoryChart.tsx';
+import { CategoryNames } from '../components/CategoryNames.tsx';
 import { DailyChart } from '../components/DailyChart.tsx';
-import { MonthSwitcher } from '../components/MonthSwitcher.tsx';
 import { StatTile } from '../components/StatTile.tsx';
 import { useAnalyticsReference } from '../hooks/useAnalyticsReference.ts';
 import { useBreakdown, useSummary, useTimeseries } from '../hooks/useAnalytics.ts';
+import { useFilterState } from '../hooks/useFilterState.ts';
 import { changePercent } from '../model/chart-data.ts';
-import { isMonthKey, monthOf, monthRange } from '../model/periods.ts';
+import { pickDrillCategory } from '../model/drill.ts';
+import { granularityFor, toApiFilters } from '../model/filter-state.ts';
 
-/** Страница анализа: обзор выбранного месяца. Месяц хранится в адресе (`?month=2026-10`). */
-export default function AnalyticsPage() {
-  const [params, setParams] = useSearchParams();
-  const latest = monthOf(todayIso());
-  const requested = params.get('month');
-  const month = isMonthKey(requested) && requested <= latest ? requested : latest;
-
-  const filters = monthRange(month);
+/** Обзор выбранного периода с учётом всех фильтров: показатели, динамика по времени и категории. */
+export default function OverviewPage() {
+  const { state, today } = useFilterState();
+  const filters = toApiFilters(state, today);
+  const granularity = granularityFor(state, today);
   const { currency, categoryOrder } = useAnalyticsReference();
 
   const summary = useSummary(filters);
-  const daily = useTimeseries(filters, 'day');
+  const series = useTimeseries(filters, granularity);
   const categories = useBreakdown(filters, 'category');
+
+  // Категория для разбивки по наименованиям хранится в адресе (`?drill=кафе`)
+  const [params, setParams] = useSearchParams();
+  const drill = pickDrillCategory(params.get('drill'), categories.data ?? []);
+  const names = useBreakdown({ ...filters, categories: drill ? [drill] : [] }, 'name', {
+    enabled: drill !== undefined,
+  });
+  const selectCategory = (category: string) =>
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.set('drill', category);
+        return next;
+      },
+      { replace: true },
+    );
 
   const current = summary.data?.current;
   const previous = summary.data?.previous ?? undefined;
@@ -33,12 +47,6 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-4">
-      <MonthSwitcher
-        month={month}
-        latest={latest}
-        onChange={(next) => setParams(next === latest ? {} : { month: next })}
-      />
-
       {summary.isError && (
         <Notice variant="error">
           Не удалось загрузить данные.{' '}
@@ -75,12 +83,27 @@ export default function AnalyticsPage() {
         <StatTile label="Самая крупная" value={money(current?.max)} />
       </div>
 
-      <DailyChart points={daily.data} currency={currency} loading={daily.isPending} />
+      <DailyChart
+        points={series.data}
+        currency={currency}
+        granularity={granularity}
+        loading={series.isPending}
+      />
       <CategoryChart
         rows={categories.data}
         currency={currency}
         categoryOrder={categoryOrder}
+        onSelect={selectCategory}
         loading={categories.isPending}
+      />
+      <CategoryNames
+        categories={categories.data ?? []}
+        selected={drill}
+        onSelect={selectCategory}
+        names={drill ? names.data : []}
+        categoryOrder={categoryOrder}
+        currency={currency}
+        loading={names.isPending && drill !== undefined}
       />
     </div>
   );

@@ -44,3 +44,22 @@ body {
     --series-7: #9085e9;
   }
 }
+
+/* Календарь выбора диапазона дат */
+.rdp-root {
+  --rdp-accent-color: #4f46e5;
+  --rdp-accent-background-color: #e0e7ff;
+  --rdp-day-height: 40px;
+  --rdp-day-width: 40px;
+  --rdp-day_button-height: 38px;
+  --rdp-day_button-width: 38px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .rdp-root {
+    --rdp-accent-color: #818cf8;
+    --rdp-accent-background-color: #312e81;
+    --rdp-range_start-color: #18181b;
+    --rdp-range_end-color: #18181b;
+  }
+}
