@@ -136,6 +136,68 @@ describe('очередь, когда Excel недоступен', () => {
   });
 });
 
+describe('расходы в иностранной валюте', () => {
+  it('пересчитывает в драммы по курсу, в ответе исходная сумма', async () => {
+    const response = await post({ ...validBody, amount: 10.5, currency: 'USD' });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json().data).toMatchObject({
+      amount: 3990,
+      original: { amount: 10.5, currency: 'USD', rate: 380 },
+    });
+    const saved = await t.repository.findById(response.json().data.id);
+    expect(saved).toMatchObject({
+      amount: 3990,
+      original: { amount: 10.5, currency: 'USD', rate: 380 },
+    });
+  });
+
+  it('ручной курс используется вместо курса из справочника', async () => {
+    const response = await post({ ...validBody, amount: 10, currency: 'USD', rate: 400 });
+
+    expect(response.json().data).toMatchObject({ amount: 4000, original: { rate: 400 } });
+  });
+
+  it('расход в драммах без исходной суммы', async () => {
+    const response = await post({ ...validBody, currency: 'AMD' });
+
+    expect(response.json().data).toMatchObject({ amount: 9703, original: null });
+  });
+
+  it('нет курса: 422 RATE_UNAVAILABLE и ничего не сохраняется', async () => {
+    t.rates.rates.clear();
+
+    const response = await post({ ...validBody, amount: 5, currency: 'USD' });
+
+    expect(response.statusCode).toBe(422);
+    expect(response.json().error.code).toBe('RATE_UNAVAILABLE');
+    expect(await t.repository.countQueue()).toBe(0);
+  });
+
+  it('валюта не из списка: 422 INVALID_CURRENCY', async () => {
+    const response = await post({ ...validBody, currency: 'GBP' });
+
+    expect(response.statusCode).toBe(422);
+    expect(response.json().error.code).toBe('INVALID_CURRENCY');
+  });
+
+  it('GET /api/rates отдаёт базовую валюту, список валют и курсы', async () => {
+    const response = await t.inject({ method: 'GET', url: '/api/rates' });
+
+    expect(response.json().data).toMatchObject({
+      base: 'AMD',
+      currencies: ['AMD', 'RUB', 'USD', 'EUR'],
+      rates: expect.arrayContaining([
+        { currency: 'USD', rate: 380, fetchedAt: '2026-10-10T10:00:00.000Z' },
+      ]),
+    });
+  });
+
+  it('GET /api/rates требует входа', async () => {
+    expect((await t.app.inject({ method: 'GET', url: '/api/rates' })).statusCode).toBe(401);
+  });
+});
+
 describe('Excel отключён (не задан ONEDRIVE_FILE_PATH)', () => {
   it('расход сохраняется в БД, синхронизация не запускается, ответ 201 со статусом disabled', async () => {
     t.sync.enabled = false;

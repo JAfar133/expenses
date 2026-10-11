@@ -5,6 +5,7 @@ import type {
   NameSuggestion,
   StoredExpense,
 } from '../../storage/expense.repository.ts';
+import { resolveAmount, type AmountContext } from './expense-amount.ts';
 import type { CreateExpenseInput } from './expenses.schema.ts';
 
 /** Сколько пар «категория + наименование» отдаём форме для подсказок. */
@@ -17,6 +18,8 @@ export interface ReferenceData {
 
 export interface ExpenseServiceOptions {
   reference: ReferenceData;
+  /** Базовая валюта, доступные валюты и курсы для пересчёта в драммы */
+  currency: AmountContext;
   logger?: { warn: (object: object, message: string) => void };
 }
 
@@ -52,7 +55,21 @@ export class ExpenseService {
     if (!this.getCards().includes(input.card)) {
       throw validationError('INVALID_CARD', 'Выберите карту из списка');
     }
-    return this.repository.insertPending(db, input, userId);
+    const { amount, original } = await resolveAmount(
+      {
+        amount: input.amount,
+        currency: input.currency ?? this.options.currency.base,
+        manualRate: input.rate,
+      },
+      this.options.currency,
+    );
+    const { date, card, category, name } = input;
+    return this.repository.insertPending(
+      db,
+      { date, card, category, name, amount },
+      userId,
+      original,
+    );
   }
 
   findById(id: string): Promise<StoredExpense | undefined> {

@@ -62,6 +62,7 @@ export const expensesRoutes =
             category: saved.category,
             name: saved.name,
             amount: saved.amount,
+            original: saved.original,
             excelStatus,
           },
           message:

@@ -16,7 +16,14 @@ const stored = (
   expense: Expense,
   excelStatus: ExcelStatus,
   deletedAt: string | null = null,
-): StoredExpense => ({ ...expense, id: `id-${++nextId}`, source: 'app', excelStatus, deletedAt });
+): StoredExpense => ({
+  ...expense,
+  id: `id-${++nextId}`,
+  source: 'app',
+  excelStatus,
+  deletedAt,
+  original: null,
+});
 
 const EMPTY = {
   toImport: [],

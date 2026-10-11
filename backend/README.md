@@ -41,7 +41,10 @@ npm run dev        # с перезапуском при изменениях
 | `NODE_ENV`                 | `development`               | Окружение                                                       |
 | `HOST`, `PORT`             | `127.0.0.1`, `3000`         | Адрес сервера                                                   |
 | `DATABASE_URL`             | **обязательна**             | Подключение к PostgreSQL, например `postgres://expenses:…@127.0.0.1:5433/expenses` |
-| `DEFAULT_CURRENCY`         | `AMD`                       | Валюта, которую показывает форма                                |
+| `DEFAULT_CURRENCY`         | `AMD`                       | Базовая валюта: в ней учёт и Excel                              |
+| `CURRENCIES`               | `AMD,RUB,USD,EUR`           | Валюты, в которых можно вводить расходы                         |
+| `EXCHANGE_RATES_URL`       | `https://cb.am/latest.json.php` | Источник курсов (ЦБ Армении, драммы за единицу валюты)      |
+| `EXCHANGE_RATES_REFRESH_HOURS` | `6`                     | Как часто обновлять курсы                                       |
 | `APP_TIMEZONE`             | `Asia/Yerevan`              | Часовой пояс для имён резервных копий                           |
 | `EXCEL_SHEET_NAME`         | `Лист1`                     | Лист с таблицей                                                 |
 | `EXCEL_TABLE_NAME`         | `Операции`                  | Структурированная таблица Excel                                 |
@@ -187,6 +190,8 @@ WHERE id = '<id записи>';
 | `GET /api/auth/me`      | Кто вошёл                                                               |
 | `GET /api/config`       | Валюта                                                                  |
 | `GET /api/cards`        | Список карт                                                             |
+| `GET /api/rates`        | Базовая валюта, доступные валюты и курсы к драму (ЦБ Армении, с запасным последним курсом) |
+| `GET /api/name-suggestions` | Наименования по категориям от самых частых (для подсказок в форме)  |
 | `GET /api/categories`   | Категории: конфигурация + значения из базы (включая импортированные из Excel) |
 | `POST /api/expenses`    | Добавить расход (нужен заголовок `Idempotency-Key`)                     |
 | `GET /api/sync/status`  | Очередь, последний результат синхронизации, время следующего запуска    |
@@ -213,7 +218,11 @@ curl -s -b cookies.txt -X POST $SITE/api/expenses -H "Origin: $SITE" -H 'content
   "message": "Расход успешно добавлен" }
 ```
 
-`excelStatus`: `synced` — расход уже в Excel; `queued` — сохранён в базе и ждёт записи в Excel.
+`excelStatus`: `synced` — расход уже в Excel; `queued` — сохранён в базе и ждёт записи в Excel; `disabled` — работа с Excel отключена.
+
+**Другая валюта.** Добавьте `"currency":"USD"` и сумму с копейками (`"amount":10.5`); курс берётся из справочника, либо задайте свой:
+`"rate":380.5` (драммы за единицу валюты). `amount` в ответе всегда в драммах, а исходная сумма и курс лежат в `original`
+(`{"amount":10.5,"currency":"USD","rate":380}`; для расхода в драммах `null`). Нет курса и он не указан — `422 RATE_UNAVAILABLE`.
 
 `GET /api/sync/status` и `POST /api/sync` возвращают состояние:
 

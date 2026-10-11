@@ -74,6 +74,32 @@ export class FakeSync {
   }
 }
 
+/** Поддельные курсы: драммы за единицу валюты; убрав курс, можно имитировать недоступный источник. */
+export class FakeRates {
+  readonly base = 'AMD';
+  readonly currencies = ['AMD', 'RUB', 'USD', 'EUR'];
+  rates = new Map<string, number>([
+    ['RUB', 4.5],
+    ['USD', 380],
+    ['EUR', 410],
+  ]);
+
+  async rateOf(currency: string) {
+    return currency === this.base ? 1 : this.rates.get(currency);
+  }
+
+  async snapshot() {
+    return {
+      base: this.base,
+      rates: [...this.rates].map(([currency, rate]) => ({
+        currency,
+        rate,
+        fetchedAt: '2026-10-10T10:00:00.000Z',
+      })),
+    };
+  }
+}
+
 /** Пароль обоих тестовых пользователей. */
 export const TEST_PASSWORD = 'shared-test-password-1';
 
@@ -88,6 +114,7 @@ export interface TestApp {
   database: Database;
   repository: PostgresExpenseRepository;
   sync: FakeSync;
+  rates: FakeRates;
   scheduler: SyncScheduler;
   auth: AuthService;
   authRepository: AuthRepository;
@@ -112,6 +139,7 @@ export async function createTestApp(
 ): Promise<TestApp> {
   const repository = new PostgresExpenseRepository(database);
   const sync = new FakeSync(repository, database);
+  const rates = new FakeRates();
   const scheduler = new SyncScheduler({ sync, intervalMs: 300_000, retryMs: 60_000 });
 
   const authRepository = new AuthRepository(database);
@@ -138,8 +166,10 @@ export async function createTestApp(
   const app = buildApp({
     expenseService: new ExpenseService(repository, {
       reference: { cards: ['Миша', 'Настя'], categories: ['кафе', 'продукты'] },
+      currency: rates,
     }),
     auth,
+    rates,
     idempotency: new IdempotencyService(database),
     sync: sync as unknown as SyncService,
     scheduler,
@@ -182,6 +212,7 @@ export async function createTestApp(
     database,
     repository,
     sync,
+    rates,
     scheduler,
     auth,
     authRepository,

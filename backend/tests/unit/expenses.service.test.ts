@@ -19,6 +19,11 @@ let repository: PostgresExpenseRepository;
 const createService = (repo: ExpenseRepository = repository) =>
   new ExpenseService(repo, {
     reference: { cards: ['Миша', 'Настя'], categories: ['кафе', 'продукты'] },
+    currency: {
+      base: 'AMD',
+      currencies: ['AMD', 'USD'],
+      rateOf: async (currency) => (currency === 'USD' ? 380 : undefined),
+    },
   });
 
 beforeAll(async () => {

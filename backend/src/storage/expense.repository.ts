@@ -6,12 +6,22 @@ export type { Expense };
 /** pending — ждёт записи в Excel, writing — запись начата, synced — запись есть в Excel. */
 export type ExcelStatus = 'pending' | 'writing' | 'synced';
 
+/** Расход в иностранной валюте: исходная сумма и курс на момент ввода (amount при этом в драммах). */
+export interface ExpenseOriginal {
+  amount: number;
+  currency: string;
+  /** Драммы за единицу валюты */
+  rate: number;
+}
+
 export interface StoredExpense extends Expense {
   id: string;
   source: 'app' | 'excel';
   excelStatus: ExcelStatus;
   /** Когда запись помечена удалённой (ISO) или null, если она активна */
   deletedAt: string | null;
+  /** Исходная сумма в иностранной валюте; null для расходов в драммах и записей из Excel */
+  original: ExpenseOriginal | null;
 }
 
 /** Как часто в категории встречается наименование (без учёта регистра и пробелов по краям). */
@@ -23,7 +33,12 @@ export interface NameSuggestion {
 
 /** Хранилище расходов (PostgreSQL). Excel — отдельное зеркало, см. модуль sync. */
 export interface ExpenseRepository {
-  insertPending(db: SqlExecutor, expense: Expense, createdBy: string): Promise<StoredExpense>;
+  insertPending(
+    db: SqlExecutor,
+    expense: Expense,
+    createdBy: string,
+    original?: ExpenseOriginal,
+  ): Promise<StoredExpense>;
   findById(id: string): Promise<StoredExpense | undefined>;
   listCategories(): Promise<string[]>;
   /** Наименования по категориям от самых частых к редким (не больше limit). */

@@ -18,10 +18,12 @@ const created = (body: Record<string, unknown>, excelStatus = 'synced') =>
   });
 
 let postExpense: ReturnType<typeof vi.fn<Responder>>;
+let ratesResponse: () => Response;
 let nameSuggestions: { name: string; category: string; count: number }[];
 
 beforeEach(() => {
   postExpense = vi.fn<Responder>((body) => created(body));
+  ratesResponse = () => json(500, { success: false, error: { code: 'X', message: 'x' } });
   nameSuggestions = [
     { name: 'Латте', category: 'кафе', count: 9 },
     { name: 'Хлеб', category: 'продукты', count: 7 },
@@ -47,6 +49,7 @@ beforeEach(() => {
           },
         });
       }
+      if (url === '/api/rates') return ratesResponse();
       if (url === '/api/name-suggestions')
         return json(200, { success: true, data: nameSuggestions });
       if (url === '/api/config') return json(200, { success: true, data: { currency: 'AMD' } });
@@ -159,6 +162,163 @@ describe('карта по умолчанию зависит от пользов�
     await renderPage(NASTYA);
 
     expect(screen.getByLabelText('Категория')).toHaveValue('кафе');
+  });
+});
+
+const RATES = {
+  base: 'AMD',
+  currencies: ['AMD', 'RUB', 'USD', 'EUR'],
+  rates: [
+    { currency: 'RUB', rate: 4.5, fetchedAt: '2026-10-10T10:00:00.000Z' },
+    { currency: 'USD', rate: 380, fetchedAt: '2026-10-10T10:00:00.000Z' },
+  ],
+};
+
+describe('валюта', () => {
+  const withRates = (data: unknown = RATES) => {
+    ratesResponse = () => json(200, { success: true, data });
+  };
+  const currencySelect = () => screen.findByRole('combobox', { name: 'Валюта' });
+
+  it('без курсов только драммы: переключателя нет', async () => {
+    await renderPage();
+
+    expect(screen.queryByRole('combobox', { name: 'Валюта' })).toBeNull();
+    expect(screen.getByText('AMD')).toBeInTheDocument();
+  });
+
+  it('предлагает валюты с сервера, по умолчанию драммы без поля курса', async () => {
+    withRates();
+    await renderPage();
+
+    const select = await currencySelect();
+
+    expect(select).toHaveValue('AMD');
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['AMD', 'RUB', 'USD', 'EUR']);
+    expect(screen.queryByLabelText(/Курс/)).toBeNull();
+  });
+
+  it('при выборе доллара подставляет курс, принимает копейки и показывает пересчёт', async () => {
+    withRates();
+    const user = await renderPage();
+    await user.selectOptions(await currencySelect(), 'USD');
+
+    expect(screen.getByLabelText('Курс: AMD за 1 USD')).toHaveValue('380');
+    await user.type(screen.getByLabelText('Стоимость'), '10.5');
+
+    expect(screen.getByLabelText('Стоимость')).toHaveValue('10,5');
+    expect(screen.getByLabelText('Стоимость')).toHaveAttribute('inputmode', 'decimal');
+    expect(screen.getByText('≈ 3 990 AMD')).toBeInTheDocument();
+  });
+
+  it('пересчёт следует за ручным изменением курса', async () => {
+    withRates();
+    const user = await renderPage();
+    await user.selectOptions(await currencySelect(), 'USD');
+    await user.type(screen.getByLabelText('Стоимость'), '10');
+
+    await user.clear(screen.getByLabelText('Курс: AMD за 1 USD'));
+    await user.type(screen.getByLabelText('Курс: AMD за 1 USD'), '400,5');
+
+    expect(screen.getByText('≈ 4 005 AMD')).toBeInTheDocument();
+  });
+
+  it('отправляет исходную сумму, валюту и курс, а в сообщении показывает драммы', async () => {
+    withRates();
+    postExpense.mockImplementation((body) =>
+      created(
+        { ...body, amount: 3990, original: { amount: 10.5, currency: 'USD', rate: 380 } },
+        'synced',
+      ),
+    );
+    const user = await renderPage();
+    await user.selectOptions(await currencySelect(), 'USD');
+    await user.selectOptions(screen.getByLabelText('Категория'), 'продукты');
+    await user.type(screen.getByLabelText('Наименование'), 'Taxi');
+    await user.type(screen.getByLabelText('Стоимость'), '10,5');
+
+    await submit(user);
+
+    expect(postExpense).toHaveBeenCalledWith(
+      {
+        date: todayIso(),
+        card: 'Миша',
+        category: 'продукты',
+        name: 'Taxi',
+        amount: 10.5,
+        currency: 'USD',
+        rate: 380,
+      },
+      expect.objectContaining({}),
+    );
+    expect(
+      await screen.findByText('Расход добавлен: 3 990 AMD (10,5 USD по курсу 380)'),
+    ).toBeInTheDocument();
+  });
+
+  it('в драммах уходит только целая сумма, без валюты и курса', async () => {
+    withRates();
+    const user = await renderPage();
+    await fillForm(user);
+
+    await submit(user);
+
+    await waitFor(() => expect(postExpense).toHaveBeenCalled());
+    expect(postExpense.mock.calls[0]![0]).toEqual({
+      date: todayIso(),
+      card: 'Миша',
+      category: 'продукты',
+      name: 'Erevan City',
+      amount: 9703,
+    });
+  });
+
+  it('при возврате в драммы копейки отбрасываются', async () => {
+    withRates();
+    const user = await renderPage();
+    const select = await currencySelect();
+    await user.selectOptions(select, 'USD');
+    await user.type(screen.getByLabelText('Стоимость'), '1234,56');
+
+    await user.selectOptions(select, 'AMD');
+
+    expect(screen.getByLabelText('Стоимость')).toHaveValue('1 234');
+    expect(screen.queryByLabelText(/Курс/)).toBeNull();
+  });
+
+  it('если курса нет, просит ввести его вручную и не отправляет без него', async () => {
+    withRates({ ...RATES, rates: [] });
+    const user = await renderPage();
+    await user.selectOptions(await currencySelect(), 'USD');
+    await user.selectOptions(screen.getByLabelText('Категория'), 'продукты');
+    await user.type(screen.getByLabelText('Наименование'), 'Taxi');
+    await user.type(screen.getByLabelText('Стоимость'), '10');
+
+    expect(screen.getByText('Курс не загрузился, введите его вручную')).toBeInTheDocument();
+    await submit(user);
+
+    expect(await screen.findByText('Укажите курс')).toBeInTheDocument();
+    expect(postExpense).not.toHaveBeenCalled();
+  });
+
+  it('валюта и курс остаются для следующего расхода', async () => {
+    withRates();
+    const user = await renderPage();
+    await user.selectOptions(await currencySelect(), 'RUB');
+    await user.selectOptions(screen.getByLabelText('Категория'), 'продукты');
+    await user.type(screen.getByLabelText('Наименование'), 'Taxi');
+    await user.type(screen.getByLabelText('Стоимость'), '100');
+
+    await submit(user);
+    await waitFor(() => expect(postExpense).toHaveBeenCalled());
+
+    await waitFor(() => expect(screen.getByLabelText('Стоимость')).toHaveValue(''));
+    expect(screen.getByRole('combobox', { name: 'Валюта' })).toHaveValue('RUB');
+    expect(screen.getByLabelText('Курс: AMD за 1 RUB')).toHaveValue('4,5');
   });
 });
 

@@ -5,6 +5,7 @@ import type {
   Expense,
   ExpenseRepository,
   ExcelStatus,
+  ExpenseOriginal,
   NameSuggestion,
   StoredExpense,
 } from '../expense.repository.ts';
@@ -19,9 +20,12 @@ interface ExpenseRow {
   source: 'app' | 'excel';
   excel_status: ExcelStatus;
   deleted_at: string | null;
+  original_amount: number | null;
+  original_currency: string | null;
+  exchange_rate: number | null;
 }
 
-const COLUMNS = `id, ${dateText('date')} AS date, card, category, name, amount, source, excel_status, ${timestampText('deleted_at')} AS deleted_at`;
+const COLUMNS = `id, ${dateText('date')} AS date, card, category, name, amount, source, excel_status, ${timestampText('deleted_at')} AS deleted_at, original_amount::float8 AS original_amount, original_currency, exchange_rate::float8 AS exchange_rate`;
 
 const toStored = (row: ExpenseRow): StoredExpense => ({
   id: row.id,
@@ -33,6 +37,14 @@ const toStored = (row: ExpenseRow): StoredExpense => ({
   source: row.source,
   excelStatus: row.excel_status,
   deletedAt: row.deleted_at,
+  original:
+    row.original_amount === null
+      ? null
+      : {
+          amount: row.original_amount,
+          currency: row.original_currency!,
+          rate: row.exchange_rate!,
+        },
 });
 
 export class PostgresExpenseRepository implements ExpenseRepository {
@@ -42,10 +54,13 @@ export class PostgresExpenseRepository implements ExpenseRepository {
     db: SqlExecutor,
     expense: Expense,
     createdBy: string,
+    original?: ExpenseOriginal,
   ): Promise<StoredExpense> {
     const [row] = await db.query<ExpenseRow>(
-      `INSERT INTO expenses (id, date, card, category, name, amount, source, excel_status, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, 'app', 'pending', $7)
+      `INSERT INTO expenses (
+         id, date, card, category, name, amount, source, excel_status, created_by,
+         original_amount, original_currency, exchange_rate
+       ) VALUES ($1, $2, $3, $4, $5, $6, 'app', 'pending', $7, $8, $9, $10)
        RETURNING ${COLUMNS}`,
       [
         randomUUID(),
@@ -55,6 +70,9 @@ export class PostgresExpenseRepository implements ExpenseRepository {
         expense.name,
         expense.amount,
         createdBy,
+        original?.amount ?? null,
+        original?.currency ?? null,
+        original?.rate ?? null,
       ],
     );
     return toStored(row!);

@@ -5,6 +5,8 @@ import type { IdempotencyService } from './infrastructure/idempotency/idempotenc
 import { authPlugin } from './modules/auth/auth.plugin.ts';
 import { authRoutes } from './modules/auth/auth.routes.ts';
 import type { AuthService } from './modules/auth/auth.service.ts';
+import { ratesRoutes } from './modules/rates/rates.routes.ts';
+import type { RatesService } from './modules/rates/rates.service.ts';
 import { expensesRoutes } from './modules/expenses/expenses.routes.ts';
 import type { ExpenseService } from './modules/expenses/expenses.service.ts';
 import type { SyncScheduler } from './modules/sync/sync.scheduler.ts';
@@ -14,6 +16,7 @@ import type { SyncService } from './modules/sync/sync.service.ts';
 export interface AppDependencies {
   expenseService: ExpenseService;
   auth: AuthService;
+  rates: Pick<RatesService, 'snapshot' | 'currencies'>;
   idempotency: IdempotencyService;
   sync: SyncService;
   scheduler: SyncScheduler;
@@ -30,6 +33,7 @@ export interface AppDependencies {
 export function buildApp({
   expenseService,
   auth,
+  rates,
   idempotency,
   sync,
   scheduler,
@@ -94,6 +98,7 @@ export function buildApp({
   app.register(expensesRoutes({ expenseService, idempotency, sync, inlineExcelWaitMs }), {
     prefix: '/api',
   });
+  app.register(ratesRoutes(rates), { prefix: '/api' });
   app.register(syncRoutes({ sync, scheduler }), { prefix: '/api' });
   app.register(authRoutes(auth), { prefix: '/api' });
 

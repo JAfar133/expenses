@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { todayIso } from '../src/shared/utils/date.ts';
-import { formatAmountInput, parseAmount } from '../src/shared/utils/money.ts';
+import {
+  formatAmountInput,
+  formatDecimalInput,
+  formatMoney,
+  parseAmount,
+  parseDecimal,
+} from '../src/shared/utils/money.ts';
 import { newRequestId } from '../src/shared/utils/request-id.ts';
 
 describe('formatAmountInput', () => {
@@ -39,5 +45,50 @@ describe('newRequestId', () => {
     expect(newRequestId()).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
+  });
+});
+
+describe('formatDecimalInput', () => {
+  const money = { maxDecimals: 2, group: true };
+
+  it.each([
+    ['10.5', '10,5'],
+    ['10,50', '10,50'],
+    ['1234,567', '1 234,56'],
+    ['1234', '1 234'],
+    [',5', '0,5'],
+    ['007,1', '7,1'],
+    ['1,2,3', '1,23'],
+    ['abc', ''],
+    ['', ''],
+  ])('сумма %s -> %s', (input, expected) => {
+    expect(formatDecimalInput(input, money)).toBe(expected);
+  });
+
+  it('курс: до шести знаков, без группировки', () => {
+    expect(formatDecimalInput('1234.5678901', { maxDecimals: 6 })).toBe('1234,567890');
+  });
+});
+
+describe('parseDecimal', () => {
+  it.each([
+    ['10,5', 10.5],
+    ['10.5', 10.5],
+    ['1 234,56', 1234.56],
+    ['7', 7],
+  ])('%s -> %s', (input, expected) => {
+    expect(parseDecimal(input)).toBe(expected);
+  });
+
+  it.each(['', 'abc', '5,', ',5', '-1', '1,2,3'])('отклоняет %j', (input) => {
+    expect(parseDecimal(input)).toBeNull();
+  });
+});
+
+describe('formatMoney', () => {
+  it('группирует тысячи обычными пробелами и использует запятую', () => {
+    expect(formatMoney(3990)).toBe('3 990');
+    expect(formatMoney(10.5)).toBe('10,5');
+    expect(formatMoney(380.123456, 6)).toBe('380,123456');
   });
 });

@@ -147,6 +147,27 @@ describe('listCategories', () => {
   });
 });
 
+describe('расход в иностранной валюте', () => {
+  it('сохраняет исходную сумму, валюту и курс; у обычных записей их нет', async () => {
+    const original = { amount: 10.5, currency: 'USD', rate: 380.123456 };
+
+    const foreign = await repository.insertPending(database, coffee, 'misha', original);
+    const plain = await repository.insertPending(database, coffee, 'misha');
+
+    expect((await repository.findById(foreign.id))?.original).toEqual(original);
+    expect((await repository.findById(plain.id))?.original).toBeNull();
+  });
+
+  it('база не допускает частично заполненные поля валюты', async () => {
+    await expect(
+      database.query(
+        `INSERT INTO expenses (id, date, card, category, name, amount, source, excel_status, created_by, original_currency)
+         VALUES (gen_random_uuid(), '2026-10-10', 'Миша', 'кафе', 'x', 1, 'app', 'pending', 'misha', 'USD')`,
+      ),
+    ).rejects.toThrow(/expenses_original_consistent/);
+  });
+});
+
 describe('listNameSuggestions', () => {
   const add = (name: string, category: string, times = 1) =>
     repository.importFromExcel(

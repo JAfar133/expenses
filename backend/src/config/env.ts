@@ -31,6 +31,11 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   APP_TIMEZONE: z.string().default('Asia/Yerevan'),
   DEFAULT_CURRENCY: z.string().default('AMD'),
+  // Валюты, в которых можно вводить расходы (первой должна быть базовая); остальные пересчитываются в драммы
+  CURRENCIES: z.string().default('AMD,RUB,USD,EUR').transform(list),
+  // Источник курсов: JSON ЦБ Армении, драммы за единицу валюты
+  EXCHANGE_RATES_URL: z.string().url().default('https://cb.am/latest.json.php'),
+  EXCHANGE_RATES_REFRESH_HOURS: z.coerce.number().positive().default(6),
 
   EXCEL_SHEET_NAME: z.string().default('Лист1'),
   EXCEL_TABLE_NAME: z.string().default('Операции'),

@@ -1,20 +1,22 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import type { AuthUser } from '../../auth/api/auth.api.ts';
 import { Button } from '../../../shared/ui/Button.tsx';
 import { Field, inputClassName } from '../../../shared/ui/Field.tsx';
 import { Notice } from '../../../shared/ui/Notice.tsx';
 import { todayIso } from '../../../shared/utils/date.ts';
-import { formatAmountInput, parseAmount } from '../../../shared/utils/money.ts';
+import { formatMoney, parseAmount, parseDecimal } from '../../../shared/utils/money.ts';
 import { newRequestId } from '../../../shared/utils/request-id.ts';
 import { readStored, writeStored } from '../../../shared/utils/storage.ts';
-import type { NameSuggestion } from '../api/expenses.api.ts';
+import type { CreatedExpense, NameSuggestion } from '../api/expenses.api.ts';
 import { toSaveErrorMessage } from '../api/save-error-message.ts';
 import { useCreateExpense } from '../hooks/useCreateExpense.ts';
 import { useNameSuggestions } from '../hooks/useNameSuggestions.ts';
-import { expenseFormSchema, type ExpenseFormValues } from '../schemas/expense-form.schema.ts';
+import { useRates } from '../hooks/useRates.ts';
+import { createExpenseFormSchema, type ExpenseFormValues } from '../schemas/expense-form.schema.ts';
 import { pickSuggestions } from '../utils/pick-suggestions.ts';
+import { AmountFields } from './AmountFields.tsx';
 import { CardPicker } from './CardPicker.tsx';
 import { NameSuggestions } from './NameSuggestions.tsx';
 
@@ -35,11 +37,43 @@ function rememberedChoice(key: string, options: string[]): string | undefined {
   return value && options.includes(value) ? value : undefined;
 }
 
+/** Что уходит на сервер: в драммах целая сумма, в иностранной валюте сумма, валюта и курс, который видел пользователь. */
+function amountPayload(values: ExpenseFormValues, base: string) {
+  if (values.currency === base) {
+    return { amount: parseAmount(values.amount)! };
+  }
+  return {
+    amount: parseDecimal(values.amount)!,
+    currency: values.currency,
+    rate: parseDecimal(values.rate)!,
+  };
+}
+
+function successMessage({ amount, original }: CreatedExpense, base: string): string {
+  if (!original) return 'Расход успешно добавлен';
+  return `Расход добавлен: ${formatMoney(amount)} ${base} (${formatMoney(original.amount)} ${original.currency} по курсу ${formatMoney(original.rate, 6)})`;
+}
+
 export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormProps) {
   const createExpense = useCreateExpense();
   // Один ключ на попытку: повторная отправка той же операции не создаст дубль
   const idempotencyKey = useRef(newRequestId());
 
+  const schema = useMemo(() => createExpenseFormSchema(currency), [currency]);
+
+  const form = useForm<ExpenseFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      date: todayIso(),
+      // Карта по умолчанию — карта вошедшего пользователя (Миша → «Миша», Настя → «Настя»)
+      card: cards.includes(user.card) ? user.card : (cards[0] ?? ''),
+      category: rememberedChoice(lastCategoryKey(user.username), categories) ?? '',
+      name: '',
+      currency,
+      amount: '',
+      rate: '',
+    },
+  });
   const {
     register,
     handleSubmit,
@@ -49,17 +83,9 @@ export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormPr
     setValue,
     control,
     formState: { errors },
-  } = useForm<ExpenseFormValues>({
-    resolver: zodResolver(expenseFormSchema),
-    defaultValues: {
-      date: todayIso(),
-      // Карта по умолчанию — карта вошедшего пользователя (Миша → «Миша», Настя → «Настя»)
-      card: cards.includes(user.card) ? user.card : (cards[0] ?? ''),
-      category: rememberedChoice(lastCategoryKey(user.username), categories) ?? '',
-      name: '',
-      amount: '',
-    },
-  });
+  } = form;
+
+  const { data: rates } = useRates();
 
   const { data: knownNames = [] } = useNameSuggestions();
   const [category, name] = useWatch({ control, name: ['category', 'name'] });
@@ -77,8 +103,6 @@ export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormPr
     return () => clearTimeout(timer);
   }, [createExpense.isSuccess, createExpense.reset]);
 
-  const amountField = register('amount');
-
   const submit = handleSubmit((values) => {
     if (createExpense.isPending) return;
 
@@ -87,7 +111,7 @@ export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormPr
       card: values.card,
       category: values.category,
       name: values.name.trim(),
-      amount: parseAmount(values.amount)!,
+      ...amountPayload(values, currency),
     };
 
     createExpense.mutate(
@@ -152,30 +176,11 @@ export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormPr
         <NameSuggestions suggestions={suggestions} onPick={pickSuggestion} />
       </Field>
 
-      <Field label="Стоимость" htmlFor="amount" error={errors.amount?.message}>
-        <div className="relative">
-          <input
-            id="amount"
-            type="text"
-            inputMode="numeric"
-            autoComplete="off"
-            className={`${inputClassName} pr-16`}
-            aria-invalid={!!errors.amount}
-            {...amountField}
-            onChange={(event) => {
-              event.target.value = formatAmountInput(event.target.value);
-              return amountField.onChange(event);
-            }}
-          />
-          <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-zinc-500">
-            {currency}
-          </span>
-        </div>
-      </Field>
+      <AmountFields form={form} base={currency} rates={rates} />
 
       {createExpense.isSuccess &&
         (createExpense.data.excelStatus !== 'queued' ? (
-          <Notice variant="success">Расход успешно добавлен</Notice>
+          <Notice variant="success">{successMessage(createExpense.data, currency)}</Notice>
         ) : (
           <Notice variant="info">
             Расход сохранён. В Excel он появится позже, когда файл освободится

@@ -8,6 +8,9 @@ import { IdempotencyService } from './infrastructure/idempotency/idempotency.ser
 import { AuthRepository } from './modules/auth/auth.repository.ts';
 import { AuthService } from './modules/auth/auth.service.ts';
 import { ExpenseService } from './modules/expenses/expenses.service.ts';
+import { createCbaClient } from './modules/rates/cba-client.ts';
+import { RatesRepository } from './modules/rates/rates.repository.ts';
+import { RatesService } from './modules/rates/rates.service.ts';
 import { SyncScheduler } from './modules/sync/sync.scheduler.ts';
 import { SyncService } from './modules/sync/sync.service.ts';
 import { SyncStateRepository } from './modules/sync/sync-state.repository.ts';
@@ -61,6 +64,14 @@ const expenses = new PostgresExpenseRepository(database);
 const idempotency = new IdempotencyService(database);
 
 const HOUR_MS = 3_600_000;
+const rates = new RatesService({
+  repository: new RatesRepository(database),
+  fetchRates: createCbaClient({ url: env.EXCHANGE_RATES_URL }),
+  base: env.DEFAULT_CURRENCY,
+  currencies: env.CURRENCIES,
+  refreshMs: env.EXCHANGE_RATES_REFRESH_HOURS * HOUR_MS,
+  logger: { warn: (fields, message) => app.log.warn(fields, message) },
+});
 const auth = new AuthService({
   repository: new AuthRepository(database),
   config: {
@@ -100,6 +111,7 @@ const app = buildApp({
     redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
   },
   auth,
+  rates,
   trustProxy: env.TRUST_PROXY,
   allowedOrigins: env.ALLOWED_ORIGINS,
   idempotency,
@@ -108,6 +120,11 @@ const app = buildApp({
   inlineExcelWaitMs: env.SYNC_INLINE_WAIT_SECONDS * 1000,
   expenseService: new ExpenseService(expenses, {
     reference: { cards: env.CARDS, categories: env.CATEGORIES },
+    currency: {
+      base: env.DEFAULT_CURRENCY,
+      currencies: env.CURRENCIES,
+      rateOf: (currency) => rates.rateOf(currency),
+    },
     logger: { warn: (object, message) => app.log.warn(object, message) },
   }),
 });

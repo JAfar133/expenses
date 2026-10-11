@@ -11,8 +11,14 @@ export const createExpenseSchema = z.object({
     .max(255, 'Наименование не должно быть длиннее 255 символов'),
   amount: z
     .number({ error: 'Стоимость должна быть числом' })
-    .int('Стоимость должна быть целым числом')
     .positive('Стоимость должна быть больше нуля'),
+  /** Валюта суммы; не указана: базовая (драмы). Целую сумму в драммах и дробную в иностранной проверяет сервис */
+  currency: z.string({ error: 'Выберите валюту' }).trim().min(1, 'Выберите валюту').optional(),
+  /** Курс вручную (драммы за единицу валюты); не указан: курс ЦБ */
+  rate: z
+    .number({ error: 'Курс должен быть числом' })
+    .positive('Курс должен быть больше нуля')
+    .optional(),
 });
 
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
@@ -24,4 +30,6 @@ export const FIELD_ERROR_CODES: Record<string, string> = {
   category: 'INVALID_CATEGORY',
   name: 'INVALID_NAME',
   amount: 'INVALID_AMOUNT',
+  currency: 'INVALID_CURRENCY',
+  rate: 'INVALID_RATE',
 };
