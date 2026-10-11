@@ -15,7 +15,8 @@ import type { SyncResult, SyncStatusView } from './sync.types.ts';
 export interface SyncServiceDeps {
   database: Database;
   expenses: ExpenseRepository;
-  oneDrive: OneDriveService;
+  /** Не задан: работа с Excel отключена, расходы остаются только в базе */
+  oneDrive?: OneDriveService;
   backups: BackupStore;
   excelOptions: ExcelOptions;
   state: SyncStateRepository;
@@ -60,8 +61,16 @@ export class SyncService {
     return this.running !== undefined;
   }
 
+  /** Работа с Excel включена, если задан файл в OneDrive. */
+  get enabled(): boolean {
+    return this.deps.oneDrive !== undefined;
+  }
+
   /** Запускает цикл (или присоединяется к ожидающему). Не бросает ошибок: итог — в результате. */
   requestCycle(options: CycleOptions = {}): Promise<SyncResult> {
+    if (!this.enabled) {
+      return Promise.resolve(this.disabledResult());
+    }
     if (!this.running) {
       return this.start(options);
     }
@@ -80,11 +89,33 @@ export class SyncService {
   }
 
   async status(): Promise<SyncStatusView> {
+    if (!this.enabled) {
+      // Записи остаются в очереди: если Excel подключат позже, они допишутся сами
+      return { enabled: false, lastResult: this.disabledResult(), queued: 0, running: false };
+    }
     this.lastResult ??= await this.deps.state.get();
     return {
+      enabled: true,
       lastResult: this.lastResult,
       queued: await this.deps.expenses.countQueue(),
       running: this.isRunning,
+    };
+  }
+
+  private disabledResult(): SyncResult {
+    const now = new Date().toISOString();
+    return {
+      startedAt: now,
+      finishedAt: now,
+      status: 'disabled',
+      imported: 0,
+      written: 0,
+      queued: 0,
+      deleted: 0,
+      restored: 0,
+      deletionsBlocked: 0,
+      skipped: 0,
+      skippedRows: [],
     };
   }
 
@@ -158,12 +189,13 @@ export class SyncService {
   }
 
   private async syncOnce(result: SyncResult, options: CycleOptions): Promise<void> {
-    const file = await this.deps.oneDrive.downloadFile();
+    const oneDrive = this.deps.oneDrive!;
+    const file = await oneDrive.downloadFile();
 
     try {
       const source = await readFile(file.localPath);
       await this.importFromExcel(source, result, options);
-      await this.writeQueueToExcel(file, source, result);
+      await this.writeQueueToExcel(oneDrive, file, source, result);
     } finally {
       await rm(dirname(file.localPath), { recursive: true, force: true });
     }
@@ -229,6 +261,7 @@ export class SyncService {
 
   /** Шаг 3: дописывание очереди в Excel. */
   private async writeQueueToExcel(
+    oneDrive: OneDriveService,
     file: DownloadedFile,
     source: Buffer,
     result: SyncResult,
@@ -245,7 +278,7 @@ export class SyncService {
     await expenses.markWriting(database, ids);
 
     try {
-      await this.deps.oneDrive.uploadFile(resultPath, file.version);
+      await oneDrive.uploadFile(resultPath, file.version);
     } catch (error) {
       await this.handleUploadFailure(error, ids);
       throw error;

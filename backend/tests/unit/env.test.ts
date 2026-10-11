@@ -6,6 +6,21 @@ const base = {
   ONEDRIVE_FILE_PATH: 'Документы/test.xlsx',
 };
 
+describe('файл Excel (ONEDRIVE_FILE_PATH)', () => {
+  it('необязателен: без него работа с Excel отключена', () => {
+    expect(loadEnv({ DATABASE_URL: base.DATABASE_URL }).ONEDRIVE_FILE_PATH).toBeUndefined();
+  });
+
+  it('пустое значение и пробелы считаются «не задан»', () => {
+    expect(loadEnv({ ...base, ONEDRIVE_FILE_PATH: '' }).ONEDRIVE_FILE_PATH).toBeUndefined();
+    expect(loadEnv({ ...base, ONEDRIVE_FILE_PATH: '  ' }).ONEDRIVE_FILE_PATH).toBeUndefined();
+  });
+
+  it('заданный путь сохраняется', () => {
+    expect(loadEnv(base).ONEDRIVE_FILE_PATH).toBe('Документы/test.xlsx');
+  });
+});
+
 describe('пользователи (AUTH_USERS)', () => {
   it('по умолчанию заведены misha и nastya со своими картами', () => {
     expect(loadEnv(base).AUTH_USERS).toEqual([

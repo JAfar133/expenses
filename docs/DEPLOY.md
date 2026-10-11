@@ -184,6 +184,11 @@ cd expenses
 
 ## 4. Доступ к OneDrive (rclone)
 
+> **Excel необязателен.** Если вам не нужен Excel, пропустите этот раздел: не задавайте `ONEDRIVE_FILE_PATH` в `.env`
+> и создайте пустой файл `touch secrets/rclone.conf` (`./scripts/deploy.sh` создаст его сам). Расходы будут храниться только в базе.
+> Подключить Excel можно позже: настройте rclone по разделу ниже, задайте `ONEDRIVE_FILE_PATH` и выполните `docker compose up -d`:
+> накопленные записи допишутся в файл сами.
+
 Контейнер `backend` ходит в OneDrive через rclone. Ему нужен файл `secrets/rclone.conf` с токеном.
 Сервер лучше авторизовать отдельно, а не копировать конфиг с другого компьютера: у каждого устройства
 должен быть свой токен.
@@ -242,7 +247,7 @@ nano .env
 | `AUTH_PASSWORD_MISHA`, `AUTH_PASSWORD_NASTYA` | **Пароли входа в приложение** (не короче 8 символов, на сервере обязательны). Подробнее: 5.1 |
 | `AUTH_USERS` | Пользователи и их карты по умолчанию: `misha:Миша,nastya:Настя` (необязательно)           |
 | `ACCESS_TOKEN_TTL_HOURS`, `REFRESH_TOKEN_TTL_DAYS`, `SESSION_MAX_DAYS` | Срок входа: 24 часа, обновление до 7 дней, предел сессии 30 дней (необязательно) |
-| `ONEDRIVE_FILE_PATH`    | Путь к Excel в OneDrive. **Сначала тестовый файл**, например `Документы/Расходы-dev.xlsx`  |
+| `ONEDRIVE_FILE_PATH`    | Путь к Excel в OneDrive (**необязательно**: без него Excel отключён, расходы только в базе). **Сначала тестовый файл**, например `Документы/Расходы-dev.xlsx` |
 | `ONEDRIVE_REMOTE`       | Имя remote в rclone (по умолчанию `onedrive`)                                             |
 | `APP_TIMEZONE`, `DEFAULT_CURRENCY`, `CARDS`, `CATEGORIES` | Часовой пояс, валюта, карты и категории (необязательно)   |
 | `SYNC_INTERVAL_MINUTES`, `SYNC_RETRY_SECONDS` | Как часто синхронизировать (5 мин) и повторять при занятом файле (60 с) |
@@ -734,10 +739,11 @@ docker compose down -v             # остановить и УДАЛИТЬ да
 | `docker: 'compose' is not a docker command` | Нет плагина compose: раздел 2.1 |
 | `permission denied ... docker.sock` | Пользователь не в группе `docker`: раздел 2.2 |
 | `compose build requires buildx 0.17.0 or later` | Нет buildx нужной версии: раздел 2.1 |
-| `docker compose up` ругается на переменную | Не задана обязательная переменная в `.env` (`POSTGRES_PASSWORD`, `PGADMIN_PASSWORD`, `ONEDRIVE_FILE_PATH`; на сервере ещё `AUTH_PASSWORD_MISHA`, `AUTH_PASSWORD_NASTYA`, `SITE_ADDRESS`, `PGADMIN_ADDRESS`, `PGADMIN_BASIC_AUTH_USER`, `PGADMIN_BASIC_AUTH_HASH`) |
+| `docker compose up` ругается на переменную | Не задана обязательная переменная в `.env` (`POSTGRES_PASSWORD`, `PGADMIN_PASSWORD`; на сервере ещё `AUTH_PASSWORD_MISHA`, `AUTH_PASSWORD_NASTYA`, `SITE_ADDRESS`, `PGADMIN_ADDRESS`, `PGADMIN_BASIC_AUTH_USER`, `PGADMIN_BASIC_AUTH_HASH`) |
 | `^a`, `^}` вместо русских букв | Локаль без UTF-8: раздел 2.3 |
 | Порт занят | Другой проект: задайте другой порт в `.env` (раздел 2.4) |
-| backend: «Не найден rclone.conf» | Нет `secrets/rclone.conf` или нет прав на чтение: `chmod 644`. Если в томе уже старая копия: раздел 10.7 |
+| `docker compose up`: «secrets/rclone.conf: no such file» | Секрет всегда должен существовать: `touch secrets/rclone.conf` (пустой, если Excel не нужен) |
+| В логе «Предупреждение: ONEDRIVE_FILE_PATH задан, но secrets/rclone.conf пуст» | Нет токена OneDrive: раздел 4, либо уберите `ONEDRIVE_FILE_PATH`. Если в томе старая копия: раздел 10.7 |
 | В логе `Sync finished` и `status":"error"` | Смотрите `errorCode`: `AUTH_FAILED` токен (10.7), `FILE_NOT_FOUND` неверный `ONEDRIVE_FILE_PATH`, остальное в `docker compose logs backend` |
 | Значок синхронизации жёлтый | Файл открыт в Excel или OneDrive недоступен. Закройте Excel, очередь допишется сама (раз в минуту) |
 | Значок красный | Ошибка синхронизации или потеряна связь с backend: причина в подсказке значка (наведите курсор) и в логе. После неудачного нажатия значок краснеет на 8 секунд и возвращается к норме сам |

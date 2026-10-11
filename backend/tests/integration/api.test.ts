@@ -136,6 +136,21 @@ describe('очередь, когда Excel недоступен', () => {
   });
 });
 
+describe('Excel отключён (не задан ONEDRIVE_FILE_PATH)', () => {
+  it('расход сохраняется в БД, синхронизация не запускается, ответ 201 со статусом disabled', async () => {
+    t.sync.enabled = false;
+
+    const response = await post(validBody);
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json().data.excelStatus).toBe('disabled');
+    expect(response.json().message).toBe('Расход успешно добавлен');
+    expect(t.sync.cycles).toBe(0);
+    // Запись остаётся в очереди: если Excel подключат позже, она допишется сама
+    expect(await t.repository.countQueue()).toBe(1);
+  });
+});
+
 describe('идемпотентность', () => {
   const KEY = '5df127c1-787a-4a40-8c1b-3a6a84bcaf18';
 

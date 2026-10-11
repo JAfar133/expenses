@@ -158,7 +158,7 @@ export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormPr
       </Field>
 
       {createExpense.isSuccess &&
-        (createExpense.data.excelStatus === 'synced' ? (
+        (createExpense.data.excelStatus !== 'queued' ? (
           <Notice variant="success">Расход успешно добавлен</Notice>
         ) : (
           <Notice variant="info">

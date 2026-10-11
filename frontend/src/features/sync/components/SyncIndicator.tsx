@@ -53,6 +53,9 @@ export function SyncIndicator({
     );
   }
 
+  // Excel не подключён: синхронизировать нечего
+  if (!state.enabled) return null;
+
   return (
     <LiveIndicator
       state={state}

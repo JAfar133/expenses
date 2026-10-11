@@ -5,8 +5,9 @@ import type { SkippedRow } from '../../services/excel/read.ts';
  * locked      — файл открыт в Excel: чтение прошло, запись отложена
  * unavailable — OneDrive недоступен (сеть, авторизация, нет файла)
  * error       — другая ошибка (повреждённый файл, сбой резервной копии и т.п.)
+ * disabled    — работа с Excel отключена (не задан ONEDRIVE_FILE_PATH)
  */
-export type SyncStatus = 'ok' | 'locked' | 'unavailable' | 'error';
+export type SyncStatus = 'ok' | 'locked' | 'unavailable' | 'error' | 'disabled';
 
 export interface SyncResult {
   startedAt: string;
@@ -33,6 +34,8 @@ export interface SyncResult {
 }
 
 export interface SyncStatusView {
+  /** Включена ли работа с Excel */
+  enabled: boolean;
   lastResult?: SyncResult;
   queued: number;
   running: boolean;

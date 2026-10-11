@@ -66,6 +66,28 @@ beforeEach(async () => {
 
 afterEach(() => database.close());
 
+describe('Excel отключён', () => {
+  it('без файла в OneDrive цикл ничего не делает и не падает', async () => {
+    const disabled = new SyncService({
+      database,
+      expenses,
+      backups,
+      excelOptions,
+      state: new SyncStateRepository(database),
+    });
+    await queue(coffee);
+
+    const result = await disabled.requestCycle();
+
+    expect(disabled.enabled).toBe(false);
+    expect(result).toMatchObject({ status: 'disabled', imported: 0, written: 0 });
+    expect(result.error).toBeUndefined();
+    expect(await disabled.status()).toMatchObject({ enabled: false, queued: 0, running: false });
+    // Запись ждёт в очереди и допишется, когда Excel подключат
+    expect(await expenses.countQueue()).toBe(1);
+  });
+});
+
 describe('импорт из Excel', () => {
   it('первая синхронизация переносит все строки Excel в БД', async () => {
     const result = await sync.requestCycle();

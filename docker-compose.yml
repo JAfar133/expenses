@@ -2,6 +2,8 @@
 #
 #   cp .env.example .env              # и заполните значения
 #   mkdir -p secrets && cp ~/.config/rclone/rclone.conf secrets/rclone.conf
+#       (Excel в OneDrive необязателен: без него создайте пустой файл `touch secrets/rclone.conf`
+#        и не задавайте ONEDRIVE_FILE_PATH, расходы будут храниться только в базе)
 #   docker compose up -d --build
 #
 # Только база для локальной разработки:  docker compose up -d --wait postgres pgadmin
@@ -65,7 +67,8 @@ services:
       EXCEL_SHEET_NAME: ${EXCEL_SHEET_NAME:-Лист1}
       EXCEL_TABLE_NAME: ${EXCEL_TABLE_NAME:-Операции}
       ONEDRIVE_REMOTE: ${ONEDRIVE_REMOTE:-onedrive}
-      ONEDRIVE_FILE_PATH: ${ONEDRIVE_FILE_PATH:?Задайте ONEDRIVE_FILE_PATH в файле .env}
+      # Не задан: работа с Excel отключена, расходы хранятся только в базе
+      ONEDRIVE_FILE_PATH: ${ONEDRIVE_FILE_PATH:-}
       BACKUP_DIR: /data/backups
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
       SYNC_INTERVAL_MINUTES: ${SYNC_INTERVAL_MINUTES:-5}

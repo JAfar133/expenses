@@ -36,8 +36,12 @@ const envSchema = z.object({
   EXCEL_TABLE_NAME: z.string().default('Операции'),
 
   ONEDRIVE_REMOTE: z.string().default('onedrive'),
-  // Без значения по умолчанию, чтобы случайно не писать в рабочий файл
-  ONEDRIVE_FILE_PATH: z.string().min(1),
+  // Без значения по умолчанию, чтобы случайно не писать в рабочий файл.
+  // Не задан или пуст: работа с Excel отключена, расходы хранятся только в базе.
+  ONEDRIVE_FILE_PATH: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
   RCLONE_CONFIG: z.string().min(1).optional(),
   // daemon — постоянный процесс rclone (быстро), cli — отдельный запуск на каждую команду
   RCLONE_MODE: z.enum(['daemon', 'cli']).default('daemon'),

@@ -10,7 +10,7 @@ const IDEMPOTENCY_KEY_FORMAT = /^[A-Za-z0-9_-]{8,128}$/;
 export interface ExpensesRoutesDeps {
   expenseService: ExpenseService;
   idempotency: IdempotencyService;
-  sync: Pick<SyncService, 'requestCycle'>;
+  sync: Pick<SyncService, 'requestCycle' | 'enabled'>;
   /** Сколько ждать записи в Excel перед ответом. Дольше — расход остаётся в очереди. */
   inlineExcelWaitMs: number;
 }
@@ -39,10 +39,12 @@ export const expensesRoutes =
         );
 
         // Затем пробуем записать его в Excel. Если файл занят — расход ждёт в очереди.
-        if (!replayed) {
+        if (!replayed && sync.enabled) {
           await tryWriteToExcel(sync, inlineExcelWaitMs);
         }
-        const excelStatus = await currentExcelStatus(expenseService, saved.id);
+        const excelStatus = sync.enabled
+          ? await currentExcelStatus(expenseService, saved.id)
+          : 'disabled';
 
         logOperation(request, {
           userId: username,
@@ -63,7 +65,7 @@ export const expensesRoutes =
             excelStatus,
           },
           message:
-            excelStatus === 'synced'
+            excelStatus !== 'queued'
               ? 'Расход успешно добавлен'
               : 'Расход сохранён. В Excel он появится позже, когда файл освободится',
         });
@@ -90,7 +92,7 @@ async function tryWriteToExcel(
   await Promise.race([sync.requestCycle(), timeout]);
 }
 
-/** synced — запись уже в Excel, queued — ждёт (файл открыт, OneDrive недоступен или запись идёт). */
+/** disabled — работа с Excel отключена. synced — запись уже в Excel, queued — ждёт (файл открыт, OneDrive недоступен или запись идёт). */
 async function currentExcelStatus(
   service: ExpenseService,
   id: string,
@@ -127,7 +129,7 @@ interface OperationLog {
   startedAt: number;
   result: 'success' | 'error';
   replayed?: boolean;
-  excelStatus?: 'synced' | 'queued';
+  excelStatus?: 'synced' | 'queued' | 'disabled';
   error?: unknown;
 }
 

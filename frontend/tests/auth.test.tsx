@@ -77,6 +77,7 @@ function installFakeServer(
       if (call === 'GET /config') return ok({ currency: 'AMD' });
       if (call === 'GET /sync/status') {
         return ok({
+          enabled: true,
           queued: 0,
           running: false,
           intervalMs: 300000,

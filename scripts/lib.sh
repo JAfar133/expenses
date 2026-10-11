@@ -51,28 +51,34 @@ ensure_auth_passwords() {
   fi
 }
 
-# Проверяет .env, rclone и доступность файла в OneDrive
+# Проверяет .env и, если задан файл Excel, rclone и доступность файла в OneDrive.
+# Excel необязателен: без ONEDRIVE_FILE_PATH приложение хранит расходы только в базе.
 check_backend_env() {
   local backend="$ROOT_DIR/backend"
 
   if [ ! -f "$backend/.env" ]; then
     cp "$backend/.env.example" "$backend/.env"
-    log "Создан backend/.env из .env.example, проверьте ONEDRIVE_FILE_PATH."
+    log "Создан backend/.env из .env.example, проверьте ONEDRIVE_FILE_PATH (или оставьте пустым, если Excel не нужен)."
   fi
   ensure_auth_passwords
-
-  require_command rclone "Установите rclone и настройте remote (см. backend/README.md)."
 
   # Читаем значения из .env, не выполняя его как shell-код
   local remote path
   remote="$(sed -n 's/^ONEDRIVE_REMOTE=//p' "$backend/.env" | tail -n1)"
   path="$(sed -n 's/^ONEDRIVE_FILE_PATH=//p' "$backend/.env" | tail -n1)"
   remote="${remote:-onedrive}"
-  [ -n "$path" ] || fail "в backend/.env не задан ONEDRIVE_FILE_PATH."
+
+  if [ -z "$path" ]; then
+    log "ONEDRIVE_FILE_PATH не задан: работа с Excel отключена, расходы хранятся только в базе."
+    return 0
+  fi
+
+  require_command rclone "Установите rclone и настройте remote (см. backend/README.md) или уберите ONEDRIVE_FILE_PATH."
 
   log "Проверяю доступ к OneDrive: ${remote}:${path}"
-  rclone lsf "${remote}:${path}" >/dev/null 2>&1 \
-    || fail "rclone не видит файл '${remote}:${path}'. Проверьте 'rclone config' и путь."
+  if ! rclone lsf "${remote}:${path}" >/dev/null 2>&1; then
+    log "Предупреждение: rclone не видит файл '${remote}:${path}'. Приложение запустится, расходы будут ждать в очереди, пока файл не станет доступен (проверьте 'rclone config' и путь)."
+  fi
 }
 
 # Локальный PostgreSQL. Если DATABASE_URL указывает на порт нашего docker compose (по умолчанию 5433),

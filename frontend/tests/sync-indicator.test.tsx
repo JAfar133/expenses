@@ -11,6 +11,7 @@ const json = (body: unknown, status = 200) =>
 const state = (overrides: Record<string, unknown> = {}) => {
   const serverTime = new Date();
   return {
+    enabled: true,
     queued: 0,
     running: false,
     intervalMs: 300_000,
@@ -103,6 +104,18 @@ describe('таймер', () => {
     await waitFor(() => expect(button()).toHaveAccessibleName(/выполняется/));
     expect(button()).toBeDisabled();
     expect(button()).toHaveTextContent('…');
+  });
+});
+
+describe('Excel отключён на сервере', () => {
+  it('значок синхронизации не показывается', async () => {
+    statusResponse.mockImplementation(() =>
+      json({ success: true, data: state({ enabled: false, queued: 0, nextRunAt: null }) }),
+    );
+    renderIndicator();
+
+    await waitFor(() => expect(statusResponse).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByRole('button')).toBeNull());
   });
 });
 

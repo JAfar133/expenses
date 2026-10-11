@@ -43,6 +43,9 @@ export class FakeSync {
     private readonly database: Database,
   ) {}
 
+  /** false: имитирует отсутствие ONEDRIVE_FILE_PATH */
+  enabled = true;
+
   async requestCycle(options: { applyDeletions?: boolean } = {}): Promise<SyncResult> {
     this.cycles++;
     this.lastOptions = options;
@@ -63,6 +66,7 @@ export class FakeSync {
 
   async status(): Promise<SyncStatusView> {
     return {
+      enabled: this.enabled,
       lastResult: this.lastResult,
       queued: await this.repository.countQueue(),
       running: false,

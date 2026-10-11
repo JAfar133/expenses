@@ -22,27 +22,32 @@ const DAY_MS = 86_400_000;
 
 const env = loadEnv();
 
-// --- OneDrive через rclone
-const daemon =
-  env.RCLONE_MODE === 'daemon'
-    ? new RcloneDaemon({
-        configPath: env.RCLONE_CONFIG,
-        logger: {
-          info: (message) => app.log.info(message),
-          warn: (message) => app.log.warn(message),
-        },
-      })
-    : undefined;
+// --- OneDrive через rclone (только если задан файл Excel)
+const rclone = env.ONEDRIVE_FILE_PATH ? createRclone(env.ONEDRIVE_FILE_PATH) : undefined;
 
-const client: RcloneClient = daemon
-  ? new RcdRcloneClient(daemon, env.RCLONE_TIMEOUT_MS)
-  : new CliRcloneClient({ configPath: env.RCLONE_CONFIG, timeoutMs: env.RCLONE_TIMEOUT_MS });
+function createRclone(filePath: string) {
+  const daemon =
+    env.RCLONE_MODE === 'daemon'
+      ? new RcloneDaemon({
+          configPath: env.RCLONE_CONFIG,
+          logger: {
+            info: (message) => app.log.info(message),
+            warn: (message) => app.log.warn(message),
+          },
+        })
+      : undefined;
 
-const oneDrive = new RcloneOneDriveService({
-  remote: env.ONEDRIVE_REMOTE,
-  filePath: env.ONEDRIVE_FILE_PATH,
-  client,
-});
+  const client: RcloneClient = daemon
+    ? new RcdRcloneClient(daemon, env.RCLONE_TIMEOUT_MS)
+    : new CliRcloneClient({ configPath: env.RCLONE_CONFIG, timeoutMs: env.RCLONE_TIMEOUT_MS });
+
+  const oneDrive = new RcloneOneDriveService({
+    remote: env.ONEDRIVE_REMOTE,
+    filePath,
+    client,
+  });
+  return { daemon, oneDrive };
+}
 
 const backups = new BackupService({
   dir: env.BACKUP_DIR,
@@ -71,7 +76,7 @@ const auth = new AuthService({
 const sync = new SyncService({
   database,
   expenses,
-  oneDrive,
+  oneDrive: rclone?.oneDrive,
   backups,
   excelOptions: { sheetName: env.EXCEL_SHEET_NAME, tableName: env.EXCEL_TABLE_NAME },
   state: new SyncStateRepository(database),
@@ -145,7 +150,13 @@ if (unknownCards.length > 0) {
 await app.listen({ host: env.HOST, port: env.PORT });
 
 // Первая синхронизация стартует сразу: подтянет строки Excel и допишет очередь
-scheduler.start();
+if (sync.enabled) {
+  scheduler.start();
+} else {
+  app.log.info(
+    'ONEDRIVE_FILE_PATH is not set: Excel sync is disabled, expenses are stored in the database only',
+  );
+}
 
 await runMaintenance().catch((error) => app.log.error({ err: error }, 'Maintenance failed'));
 setInterval(
@@ -157,7 +168,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, async () => {
     scheduler.stop();
     await app.close();
-    await daemon?.stop();
+    await rclone?.daemon?.stop();
     await database.close();
     process.exit(0);
   });

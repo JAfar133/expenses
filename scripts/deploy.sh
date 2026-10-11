@@ -32,6 +32,14 @@ update_code() {
   git pull --ff-only || fail "git pull не выполнен. Проверьте доступ к GitHub и состояние ветки."
 }
 
+# Секрет rclone подключается к backend как файл и должен существовать, даже если Excel не используется
+ensure_rclone_secret() {
+  [ -e secrets/rclone.conf ] && return 0
+  log "Создаю пустой secrets/rclone.conf (работа с Excel не настроена)"
+  mkdir -p secrets && chmod 700 secrets
+  : > secrets/rclone.conf && chmod 644 secrets/rclone.conf
+}
+
 check_configs() {
   log "Проверяю настройки compose и Caddyfile"
   docker compose config --quiet || fail "docker compose config сообщил об ошибке: проверьте .env."
@@ -62,6 +70,7 @@ wait_for_backend() {
 }
 
 [ "$PULL" -eq 1 ] && update_code
+ensure_rclone_secret
 check_configs
 rebuild
 wait_for_backend

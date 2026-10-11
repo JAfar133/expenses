@@ -11,7 +11,7 @@ export interface CreateExpenseRequest {
 export interface CreatedExpense extends CreateExpenseRequest {
   id: string;
   /** synced — запись уже в Excel, queued — ждёт в очереди (файл занят или OneDrive недоступен) */
-  excelStatus: 'synced' | 'queued';
+  excelStatus: 'synced' | 'queued' | 'disabled';
 }
 
 export const fetchCards = async () => (await apiRequest<string[]>('/cards')).data;

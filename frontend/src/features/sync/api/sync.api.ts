@@ -1,6 +1,6 @@
 import { apiRequest } from '../../../shared/api/http.ts';
 
-export type SyncStatus = 'ok' | 'locked' | 'unavailable' | 'error';
+export type SyncStatus = 'ok' | 'locked' | 'unavailable' | 'error' | 'disabled';
 
 export interface SyncResult {
   startedAt: string;
@@ -25,6 +25,8 @@ export interface SyncResult {
 }
 
 export interface SyncState {
+  /** false: работа с Excel отключена на сервере, значок синхронизации не нужен */
+  enabled: boolean;
   lastResult?: SyncResult;
   /** Сколько записей ждёт записи в Excel */
   queued: number;
