@@ -11,7 +11,7 @@ const json = (body: unknown) =>
     headers: { 'Content-Type': 'application/json' },
   });
 
-const user = { username: 'misha', displayName: 'Миша', card: 'Миша' };
+const user = { username: 'misha', displayName: 'Миша', card: 'Миша', canEdit: true };
 
 beforeEach(() => {
   vi.stubGlobal(

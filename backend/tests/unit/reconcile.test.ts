@@ -22,6 +22,8 @@ const stored = (
   source: 'app',
   excelStatus,
   deletedAt,
+  deletedReason: deletedAt === null ? null : 'excel',
+  excelSnapshot: null,
   original: null,
 });
 
@@ -31,6 +33,7 @@ const EMPTY = {
   revertToPending: [],
   toDelete: [],
   toRestore: [],
+  toClearSnapshot: [],
 };
 
 describe('новые строки в Excel', () => {
@@ -225,5 +228,104 @@ describe('isMassDeletion: защита от массовой потери', () =
   it('порог настраивается', () => {
     expect(guard(30, 100, 70, 50)).toBe(false);
     expect(guard(60, 100, 40, 50)).toBe(true);
+  });
+});
+
+describe('правка и удаление в приложении (снимок строки Excel)', () => {
+  const edited: Expense = { ...coffee, name: 'Кофе с молоком', amount: 700 };
+
+  /** Запись, которую поправили в приложении: значения новые, а в Excel пока лежат прежние (снимок). */
+  const editedRow = (): StoredExpense => ({
+    ...stored(edited, 'synced'),
+    excelSnapshot: coffee,
+  });
+
+  /** Запись, удалённую в приложении: строка ещё в Excel. */
+  const removingRow = (expense: Expense = coffee): StoredExpense => ({
+    ...stored(expense, 'synced', '2026-10-11T10:00:00.000Z'),
+    deletedReason: 'app',
+    excelSnapshot: expense,
+  });
+
+  it('правка ещё не дошла до Excel: прежняя строка не считается ни новой, ни пропавшей', () => {
+    const plan = reconcile([coffee], [editedRow()]);
+
+    expect(plan).toEqual(EMPTY);
+  });
+
+  it('правка дошла до Excel, но снимок не обновлён: сверка видит прежнее состояние, а не дубль', () => {
+    // Если процесс упал после загрузки файла, в Excel лежат новые значения, а в базе снимок старый
+    const plan = reconcile([edited], [editedRow()]);
+
+    expect(plan.toImport).toEqual([edited]);
+    expect(plan.toDelete).toHaveLength(1);
+  });
+
+  it('прежняя строка пропала из Excel (её изменили вручную): запись помечается удалённой из-за Excel', () => {
+    const row = editedRow();
+
+    const plan = reconcile([], [row]);
+
+    expect(plan.toDelete).toEqual([row.id]);
+  });
+
+  it('удалённая в приложении запись: её строка в Excel не импортируется как новая и не возвращает запись', () => {
+    const row = removingRow();
+
+    const plan = reconcile([coffee], [row]);
+
+    expect(plan).toEqual(EMPTY);
+  });
+
+  it('удалённая в приложении запись, а строка уже пропала: снимок сбрасывается', () => {
+    const row = removingRow();
+
+    const plan = reconcile([], [row]);
+
+    expect(plan).toEqual({ ...EMPTY, toClearSnapshot: [row.id] });
+  });
+
+  it('удалённая в приложении запись, строка которой уже убрана: такая же строка в Excel это новая запись', () => {
+    const gone: StoredExpense = {
+      ...stored(coffee, 'synced', '2026-10-11T10:00:00.000Z'),
+      deletedReason: 'app',
+    };
+
+    const plan = reconcile([coffee], [gone]);
+
+    expect(plan.toImport).toEqual([coffee]);
+    expect(plan.toRestore).toEqual([]);
+  });
+
+  it('удалённая из-за Excel запись по-прежнему возвращается вместе со строкой', () => {
+    const lost = stored(coffee, 'synced', '2026-10-11T10:00:00.000Z');
+
+    const plan = reconcile([coffee], [lost]);
+
+    expect(plan.toRestore).toEqual([lost.id]);
+  });
+
+  it('две одинаковые строки: одна удалена в приложении, одна активна', () => {
+    const active = stored(coffee, 'synced');
+    const removing = removingRow();
+
+    expect(reconcile([coffee, coffee], [active, removing])).toEqual(EMPTY);
+    // Строка пропала: сначала сбрасывается та, что и так должна была исчезнуть, активная остаётся
+    expect(reconcile([coffee], [active, removing])).toEqual({
+      ...EMPTY,
+      toClearSnapshot: [removing.id],
+    });
+    // Пропали обе: активная запись тоже помечается удалённой
+    expect(reconcile([], [active, removing])).toEqual({
+      ...EMPTY,
+      toClearSnapshot: [removing.id],
+      toDelete: [active.id],
+    });
+  });
+
+  it('запись, которой в Excel ещё нет (очередь), в сверке не участвует и не мешает', () => {
+    const pending = stored(edited, 'pending');
+
+    expect(reconcile([coffee], [pending, stored(coffee, 'synced')])).toEqual(EMPTY);
   });
 });

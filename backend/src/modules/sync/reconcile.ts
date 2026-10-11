@@ -11,9 +11,17 @@ export interface ReconcilePlan {
   toDelete: string[];
   /** Ранее удалённые записи, строки которых снова появились в Excel (отмена, откат из копии) */
   toRestore: string[];
+  /** Удалённые в приложении записи, чьей строки в Excel уже нет: убирать из Excel нечего */
+  toClearSnapshot: string[];
 }
 
 const keyOf = (e: Expense) => JSON.stringify([e.date, e.card, e.category, e.name, e.amount]);
+
+/**
+ * Как запись выглядит в Excel. Если запись правили в приложении, но Excel ещё не обновлён,
+ * в Excel лежат прежние значения (снимок), а не текущие: сопоставлять нужно по ним.
+ */
+const excelKeyOf = (row: StoredExpense) => keyOf(row.excelSnapshot ?? row);
 
 function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
   const groups = new Map<string, T[]>();
@@ -37,6 +45,9 @@ function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
  *   - E < S: строку в Excel удалили или изменили — лишние записи БД помечаются удалёнными.
  *     Изменённая строка — это «удалённая старая» плюс «новая», поэтому правка тоже отражается.
  *
+ * Записи, удалённые в приложении, чьи строки ещё лежат в Excel, считаются присутствующими: эти строки
+ * не импортируются как новые, а если строка пропала сама, снимок просто сбрасывается.
+ *
  * Записи «pending» в сверке не участвуют: их в Excel ещё нет. Какие именно из одинаковых записей
  * удалить или восстановить, не важно: они взаимозаменяемы.
  */
@@ -47,19 +58,28 @@ export function reconcile(excelRows: Expense[], dbRows: StoredExpense[]): Reconc
     revertToPending: [],
     toDelete: [],
     toRestore: [],
+    toClearSnapshot: [],
   };
 
   const inExcel = groupBy(excelRows, keyOf);
   const active = groupBy(
     dbRows.filter((row) => row.excelStatus === 'synced' && row.deletedAt === null),
-    keyOf,
+    excelKeyOf,
   );
   const writing = groupBy(
     dbRows.filter((row) => row.excelStatus === 'writing' && row.deletedAt === null),
     keyOf,
   );
+  // Удалены в приложении, строка ещё в Excel (снимок задан)
+  const removing = groupBy(
+    dbRows.filter((row) => row.deletedAt !== null && row.excelSnapshot !== null),
+    excelKeyOf,
+  );
+  // Только удалённые из-за пропажи строки в Excel могут вернуться вместе со строкой; удалённые в приложении не возвращаются
   const deleted = groupBy(
-    dbRows.filter((row) => row.deletedAt !== null),
+    dbRows.filter(
+      (row) => row.deletedAt !== null && row.excelSnapshot === null && row.deletedReason !== 'app',
+    ),
     keyOf,
   );
 
@@ -67,17 +87,25 @@ export function reconcile(excelRows: Expense[], dbRows: StoredExpense[]): Reconc
     ...inExcel.keys(),
     ...active.keys(),
     ...writing.keys(),
+    ...removing.keys(),
     ...deleted.keys(),
   ])) {
     const excelItems = inExcel.get(key) ?? [];
     const activeItems = active.get(key) ?? [];
     const writingItems = writing.get(key) ?? [];
+    const removingItems = removing.get(key) ?? [];
     const deletedItems = deleted.get(key) ?? [];
-    const excess = excelItems.length - activeItems.length;
+    const excess = excelItems.length - activeItems.length - removingItems.length;
 
     if (excess < 0) {
+      // Сначала пропавшими считаем строки, которые мы и так собирались убрать, потом уже активные записи.
       // Удаляем самые новые из одинаковых записей: порядок в БД — порядок добавления
-      plan.toDelete.push(...activeItems.slice(excess).map((row) => row.id));
+      const missing = -excess;
+      const fromRemoving = Math.min(missing, removingItems.length);
+      plan.toClearSnapshot.push(...removingItems.slice(0, fromRemoving).map((row) => row.id));
+      const fromActive = missing - fromRemoving;
+      if (fromActive > 0)
+        plan.toDelete.push(...activeItems.slice(-fromActive).map((row) => row.id));
     }
 
     const promoted = writingItems.slice(0, Math.max(excess, 0));

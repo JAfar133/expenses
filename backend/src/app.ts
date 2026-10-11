@@ -9,6 +9,8 @@ import { authRoutes } from './modules/auth/auth.routes.ts';
 import type { AuthService } from './modules/auth/auth.service.ts';
 import { ratesRoutes } from './modules/rates/rates.routes.ts';
 import type { RatesService } from './modules/rates/rates.service.ts';
+import { ExpenseEditor } from './modules/expenses/expense-editor.ts';
+import { expenseEditRoutes } from './modules/expenses/expense-edit.routes.ts';
 import { expensesRoutes } from './modules/expenses/expenses.routes.ts';
 import type { ExpenseService } from './modules/expenses/expenses.service.ts';
 import type { SyncScheduler } from './modules/sync/sync.scheduler.ts';
@@ -20,6 +22,10 @@ export interface AppDependencies {
   auth: AuthService;
   rates: Pick<RatesService, 'snapshot' | 'currencies'>;
   analytics: AnalyticsService;
+  /** Правка и удаление записей */
+  editor: ExpenseEditor;
+  /** Логины, которым разрешены правка и удаление */
+  editors?: string[];
   idempotency: IdempotencyService;
   sync: SyncService;
   scheduler: SyncScheduler;
@@ -38,6 +44,8 @@ export function buildApp({
   auth,
   rates,
   analytics,
+  editor,
+  editors = [],
   idempotency,
   sync,
   scheduler,
@@ -104,8 +112,18 @@ export function buildApp({
   });
   app.register(ratesRoutes(rates), { prefix: '/api' });
   app.register(analyticsRoutes(analytics), { prefix: '/api' });
+  app.register(
+    expenseEditRoutes({
+      editor,
+      repository: expenseService,
+      sync,
+      inlineExcelWaitMs,
+      editors,
+    }),
+    { prefix: '/api' },
+  );
   app.register(syncRoutes({ sync, scheduler }), { prefix: '/api' });
-  app.register(authRoutes(auth), { prefix: '/api' });
+  app.register(authRoutes(auth, editors), { prefix: '/api' });
 
   return app;
 }

@@ -82,15 +82,15 @@ describe('toCategoryMatrix', () => {
     ]);
   });
 
-  it('если категорий больше лимита, хвост объединяется в «Другое»', () => {
+  it('если категорий больше лимита, хвост объединяется в «Остальное»', () => {
     const points = ['а', 'б', 'в', 'г', 'д'].map((key, i) =>
       point('2026-10-01', 100 - i * 10, 1, key),
     );
 
     const matrix = toCategoryMatrix(points, months, 3);
 
-    expect(matrix.categories).toEqual(['а', 'б', 'Другое']);
-    expect(matrix.rows[1]!.values).toEqual({ а: 100, б: 90, Другое: 80 + 70 + 60 });
+    expect(matrix.categories).toEqual(['а', 'б', 'Остальное']);
+    expect(matrix.rows[1]!.values).toEqual({ а: 100, б: 90, Остальное: 80 + 70 + 60 });
   });
 
   it('месяцы вне списка игнорируются, пустые данные дают пустую матрицу', () => {

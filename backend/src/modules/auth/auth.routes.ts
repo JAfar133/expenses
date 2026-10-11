@@ -8,10 +8,16 @@ import { ACCESS_COOKIE, REFRESH_COOKIE, type AuthUser } from './auth.types.ts';
 const loginSchema = z.object({ username: z.string().max(64), password: z.string().max(2048) });
 
 /** Пользователь для ответа клиенту: без внутреннего идентификатора. */
-const publicUser = ({ username, displayName, card }: AuthUser) => ({ username, displayName, card });
+const publicUser = ({ username, displayName, card }: AuthUser, editors: string[]) => ({
+  username,
+  displayName,
+  card,
+  /** Может ли пользователь править и удалять записи */
+  canEdit: editors.includes(username),
+});
 
 export const authRoutes =
-  (auth: AuthService): FastifyPluginAsync =>
+  (auth: AuthService, editors: string[] = []): FastifyPluginAsync =>
   async (app) => {
     const isSecure = (request: { protocol: string }) => request.protocol === 'https';
 
@@ -30,7 +36,7 @@ export const authRoutes =
         { operation: 'auth.login', userId: user.id, username: user.username },
         'User logged in',
       );
-      return { success: true, data: { user: publicUser(user) } };
+      return { success: true, data: { user: publicUser(user, editors) } };
     });
 
     app.post('/auth/refresh', { config: { public: true } }, async (request, reply) => {
@@ -40,7 +46,10 @@ export const authRoutes =
       try {
         const { user, tokens } = await auth.refresh(refreshToken);
         if (tokens) setAuthCookies(reply, tokens, isSecure(request));
-        return { success: true, data: { user: publicUser(user), refreshed: tokens !== undefined } };
+        return {
+          success: true,
+          data: { user: publicUser(user, editors), refreshed: tokens !== undefined },
+        };
       } catch (error) {
         // Токен недействителен: убираем куки, чтобы браузер не слал их снова.
         // При сбое базы куки не трогаем, иначе временная ошибка выбросит пользователя из системы.
@@ -57,6 +66,6 @@ export const authRoutes =
 
     app.get('/auth/me', async (request) => ({
       success: true,
-      data: { user: publicUser(request.user!) },
+      data: { user: publicUser(request.user!, editors) },
     }));
   };

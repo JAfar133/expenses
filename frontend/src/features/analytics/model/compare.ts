@@ -51,7 +51,7 @@ export function averageOfCompleteMonths(rows: MonthRow[]): number | null {
 
 export interface CategoryMatrix {
   months: MonthKey[];
-  /** Крупнейшие категории по всему периоду, затем «Другое», если категорий больше лимита */
+  /** Крупнейшие категории по всему периоду, затем «Остальное», если категорий больше лимита */
   categories: string[];
   /** Сумма по категории за месяц */
   rows: { month: MonthKey; values: Record<string, number> }[];

@@ -33,5 +33,10 @@ export const tooManyAttemptsError = (retryAfterSeconds: number) =>
     { headers: { 'Retry-After': String(retryAfterSeconds) } },
   );
 
+export const forbiddenError = () =>
+  new AppError(403, 'FORBIDDEN', 'Недостаточно прав для этого действия');
+
+export const notFoundError = () => new AppError(404, 'NOT_FOUND', 'Запись не найдена');
+
 export const forbiddenOriginError = () =>
   new AppError(403, 'FORBIDDEN_ORIGIN', 'Запрос отклонён: недопустимый источник');

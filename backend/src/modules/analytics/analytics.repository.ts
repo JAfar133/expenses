@@ -1,3 +1,5 @@
+import { describeExcelState } from '../../storage/excel-state.ts';
+import type { Expense } from '../../storage/expense.repository.ts';
 import type { Database } from '../../infrastructure/database/database.ts';
 import { dateText, timestampText } from '../../infrastructure/database/sql.ts';
 import { buildWhere } from './analytics.query.ts';
@@ -182,7 +184,8 @@ export class AnalyticsRepository {
     const [items, [totals]] = await Promise.all([
       this.database.query<ListRow>(
         `SELECT id, ${dateText('date')} AS date, card, category, name, amount, source,
-                excel_status, created_by, ${timestampText('deleted_at')} AS deleted_at,
+                excel_status, created_by, updated_by, excel_last_error, deleted_reason, excel_snapshot,
+                ${timestampText('deleted_at')} AS deleted_at,
                 original_amount::float8 AS original_amount, original_currency,
                 exchange_rate::float8 AS exchange_rate
            FROM expenses ${where.sql}
@@ -215,6 +218,10 @@ interface ListRow {
   source: 'app' | 'excel';
   excel_status: 'pending' | 'writing' | 'synced';
   created_by: string;
+  updated_by: string | null;
+  excel_last_error: string | null;
+  deleted_reason: 'excel' | 'app' | null;
+  excel_snapshot: Expense | null;
   deleted_at: string | null;
   original_amount: number | null;
   original_currency: string | null;
@@ -241,5 +248,18 @@ const toListItem = (row: ListRow, baseCurrency: string): ExpenseListItem => ({
   createdBy: row.created_by,
   source: row.source,
   excelStatus: row.excel_status,
+  excelState: describeExcelState({
+    date: row.date,
+    card: row.card,
+    category: row.category,
+    name: row.name,
+    amount: row.amount,
+    deletedAt: row.deleted_at,
+    deletedReason: row.deleted_reason,
+    excelSnapshot: row.excel_snapshot,
+  }),
+  excelError: row.excel_last_error,
   deletedAt: row.deleted_at,
+  deletedReason: row.deleted_reason,
+  updatedBy: row.updated_by,
 });

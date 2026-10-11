@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/App.tsx';
 import { ApiError, apiRequest, onSessionLost } from '../src/shared/api/http.ts';
 
-const MISHA = { username: 'misha', displayName: 'Миша', card: 'Миша' };
-const NASTYA = { username: 'nastya', displayName: 'Настя', card: 'Настя' };
+const MISHA = { username: 'misha', displayName: 'Миша', card: 'Миша', canEdit: true };
+const NASTYA = { username: 'nastya', displayName: 'Настя', card: 'Настя', canEdit: false };
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });

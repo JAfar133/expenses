@@ -62,7 +62,9 @@ describe('POST /api/auth/login', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({
       success: true,
-      data: { user: { username: 'nastya', displayName: 'Настя', card: 'Настя' } },
+      data: {
+        user: { username: 'nastya', displayName: 'Настя', card: 'Настя', canEdit: false },
+      },
     });
   });
 
@@ -201,7 +203,12 @@ describe('защита маршрутов', () => {
     const me = await authed(cookies, { method: 'GET', url: '/api/auth/me' });
 
     expect(cards.statusCode).toBe(200);
-    expect(me.json().data.user).toEqual({ username: 'misha', displayName: 'Миша', card: 'Миша' });
+    expect(me.json().data.user).toEqual({
+      username: 'misha',
+      displayName: 'Миша',
+      card: 'Миша',
+      canEdit: true,
+    });
   });
 
   it('подделанная или чужая кука не даёт доступа', async () => {

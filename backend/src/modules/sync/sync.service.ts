@@ -2,11 +2,16 @@ import { readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { BackupStore } from '../../infrastructure/backup/backup.service.ts';
 import type { Database } from '../../infrastructure/database/database.ts';
-import { appendExpensesToBuffer, readExcelExpenses } from '../../services/excel.service.ts';
+import { readExcelExpenses } from '../../services/excel.service.ts';
+import { applyEditsToBuffer, type RowEdits } from '../../services/excel/edit.ts';
 import type { ExcelOptions } from '../../services/excel/types.ts';
 import { OneDriveError } from '../../services/onedrive/errors.ts';
 import type { DownloadedFile, OneDriveService } from '../../services/onedrive/types.ts';
-import type { ExpenseRepository, StoredExpense } from '../../storage/expense.repository.ts';
+import type {
+  Expense,
+  ExpenseRepository,
+  StoredExpense,
+} from '../../storage/expense.repository.ts';
 import { isMassDeletion, reconcile } from './reconcile.ts';
 import { describeSyncError } from './sync-errors.ts';
 import type { SyncStateRepository } from './sync-state.repository.ts';
@@ -34,6 +39,15 @@ export interface CycleOptions {
 }
 
 const DEFAULT_MAX_DELETE_PERCENT = 25;
+
+/** Строка для Excel: только пять столбцов таблицы, без служебных полей записи. */
+const toExcelRow = ({ date, card, category, name, amount }: Expense): Expense => ({
+  date,
+  card,
+  category,
+  name,
+  amount,
+});
 
 /** Сколько раз подряд повторяем цикл, если файл изменили прямо во время записи. */
 const MAX_CONFLICT_ATTEMPTS = 2;
@@ -110,6 +124,8 @@ export class SyncService {
       status: 'disabled',
       imported: 0,
       written: 0,
+      updated: 0,
+      removed: 0,
       queued: 0,
       deleted: 0,
       restored: 0,
@@ -147,6 +163,8 @@ export class SyncService {
         status: result.status,
         imported: result.imported,
         written: result.written,
+        updated: result.updated,
+        removed: result.removed,
         queued: result.queued,
         deleted: result.deleted,
         restored: result.restored,
@@ -166,6 +184,8 @@ export class SyncService {
       status: 'ok',
       imported: 0,
       written: 0,
+      updated: 0,
+      removed: 0,
       queued: 0,
       deleted: 0,
       restored: 0,
@@ -195,7 +215,7 @@ export class SyncService {
     try {
       const source = await readFile(file.localPath);
       await this.importFromExcel(source, result, options);
-      await this.writeQueueToExcel(oneDrive, file, source, result);
+      await this.writeChangesToExcel(oneDrive, file, source, result);
     } finally {
       await rm(dirname(file.localPath), { recursive: true, force: true });
     }
@@ -228,6 +248,7 @@ export class SyncService {
       const toDelete = blocked ? [] : plan.toDelete;
 
       await expenses.restoreDeleted(tx, plan.toRestore);
+      await expenses.clearSnapshots(tx, plan.toClearSnapshot);
       await expenses.markDeleted(tx, toDelete, 'excel');
       await expenses.markSynced(tx, plan.promoteToSynced);
       await expenses.markPending(tx, plan.revertToPending);
@@ -259,8 +280,11 @@ export class SyncService {
     }
   }
 
-  /** Шаг 3: дописывание очереди в Excel. */
-  private async writeQueueToExcel(
+  /**
+   * Шаг 3: перенос в Excel всего, что накопилось в приложении: новые записи дописываются,
+   * исправленные заменяют свою строку, удалённые убираются. Всё одним файлом и одной загрузкой.
+   */
+  private async writeChangesToExcel(
     oneDrive: OneDriveService,
     file: DownloadedFile,
     source: Buffer,
@@ -268,10 +292,15 @@ export class SyncService {
   ): Promise<void> {
     const { expenses, database } = this.deps;
     const queue = await expenses.listQueue(database);
-    if (queue.length === 0) return;
+    const { updates, removals } = await expenses.listExcelChanges(database);
+    if (queue.length + updates.length + removals.length === 0) return;
 
     const ids = queue.map((item) => item.id);
-    const resultPath = await this.prepareFile(file, source, queue);
+    const resultPath = await this.prepareFile(file, source, {
+      appends: queue,
+      updates: updates.map(({ from, to }) => ({ from, to })),
+      removals: removals.map(({ snapshot }) => snapshot),
+    });
 
     // «writing» фиксируем до загрузки: если процесс упадёт после неё, следующая сверка
     // поймёт по содержимому Excel, дошла ли запись, и не создаст дубль.
@@ -284,21 +313,41 @@ export class SyncService {
       throw error;
     }
 
+    // В снимок попадает то, что записано в файл, а не то, что в записи сейчас: если запись успели
+    // исправить снова, следующая синхронизация заменит строку ещё раз.
     await expenses.markSynced(database, ids);
+    await expenses.setSnapshots(
+      database,
+      updates.map(({ id, to }) => ({ id, snapshot: to })),
+    );
+    await expenses.clearSnapshots(
+      database,
+      removals.map(({ id }) => id),
+    );
     result.written = ids.length;
+    result.updated = updates.length;
+    result.removed = removals.length;
   }
 
-  /** Резервная копия и новый файл с добавленными записями. До загрузки БД не меняется. */
+  /** Резервная копия и новый файл с учётом всех изменений. До загрузки БД не меняется. */
   private async prepareFile(
     file: DownloadedFile,
     source: Buffer,
-    queue: StoredExpense[],
+    edits: { appends: StoredExpense[]; updates: RowEdits['updates']; removals: Expense[] },
   ): Promise<string> {
     await this.deps.backups.save(file.localPath).catch((error) => {
       throw Object.assign(new Error('Backup failed', { cause: error }), { code: 'BACKUP_FAILED' });
     });
 
-    const { output } = await appendExpensesToBuffer(source, queue, this.deps.excelOptions);
+    const output = await applyEditsToBuffer(
+      source,
+      {
+        appends: edits.appends.map(toExcelRow),
+        updates: edits.updates,
+        removals: edits.removals,
+      },
+      this.deps.excelOptions,
+    );
     const resultPath = join(dirname(file.localPath), 'result.xlsx');
     await writeFile(resultPath, output);
     return resultPath;

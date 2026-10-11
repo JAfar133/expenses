@@ -92,14 +92,14 @@ describe('toSlices', () => {
     expect(slices.some((s) => s.isOther)).toBe(false);
   });
 
-  it('если групп больше семи, хвост объединяется в «Другое»', () => {
+  it('если групп больше семи, хвост объединяется в «Остальное»', () => {
     const rows = Array.from({ length: 9 }, (_, i) => row(`к${i}`, 100 - i * 10, 2));
 
     const slices = toSlices(rows);
 
     expect(slices).toHaveLength(7);
     const other = slices.at(-1)!;
-    expect(other).toMatchObject({ key: 'Другое', isOther: true });
+    expect(other).toMatchObject({ key: 'Остальное', isOther: true, merged: 3 });
     // Суммы: 100, 90, … 20. Шесть крупных отдельно, остальные три (40 + 30 + 20) вместе
     expect(other.total).toBe(90);
     expect(other.count).toBe(6);
@@ -190,5 +190,26 @@ describe('compactNumber', () => {
     [1_200_000, '1,2M'],
   ])('%s → %s', (value, expected) => {
     expect(compactNumber(value)).toBe(expected);
+  });
+});
+
+describe('«Остальное» и настоящая категория «другое»', () => {
+  it('объединённый хвост называется иначе, чем категория «другое»', () => {
+    const rows = [...Array.from({ length: 7 }, (_, i) => row(`к${i}`, 100 - i)), row('другое', 1)];
+
+    const slices = toSlices(rows);
+
+    expect(slices.at(-1)).toMatchObject({ key: 'Остальное', isOther: true, merged: 2 });
+    expect(slices.map((s) => s.key)).not.toContain('Другое');
+  });
+
+  it('настоящая категория «другое» остаётся своим сектором, если она крупная', () => {
+    const slices = toSlices([row('жилье', 500), row('другое', 400), row('кафе', 100)]);
+
+    expect(slices.map((s) => [s.key, s.isOther])).toEqual([
+      ['жилье', false],
+      ['другое', false],
+      ['кафе', false],
+    ]);
   });
 });

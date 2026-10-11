@@ -23,6 +23,9 @@ export default function AnalyticsLayout() {
         <NavLink to={{ pathname: '/analytics', search }} end className={tabClass}>
           Обзор
         </NavLink>
+        <NavLink to={{ pathname: '/analytics/operations', search }} className={tabClass}>
+          Операции
+        </NavLink>
         <NavLink to={{ pathname: '/analytics/compare', search }} className={tabClass}>
           Сравнение месяцев
         </NavLink>

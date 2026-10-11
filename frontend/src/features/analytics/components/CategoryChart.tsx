@@ -236,7 +236,17 @@ function BarsChart({
   );
 }
 
-/** Доли: кольцо или круг. До 7 секторов, остальное «Другое»; рядом легенда с долями и суммами. */
+/** «1 категория», «2 категории», «5 категорий». */
+function pluralCategories(count: number): string {
+  const lastTwo = count % 100;
+  const last = count % 10;
+  if (lastTwo >= 11 && lastTwo <= 14) return 'категорий';
+  if (last === 1) return 'категория';
+  if (last >= 2 && last <= 4) return 'категории';
+  return 'категорий';
+}
+
+/** Доли: кольцо или круг. До 7 секторов, мелкие категории объединены в «Остальное»; рядом легенда с долями и суммами. */
 function ShareChart({
   slices,
   total,
@@ -284,6 +294,9 @@ function ShareChart({
                       },
                       { label: 'Доля', value: `${formatMoney(slice.share * 100, 1)}%` },
                       { label: 'Операций', value: String(slice.count) },
+                      ...(slice.isOther
+                        ? [{ label: 'Объединено категорий', value: String(slice.merged) }]
+                        : []),
                     ]}
                   />
                 );
@@ -329,7 +342,14 @@ function ShareChart({
                 className="size-3 shrink-0 rounded-sm"
                 style={{ background: colorOf(slice) }}
               />
-              <span className="min-w-0 flex-1 truncate text-left">{slice.key}</span>
+              <span className="min-w-0 flex-1 truncate text-left">
+                {slice.key}
+                {slice.isOther && (
+                  <span className="ml-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                    {slice.merged} {pluralCategories(slice.merged)}
+                  </span>
+                )}
+              </span>
               <span className="tabular-nums text-zinc-500 dark:text-zinc-400">
                 {formatMoney(slice.share * 100, 0)}%
               </span>

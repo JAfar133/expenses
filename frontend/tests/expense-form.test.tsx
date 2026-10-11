@@ -72,8 +72,8 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-const MISHA = { username: 'misha', displayName: 'Миша', card: 'Миша' };
-const NASTYA = { username: 'nastya', displayName: 'Настя', card: 'Настя' };
+const MISHA = { username: 'misha', displayName: 'Миша', card: 'Миша', canEdit: true };
+const NASTYA = { username: 'nastya', displayName: 'Настя', card: 'Настя', canEdit: false };
 
 async function renderPage(user = MISHA) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -145,7 +145,7 @@ describe('карта по умолчанию зависит от пользов�
   });
 
   it('если карты пользователя нет в справочнике, выбирается первая', async () => {
-    await renderPage({ username: 'ivan', displayName: 'Иван', card: 'Иван' });
+    await renderPage({ username: 'ivan', displayName: 'Иван', card: 'Иван', canEdit: false });
 
     expect(screen.getByRole('radio', { name: /Миша/ })).toBeChecked();
   });

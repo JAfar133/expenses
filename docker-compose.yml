@@ -81,6 +81,8 @@ services:
       # Вход в приложение: пользователи (логин:карта по умолчанию) и их пароли. Без пароля пользователь не может войти
       # (backend предупредит в логе). В серверном режиме (docker-compose.public.yml) пароли обязательны.
       AUTH_USERS: ${AUTH_USERS:-misha:Миша,nastya:Настя}
+      # Кто может править и удалять записи (остальные только смотрят)
+      EDITOR_USERS: ${EDITOR_USERS:-misha}
       AUTH_PASSWORD_MISHA: ${AUTH_PASSWORD_MISHA:-}
       AUTH_PASSWORD_NASTYA: ${AUTH_PASSWORD_NASTYA:-}
       ACCESS_TOKEN_TTL_HOURS: ${ACCESS_TOKEN_TTL_HOURS:-24}

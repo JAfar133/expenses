@@ -10,6 +10,7 @@ import { AnalyticsService } from './modules/analytics/analytics.service.ts';
 import { todayIn } from './modules/analytics/date-math.ts';
 import { AuthRepository } from './modules/auth/auth.repository.ts';
 import { AuthService } from './modules/auth/auth.service.ts';
+import { ExpenseEditor } from './modules/expenses/expense-editor.ts';
 import { ExpenseService } from './modules/expenses/expenses.service.ts';
 import { createCbaClient } from './modules/rates/cba-client.ts';
 import { RatesRepository } from './modules/rates/rates.repository.ts';
@@ -121,6 +122,8 @@ const app = buildApp({
   auth,
   rates,
   analytics,
+  editor: new ExpenseEditor({ database, repository: expenses, cards: env.CARDS }),
+  editors: env.EDITOR_USERS,
   trustProxy: env.TRUST_PROXY,
   allowedOrigins: env.ALLOWED_ORIGINS,
   idempotency,

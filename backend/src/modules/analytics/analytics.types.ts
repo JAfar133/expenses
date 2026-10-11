@@ -1,3 +1,5 @@
+import type { ExcelState } from '../../storage/excel-state.ts';
+
 /** Общие фильтры страницы анализа. Пустой список означает «без ограничения». */
 export interface AnalyticsFilters {
   /** Границы периода включительно, YYYY-MM-DD */
@@ -86,7 +88,13 @@ export interface ExpenseListItem {
   createdBy: string;
   source: 'app' | 'excel';
   excelStatus: 'pending' | 'writing' | 'synced';
+  /** Как запись соотносится со строкой в Excel: идентична, ждёт записи, обновления или удаления */
+  excelState: ExcelState;
+  /** Причина задержки записи в Excel (последняя ошибка), если она была */
+  excelError: string | null;
   deletedAt: string | null;
+  deletedReason: 'excel' | 'app' | null;
+  updatedBy: string | null;
 }
 
 /** Кто добавлял расходы: логин для фильтра и имя для показа. */

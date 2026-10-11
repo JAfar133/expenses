@@ -23,17 +23,36 @@ export interface ExcelExpenses {
   skipped: SkippedRow[];
 }
 
+/** Корректная строка таблицы с её номером на листе. */
+export interface TableRow {
+  row: number;
+  expense: Expense;
+}
+
+export interface ExcelTable extends ExcelExpenses {
+  /** Корректные строки с номерами листа, в порядке строк */
+  rows: TableRow[];
+  /** Номера всех заполненных, но некорректных строк (в `skipped` описаны не больше 20) */
+  invalidRows: number[];
+}
+
 /**
- * Читает все операции из структурированной таблицы. Пустые строки игнорируются,
+ * Читает все операции из структурированной таблицы вместе с номерами строк. Пустые строки игнорируются,
  * а частично заполненные или некорректные пропускаются и перечисляются в `skipped`.
  */
-export async function readExcelExpenses(
+export async function readExcelTable(
   source: Uint8Array,
   options: ExcelOptions,
-): Promise<ExcelExpenses> {
+): Promise<ExcelTable> {
   const { range } = await readRange(source, options);
   const sheet = (await loadWorkbook(source)).getWorksheet(options.sheetName);
-  const result: ExcelExpenses = { expenses: [], skippedCount: 0, skipped: [] };
+  const table: ExcelTable = {
+    expenses: [],
+    skippedCount: 0,
+    skipped: [],
+    rows: [],
+    invalidRows: [],
+  };
 
   for (let rowNumber = range.headerRow + 1; rowNumber <= range.lastRow; rowNumber++) {
     const row = sheet?.getRow(rowNumber);
@@ -42,16 +61,27 @@ export async function readExcelExpenses(
 
     const parsed = parseRow(cells);
     if (typeof parsed === 'string') {
-      result.skippedCount++;
-      if (result.skipped.length < MAX_REPORTED_SKIPS) {
-        result.skipped.push({ row: rowNumber, reason: parsed });
+      table.skippedCount++;
+      table.invalidRows.push(rowNumber);
+      if (table.skipped.length < MAX_REPORTED_SKIPS) {
+        table.skipped.push({ row: rowNumber, reason: parsed });
       }
     } else {
-      result.expenses.push(parsed);
+      table.expenses.push(parsed);
+      table.rows.push({ row: rowNumber, expense: parsed });
     }
   }
 
-  return result;
+  return table;
+}
+
+/** Читает все операции из таблицы (без номеров строк). */
+export async function readExcelExpenses(
+  source: Uint8Array,
+  options: ExcelOptions,
+): Promise<ExcelExpenses> {
+  const { expenses, skippedCount, skipped } = await readExcelTable(source, options);
+  return { expenses, skippedCount, skipped };
 }
 
 function parseRow([date, card, category, name, amount]: CellValue[]): Expense | string {

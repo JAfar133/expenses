@@ -75,6 +75,25 @@ export function writeExpenseRow(
   return sheetXml.replace(existingRow, () => rowXml);
 }
 
+/**
+ * Очищает значения A:E в строке, оставляя ячейки со стилями: строка остаётся внутри таблицы пустой.
+ * Строки или ячейки, которых нет, не трогаются.
+ */
+export function clearExpenseRow(sheetXml: string, rowNumber: number): string {
+  const existingRow = findRow(sheetXml, rowNumber);
+  if (!existingRow || existingRow.endsWith('/>')) return sheetXml;
+
+  let rowXml = existingRow;
+  for (const column of COLUMNS) {
+    const cell = findCell(rowXml, column, rowNumber);
+    if (!cell) continue;
+    const style = getStyle(cell[1]!);
+    const empty = `<c r="${column}${rowNumber}"${style ? ` s="${style}"` : ''}/>`;
+    rowXml = rowXml.replace(cell[0], () => empty);
+  }
+  return sheetXml.replace(existingRow, () => rowXml);
+}
+
 function readStyle(sheetXml: string, rowNumber: number, column: Column): string {
   const rowXml = findRow(sheetXml, rowNumber);
   const cell = rowXml && findCell(rowXml, column, rowNumber);

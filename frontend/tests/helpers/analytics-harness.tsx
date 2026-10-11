@@ -51,9 +51,15 @@ export const namesByCategory: Record<string, unknown[]> = {
 type Handler = (url: URL) => Response | Promise<Response>;
 
 /** Ответы поддельного сервера и журнал запросов; в каждом тесте создаются заново. */
-export const harness: { handlers: Record<string, Handler>; requests: string[] } = {
+export const harness: {
+  handlers: Record<string, Handler>;
+  requests: string[];
+  /** Тела запросов в том же порядке, что и `requests` */
+  bodies: unknown[];
+} = {
   handlers: {},
   requests: [],
+  bodies: [],
 };
 
 /** Общая подготовка тестов страницы анализа: «сегодня» 15 октября 2026, поддельный сервер, чистое хранилище. */
@@ -65,6 +71,7 @@ export function setupAnalyticsHarness() {
     localStorage.clear();
 
     harness.requests = [];
+    harness.bodies = [];
     harness.handlers = {
       '/api/analytics/summary': () => ok(summary),
       '/api/analytics/timeseries': () => ok(daily),
@@ -87,15 +94,34 @@ export function setupAnalyticsHarness() {
         ]),
       '/api/rates': () => ok({ base: 'AMD', currencies: ['AMD', 'USD'], rates: [] }),
       '/api/config': () => ok({ currency: 'AMD' }),
+      '/api/auth/me': () =>
+        ok({ user: { username: 'misha', displayName: 'Миша', card: 'Миша', canEdit: true } }),
+      '/api/sync/status': () =>
+        ok({
+          enabled: true,
+          queued: 0,
+          running: false,
+          intervalMs: 1,
+          nextRunAt: null,
+          serverTime: '',
+        }),
+      '/api/cards': () => ok(['Миша', 'Настя']),
       '/api/categories': () => ok(['кафе', 'продукты']),
     };
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: string) => {
-        harness.requests.push(input);
+      vi.fn(async (input: string, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        harness.requests.push(method === 'GET' ? input : `${method} ${input}`);
+        harness.bodies.push(init?.body === undefined ? undefined : JSON.parse(String(init.body)));
         const url = new URL(input, 'http://localhost');
-        const handler = harness.handlers[url.pathname];
-        if (!handler) throw new Error(`Unexpected request: ${input}`);
+        // Идентификатор записи в адресе заменяем на :id, чтобы обработчики не зависели от конкретных значений
+        const path = url.pathname.replace(
+          /[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}|\/id-[\w-]+/g,
+          ':id',
+        );
+        const handler = harness.handlers[`${method} ${path}`] ?? harness.handlers[path];
+        if (!handler) throw new Error(`Unexpected request: ${method} ${input}`);
         return handler(url);
       }),
     );

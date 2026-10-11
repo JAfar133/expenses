@@ -9,6 +9,7 @@ import type { Database } from '../../src/infrastructure/database/database.ts';
 import { IdempotencyService } from '../../src/infrastructure/idempotency/idempotency.service.ts';
 import { AnalyticsRepository } from '../../src/modules/analytics/analytics.repository.ts';
 import { AnalyticsService } from '../../src/modules/analytics/analytics.service.ts';
+import { ExpenseEditor } from '../../src/modules/expenses/expense-editor.ts';
 import { ExpenseService } from '../../src/modules/expenses/expenses.service.ts';
 import { SyncScheduler } from '../../src/modules/sync/sync.scheduler.ts';
 import type { SyncService } from '../../src/modules/sync/sync.service.ts';
@@ -21,6 +22,8 @@ export const okResult = (overrides: Partial<SyncResult> = {}): SyncResult => ({
   status: 'ok',
   imported: 0,
   written: 0,
+  updated: 0,
+  removed: 0,
   queued: 0,
   deleted: 0,
   restored: 0,
@@ -179,6 +182,8 @@ export async function createTestApp(
       repository: new AnalyticsRepository(database, 'AMD'),
       today: () => TEST_TODAY,
     }),
+    editor: new ExpenseEditor({ database, repository, cards: ['Миша', 'Настя'] }),
+    editors: ['misha'],
     idempotency: new IdempotencyService(database),
     sync: sync as unknown as SyncService,
     scheduler,

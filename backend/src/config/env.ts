@@ -84,6 +84,8 @@ const envSchema = z.object({
   /** Дополнительные допустимые источники запросов (Origin), через запятую */
   ALLOWED_ORIGINS: z.string().default('').transform(list),
 
+  // Логины, которым можно править и удалять записи (через запятую)
+  EDITOR_USERS: z.string().default('misha').transform(list),
   CARDS: z.string().default('Миша,Настя').transform(list),
   CATEGORIES: z.string().default('кафе,одежда,продукты,жилье,маркетплейс,другое').transform(list),
 });

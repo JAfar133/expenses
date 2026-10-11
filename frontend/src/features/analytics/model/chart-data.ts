@@ -2,7 +2,8 @@ import type { BreakdownRow, SeriesPoint } from '../api/analytics.api.ts';
 
 /** Сколько секторов показываем в круговой диаграмме: больше не прочитать, остальное «другое». */
 export const MAX_SLICES = 7;
-export const OTHER_KEY = 'Другое';
+/** Подпись объединённого хвоста. Не «Другое»: такая категория может быть настоящей, и их легко перепутать. */
+export const OTHER_KEY = 'Остальное';
 
 export interface Slice {
   key: string;
@@ -12,6 +13,8 @@ export interface Slice {
   share: number;
   /** Объединённый хвост списка */
   isOther: boolean;
+  /** Сколько категорий объединено в «Остальное» (у обычных секторов 0) */
+  merged: number;
 }
 
 /** Самые крупные группы отдельно, остальные одним сектором «Другое». Вход отсортирован по сумме. */
@@ -28,6 +31,7 @@ export function toSlices(rows: BreakdownRow[], max = MAX_SLICES): Slice[] {
     count: row.count,
     share: share(row.total),
     isOther: false,
+    merged: 0,
   }));
 
   if (!keepAll) {
@@ -39,6 +43,7 @@ export function toSlices(rows: BreakdownRow[], max = MAX_SLICES): Slice[] {
       count: tail.reduce((sum, row) => sum + row.count, 0),
       share: share(total),
       isOther: true,
+      merged: tail.length,
     });
   }
   return slices;

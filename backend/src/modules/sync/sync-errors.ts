@@ -11,6 +11,22 @@ interface SyncErrorInfo {
 export function describeSyncError(error: unknown): SyncErrorInfo {
   if (!(error instanceof OneDriveError)) {
     const code = (error as { code?: string }).code;
+    if (code === 'ROW_NOT_FOUND') {
+      return {
+        status: 'error',
+        code,
+        message:
+          'Не нашла в Excel строку, которую нужно исправить или убрать (её изменили вручную). Изменения ждут в очереди',
+      };
+    }
+    if (code === 'VERIFICATION_FAILED') {
+      return {
+        status: 'error',
+        code,
+        message:
+          'Результат записи в Excel не прошёл проверку, файл не изменён. Подробности в логе сервера',
+      };
+    }
     if (code === 'BACKUP_FAILED') {
       return {
         status: 'error',

@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { AppError, validationError } from '../../errors/app-error.ts';
 import type { IdempotencyService } from '../../infrastructure/idempotency/idempotency.service.ts';
+import { waitForExcelWrite } from '../sync/inline-wait.ts';
 import type { SyncService } from '../sync/sync.service.ts';
 import { createExpenseSchema, FIELD_ERROR_CODES } from './expenses.schema.ts';
 import type { ExpenseService } from './expenses.service.ts';
@@ -40,7 +41,7 @@ export const expensesRoutes =
 
         // Затем пробуем записать его в Excel. Если файл занят — расход ждёт в очереди.
         if (!replayed && sync.enabled) {
-          await tryWriteToExcel(sync, inlineExcelWaitMs);
+          await waitForExcelWrite(sync, inlineExcelWaitMs);
         }
         const excelStatus = sync.enabled
           ? await currentExcelStatus(expenseService, saved.id)
@@ -88,15 +89,6 @@ export const expensesRoutes =
       data: await expenseService.getCategories(),
     }));
   };
-
-/** Ждёт завершения синхронизации, но не дольше лимита. Ошибок не бросает: расход уже сохранён. */
-async function tryWriteToExcel(
-  sync: Pick<SyncService, 'requestCycle'>,
-  waitMs: number,
-): Promise<void> {
-  const timeout = new Promise<void>((resolve) => setTimeout(resolve, waitMs).unref());
-  await Promise.race([sync.requestCycle(), timeout]);
-}
 
 /** disabled — работа с Excel отключена. synced — запись уже в Excel, queued — ждёт (файл открыт, OneDrive недоступен или запись идёт). */
 async function currentExcelStatus(

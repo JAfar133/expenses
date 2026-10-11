@@ -60,6 +60,7 @@ describe('драйвер pg', () => {
       '0002_soft_delete.sql',
       '0003_auth.sql',
       '0004_currency.sql',
+      '0005_edit_delete.sql',
     ]);
   });
 
