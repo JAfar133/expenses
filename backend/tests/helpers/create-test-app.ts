@@ -7,6 +7,8 @@ import { hashPassword } from '../../src/modules/auth/password.ts';
 import { generateToken, hashToken } from '../../src/modules/auth/tokens.ts';
 import type { Database } from '../../src/infrastructure/database/database.ts';
 import { IdempotencyService } from '../../src/infrastructure/idempotency/idempotency.service.ts';
+import { AnalyticsRepository } from '../../src/modules/analytics/analytics.repository.ts';
+import { AnalyticsService } from '../../src/modules/analytics/analytics.service.ts';
 import { ExpenseService } from '../../src/modules/expenses/expenses.service.ts';
 import { SyncScheduler } from '../../src/modules/sync/sync.scheduler.ts';
 import type { SyncService } from '../../src/modules/sync/sync.service.ts';
@@ -131,6 +133,9 @@ export interface TestAppOptions {
   throttle?: LoginThrottle;
 }
 
+/** «Сегодня» в тестах: фиксированная дата, чтобы расчёты не зависели от календаря. */
+export const TEST_TODAY = '2026-10-15';
+
 export const TEST_ORIGIN = 'http://localhost';
 
 export async function createTestApp(
@@ -170,6 +175,10 @@ export async function createTestApp(
     }),
     auth,
     rates,
+    analytics: new AnalyticsService({
+      repository: new AnalyticsRepository(database, 'AMD'),
+      today: () => TEST_TODAY,
+    }),
     idempotency: new IdempotencyService(database),
     sync: sync as unknown as SyncService,
     scheduler,

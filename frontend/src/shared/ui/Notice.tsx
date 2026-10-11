@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 type NoticeVariant = 'success' | 'error' | 'info';
 
 const STYLES: Record<NoticeVariant, string> = {
@@ -6,7 +8,7 @@ const STYLES: Record<NoticeVariant, string> = {
   info: 'bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200',
 };
 
-export function Notice({ variant, children }: { variant: NoticeVariant; children: string }) {
+export function Notice({ variant, children }: { variant: NoticeVariant; children: ReactNode }) {
   return (
     <div
       role={variant === 'error' ? 'alert' : 'status'}

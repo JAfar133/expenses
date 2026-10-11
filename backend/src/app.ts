@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import Fastify, { LogController, type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import { AppError, databaseUnavailableError } from './errors/app-error.ts';
 import type { IdempotencyService } from './infrastructure/idempotency/idempotency.service.ts';
+import { analyticsRoutes } from './modules/analytics/analytics.routes.ts';
+import type { AnalyticsService } from './modules/analytics/analytics.service.ts';
 import { authPlugin } from './modules/auth/auth.plugin.ts';
 import { authRoutes } from './modules/auth/auth.routes.ts';
 import type { AuthService } from './modules/auth/auth.service.ts';
@@ -17,6 +19,7 @@ export interface AppDependencies {
   expenseService: ExpenseService;
   auth: AuthService;
   rates: Pick<RatesService, 'snapshot' | 'currencies'>;
+  analytics: AnalyticsService;
   idempotency: IdempotencyService;
   sync: SyncService;
   scheduler: SyncScheduler;
@@ -34,6 +37,7 @@ export function buildApp({
   expenseService,
   auth,
   rates,
+  analytics,
   idempotency,
   sync,
   scheduler,
@@ -99,6 +103,7 @@ export function buildApp({
     prefix: '/api',
   });
   app.register(ratesRoutes(rates), { prefix: '/api' });
+  app.register(analyticsRoutes(analytics), { prefix: '/api' });
   app.register(syncRoutes({ sync, scheduler }), { prefix: '/api' });
   app.register(authRoutes(auth), { prefix: '/api' });
 

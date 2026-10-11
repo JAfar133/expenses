@@ -5,6 +5,9 @@ import { BackupService } from './infrastructure/backup/backup.service.ts';
 import { createPostgresDatabase, waitForDatabase } from './infrastructure/database/database.ts';
 import { migrate } from './infrastructure/database/migrate.ts';
 import { IdempotencyService } from './infrastructure/idempotency/idempotency.service.ts';
+import { AnalyticsRepository } from './modules/analytics/analytics.repository.ts';
+import { AnalyticsService } from './modules/analytics/analytics.service.ts';
+import { todayIn } from './modules/analytics/date-math.ts';
 import { AuthRepository } from './modules/auth/auth.repository.ts';
 import { AuthService } from './modules/auth/auth.service.ts';
 import { ExpenseService } from './modules/expenses/expenses.service.ts';
@@ -84,6 +87,11 @@ const auth = new AuthService({
   logger: { warn: (fields, message) => app.log.warn(fields, message) },
 });
 
+const analytics = new AnalyticsService({
+  repository: new AnalyticsRepository(database, env.DEFAULT_CURRENCY),
+  today: () => todayIn(env.APP_TIMEZONE),
+});
+
 const sync = new SyncService({
   database,
   expenses,
@@ -112,6 +120,7 @@ const app = buildApp({
   },
   auth,
   rates,
+  analytics,
   trustProxy: env.TRUST_PROXY,
   allowedOrigins: env.ALLOWED_ORIGINS,
   idempotency,

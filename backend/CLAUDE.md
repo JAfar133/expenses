@@ -17,7 +17,7 @@ npm run format      # Prettier
 
 ## Структура
 
-- `src/modules/<имя>/` модули по задачам: `auth`, `expenses`, `sync`. В модуле routes, service, repository, types раздельно.
+- `src/modules/<имя>/` модули по задачам: `auth`, `expenses`, `sync`, `rates`, `analytics` (агрегаты и списки для страницы анализа считает SQL; значения только параметрами, сортировка по белому списку). В модуле routes, service, repository, types раздельно.
 - `src/storage/` репозиторий расходов (PostgreSQL), `src/infrastructure/` база и миграции, резервные копии, идемпотентность.
 - `src/services/` Excel (чтение через ExcelJS, запись точечной правкой XML) и OneDrive (rclone).
 - `src/config/env.ts` все переменные окружения (zod). Новая настройка: туда, в оба `.env.example`, `docker-compose.yml` и README.

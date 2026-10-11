@@ -1,22 +1,14 @@
 import type { AuthUser } from '../features/auth/api/auth.api.ts';
-import { UserBar } from '../features/auth/components/UserBar.tsx';
 import { ExpenseForm } from '../features/expenses/components/ExpenseForm.tsx';
 import { useExpenseReference } from '../features/expenses/hooks/useExpenseReference.ts';
-import { SyncIndicator } from '../features/sync/components/SyncIndicator.tsx';
+import { MonthSpent } from '../features/analytics/components/MonthSpent.tsx';
 import { Notice } from '../shared/ui/Notice.tsx';
 
 export function AddExpensePage({ user }: { user: AuthUser }) {
   const reference = useExpenseReference();
 
   return (
-    <main className="mx-auto min-h-dvh w-full max-w-[560px] px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))]">
-      <header className="mb-6 flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">💳 Мои расходы</h1>
-        <SyncIndicator />
-      </header>
-
-      <UserBar user={user} />
-
+    <>
       <section className="rounded-2xl bg-white p-5 shadow-sm dark:bg-zinc-900">
         <h2 className="mb-5 text-lg font-semibold">Добавить расход</h2>
 
@@ -39,6 +31,8 @@ export function AddExpensePage({ user }: { user: AuthUser }) {
           </p>
         )}
       </section>
-    </main>
+
+      {reference.data && <MonthSpent currency={reference.data.currency} />}
+    </>
   );
 }

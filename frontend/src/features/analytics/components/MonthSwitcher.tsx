@@ -1,0 +1,39 @@
+import { monthLabel, shiftMonth, type MonthKey } from '../model/periods.ts';
+
+interface MonthSwitcherProps {
+  month: MonthKey;
+  /** Текущий месяц: дальше него переключать нельзя */
+  latest: MonthKey;
+  onChange: (month: MonthKey) => void;
+}
+
+const arrowClass =
+  'flex size-10 items-center justify-center rounded-full text-lg text-zinc-600 hover:bg-zinc-200/70 disabled:opacity-30 disabled:hover:bg-transparent dark:text-zinc-300 dark:hover:bg-zinc-800';
+
+/** Переключатель месяца: стрелки и название. */
+export function MonthSwitcher({ month, latest, onChange }: MonthSwitcherProps) {
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        aria-label="Предыдущий месяц"
+        className={arrowClass}
+        onClick={() => onChange(shiftMonth(month, -1))}
+      >
+        ‹
+      </button>
+      <h2 className="min-w-36 text-center text-lg font-semibold" aria-live="polite">
+        {monthLabel(month)}
+      </h2>
+      <button
+        type="button"
+        aria-label="Следующий месяц"
+        className={arrowClass}
+        disabled={month >= latest}
+        onClick={() => onChange(shiftMonth(month, 1))}
+      >
+        ›
+      </button>
+    </div>
+  );
+}

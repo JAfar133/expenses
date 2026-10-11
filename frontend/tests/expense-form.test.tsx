@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AddExpensePage } from '../src/pages/AddExpensePage.tsx';
 import { todayIso } from '../src/shared/utils/date.ts';
@@ -19,10 +20,12 @@ const created = (body: Record<string, unknown>, excelStatus = 'synced') =>
 
 let postExpense: ReturnType<typeof vi.fn<Responder>>;
 let ratesResponse: () => Response;
+let monthTotal: number;
 let nameSuggestions: { name: string; category: string; count: number }[];
 
 beforeEach(() => {
   postExpense = vi.fn<Responder>((body) => created(body));
+  monthTotal = 123456;
   ratesResponse = () => json(500, { success: false, error: { code: 'X', message: 'x' } });
   nameSuggestions = [
     { name: 'Латте', category: 'кафе', count: 9 },
@@ -49,6 +52,12 @@ beforeEach(() => {
           },
         });
       }
+      if (url.startsWith('/api/analytics/summary')) {
+        return json(200, {
+          success: true,
+          data: { current: { total: monthTotal }, previous: null },
+        });
+      }
       if (url === '/api/rates') return ratesResponse();
       if (url === '/api/name-suggestions')
         return json(200, { success: true, data: nameSuggestions });
@@ -70,7 +79,9 @@ async function renderPage(user = MISHA) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <AddExpensePage user={user} />
+      <MemoryRouter>
+        <AddExpensePage user={user} />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
   await screen.findByRole('button', { name: 'Добавить расход' });
@@ -108,7 +119,9 @@ describe('отображение формы', () => {
 
     render(
       <QueryClientProvider client={client}>
-        <AddExpensePage user={MISHA} />
+        <MemoryRouter>
+          <AddExpensePage user={MISHA} />
+        </MemoryRouter>
       </QueryClientProvider>,
     );
 
@@ -430,6 +443,26 @@ describe('валидация', () => {
     await user.type(screen.getByLabelText('Стоимость'), '25890');
 
     expect(screen.getByLabelText('Стоимость')).toHaveValue('25 890');
+  });
+});
+
+describe('потрачено в этом месяце', () => {
+  it('под формой ненавязчиво показывается сумма за месяц со ссылкой на анализ', async () => {
+    await renderPage();
+
+    expect(await screen.findByText('123 456 AMD')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Анализ' })).toHaveAttribute('href', '/analytics');
+  });
+
+  it('после добавления расхода сумма обновляется', async () => {
+    const user = await renderPage();
+    await screen.findByText('123 456 AMD');
+    await fillForm(user);
+
+    monthTotal = 133159;
+    await submit(user);
+
+    expect(await screen.findByText('133 159 AMD')).toBeInTheDocument();
   });
 });
 

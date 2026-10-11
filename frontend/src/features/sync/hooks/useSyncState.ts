@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ANALYTICS_KEY } from '../../analytics/hooks/useAnalytics.ts';
 import { fetchSyncState, runSync } from '../api/sync.api.ts';
 
 export const SYNC_STATE_KEY = ['sync-state'];
@@ -23,6 +24,8 @@ export function useRunSync() {
       queryClient.setQueryData(SYNC_STATE_KEY, state);
       // Синхронизация могла принести новые категории из Excel
       void queryClient.invalidateQueries({ queryKey: ['categories'] });
+      // Из Excel могли прийти новые расходы
+      void queryClient.invalidateQueries({ queryKey: ANALYTICS_KEY });
     },
   });
 }

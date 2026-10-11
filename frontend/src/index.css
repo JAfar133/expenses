@@ -11,3 +11,36 @@ body {
   font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
+
+/* Цвета графиков. Палитра проверена на различимость при цветовой слепоте; в тёмной теме те же оттенки подобраны под тёмный фон */
+:root {
+  --chart-surface: #ffffff;
+  --chart-grid: #e4e4e7;
+  --chart-axis: #71717a;
+  --chart-other: #a1a1aa;
+  --chart-good: #0ca30c;
+  --chart-critical: #d03b3b;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #6250d6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --chart-surface: #18181b;
+    --chart-grid: #3f3f46;
+    --chart-axis: #a1a1aa;
+    --chart-other: #71717a;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+  }
+}
