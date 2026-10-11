@@ -1,10 +1,12 @@
 import 'dotenv/config';
 import { buildApp } from './app.ts';
-import { loadEnv } from './config/env.ts';
+import { loadEnv, readUserPasswords } from './config/env.ts';
 import { BackupService } from './infrastructure/backup/backup.service.ts';
 import { createPostgresDatabase, waitForDatabase } from './infrastructure/database/database.ts';
 import { migrate } from './infrastructure/database/migrate.ts';
 import { IdempotencyService } from './infrastructure/idempotency/idempotency.service.ts';
+import { AuthRepository } from './modules/auth/auth.repository.ts';
+import { AuthService } from './modules/auth/auth.service.ts';
 import { ExpenseService } from './modules/expenses/expenses.service.ts';
 import { SyncScheduler } from './modules/sync/sync.scheduler.ts';
 import { SyncService } from './modules/sync/sync.service.ts';
@@ -53,6 +55,19 @@ const database = createPostgresDatabase(env.DATABASE_URL);
 const expenses = new PostgresExpenseRepository(database);
 const idempotency = new IdempotencyService(database);
 
+const HOUR_MS = 3_600_000;
+const auth = new AuthService({
+  repository: new AuthRepository(database),
+  config: {
+    accessTtlMs: env.ACCESS_TOKEN_TTL_HOURS * HOUR_MS,
+    refreshTtlMs: env.REFRESH_TOKEN_TTL_DAYS * 24 * HOUR_MS,
+    sessionMaxMs: env.SESSION_MAX_DAYS * 24 * HOUR_MS,
+    rotationGraceMs: 15_000,
+    minPasswordLength: env.AUTH_MIN_PASSWORD_LENGTH,
+  },
+  logger: { warn: (fields, message) => app.log.warn(fields, message) },
+});
+
 const sync = new SyncService({
   database,
   expenses,
@@ -79,6 +94,9 @@ const app = buildApp({
     level: env.NODE_ENV === 'production' ? 'info' : 'debug',
     redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
   },
+  auth,
+  trustProxy: env.TRUST_PROXY,
+  allowedOrigins: env.ALLOWED_ORIGINS,
   idempotency,
   sync,
   scheduler,
@@ -92,10 +110,11 @@ const app = buildApp({
 /** Удаляет устаревшие резервные копии и ключи идемпотентности. */
 async function runMaintenance(): Promise<void> {
   const removedBackups = await backups.cleanup();
+  const removedSessions = await auth.deleteStaleSessions();
   const removedKeys = await idempotency.deleteOlderThan(
     new Date(Date.now() - env.BACKUP_RETENTION_DAYS * DAY_MS),
   );
-  app.log.info({ removedBackups, removedKeys }, 'Maintenance completed');
+  app.log.info({ removedBackups, removedKeys, removedSessions }, 'Maintenance completed');
 }
 
 await waitForDatabase(database, {
@@ -105,6 +124,22 @@ await waitForDatabase(database, {
 const applied = await migrate(database);
 if (applied.length > 0) {
   app.log.info({ migrations: applied }, 'Database migrations applied');
+}
+
+// Пользователи и пароли берутся из настроек. Пароль хешируется и сохраняется в базе, если он новый или изменился.
+const userSync = await auth.syncUsers(env.AUTH_USERS, readUserPasswords(env.AUTH_USERS));
+if (userSync.passwordsUpdated.length > 0) {
+  app.log.info({ users: userSync.passwordsUpdated }, 'User passwords updated');
+}
+if (userSync.withoutPassword.length > 0) {
+  app.log.warn(
+    { users: userSync.withoutPassword },
+    'Users have no password and cannot log in: set AUTH_PASSWORD_<LOGIN>',
+  );
+}
+const unknownCards = env.AUTH_USERS.filter((user) => !env.CARDS.includes(user.card));
+if (unknownCards.length > 0) {
+  app.log.warn({ users: unknownCards }, 'AUTH_USERS contains cards that are not in CARDS');
 }
 
 await app.listen({ host: env.HOST, port: env.PORT });

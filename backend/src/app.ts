@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 import Fastify, { LogController, type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import { AppError, databaseUnavailableError } from './errors/app-error.ts';
 import type { IdempotencyService } from './infrastructure/idempotency/idempotency.service.ts';
+import { authPlugin } from './modules/auth/auth.plugin.ts';
+import { authRoutes } from './modules/auth/auth.routes.ts';
+import type { AuthService } from './modules/auth/auth.service.ts';
 import { expensesRoutes } from './modules/expenses/expenses.routes.ts';
 import type { ExpenseService } from './modules/expenses/expenses.service.ts';
 import type { SyncScheduler } from './modules/sync/sync.scheduler.ts';
@@ -10,26 +13,35 @@ import type { SyncService } from './modules/sync/sync.service.ts';
 
 export interface AppDependencies {
   expenseService: ExpenseService;
+  auth: AuthService;
   idempotency: IdempotencyService;
   sync: SyncService;
   scheduler: SyncScheduler;
   /** Сколько ждать записи в Excel перед ответом на создание расхода */
   inlineExcelWaitMs?: number;
   currency?: string;
+  /** За обратным прокси (Caddy): реальный IP и протокол берутся из X-Forwarded-* */
+  trustProxy?: boolean;
+  /** Дополнительные допустимые источники запросов (Origin) */
+  allowedOrigins?: string[];
   logger?: FastifyServerOptions['logger'];
 }
 
 export function buildApp({
   expenseService,
+  auth,
   idempotency,
   sync,
   scheduler,
   inlineExcelWaitMs = 15_000,
   currency = 'AMD',
+  trustProxy = false,
+  allowedOrigins = [],
   logger = false,
 }: AppDependencies): FastifyInstance {
   const app = Fastify({
     logger,
+    trustProxy,
     // Короткий идентификатор запроса попадает во все строки лога и в заголовок ответа
     genReqId: () => randomUUID().slice(0, 8),
     logController: new LogController({ requestIdLogLabel: 'requestId' }),
@@ -56,7 +68,10 @@ export function buildApp({
 
     // Для ошибок приложения строка лога уже записана в обработчике операции
     if (error instanceof AppError) {
-      return reply.code(error.statusCode).send(errorBody(error.code, error.message));
+      return reply
+        .code(error.statusCode)
+        .headers(error.headers ?? {})
+        .send(errorBody(error.code, error.message));
     }
 
     // Ошибки Fastify до наших обработчиков: битый JSON, неверный Content-Type и т.п.
@@ -71,12 +86,16 @@ export function buildApp({
       .send(errorBody('INTERNAL_ERROR', 'Не удалось сохранить расход. Попробуйте позже'));
   });
 
-  app.get('/api/health', async () => ({ status: 'ok' }));
+  // Сначала разбор кук и проверки входа, затем маршруты: хуки должны подключиться раньше них
+  app.register(authPlugin, { auth, allowedOrigins });
+
+  app.get('/api/health', { config: { public: true } }, async () => ({ status: 'ok' }));
   app.get('/api/config', async () => ({ success: true, data: { currency } }));
   app.register(expensesRoutes({ expenseService, idempotency, sync, inlineExcelWaitMs }), {
     prefix: '/api',
   });
   app.register(syncRoutes({ sync, scheduler }), { prefix: '/api' });
+  app.register(authRoutes(auth), { prefix: '/api' });
 
   return app;
 }

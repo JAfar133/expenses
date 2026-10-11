@@ -27,6 +27,30 @@ ensure_dependencies() {
   fi
 }
 
+# Пароли для входа в приложение при разработке. Если в backend/.env они не заданы или пусты,
+# создаём случайные и записываем туда же (в Git этот файл не попадает).
+ensure_auth_passwords() {
+  local env_file="$ROOT_DIR/backend/.env" name current password created=0
+
+  for name in AUTH_PASSWORD_MISHA AUTH_PASSWORD_NASTYA; do
+    current="$(sed -n "s/^${name}=//p" "$env_file" | tail -n1)"
+    [ -n "$current" ] && continue
+
+    password="$(openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-20)"
+    if grep -q "^${name}=" "$env_file"; then
+      sed -i.bak "s|^${name}=.*|${name}=${password}|" "$env_file" && rm -f "$env_file.bak"
+    else
+      printf '%s=%s\n' "$name" "$password" >> "$env_file"
+    fi
+    log "Пароль для входа (${name#AUTH_PASSWORD_}): ${password}"
+    created=1
+  done
+
+  if [ "$created" = 1 ]; then
+    log "Пароли сохранены в backend/.env. Логины: misha и nastya. Сменить пароль: измените значение в этом файле и перезапустите backend."
+  fi
+}
+
 # Проверяет .env, rclone и доступность файла в OneDrive
 check_backend_env() {
   local backend="$ROOT_DIR/backend"
@@ -35,6 +59,7 @@ check_backend_env() {
     cp "$backend/.env.example" "$backend/.env"
     log "Создан backend/.env из .env.example, проверьте ONEDRIVE_FILE_PATH."
   fi
+  ensure_auth_passwords
 
   require_command rclone "Установите rclone и настройте remote (см. backend/README.md)."
 

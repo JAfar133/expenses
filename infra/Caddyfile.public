@@ -1,17 +1,13 @@
-# Публичный доступ к приложению: HTTPS и вход по логину и паролю.
-# Временная защита, пока в самом приложении нет авторизации (см. docker-compose.public.yml).
+# Публичный доступ к приложению: HTTPS на вашем адресе.
 #
-# SITE_ADDRESS — домен, на который указывает ваш сервер. Домена нет — возьмите бесплатный адрес
-# вида 85-209-51-95.nip.io (IP с дефисами): Caddy сам получит для него сертификат.
+# Сайт защищает вход в самом приложении (логин и пароль пользователей, сессии), поэтому отдельного пароля
+# Caddy на нём нет: двойная авторизация только мешала бы. Пароль Caddy (Basic Auth) оставлен у pgAdmin:
+# он не является частью приложения.
+#
+# SITE_ADDRESS — домен, на который указывает ваш сервер (например, expenses.example.com). Домена нет — возьмите
+# бесплатный адрес вида 1-2-3-4.nip.io (IP с дефисами): Caddy сам получит для него сертификат.
 {$SITE_ADDRESS} {
 	encode zstd gzip
-
-	# Манифест и иконки не секретны, но браузеры запрашивают их без пароля
-	# (без этого на iPhone не установится значок приложения)
-	@protected not path /manifest.webmanifest /icons/*
-	basic_auth @protected {
-		{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
-	}
 
 	handle /api/* {
 		reverse_proxy backend:3000
@@ -26,6 +22,10 @@
 	@assets path /assets/*
 	header @assets Cache-Control "public, max-age=31536000, immutable"
 
+	# Сервис-страницы не должны кешироваться, а ответы API (включая куки входа) не должны попадать в общий кеш
+	@api path /api/*
+	header @api Cache-Control "no-store"
+
 	header {
 		X-Content-Type-Options nosniff
 		Referrer-Policy same-origin
@@ -35,14 +35,14 @@
 	}
 }
 
-# pgAdmin (веб-интерфейс к базе) на отдельном адресе: тот же логин и пароль Caddy, затем собственный вход pgAdmin.
-# Порт pgAdmin наружу не публикуется: до него можно добраться только через этот сайт, по HTTPS и под паролем.
-# PGADMIN_ADDRESS — отдельное имя, например pgadmin.85-209-51-95.nip.io (для домена: pgadmin.example.com).
+# pgAdmin (веб-интерфейс к базе) на отдельном адресе: пароль Caddy (Basic Auth), затем собственный вход pgAdmin.
+# Порт pgAdmin наружу не публикуется: до него можно добраться только через этот сайт, по HTTPS.
+# PGADMIN_ADDRESS — отдельное имя, например pgadmin.example.com (для nip.io: pgadmin.1-2-3-4.nip.io).
 {$PGADMIN_ADDRESS} {
 	encode zstd gzip
 
 	basic_auth {
-		{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+		{$PGADMIN_BASIC_AUTH_USER} {$PGADMIN_BASIC_AUTH_HASH}
 	}
 
 	reverse_proxy pgadmin:80

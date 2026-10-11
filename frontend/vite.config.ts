@@ -7,7 +7,14 @@ export default defineConfig({
   server: {
     port: 5173,
     // В разработке запросы к API идут на локальный backend
-    proxy: { '/api': 'http://127.0.0.1:3000' },
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3000',
+        // Не подменять Host: backend сверяет с ним заголовок Origin (защита от CSRF), а браузер шлёт адрес Vite.
+        // Короткая запись прокси ('/api': 'http://…') включает changeOrigin и ломает вход.
+        changeOrigin: false,
+      },
+    },
   },
   test: {
     environment: 'jsdom',

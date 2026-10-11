@@ -1,5 +1,10 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from 'fastify';
 import { buildApp } from '../../src/app.ts';
+import { AuthRepository } from '../../src/modules/auth/auth.repository.ts';
+import { AuthService } from '../../src/modules/auth/auth.service.ts';
+import { LoginThrottle } from '../../src/modules/auth/login-throttle.ts';
+import { hashPassword } from '../../src/modules/auth/password.ts';
+import { generateToken, hashToken } from '../../src/modules/auth/tokens.ts';
 import type { Database } from '../../src/infrastructure/database/database.ts';
 import { IdempotencyService } from '../../src/infrastructure/idempotency/idempotency.service.ts';
 import { ExpenseService } from '../../src/modules/expenses/expenses.service.ts';
@@ -65,30 +70,118 @@ export class FakeSync {
   }
 }
 
+/** Пароль обоих тестовых пользователей. */
+export const TEST_PASSWORD = 'shared-test-password-1';
+
+export type TestUsername = 'misha' | 'nastya';
+
+/** Хеш считается один раз на весь прогон: scrypt специально медленный. */
+let sharedPasswordHash: Promise<string> | undefined;
+const passwordHash = () => (sharedPasswordHash ??= hashPassword(TEST_PASSWORD));
+
 export interface TestApp {
   app: FastifyInstance;
   database: Database;
   repository: PostgresExpenseRepository;
   sync: FakeSync;
   scheduler: SyncScheduler;
+  auth: AuthService;
+  authRepository: AuthRepository;
+  /** Запрос от имени вошедшего пользователя (по умолчанию misha): с куками входа и заголовком Origin сайта */
+  inject: (options: InjectOptions, as?: TestUsername) => Promise<LightMyRequestResponse>;
+  /** Куки входа для пользователя: создаёт сессию напрямую, без проверки пароля */
+  sessionCookies: (username: TestUsername) => Promise<{ et_access: string; et_refresh: string }>;
 }
 
-export function createTestApp(
+export interface TestAppOptions {
+  inlineExcelWaitMs?: number;
+  trustProxy?: boolean;
+  allowedOrigins?: string[];
+  throttle?: LoginThrottle;
+}
+
+export const TEST_ORIGIN = 'http://localhost';
+
+export async function createTestApp(
   database: Database,
-  options: { inlineExcelWaitMs?: number } = {},
-): TestApp {
+  options: TestAppOptions = {},
+): Promise<TestApp> {
   const repository = new PostgresExpenseRepository(database);
   const sync = new FakeSync(repository, database);
   const scheduler = new SyncScheduler({ sync, intervalMs: 300_000, retryMs: 60_000 });
+
+  const authRepository = new AuthRepository(database);
+  const auth = new AuthService({
+    repository: authRepository,
+    config: {
+      accessTtlMs: 24 * 3_600_000,
+      refreshTtlMs: 7 * 24 * 3_600_000,
+      sessionMaxMs: 30 * 24 * 3_600_000,
+      rotationGraceMs: 15_000,
+      minPasswordLength: 12,
+    },
+    throttle: options.throttle,
+  });
+  for (const [username, card] of [
+    ['misha', 'Миша'],
+    ['nastya', 'Настя'],
+  ] as const) {
+    await authRepository.upsertUser(username, card);
+    const user = await authRepository.findUser(username);
+    await authRepository.setPasswordHash(user!.id, await passwordHash());
+  }
 
   const app = buildApp({
     expenseService: new ExpenseService(repository, {
       reference: { cards: ['Миша', 'Настя'], categories: ['кафе', 'продукты'] },
     }),
+    auth,
     idempotency: new IdempotencyService(database),
     sync: sync as unknown as SyncService,
     scheduler,
     inlineExcelWaitMs: options.inlineExcelWaitMs ?? 1000,
+    trustProxy: options.trustProxy,
+    allowedOrigins: options.allowedOrigins,
   });
-  return { app, database, repository, sync, scheduler };
+
+  const sessionCookies: TestApp['sessionCookies'] = async (username) => {
+    const user = await authRepository.findUser(username);
+    const [accessToken, refreshToken] = [generateToken(), generateToken()];
+    await authRepository.createSession(
+      {
+        userId: user!.id,
+        accessHash: hashToken(accessToken),
+        accessExpiresAt: new Date(Date.now() + 24 * 3_600_000),
+        refreshHash: hashToken(refreshToken),
+        refreshExpiresAt: new Date(Date.now() + 7 * 24 * 3_600_000),
+        createdAt: new Date(),
+      },
+      {},
+    );
+    return { et_access: accessToken, et_refresh: refreshToken };
+  };
+
+  const cookiesByUser = new Map<TestUsername, Promise<{ et_access: string; et_refresh: string }>>();
+
+  const inject: TestApp['inject'] = async (injectOptions, as = 'misha') => {
+    if (!cookiesByUser.has(as)) cookiesByUser.set(as, sessionCookies(as));
+    const cookies = await cookiesByUser.get(as)!;
+    return app.inject({
+      ...injectOptions,
+      cookies: { ...cookies, ...injectOptions.cookies },
+      headers: { origin: TEST_ORIGIN, ...injectOptions.headers },
+    });
+  };
+
+  return {
+    app,
+    database,
+    repository,
+    sync,
+    scheduler,
+    auth,
+    authRepository,
+    inject,
+    sessionCookies,
+  };
 }

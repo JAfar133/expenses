@@ -24,12 +24,13 @@ afterAll(() => database.close());
 beforeEach(async () => {
   await database.query('DELETE FROM expenses');
   await database.query('DELETE FROM idempotency_keys');
-  t = createTestApp(database);
+  await database.query('DELETE FROM auth_sessions');
+  t = await createTestApp(database);
 });
 
 /** Отправляет расход; без явного ключа каждый вызов считается новым запросом. */
 const post = (body: unknown, key: string | null = randomUUID()) =>
-  t.app.inject({
+  t.inject({
     method: 'POST',
     url: '/api/expenses',
     payload: body as object,
@@ -77,7 +78,7 @@ describe('POST /api/expenses', () => {
   });
 
   it('возвращает 400 на битый JSON', async () => {
-    const response = await t.app.inject({
+    const response = await t.inject({
       method: 'POST',
       url: '/api/expenses',
       headers: { 'content-type': 'application/json', 'idempotency-key': randomUUID() },
@@ -115,7 +116,7 @@ describe('очередь, когда Excel недоступен', () => {
   });
 
   it('если Excel отвечает слишком долго, ответ не ждёт: расход остаётся в очереди', async () => {
-    t = createTestApp(database, { inlineExcelWaitMs: 30 });
+    t = await createTestApp(database, { inlineExcelWaitMs: 30 });
     t.sync.delayMs = 300;
 
     const response = await post(validBody);
@@ -218,7 +219,7 @@ describe('синхронизация', () => {
     t.sync.excelAvailable = false;
     await post(validBody);
 
-    const response = await t.app.inject({ method: 'GET', url: '/api/sync/status' });
+    const response = await t.inject({ method: 'GET', url: '/api/sync/status' });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().data).toMatchObject({
@@ -236,7 +237,7 @@ describe('синхронизация', () => {
     await post(validBody);
     t.sync.excelAvailable = true;
 
-    const response = await t.app.inject({ method: 'POST', url: '/api/sync' });
+    const response = await t.inject({ method: 'POST', url: '/api/sync' });
 
     expect(response.statusCode).toBe(200);
     expect(response.json().data).toMatchObject({
@@ -248,7 +249,7 @@ describe('синхронизация', () => {
 
 describe('логирование', () => {
   it('в каждом ответе есть X-Request-Id', async () => {
-    const response = await t.app.inject({ method: 'GET', url: '/api/health' });
+    const response = await t.inject({ method: 'GET', url: '/api/health' });
 
     expect(response.headers['x-request-id']).toMatch(/^[0-9a-f]{8}$/);
   });
@@ -256,7 +257,7 @@ describe('логирование', () => {
 
 describe('справочники и health', () => {
   it('GET /api/cards', async () => {
-    const response = await t.app.inject({ method: 'GET', url: '/api/cards' });
+    const response = await t.inject({ method: 'GET', url: '/api/cards' });
 
     expect(response.json()).toEqual({ success: true, data: ['Миша', 'Настя'] });
   });
@@ -264,19 +265,19 @@ describe('справочники и health', () => {
   it('GET /api/categories объединяет конфигурацию и БД', async () => {
     await t.repository.importFromExcel(database, [{ ...validBody, category: 'путешествия' }]);
 
-    const response = await t.app.inject({ method: 'GET', url: '/api/categories' });
+    const response = await t.inject({ method: 'GET', url: '/api/categories' });
 
     expect(response.json()).toEqual({ success: true, data: ['кафе', 'продукты', 'путешествия'] });
   });
 
   it('GET /api/config возвращает валюту', async () => {
-    const response = await t.app.inject({ method: 'GET', url: '/api/config' });
+    const response = await t.inject({ method: 'GET', url: '/api/config' });
 
     expect(response.json()).toEqual({ success: true, data: { currency: 'AMD' } });
   });
 
   it('GET /api/health не обращается к Excel', async () => {
-    const response = await t.app.inject({ method: 'GET', url: '/api/health' });
+    const response = await t.inject({ method: 'GET', url: '/api/health' });
 
     expect(response.json()).toEqual({ status: 'ok' });
     expect(t.sync.cycles).toBe(0);
@@ -285,7 +286,7 @@ describe('справочники и health', () => {
 
 describe('запросы без тела', () => {
   it('POST /api/sync с Content-Type: application/json и пустым телом работает', async () => {
-    const response = await t.app.inject({
+    const response = await t.inject({
       method: 'POST',
       url: '/api/sync',
       headers: { 'content-type': 'application/json' },
@@ -296,7 +297,7 @@ describe('запросы без тела', () => {
   });
 
   it('битый JSON по-прежнему даёт 400', async () => {
-    const response = await t.app.inject({
+    const response = await t.inject({
       method: 'POST',
       url: '/api/sync',
       headers: { 'content-type': 'application/json' },
@@ -310,7 +311,7 @@ describe('запросы без тела', () => {
 
 describe('подтверждение удалений через POST /api/sync', () => {
   const sync = (payload?: unknown) =>
-    t.app.inject({
+    t.inject({
       method: 'POST',
       url: '/api/sync',
       headers: { 'content-type': 'application/json' },

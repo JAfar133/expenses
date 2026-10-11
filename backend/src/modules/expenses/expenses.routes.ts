@@ -5,9 +5,6 @@ import type { SyncService } from '../sync/sync.service.ts';
 import { createExpenseSchema, FIELD_ERROR_CODES } from './expenses.schema.ts';
 import type { ExpenseService } from './expenses.service.ts';
 
-/** Пока нет авторизации (Задача 6), все запросы идут от одного локального пользователя. */
-const LOCAL_USER_ID = 'local';
-
 const IDEMPOTENCY_KEY_FORMAT = /^[A-Za-z0-9_-]{8,128}$/;
 
 export interface ExpensesRoutesDeps {
@@ -28,7 +25,8 @@ export const expensesRoutes =
   async (app) => {
     app.post('/expenses', async (request, reply) => {
       const startedAt = performance.now();
-      const userId = LOCAL_USER_ID;
+      // Ключи идемпотентности привязаны к id пользователя, а в расход и в лог пишем понятный логин
+      const { id: userId, username } = request.user!;
 
       try {
         const key = readIdempotencyKey(request);
@@ -37,7 +35,7 @@ export const expensesRoutes =
         // Расход надёжно сохраняется в БД вместе с ключом идемпотентности
         const { value: saved, replayed } = await idempotency.run(
           { userId, key, payload: input },
-          (tx) => expenseService.create(tx, input, userId),
+          (tx) => expenseService.create(tx, input, username),
         );
 
         // Затем пробуем записать его в Excel. Если файл занят — расход ждёт в очереди.
@@ -46,7 +44,13 @@ export const expensesRoutes =
         }
         const excelStatus = await currentExcelStatus(expenseService, saved.id);
 
-        logOperation(request, { userId, startedAt, result: 'success', replayed, excelStatus });
+        logOperation(request, {
+          userId: username,
+          startedAt,
+          result: 'success',
+          replayed,
+          excelStatus,
+        });
         return reply.code(replayed ? 200 : 201).send({
           success: true,
           data: {
@@ -64,7 +68,7 @@ export const expensesRoutes =
               : 'Расход сохранён. В Excel он появится позже, когда файл освободится',
         });
       } catch (error) {
-        logOperation(request, { userId, startedAt, result: 'error', error });
+        logOperation(request, { userId: username, startedAt, result: 'error', error });
         throw error;
       }
     });

@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
+import type { AuthUser } from '../../auth/api/auth.api.ts';
 import { Button } from '../../../shared/ui/Button.tsx';
 import { Field, inputClassName } from '../../../shared/ui/Field.tsx';
 import { Notice } from '../../../shared/ui/Notice.tsx';
@@ -13,14 +14,15 @@ import { useCreateExpense } from '../hooks/useCreateExpense.ts';
 import { expenseFormSchema, type ExpenseFormValues } from '../schemas/expense-form.schema.ts';
 import { CardPicker } from './CardPicker.tsx';
 
-const LAST_CARD_KEY = 'expenses.lastCard';
-const LAST_CATEGORY_KEY = 'expenses.lastCategory';
+/** Последняя категория запоминается отдельно для каждого пользователя: на одном устройстве могут быть двое. */
+const lastCategoryKey = (username: string) => `expenses.lastCategory.${username}`;
 const SUCCESS_VISIBLE_MS = 4000;
 
 interface ExpenseFormProps {
   cards: string[];
   categories: string[];
   currency: string;
+  user: AuthUser;
 }
 
 /** Последний выбор пользователя, если он всё ещё есть в справочнике. */
@@ -29,7 +31,7 @@ function rememberedChoice(key: string, options: string[]): string | undefined {
   return value && options.includes(value) ? value : undefined;
 }
 
-export function ExpenseForm({ cards, categories, currency }: ExpenseFormProps) {
+export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormProps) {
   const createExpense = useCreateExpense();
   // Один ключ на попытку: повторная отправка той же операции не создаст дубль
   const idempotencyKey = useRef(newRequestId());
@@ -45,8 +47,9 @@ export function ExpenseForm({ cards, categories, currency }: ExpenseFormProps) {
     resolver: zodResolver(expenseFormSchema),
     defaultValues: {
       date: todayIso(),
-      card: rememberedChoice(LAST_CARD_KEY, cards) ?? cards[0] ?? '',
-      category: rememberedChoice(LAST_CATEGORY_KEY, categories) ?? '',
+      // Карта по умолчанию — карта вошедшего пользователя (Миша → «Миша», Настя → «Настя»)
+      card: cards.includes(user.card) ? user.card : (cards[0] ?? ''),
+      category: rememberedChoice(lastCategoryKey(user.username), categories) ?? '',
       name: '',
       amount: '',
     },
@@ -76,8 +79,7 @@ export function ExpenseForm({ cards, categories, currency }: ExpenseFormProps) {
       { expense, idempotencyKey: idempotencyKey.current },
       {
         onSuccess: () => {
-          writeStored(LAST_CARD_KEY, values.card);
-          writeStored(LAST_CATEGORY_KEY, values.category);
+          writeStored(lastCategoryKey(user.username), values.category);
           idempotencyKey.current = newRequestId();
 
           // Дата, карта и категория остаются для быстрого ввода следующего расхода

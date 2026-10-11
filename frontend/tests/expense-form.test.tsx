@@ -51,11 +51,14 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-async function renderPage() {
+const MISHA = { username: 'misha', displayName: 'Миша', card: 'Миша' };
+const NASTYA = { username: 'nastya', displayName: 'Настя', card: 'Настя' };
+
+async function renderPage(user = MISHA) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <AddExpensePage />
+      <AddExpensePage user={user} />
     </QueryClientProvider>,
   );
   await screen.findByRole('button', { name: 'Добавить расход' });
@@ -93,11 +96,60 @@ describe('отображение формы', () => {
 
     render(
       <QueryClientProvider client={client}>
-        <AddExpensePage />
+        <AddExpensePage user={MISHA} />
       </QueryClientProvider>,
     );
 
     expect(await screen.findByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+  });
+});
+
+describe('карта по умолчанию зависит от пользователя', () => {
+  it('Миша: выбрана карта «Миша»', async () => {
+    await renderPage(MISHA);
+
+    expect(screen.getByRole('radio', { name: /Миша/ })).toBeChecked();
+    expect(screen.getByRole('radio', { name: /Настя/ })).not.toBeChecked();
+  });
+
+  it('Настя: выбрана карта «Настя»', async () => {
+    await renderPage(NASTYA);
+
+    expect(screen.getByRole('radio', { name: /Настя/ })).toBeChecked();
+    expect(screen.getByRole('radio', { name: /Миша/ })).not.toBeChecked();
+  });
+
+  it('если карты пользователя нет в справочнике, выбирается первая', async () => {
+    await renderPage({ username: 'ivan', displayName: 'Иван', card: 'Иван' });
+
+    expect(screen.getByRole('radio', { name: /Миша/ })).toBeChecked();
+  });
+
+  it('карту можно сменить вручную, и в расход уйдёт выбранная', async () => {
+    const user = await renderPage(NASTYA);
+    await user.click(screen.getByRole('radio', { name: /Миша/ }));
+    await fillForm(user);
+
+    await submit(user);
+
+    await screen.findByText('Расход успешно добавлен');
+    expect(postExpense.mock.calls[0]![0]).toMatchObject({ card: 'Миша' });
+  });
+
+  it('категория одного пользователя не подставляется другому на том же устройстве', async () => {
+    localStorage.setItem('expenses.lastCategory.misha', 'кафе');
+
+    await renderPage(NASTYA);
+
+    expect(screen.getByLabelText('Категория')).toHaveValue('');
+  });
+
+  it('своя запомненная категория подставляется', async () => {
+    localStorage.setItem('expenses.lastCategory.nastya', 'кафе');
+
+    await renderPage(NASTYA);
+
+    expect(screen.getByLabelText('Категория')).toHaveValue('кафе');
   });
 });
 
@@ -167,16 +219,26 @@ describe('отправка', () => {
     expect(screen.getByLabelText('Дата')).toHaveValue(todayIso());
   });
 
-  it('запоминает последнюю карту и категорию', async () => {
-    const user = await renderPage();
+  it('запоминает последнюю категорию отдельно для каждого пользователя', async () => {
+    const user = await renderPage(MISHA);
+    await fillForm(user);
+
+    await submit(user);
+    await screen.findByText('Расход успешно добавлен');
+
+    expect(localStorage.getItem('expenses.lastCategory.misha')).toBe('продукты');
+    expect(localStorage.getItem('expenses.lastCategory.nastya')).toBeNull();
+  });
+
+  it('последнюю выбранную карту не запоминает: по умолчанию всегда карта пользователя', async () => {
+    const user = await renderPage(MISHA);
     await user.click(screen.getByRole('radio', { name: /Настя/ }));
     await fillForm(user);
 
     await submit(user);
     await screen.findByText('Расход успешно добавлен');
 
-    expect(localStorage.getItem('expenses.lastCard')).toBe('Настя');
-    expect(localStorage.getItem('expenses.lastCategory')).toBe('продукты');
+    expect(Object.keys(localStorage).some((key) => key.toLowerCase().includes('card'))).toBe(false);
   });
 
   it('блокирует кнопку на время запроса, двойное нажатие даёт один запрос', async () => {

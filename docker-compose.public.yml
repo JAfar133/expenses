@@ -1,26 +1,30 @@
-# Публичный доступ к приложению с HTTPS и паролем. Подключается поверх основного файла:
+# Публичный доступ к приложению с HTTPS. Подключается поверх основного файла:
 #
 #   docker compose -f docker-compose.yml -f docker-compose.public.yml up -d
 #
 # Что меняется:
 #   - web слушает порты 80 и 443 на всех адресах (нужны для выдачи сертификата и для HTTPS);
-#   - весь сайт, включая /api, закрыт логином и паролем (Basic Auth в Caddy);
-#   - pgAdmin доступен через тот же Caddy на отдельном адресе PGADMIN_ADDRESS (HTTPS, тот же пароль Caddy
-#     и собственный вход pgAdmin); его порт 5051 и порт PostgreSQL наружу по-прежнему не открыты.
-#
-# Это временная защита. Полноценная авторизация пользователей будет в самом приложении.
+#   - сайт защищён входом в самом приложении (логин и пароль пользователей), отдельного пароля Caddy на нём нет;
+#   - pgAdmin доступен через тот же Caddy на отдельном адресе PGADMIN_ADDRESS (HTTPS, пароль Caddy
+#     PGADMIN_BASIC_AUTH_* и собственный вход pgAdmin); его порт 5051 и порт PostgreSQL наружу не открыты.
 services:
   web:
     volumes:
       - ./infra/Caddyfile.public:/etc/caddy/Caddyfile:ro
     environment:
-      SITE_ADDRESS: ${SITE_ADDRESS:?Задайте SITE_ADDRESS в .env (домен или вид 85-209-51-95.nip.io)}
-      BASIC_AUTH_USER: ${BASIC_AUTH_USER:?Задайте BASIC_AUTH_USER в .env}
-      BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:?Задайте BASIC_AUTH_HASH в .env (см. README)}
-      PGADMIN_ADDRESS: ${PGADMIN_ADDRESS:?Задайте PGADMIN_ADDRESS в .env (например, pgadmin.85-209-51-95.nip.io)}
+      SITE_ADDRESS: ${SITE_ADDRESS:?Задайте SITE_ADDRESS в .env (домен или вид 1-2-3-4.nip.io)}
+      PGADMIN_BASIC_AUTH_USER: ${PGADMIN_BASIC_AUTH_USER:?Задайте PGADMIN_BASIC_AUTH_USER в .env}
+      PGADMIN_BASIC_AUTH_HASH: ${PGADMIN_BASIC_AUTH_HASH:?Задайте PGADMIN_BASIC_AUTH_HASH в .env (см. docs/DEPLOY.md)}
+      PGADMIN_ADDRESS: ${PGADMIN_ADDRESS:?Задайте PGADMIN_ADDRESS в .env (например, pgadmin.1-2-3-4.nip.io)}
     ports: !override
       - "80:80"
       - "443:443"
+
+  # На сервере без паролей пользователей запускаться нельзя: войти было бы некому
+  backend:
+    environment:
+      AUTH_PASSWORD_MISHA: ${AUTH_PASSWORD_MISHA:?Задайте AUTH_PASSWORD_MISHA в .env (не короче 8 символов)}
+      AUTH_PASSWORD_NASTYA: ${AUTH_PASSWORD_NASTYA:?Задайте AUTH_PASSWORD_NASTYA в .env (не короче 8 символов)}
 
   # pgAdmin стоит за прокси: пусть учитывает заголовки X-Forwarded-* (адрес, протокол HTTPS), которые добавляет Caddy
   pgadmin:

@@ -1,9 +1,11 @@
+import type { AuthUser } from '../features/auth/api/auth.api.ts';
+import { UserBar } from '../features/auth/components/UserBar.tsx';
 import { ExpenseForm } from '../features/expenses/components/ExpenseForm.tsx';
 import { useExpenseReference } from '../features/expenses/hooks/useExpenseReference.ts';
 import { SyncIndicator } from '../features/sync/components/SyncIndicator.tsx';
 import { Notice } from '../shared/ui/Notice.tsx';
 
-export function AddExpensePage() {
+export function AddExpensePage({ user }: { user: AuthUser }) {
   const reference = useExpenseReference();
 
   return (
@@ -13,11 +15,13 @@ export function AddExpensePage() {
         <SyncIndicator />
       </header>
 
+      <UserBar user={user} />
+
       <section className="rounded-2xl bg-white p-5 shadow-sm dark:bg-zinc-900">
         <h2 className="mb-5 text-lg font-semibold">Добавить расход</h2>
 
         {reference.data ? (
-          <ExpenseForm {...reference.data} />
+          <ExpenseForm {...reference.data} user={user} />
         ) : reference.isError ? (
           <div className="space-y-4">
             <Notice variant="error">Не удалось загрузить данные формы. Проверьте соединение</Notice>

@@ -19,10 +19,12 @@ describe('миграции', () => {
     );
 
     expect(tables.map((t) => t.table_name)).toEqual([
+      'auth_sessions',
       'expenses',
       'idempotency_keys',
       'schema_migrations',
       'sync_state',
+      'users',
     ]);
   });
 

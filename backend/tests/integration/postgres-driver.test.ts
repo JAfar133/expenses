@@ -55,7 +55,11 @@ describe('драйвер pg', () => {
       'SELECT name FROM schema_migrations ORDER BY name',
     );
 
-    expect(rows.map((r) => r.name)).toEqual(['0001_init.sql', '0002_soft_delete.sql']);
+    expect(rows.map((r) => r.name)).toEqual([
+      '0001_init.sql',
+      '0002_soft_delete.sql',
+      '0003_auth.sql',
+    ]);
   });
 
   it('возвращает даты строкой, а числа — числами', async () => {
