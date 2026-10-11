@@ -65,7 +65,7 @@ describe('наименования в категории', () => {
       'Эспрессо',
     ]);
     expect(nameRows()[0]).toHaveTextContent('900');
-    // Доля от суммы категории: 900 из 1 500
+    // Share of the category total: 900 of 1,500
     expect(nameRows()[0]).toHaveTextContent('60%');
     expect(nameRows()[0]).toHaveTextContent('2×');
     expect(screen.getByText('кафе', { selector: 'strong' }).closest('p')).toHaveTextContent(

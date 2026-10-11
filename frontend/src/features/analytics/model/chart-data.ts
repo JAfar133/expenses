@@ -1,23 +1,23 @@
 import type { BreakdownRow, SeriesPoint } from '../api/analytics.api.ts';
 
-/** Сколько секторов показываем в круговой диаграмме: больше не прочитать, остальное «другое». */
+/** How many slices to show in a pie chart: more is unreadable, the rest goes to "other". */
 export const MAX_SLICES = 7;
-/** Подпись объединённого хвоста. Не «Другое»: такая категория может быть настоящей, и их легко перепутать. */
+/** Label of the merged tail. Not "Other" (the generic Russian word): such a category may exist for real, and they are easy to confuse. */
 export const OTHER_KEY = 'Остальное';
 
 export interface Slice {
   key: string;
   total: number;
   count: number;
-  /** Доля от суммы всех секторов, 0..1 */
+  /** Share of the sum of all slices, 0..1 */
   share: number;
-  /** Объединённый хвост списка */
+  /** Merged tail of the list */
   isOther: boolean;
-  /** Сколько категорий объединено в «Остальное» (у обычных секторов 0) */
+  /** How many categories are merged into the tail (0 for ordinary slices) */
   merged: number;
 }
 
-/** Самые крупные группы отдельно, остальные одним сектором «Другое». Вход отсортирован по сумме. */
+/** The largest groups separately, the rest as one "other" slice. Input is sorted by amount. */
 export function toSlices(rows: BreakdownRow[], max = MAX_SLICES): Slice[] {
   const grand = rows.reduce((sum, row) => sum + row.total, 0);
   if (grand === 0) return [];
@@ -49,7 +49,7 @@ export function toSlices(rows: BreakdownRow[], max = MAX_SLICES): Slice[] {
   return slices;
 }
 
-/** Нарастающий итог по периодам. */
+/** Running total over periods. */
 export function cumulative(points: SeriesPoint[]): SeriesPoint[] {
   let running = 0;
   let count = 0;
@@ -60,18 +60,18 @@ export function cumulative(points: SeriesPoint[]): SeriesPoint[] {
   });
 }
 
-/** На сколько процентов значение выросло относительно предыдущего; null, если сравнивать не с чем. */
+/** By what percent the value grew relative to the previous one; null if there is nothing to compare with. */
 export function changePercent(current: number, previous: number | undefined): number | null {
   if (previous === undefined || previous === 0) return null;
   return ((current - previous) / previous) * 100;
 }
 
-/** Сколько цветов в палитре графика (категориальные слоты 1–7; восьмой слот не используется). */
+/** How many colors in the chart palette (categorical slots 1-7; the eighth slot is unused). */
 export const SERIES_SLOTS = 7;
 
 /**
- * Цвет принадлежит значению, а не месту в рейтинге: группа, которая есть в справочнике `order`, всегда получает один и тот же слот.
- * Остальным достаются свободные слоты по порядку; если слотов не хватило, возвращается null (нейтральный цвет).
+ * A color belongs to a value, not a rank position: a group present in the `order` reference always gets the same slot.
+ * Others get free slots in order; if slots run out, null is returned (neutral color).
  */
 export function assignColors(keys: string[], order: string[]): Map<string, number | null> {
   const taken = new Set<number>();
@@ -94,16 +94,16 @@ export function assignColors(keys: string[], order: string[]): Map<string, numbe
   return result;
 }
 
-/** CSS-цвет слота (переменные заданы в index.css для светлой и тёмной темы). */
+/** CSS color of a slot (variables are defined in index.css for light and dark themes). */
 export const seriesColor = (slot: number | null | undefined) =>
   slot === null || slot === undefined ? 'var(--chart-other)' : `var(--series-${slot + 1})`;
 
-/** Числа на осях: 1500 → «1,5K», 2 500 000 → «2,5M». */
+/** Axis numbers: 1500 → "1,5K", 2 500 000 → "2,5M". */
 export function compactNumber(value: number): string {
   const abs = Math.abs(value);
   if (abs >= 1_000_000) return `${trim(value / 1_000_000)}M`;
   if (abs >= 1_000) return `${trim(value / 1_000)}K`;
-  // Мелкие суммы (например, в долларах) бывают дробными: до двух знаков, запятая как разделитель
+  // Small amounts (e.g. in dollars) can be fractional: up to two decimals, comma as the separator
   return String(Math.round(value * 100) / 100).replace('.', ',');
 }
 

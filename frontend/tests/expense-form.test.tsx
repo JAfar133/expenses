@@ -576,7 +576,7 @@ describe('отправка', () => {
 
     expect(await screen.findByText(/появится позже/)).toBeInTheDocument();
     expect(screen.queryByText('Расход успешно добавлен')).not.toBeInTheDocument();
-    // Расход сохранён, поэтому форма очищается так же, как при обычном успехе
+    // The expense is saved, so the form is cleared just as on ordinary success
     expect(screen.getByLabelText('Наименование')).toHaveValue('');
   });
 
@@ -615,7 +615,7 @@ describe('ошибки', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Таблица была изменена. Расход не добавлен. Повторите попытку',
     );
-    // Введённые данные не теряются
+    // Entered data is not lost
     expect(screen.getByLabelText('Наименование')).toHaveValue('Erevan City');
   });
 

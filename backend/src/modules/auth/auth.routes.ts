@@ -18,17 +18,17 @@ const passwordSchema = z.object({
 
 const loginSchema = z.object({ username: z.string().max(64), password: z.string().max(2048) });
 
-/** Пользователь для ответа клиенту: без внутреннего идентификатора. */
+/** User for the client response: without the internal identifier. */
 const publicUser = ({ username, displayName, card, canEdit, timezone }: AuthUser) => ({
   username,
   displayName,
   card,
-  /** Может ли пользователь править и удалять записи */
+  /** Whether the user can edit and delete records */
   canEdit,
   timezone,
 });
 
-/** Часовой пояс должен существовать: проверяем так же, как его разберёт сам Node. */
+/** The time zone must exist: checked the same way Node itself will parse it. */
 const isTimeZone = (value: string) => {
   try {
     new Intl.DateTimeFormat('en', { timeZone: value });
@@ -38,7 +38,7 @@ const isTimeZone = (value: string) => {
   }
 };
 
-/** Личные настройки; `null` возвращает значение по умолчанию. Допустимая карта задаётся списком карт приложения. */
+/** Personal settings; `null` restores the default value. The allowed card is defined by the app's card list. */
 const profileSchema = (cards: string[]) =>
   z
     .object({
@@ -66,7 +66,7 @@ export const authRoutes =
 
     app.post('/auth/login', { config: { public: true } }, async (request, reply) => {
       const body = loginSchema.safeParse(request.body);
-      // Не раскрываем, что именно не так с запросом
+      // We do not reveal what exactly is wrong with the request
       if (!body.success) throw invalidCredentialsError();
 
       const { user, tokens } = await auth.login(body.data.username, body.data.password, {
@@ -94,8 +94,8 @@ export const authRoutes =
           data: { user: publicUser(user), refreshed: tokens !== undefined },
         };
       } catch (error) {
-        // Токен недействителен: убираем куки, чтобы браузер не слал их снова.
-        // При сбое базы куки не трогаем, иначе временная ошибка выбросит пользователя из системы.
+        // The token is invalid: clear the cookies so the browser does not send them again.
+        // On a database failure we leave the cookies alone, otherwise a temporary error would log the user out.
         if (error instanceof AppError && error.statusCode === 401) clearAuthCookies(reply);
         throw error;
       }
@@ -107,7 +107,7 @@ export const authRoutes =
       return { success: true };
     });
 
-    /** Смена пароля самим пользователем; остальные его сессии закрываются. */
+    /** Password change by the user themselves; their other sessions are closed. */
     app.post('/auth/password', async (request) => {
       const body = passwordSchema.safeParse(request.body);
       if (!body.success) {
@@ -128,7 +128,7 @@ export const authRoutes =
       return { success: true };
     });
 
-    /** Личные настройки аккаунта: имя, карта по умолчанию, часовой пояс. */
+    /** Personal account settings: name, default card, time zone. */
     app.patch('/auth/profile', async (request) => {
       const parsed = profileSchema(cards).safeParse(request.body);
       if (!parsed.success) {
@@ -147,7 +147,7 @@ export const authRoutes =
       return { success: true, data: { user: publicUser(user) } };
     });
 
-    /** Пользователи и их права: видны только редакторам. */
+    /** Users and their permissions: visible to editors only. */
     app.get('/users', async (request) => {
       if (!request.user!.canEdit) throw forbiddenError();
       return {

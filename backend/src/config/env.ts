@@ -8,11 +8,11 @@ const list = (value: string) =>
 
 export interface ConfiguredUser {
   username: string;
-  /** Карта по умолчанию (она же отображаемое имя) */
+  /** Default card (also the display name) */
   card: string;
 }
 
-/** `misha:Миша,nastya:Настя` → пользователи и их карты по умолчанию. */
+/** `misha:Миша,nastya:Настя` → users and their default cards. */
 function parseUsers(value: string): ConfiguredUser[] {
   return list(value).map((entry) => {
     const [username, card] = entry.split(':').map((part) => part.trim());
@@ -31,9 +31,9 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   APP_TIMEZONE: z.string().default('Asia/Yerevan'),
   DEFAULT_CURRENCY: z.string().default('AMD'),
-  // Валюты, в которых можно вводить расходы (первой должна быть базовая); остальные пересчитываются в драммы
+  // Currencies in which expenses can be entered (the base one must come first); the rest are converted to drams
   CURRENCIES: z.string().default('AMD,RUB,USD,EUR').transform(list),
-  // Источник курсов: JSON ЦБ Армении, драммы за единицу валюты
+  // Rate source: Central Bank of Armenia JSON, drams per unit of currency
   EXCHANGE_RATES_URL: z.string().url().default('https://cb.am/latest.json.php'),
   EXCHANGE_RATES_REFRESH_HOURS: z.coerce.number().positive().default(6),
 
@@ -41,50 +41,50 @@ const envSchema = z.object({
   EXCEL_TABLE_NAME: z.string().default('Операции'),
 
   ONEDRIVE_REMOTE: z.string().default('onedrive'),
-  // Без значения по умолчанию, чтобы случайно не писать в рабочий файл.
-  // Не задан или пуст: работа с Excel отключена, расходы хранятся только в базе.
+  // No default, so we never accidentally write to a working file.
+  // Unset or empty: Excel is disabled, expenses are stored in the database only.
   ONEDRIVE_FILE_PATH: z
     .string()
     .optional()
     .transform((value) => value?.trim() || undefined),
   RCLONE_CONFIG: z.string().min(1).optional(),
-  // daemon — постоянный процесс rclone (быстро), cli — отдельный запуск на каждую команду
+  // daemon — a persistent rclone process (fast), cli — a separate invocation per command
   RCLONE_MODE: z.enum(['daemon', 'cli']).default('daemon'),
   RCLONE_TIMEOUT_MS: z.coerce.number().int().positive().default(120_000),
 
-  // PostgreSQL: основное хранилище расходов, ключи идемпотентности, состояние синхронизации
+  // PostgreSQL: main expense storage, idempotency keys, sync state
   DATABASE_URL: z.string().min(1),
 
   BACKUP_DIR: z.string().default('./backups'),
   BACKUP_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
 
-  // Синхронизация PostgreSQL ↔ Excel
+  // PostgreSQL ↔ Excel sync
   SYNC_INTERVAL_MINUTES: z.coerce.number().positive().default(5),
-  /** Как часто повторять, пока в очереди есть записи, которые не удалось записать в Excel */
+  /** How often to retry while the queue holds records that could not be written to Excel */
   SYNC_RETRY_SECONDS: z.coerce.number().positive().default(60),
-  /** Какую долю записей можно пометить удалёнными за один цикл (защита от подмены Excel) */
+  /** What share of records may be marked deleted in one cycle (protection against Excel tampering) */
   SYNC_MAX_DELETE_PERCENT: z.coerce.number().min(1).max(100).default(25),
-  /** Сколько ждать записи в Excel перед ответом на создание расхода */
+  /** How long to wait for the Excel write before responding to expense creation */
   SYNC_INLINE_WAIT_SECONDS: z.coerce.number().positive().default(15),
 
-  // Пользователи приложения: логин:карта по умолчанию. Пароли задаются переменными AUTH_PASSWORD_<ЛОГИН>
+  // App users: login:default card. Passwords are set via AUTH_PASSWORD_<LOGIN> variables
   AUTH_USERS: z.string().default('misha:Миша,nastya:Настя').transform(parseUsers),
   AUTH_MIN_PASSWORD_LENGTH: z.coerce.number().int().min(8).default(8),
-  /** Сколько живёт access-токен (кука входа) */
+  /** Access token lifetime (login cookie) */
   ACCESS_TOKEN_TTL_HOURS: z.coerce.number().positive().default(24),
-  /** Сколько живёт refresh-токен (по нему access обновляется без пароля) */
+  /** Refresh token lifetime (it renews the access token without a password) */
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().positive().default(7),
-  /** Абсолютный предел жизни сессии: после него нужен вход по паролю */
+  /** Absolute session lifetime limit: after it a password login is required */
   SESSION_MAX_DAYS: z.coerce.number().positive().default(30),
-  /** За обратным прокси (Caddy) берём реальный IP и протокол из X-Forwarded-* */
+  /** Behind a reverse proxy (Caddy) take the real IP and protocol from X-Forwarded-* */
   TRUST_PROXY: z
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
-  /** Дополнительные допустимые источники запросов (Origin), через запятую */
+  /** Additional allowed request origins (Origin), comma-separated */
   ALLOWED_ORIGINS: z.string().default('').transform(list),
 
-  // Логины, которым можно править и удалять записи (через запятую)
+  // Logins allowed to edit and delete records (comma-separated)
   EDITOR_USERS: z.string().default('misha').transform(list),
   CARDS: z.string().default('Миша,Настя').transform(list),
   CATEGORIES: z.string().default('кафе,одежда,продукты,жилье,маркетплейс,другое').transform(list),
@@ -93,8 +93,8 @@ const envSchema = z.object({
 export type Env = z.infer<typeof envSchema>;
 
 /**
- * Пароли пользователей из переменных AUTH_PASSWORD_<ЛОГИН> (misha → AUTH_PASSWORD_MISHA).
- * Возвращает логин → пароль для тех, у кого пароль задан.
+ * User passwords from AUTH_PASSWORD_<LOGIN> variables (misha → AUTH_PASSWORD_MISHA).
+ * Returns login → password for those who have a password set.
  */
 export function readUserPasswords(
   users: ConfiguredUser[],

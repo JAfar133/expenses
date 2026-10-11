@@ -19,7 +19,7 @@ interface PeriodPickerProps {
   onChange: (patch: Partial<FilterState>) => void;
 }
 
-/** Выбор периода: готовые варианты, переключатель месяца и диапазон дат. */
+/** Period picker: presets, month switcher and a date range. */
 export function PeriodPicker({ state, today, onChange }: PeriodPickerProps) {
   const { from, to } = periodRange(state, today);
 
@@ -31,7 +31,7 @@ export function PeriodPicker({ state, today, onChange }: PeriodPickerProps) {
         options={PERIOD_OPTIONS}
         value={state.period}
         onChange={(period) => {
-          // Свой период начинаем с того, что уже выбрано; для «всё время» берём последние 30 дней
+          // A custom period starts from what is already selected; for "all time" take the last 30 days
           if (period === 'custom' && !state.from && !state.to) {
             onChange(
               from && to ? { period, from, to } : { period, from: addDays(today, -29), to: today },

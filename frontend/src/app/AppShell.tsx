@@ -10,9 +10,9 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
     ? 'bg-indigo-600 text-white'
     : 'text-zinc-600 hover:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-800');
 
-/** Общая рамка страниц: заголовок, значок синхронизации, навигация и кто вошёл. */
+/** Common page frame: title, sync indicator, navigation and the signed-in user. */
 export function AppShell({ user }: { user: AuthUser }) {
-  // Форме достаточно узкой колонки, страница анализа использует всю ширину
+  // The form fits a narrow column; the analytics page uses the full width
   const { pathname } = useLocation();
   const wide = pathname.startsWith('/analytics');
   const medium = pathname.startsWith('/settings');

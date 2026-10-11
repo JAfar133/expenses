@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 
 /**
- * Сколько миллисекунд осталось до `target`. Отсчёт идёт по часам сервера: разница между ними
- * и часами устройства вычисляется в момент получения ответа (`serverTime` ↔ `receivedAt`).
- * Возвращает null, если времени запуска нет (синхронизация идёт прямо сейчас).
+ * Milliseconds left until `target`. The countdown follows the server clock: the difference between it
+ * and the device clock is computed when the response is received (`serverTime` <-> `receivedAt`).
+ * Returns null if there is no start time (sync is running right now).
  */
 export function useCountdown(
   target: string | null,

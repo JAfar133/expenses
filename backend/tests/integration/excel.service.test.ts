@@ -10,7 +10,7 @@ import {
   type Expense,
 } from '../../src/services/excel.service.ts';
 
-// Типы exceljs объявляют устаревший Buffer, поэтому приводим явно
+// The exceljs types declare the legacy Buffer, so we cast explicitly
 const asExcelJsBuffer = (data: Uint8Array) => data as unknown as ExcelJS.Buffer;
 
 const opts = { sheetName: 'Лист1', tableName: 'Операции' };
@@ -133,7 +133,7 @@ describe('readExcelExpenses', () => {
   it('читает все заполненные строки таблицы, пустые игнорирует', async () => {
     const { expenses, skippedCount } = await readExcelExpenses(fixture, opts);
 
-    // В файле 40 заполненных строк данных и 2 пустых внутри таблицы
+    // The file has 40 filled data rows and 2 empty ones inside the table
     expect(expenses.length).toBeGreaterThan(30);
     expect(skippedCount).toBe(0);
     expect(expenses.at(-1)).toMatchObject({ amount: 2847, card: 'Настя' });
@@ -143,7 +143,7 @@ describe('readExcelExpenses', () => {
     const { expenses } = await readExcelExpenses(fixture, opts);
 
     expect(expenses.every((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.date))).toBe(true);
-    // Строка 40 в файле — серийный номер 46305
+    // Row 40 in the file has serial number 46305
     expect(expenses.at(-1)!.date).toBe('2026-10-10');
   });
 
@@ -165,7 +165,7 @@ describe('readExcelExpenses', () => {
     const zip = await JSZip.loadAsync(buf);
     const path = 'xl/worksheets/sheet1.xml';
     const xml = await zip.file(path)!.async('string');
-    // Портим стоимость в добавленной строке 41: дробное число
+    // Corrupt the cost in the added row 41: a fractional number
     zip.file(path, xml.replace(/(<c r="E41"[^>]*>)<v>1500<\/v>/, '$1<v>12.5</v>'));
     const broken = await zip.generateAsync({ type: 'nodebuffer' });
 

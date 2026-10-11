@@ -6,18 +6,18 @@ import type { AuthUser } from '../api/auth.api.ts';
 import { resetCacheFor, useCurrentUser } from '../hooks/useAuth.ts';
 import { LoginPage } from './LoginPage.tsx';
 
-/** Показывает приложение вошедшему пользователю, иначе форму входа. */
+/** Shows the app to a signed-in user, otherwise the login form. */
 export function AuthGate({ children }: { children: (user: AuthUser) => ReactNode }) {
   const queryClient = useQueryClient();
   const current = useCurrentUser();
 
-  // Если на любой запрос сервер ответил «войдите» и обновить вход не вышло, возвращаем форму входа
+  // If any request got "sign in" from the server and refreshing the session failed, return to the login form
   useEffect(() => {
     onSessionLost(() => resetCacheFor(queryClient, null));
     return () => onSessionLost(undefined);
   }, [queryClient]);
 
-  // «Сегодня» во всём приложении считается в часовом поясе пользователя; задаём его до отрисовки страниц
+  // "Today" is computed in the user's time zone across the app; set it before rendering pages
   setAppTimezone(current.data?.timezone);
 
   if (current.isPending) {

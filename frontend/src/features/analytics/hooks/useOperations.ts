@@ -12,7 +12,7 @@ import {
 } from '../api/operations.api.ts';
 import { ANALYTICS_KEY } from './useAnalytics.ts';
 
-/** Список операций с сортировкой и страницами; прежняя страница остаётся на экране, пока грузится новая. */
+/** Operations list with sorting and pages; the previous page stays on screen while a new one loads. */
 export const useOperations = (filters: AnalyticsFilters, query: ListQuery) =>
   useQuery({
     queryKey: [...ANALYTICS_KEY, 'operations', query, filters],
@@ -21,7 +21,7 @@ export const useOperations = (filters: AnalyticsFilters, query: ListQuery) =>
     staleTime: 15_000,
   });
 
-/** Правка, удаление и возврат записи. После любого действия данные анализа и очередь Excel обновляются. */
+/** Edit, delete and restore of a record. After any action analytics data and the Excel queue are refreshed. */
 export function useExpenseActions() {
   const queryClient = useQueryClient();
 
@@ -33,7 +33,7 @@ export function useExpenseActions() {
       queryClient.invalidateQueries({ queryKey: ['categories'] }),
     ]);
 
-  // Повторы выключены: правка не должна уходить дважды без решения пользователя
+  // Retries disabled: an edit must not be sent twice without the user's decision
   const update = useMutation({
     retry: false,
     mutationFn: ({ id, patch }: { id: string; patch: ExpensePatch }) => patchExpense(id, patch),

@@ -4,21 +4,21 @@ interface Option<T extends string> {
 }
 
 interface ChartTypeSwitchProps<T extends string> {
-  /** Что переключаем, для скринридера */
+  /** What is being switched, for screen readers */
   label: string;
   options: readonly Option<T>[];
   value: T;
   onChange: (value: T) => void;
   /**
-   * На телефоне: растянуть переключатель на всю ширину равными колонками (столько колонок).
-   * Без значения варианты просто переносятся по строкам.
+   * On phones: stretch the switch to full width in equal columns (this many columns).
+   * Without a value the options simply wrap onto new rows.
    */
   mobileColumns?: 2 | 3 | 4;
 }
 
 const GRID_COLUMNS = { 2: 'grid-cols-2', 3: 'grid-cols-3', 4: 'grid-cols-4' } as const;
 
-/** Переключатель вида графика (сегментированный): столбики, линия, кольцо… */
+/** Chart view switch (segmented): bars, line, donut... */
 export function ChartTypeSwitch<T extends string>({
   label,
   options,

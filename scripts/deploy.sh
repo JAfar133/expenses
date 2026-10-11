@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Обновление приложения на сервере после изменения кода.
+# Update the app on the server after a code change.
 #
-#   ./scripts/deploy.sh            git pull, проверка настроек, пересборка и запуск, проверка работы
-#   ./scripts/deploy.sh --no-pull  то же без git pull (код уже обновлён вручную)
+#   ./scripts/deploy.sh            git pull, settings check, rebuild and start, health check
+#   ./scripts/deploy.sh --no-pull  same without git pull (code already updated manually)
 #
-# Запускайте в папке проекта на сервере. Какие compose-файлы использовать, берётся из COMPOSE_FILE в .env.
-# Данные в томах (база, Excel-копии, pgAdmin) не затрагиваются, миграции базы применяются при старте backend.
+# Run in the project folder on the server. Which compose files to use is taken from COMPOSE_FILE in .env.
+# Data in volumes (database, Excel copies, pgAdmin) is untouched; database migrations are applied on backend start.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -32,7 +32,7 @@ update_code() {
   git pull --ff-only || fail "git pull не выполнен. Проверьте доступ к GitHub и состояние ветки."
 }
 
-# Секрет rclone подключается к backend как файл и должен существовать, даже если Excel не используется
+# The rclone secret is mounted into the backend as a file and must exist even if Excel is not used
 ensure_rclone_secret() {
   [ -e secrets/rclone.conf ] && return 0
   log "Создаю пустой secrets/rclone.conf (работа с Excel не настроена)"
@@ -52,7 +52,7 @@ rebuild() {
   docker compose up -d --build --remove-orphans || fail "docker compose up завершился с ошибкой."
 }
 
-# Ждём, пока backend ответит на /api/health (миграции применяются при старте, это занимает секунды)
+# Wait for the backend to answer on /api/health (migrations run on start and take a few seconds)
 wait_for_backend() {
   log "Жду ответа backend"
   local attempt

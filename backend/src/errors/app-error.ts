@@ -1,4 +1,4 @@
-/** Ошибка с HTTP-статусом и кодом, которую можно безопасно показать клиенту. */
+/** Error with an HTTP status and code that is safe to show to the client. */
 export class AppError extends Error {
   constructor(
     readonly statusCode: number,
@@ -11,7 +11,7 @@ export class AppError extends Error {
     this.headers = options?.headers;
   }
 
-  /** Дополнительные заголовки ответа, например Retry-After */
+  /** Additional response headers, e.g. Retry-After */
   readonly headers?: Record<string, string>;
 }
 

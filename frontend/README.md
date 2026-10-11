@@ -1,106 +1,106 @@
 # Frontend
 
-React + TypeScript + Vite + Tailwind CSS. Форма добавления расхода, рассчитанная на iPhone
-(поля от 48 px, safe area, тёмная тема, цифровая клавиатура для стоимости).
+React + TypeScript + Vite + Tailwind CSS. An expense entry form designed for iPhone
+(fields from 48 px, safe area, dark theme, a numeric keyboard for the amount).
 
-## Запуск
+## Running
 
-Нужен запущенный [backend](../backend/README.md).
+Needs a running [backend](../backend/README.md).
 
 ```bash
 npm install
 npm run dev        # http://127.0.0.1:5173
 ```
 
-В режиме разработки запросы `/api/*` проксируются на `http://127.0.0.1:3000` (см. `vite.config.ts`).
+In development mode, `/api/*` requests are proxied to `http://127.0.0.1:3000` (see `vite.config.ts`).
 
-### Проверка с iPhone
+### Checking on an iPhone
 
 ```bash
 npm run dev -- --host
 ```
 
-Откройте на телефоне `http://<IP-вашего-Mac>:5173` (устройства в одной Wi-Fi сети). Для
-проксирования backend должен работать на этом же Mac. Установка на главный экран (PWA) требует
-HTTPS, поэтому полноценно проверяется после развёртывания на сервере.
+On the phone, open `http://<your-Mac-IP>:5173` (the devices must be on the same Wi-Fi network). For
+proxying to work, the backend must run on the same Mac. Installing to the home screen (PWA) requires
+HTTPS, so it can only be fully checked after deployment to a server.
 
-## Сборка
+## Build
 
 ```bash
-npm run build      # результат в dist/
+npm run build      # output in dist/
 npm run preview
 ```
 
-`dist/` — статические файлы. В production их раздаёт Caddy/Nginx, он же проксирует `/api` на backend.
+`dist/` contains static files. In production they are served by Caddy/Nginx, which also proxies `/api` to the backend.
 
-## Команды
+## Commands
 
-| Команда             | Действие                    |
-| ------------------- | --------------------------- |
-| `npm run dev`       | Сервер разработки           |
-| `npm run build`     | Проверка типов и сборка     |
-| `npm test`          | Тесты (Vitest + Testing Library) |
-| `npm run typecheck` | Проверка типов              |
-| `npm run format`    | Форматирование Prettier     |
+| Command             | Action                           |
+| ------------------- | -------------------------------- |
+| `npm run dev`       | Development server               |
+| `npm run build`     | Type check and build             |
+| `npm test`          | Tests (Vitest + Testing Library) |
+| `npm run typecheck` | Type check                       |
+| `npm run format`    | Prettier formatting              |
 
-## Вход
+## Login
 
-Приложение открывается формой входа (`src/features/auth/`): логин и пароль, поля подготовлены для менеджеров паролей Safari и iOS
-(`autocomplete="username"` и `"current-password"`, без автокапитализации).
+The app opens with a login form (`src/features/auth/`): username and password, the fields are prepared for Safari and iOS password managers
+(`autocomplete="username"` and `"current-password"`, no auto-capitalization).
 
-- Токены лежат в HttpOnly-куках, JavaScript их не видит и не хранит. Страница только знает, кто вошёл (запрос `GET /api/auth/me`).
-- **Незаметное обновление.** Если на любой запрос сервер отвечает 401 (access-токен на 24 часа истёк), клиент один раз вызывает `POST /api/auth/refresh`
-  и повторяет запрос. Несколько запросов, получивших 401 одновременно, ждут одного общего обновления. Если refresh-токен тоже недействителен (прошла
-  неделя без использования, 30 дней с ввода пароля, сменили пароль), показывается форма входа.
-- Сбой сети при обновлении не выбрасывает пользователя из системы: форма входа показывается только по отказу сервера.
-- Вверху страницы: «Вы вошли как Миша» и кнопка «Выйти». При выходе (и при смене пользователя) данные прежнего пользователя из кеша удаляются.
-- Ошибки входа: неверный логин или пароль, «слишком много попыток» (с указанием, через сколько минут повторить), нет связи с сервером.
+- Tokens are stored in HttpOnly cookies; JavaScript cannot see or store them. The page only knows who is logged in (the `GET /api/auth/me` request).
+- **Seamless refresh.** If the server answers any request with 401 (the 24-hour access token expired), the client calls `POST /api/auth/refresh` once
+  and repeats the request. Several requests that got 401 at the same time wait for one shared refresh. If the refresh token is also invalid (a week
+  passed without use, 30 days since the password was entered, the password was changed), the login form is shown.
+- A network failure during a refresh does not throw the user out: the login form is shown only when the server refuses.
+- At the top of the page: "Вы вошли как Миша" ("You are logged in as Misha") and the "Выйти" ("Log out") button. On logout (and when the user changes), the previous user's data is removed from the cache.
+- Login errors: wrong username or password, "too many attempts" (with how many minutes to wait before retrying), no connection to the server.
 
-## Поведение формы
+## Form behavior
 
-- Дата по умолчанию — сегодня (локальная, без сдвига UTC).
-- Карта по умолчанию — карта вошедшего пользователя (Миша → «Миша», Настя → «Настя»); её можно сменить вручную, последняя выбранная карта не запоминается.
-- Последняя категория запоминается в `localStorage` отдельно для каждого пользователя.
-- Стоимость вводится с пробелами между тысячами: `25 890`, на сервер уходит число `25890`.
-- Кнопка блокируется на время запроса.
-- К каждой попытке добавляется `Idempotency-Key`. При повторной отправке после ошибки ключ тот же,
-  после успеха создаётся новый. Backend по ключу не даёт создать дубль.
-- После успеха очищаются наименование и стоимость; дата, карта и категория остаются.
-- Если Excel недоступен (файл открыт), расход всё равно сохранён: форма пишет «Расход сохранён. В Excel он
-  появится позже» и очищается как обычно.
-- Если ответ сервера не получен, форма просит проверить, добавился ли расход, прежде чем отправлять снова.
+- The date defaults to today (local, without a UTC shift).
+- The default card is the logged-in user's card (Misha → "Миша", Nastya → "Настя"); it can be changed manually, and the last selected card is not remembered.
+- The last category is remembered in `localStorage` separately for each user.
+- The amount is entered with spaces between thousands: `25 890`, and the number `25890` is sent to the server.
+- The button is disabled while the request is in flight.
+- An `Idempotency-Key` is added to every attempt. When resubmitting after an error, the key is the same;
+  after a success, a new one is created. The backend does not allow a duplicate to be created for a key.
+- After a success, the name and amount are cleared; the date, card and category stay.
+- If Excel is unavailable (the file is open), the expense is still saved: the form says "Расход сохранён. В Excel он
+  появится позже" ("The expense is saved. It will appear in Excel later") and clears as usual.
+- If no server response is received, the form asks you to check whether the expense was added before sending again.
 
-## Значок синхронизации
+## Sync icon
 
-В шапке справа находится значок синхронизации Excel и базы (`src/features/sync/`): иконка и обратный отсчёт до
-следующего запуска, например `4:34`. Таймер считается по часам сервера, а не устройства.
+On the right of the header there is the Excel-and-database sync icon (`src/features/sync/`): an icon and a countdown to the
+next run, for example `4:34`. The timer follows the server's clock, not the device's.
 
-- Нажатие запускает синхронизацию сразу и перезапускает таймер. Пока она идёт, иконка крутится, а вместо таймера `…`.
-- **Жёлтый** значок: файл открыт в Excel или OneDrive недоступен, в очереди есть записи (число на значке),
-  либо заблокировано массовое удаление (пропало слишком много записей из Excel).
-- **Красный** значок: ошибка синхронизации, не удалось запустить синхронизацию (на 8 секунд) либо нет связи с сервером.
-- Подробности (причина, размер очереди) в подсказке при наведении и в описании для скринридера.
+- Tapping it starts a synchronization immediately and restarts the timer. While it runs, the icon spins and `…` replaces the timer.
+- A **yellow** icon: the file is open in Excel or OneDrive is unavailable, there are entries in the queue (the number on the icon),
+  or a mass deletion is blocked (too many entries disappeared from Excel).
+- A **red** icon: a synchronization error, the synchronization could not be started (for 8 seconds), or there is no connection to the server.
+- Details (the reason, the queue size) are in the tooltip on hover and in the description for screen readers.
 
-Состояние обновляется опросом `GET /api/sync/status` каждые 5 секунд (2 секунды, пока идёт синхронизация).
+The state is refreshed by polling `GET /api/sync/status` every 5 seconds (2 seconds while a synchronization is running).
 
-## Анализ
+## Analytics
 
-Суммы на страницах анализа можно показывать в другой валюте (выбор с флагами над страницей, пересчёт по текущему курсу ЦБ на клиенте, выбор хранится в настройках). Раздел «Анализ» (`/analytics`) содержит вкладки «Обзор» и «Сравнение месяцев», общую панель фильтров (все значения в адресной строке) и выбор периода (диапазон дат одним полем для «Свой»). Обзор показывает: расход в день, график по дням, категории с наибольшими тратами
-(полосы, столбики, кольцо или круг; вид запоминается). Данные считает backend (`/api/analytics/*`). Страница грузится отдельным
-фрагментом, форма добавления расхода остаётся лёгкой. Чтобы открыть режим разработки на другом backend, задайте `API_TARGET`
-(по умолчанию `http://127.0.0.1:3000`): `API_TARGET=http://127.0.0.1:3100 npm run dev`.
+Amounts on the analytics pages can be shown in another currency (selected with flags above the page, converted at the current Central Bank rate on the client, the choice is stored in the settings). The "Анализ" ("Analytics") section (`/analytics`) contains the "Обзор" ("Overview") and "Сравнение месяцев" ("Month comparison") tabs, a shared filter panel (all values are in the address bar) and a period selector (a date range in a single field for "Свой", i.e. "Custom"). The overview shows: spend per day, a chart by day, and the categories with the biggest spending
+(bars, columns, a ring or a pie; the view is remembered). The data is calculated by the backend (`/api/analytics/*`). The page loads as a separate
+chunk, so the expense form stays light. To run the development mode against a different backend, set `API_TARGET`
+(default `http://127.0.0.1:3000`): `API_TARGET=http://127.0.0.1:3100 npm run dev`.
 
-## Структура
+## Structure
 
 ```
 src/
-  app/               корневой компонент, маршруты (React Router), общая рамка и провайдеры
-  pages/             страницы
-  features/expenses/ форма, API-запросы, хуки, схема валидации
-  features/auth/     вход: форма входа, ворота доступа, кнопка выхода
-  features/sync/     значок синхронизации: таймер, запуск, состояние очереди
-  features/analytics/ страница анализа: плитки, графики (Recharts), блок «потрачено в месяце»
-  shared/            HTTP-клиент, UI-компоненты, утилиты
-public/              manifest.webmanifest и иконки
+  app/               root component, routes (React Router), shared frame and providers
+  pages/             pages
+  features/expenses/ form, API requests, hooks, validation schema
+  features/auth/     login: the login form, access gate, logout button
+  features/sync/     sync icon: timer, launch, queue state
+  features/analytics/ analytics page: tiles, charts (Recharts), the "spent this month" block
+  shared/            HTTP client, UI components, utilities
+public/              manifest.webmanifest and icons
 tests/
 ```

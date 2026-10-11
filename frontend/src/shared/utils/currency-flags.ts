@@ -1,4 +1,4 @@
-/** Флаги стран для выбора валюты. Для остальных валют показывается нейтральный значок. */
+/** Country flags for the currency picker. Other currencies get a neutral icon. */
 const FLAGS: Record<string, string> = {
   AMD: '🇦🇲',
   RUB: '🇷🇺',

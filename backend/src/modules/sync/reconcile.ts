@@ -1,25 +1,25 @@
 import type { Expense, StoredExpense } from '../../storage/expense.repository.ts';
 
 export interface ReconcilePlan {
-  /** Строки Excel, которых нет в БД: их нужно добавить в БД */
+  /** Excel rows that are not in the DB: they need to be added to the DB */
   toImport: Expense[];
-  /** Записи «writing», которые оказались в Excel: запись состоялась, помечаем synced */
+  /** "writing" records that turned out to be in Excel: the write happened, mark as synced */
   promoteToSynced: string[];
-  /** Записи «writing», которых в Excel нет: запись не состоялась, возвращаем в очередь */
+  /** "writing" records that are not in Excel: the write did not happen, return to the queue */
   revertToPending: string[];
-  /** Записи БД, которых больше нет в Excel (строку удалили или изменили): помечаем удалёнными */
+  /** DB records no longer in Excel (the row was deleted or changed): mark as deleted */
   toDelete: string[];
-  /** Ранее удалённые записи, строки которых снова появились в Excel (отмена, откат из копии) */
+  /** Previously deleted records whose rows reappeared in Excel (undo, rollback from a copy) */
   toRestore: string[];
-  /** Удалённые в приложении записи, чьей строки в Excel уже нет: убирать из Excel нечего */
+  /** Records deleted in the app whose Excel row is already gone: nothing to remove from Excel */
   toClearSnapshot: string[];
 }
 
 const keyOf = (e: Expense) => JSON.stringify([e.date, e.card, e.category, e.name, e.amount]);
 
 /**
- * Как запись выглядит в Excel. Если запись правили в приложении, но Excel ещё не обновлён,
- * в Excel лежат прежние значения (снимок), а не текущие: сопоставлять нужно по ним.
+ * How a record looks in Excel. If a record was edited in the app but Excel is not updated yet,
+ * Excel holds the old values (the snapshot), not the current ones: matching must use them.
  */
 const excelKeyOf = (row: StoredExpense) => keyOf(row.excelSnapshot ?? row);
 
@@ -34,22 +34,22 @@ function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
 }
 
 /**
- * Сверяет Excel с БД. В Excel нет идентификаторов строк, поэтому одинаковые операции
- * сопоставляются **по количеству**: два одинаковых расхода — это два расхода, а не дубликат.
+ * Reconciles Excel with the DB. Excel has no row identifiers, so identical operations
+ * are matched **by count**: two identical expenses are two expenses, not a duplicate.
  *
- * Для каждой операции считаем, сколько раз она есть в Excel (E) и сколько активных записей БД
- * уже помечены как находящиеся в Excel (S):
- *   - E > S: лишние строки Excel — сначала это наши «writing» записи (запись дошла, но мы не
- *     успели это зафиксировать), затем ранее удалённые записи (строку вернули в Excel), и
- *     только остальное — новые строки, добавленные в Excel вручную;
- *   - E < S: строку в Excel удалили или изменили — лишние записи БД помечаются удалёнными.
- *     Изменённая строка — это «удалённая старая» плюс «новая», поэтому правка тоже отражается.
+ * For each operation we count how many times it is in Excel (E) and how many active DB records
+ * already marked as being in Excel (S):
+ *   - E > S: extra Excel rows — first these are our "writing" records (the write went through but we
+ *     did not get to record it), then previously deleted records (the row was put back in Excel), and
+ *     only the rest are new rows added to Excel manually;
+ *   - E < S: a row was deleted or changed in Excel — the extra DB records are marked deleted.
+ *     A changed row is an "old deleted" plus a "new" one, so an edit is reflected too.
  *
- * Записи, удалённые в приложении, чьи строки ещё лежат в Excel, считаются присутствующими: эти строки
- * не импортируются как новые, а если строка пропала сама, снимок просто сбрасывается.
+ * Records deleted in the app whose rows are still in Excel count as present: these rows
+ * are not imported as new, and if the row disappears on its own, the snapshot is simply cleared.
  *
- * Записи «pending» в сверке не участвуют: их в Excel ещё нет. Какие именно из одинаковых записей
- * удалить или восстановить, не важно: они взаимозаменяемы.
+ * "pending" records do not take part in reconciliation: they are not in Excel yet. Which exactly of the identical records
+ * to delete or restore does not matter: they are interchangeable.
  */
 export function reconcile(excelRows: Expense[], dbRows: StoredExpense[]): ReconcilePlan {
   const plan: ReconcilePlan = {
@@ -70,12 +70,12 @@ export function reconcile(excelRows: Expense[], dbRows: StoredExpense[]): Reconc
     dbRows.filter((row) => row.excelStatus === 'writing' && row.deletedAt === null),
     keyOf,
   );
-  // Удалены в приложении, строка ещё в Excel (снимок задан)
+  // Deleted in the app, the row is still in Excel (snapshot is set)
   const removing = groupBy(
     dbRows.filter((row) => row.deletedAt !== null && row.excelSnapshot !== null),
     excelKeyOf,
   );
-  // Только удалённые из-за пропажи строки в Excel могут вернуться вместе со строкой; удалённые в приложении не возвращаются
+  // Only records deleted because their row vanished in Excel can come back together with the row; records deleted in the app do not come back
   const deleted = groupBy(
     dbRows.filter(
       (row) => row.deletedAt !== null && row.excelSnapshot === null && row.deletedReason !== 'app',
@@ -98,8 +98,8 @@ export function reconcile(excelRows: Expense[], dbRows: StoredExpense[]): Reconc
     const excess = excelItems.length - activeItems.length - removingItems.length;
 
     if (excess < 0) {
-      // Сначала пропавшими считаем строки, которые мы и так собирались убрать, потом уже активные записи.
-      // Удаляем самые новые из одинаковых записей: порядок в БД — порядок добавления
+      // First treat as missing the rows we were going to remove anyway, then the active records.
+      // We delete the newest of the identical records: the DB order is the insertion order
       const missing = -excess;
       const fromRemoving = Math.min(missing, removingItems.length);
       plan.toClearSnapshot.push(...removingItems.slice(0, fromRemoving).map((row) => row.id));
@@ -114,7 +114,7 @@ export function reconcile(excelRows: Expense[], dbRows: StoredExpense[]): Reconc
 
     const unmatched = Math.max(excess - promoted.length, 0);
 
-    // Сначала возвращаем недавно удалённые, чтобы откат в Excel не создавал дубликаты
+    // First restore the recently deleted ones, so that a rollback in Excel does not create duplicates
     const restored = [...deletedItems]
       .sort((a, b) => (b.deletedAt ?? '').localeCompare(a.deletedAt ?? ''))
       .slice(0, unmatched);
@@ -126,17 +126,17 @@ export function reconcile(excelRows: Expense[], dbRows: StoredExpense[]): Reconc
   return plan;
 }
 
-/** Защита от массовой потери: подмена Excel пустым или старым файлом не должна «удалить» базу. */
+/** Protection against mass loss: replacing Excel with an empty or old file must not "delete" the database. */
 export interface DeletionGuardInput {
   toDelete: number;
-  /** Активные записи БД, которые считаются находящимися в Excel */
+  /** Active DB records considered to be in Excel */
   activeSynced: number;
   excelRows: number;
-  /** Максимальная доля записей (в процентах), которую можно удалить за один цикл */
+  /** Maximum share of records (in percent) that may be deleted in one cycle */
   maxPercent: number;
 }
 
-/** Меньше этого числа записей удаляем без проверки доли: так не мешаем обычной работе. */
+/** Fewer records than this are deleted without the share check: this way we do not interfere with normal work. */
 const MIN_GUARDED_DELETIONS = 5;
 
 export function isMassDeletion({
@@ -146,7 +146,7 @@ export function isMassDeletion({
   maxPercent,
 }: DeletionGuardInput): boolean {
   if (toDelete === 0) return false;
-  // В Excel нет ни одной строки, а в базе есть: скорее всего, файл пуст или повреждён
+  // Excel has no rows at all while the database has some: most likely the file is empty or corrupted
   if (excelRows === 0 && activeSynced > 0) return true;
   if (toDelete < MIN_GUARDED_DELETIONS) return false;
   return (toDelete * 100) / activeSynced > maxPercent;

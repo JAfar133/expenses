@@ -4,7 +4,7 @@ export interface TimezoneOption {
   label: string;
 }
 
-/** Смещение в минутах и подпись вида «UTC+4» или «UTC+5:30»; null, если браузер не знает такого пояса. */
+/** Offset in minutes and a label like "UTC+4" or "UTC+5:30"; null if the browser does not know the zone. */
 function describeOffset(timezone: string, at: Date): { minutes: number; label: string } | null {
   let raw: string;
   try {
@@ -29,16 +29,16 @@ function describeOffset(timezone: string, at: Date): { minutes: number; label: s
   };
 }
 
-/** Смещение пояса в виде «UTC+4» или «UTC+5:30»; для UTC просто «UTC». Неизвестный пояс: пустая строка. */
+/** Zone offset as "UTC+4" or "UTC+5:30"; just "UTC" for UTC. Unknown zone: empty string. */
 export function offsetLabel(timezone: string, at = new Date()): string {
   return describeOffset(timezone, at)?.label ?? '';
 }
 
-/** Часовой пояс устройства. */
+/** The device time zone. */
 export const deviceTimezone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 /**
- * Все часовые пояса браузера, от западных к восточным; `current` всегда есть в списке, даже если браузер его не знает.
+ * All browser time zones, west to east; `current` is always in the list even if the browser does not know it.
  */
 export function timezoneOptions(current: string, at = new Date()): TimezoneOption[] {
   const known =
@@ -48,7 +48,7 @@ export function timezoneOptions(current: string, at = new Date()): TimezoneOptio
 
   const withOffset = [...zones].map((value) => {
     const offset = describeOffset(value, at);
-    // Пояс, который браузер не знает (например, сохранён на другом устройстве), остаётся в списке без смещения
+    // A zone the browser does not know (e.g. saved on another device) stays in the list without an offset
     return {
       value,
       total: offset?.minutes ?? 0,

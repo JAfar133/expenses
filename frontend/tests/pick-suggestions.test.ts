@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { NameSuggestion } from '../src/features/expenses/api/expenses.api.ts';
 import { pickSuggestions } from '../src/features/expenses/utils/pick-suggestions.ts';
 
-/** Как отдаёт сервер: от самых частых к редким. */
+/** As the server returns them: from most frequent to rarest. */
 const all: NameSuggestion[] = [
   { name: 'Латте', category: 'кафе', count: 9 },
   { name: 'Хлеб', category: 'продукты', count: 7 },

@@ -5,7 +5,7 @@ import type { AuthUser, ClientContext } from './auth.types.ts';
 
 export interface StoredUser extends AuthUser {
   passwordHash: string | null;
-  /** Хеш последнего применённого пароля из .env (см. миграцию 0007) */
+  /** Hash of the last applied password from .env (see migration 0007) */
   envPasswordHash: string | null;
   disabled: boolean;
 }
@@ -17,7 +17,7 @@ export interface StoredSession {
   refreshExpiresAt: Date;
   createdAt: Date;
   rotatedAt: Date | null;
-  /** Какой из хешей совпал: текущий refresh-токен или предыдущий (уже заменённый) */
+  /** Which hash matched: the current refresh token or the previous (already replaced) one */
   matched: 'current' | 'previous';
 }
 
@@ -60,7 +60,7 @@ const toUser = (row: UserRow): StoredUser => ({
   disabled: row.disabled,
 });
 
-/** Значения, которые видит приложение: личный выбор пользователя поверх значений из конфигурации. */
+/** Values the app sees: the user's personal choice on top of the configuration values. */
 const EFFECTIVE_USER_COLUMNS = `
   COALESCE(u.custom_display_name, u.display_name) AS display_name,
   COALESCE(u.custom_card, u.card) AS card,
@@ -91,7 +91,7 @@ const toSession = (row: SessionRow): StoredSession => ({
   matched: row.matched,
 });
 
-/** Новая сессия. Время создания задаёт сервис (его часы), от него отсчитывается предел жизни сессии. */
+/** A new session. The creation time is set by the service (its clock); the session lifetime limit counts from it. */
 export interface NewSession {
   userId: string;
   accessHash: string;
@@ -105,8 +105,8 @@ export class AuthRepository {
   constructor(private readonly database: Database) {}
 
   /**
-   * Создаёт или обновляет пользователя из настроек (карта, часовой пояс и право правки «по умолчанию»).
-   * Личный выбор пользователя (custom_*) и пароль не трогает.
+   * Creates or updates a user from the settings (card, time zone and the "default" edit permission).
+   * Does not touch the user's personal choice (custom_*) or the password.
    */
   async upsertUser(
     username: string,
@@ -126,8 +126,8 @@ export class AuthRepository {
   }
 
   /**
-   * Личные настройки аккаунта. Передано значение: сохраняется; `null`: возврат к значению по умолчанию;
-   * не передано: не меняется.
+   * Personal account settings. A value is passed: it is saved; `null`: revert to the default;
+   * not passed: unchanged.
    */
   async updateProfile(
     userId: string,
@@ -160,7 +160,7 @@ export class AuthRepository {
     );
   }
 
-  /** Все включённые пользователи с их эффективными значениями. */
+  /** All enabled users with their effective values. */
   async listUsers(): Promise<AuthUser[]> {
     const rows = await this.database.query<UserRow>(
       `SELECT u.id, u.username, ${EFFECTIVE_USER_COLUMNS}, u.password_hash, u.env_password_hash,
@@ -177,7 +177,7 @@ export class AuthRepository {
     }));
   }
 
-  /** Пользователи, которых больше нет в настройках, отключаются: войти они не смогут. */
+  /** Users no longer in the settings are disabled: they will not be able to log in. */
   async disableUsersExcept(usernames: string[]): Promise<void> {
     await this.database.query(
       `UPDATE users SET disabled_at = now(), updated_at = now()
@@ -200,7 +200,7 @@ export class AuthRepository {
     return row && toUser(row);
   }
 
-  /** Запоминает, какой пароль из .env уже учтён (сам пароль пользователя не меняется). */
+  /** Remembers which .env password is already accounted for (the user's own password is not changed). */
   async markEnvPassword(userId: string, envPasswordHash: string): Promise<void> {
     await this.database.query('UPDATE users SET env_password_hash = $2 WHERE id = $1', [
       userId,
@@ -209,8 +209,8 @@ export class AuthRepository {
   }
 
   /**
-   * Сохраняет новый хеш пароля. Если пароль задан из .env, запоминает и его (`envPasswordHash`).
-   * Завершает сессии пользователя, кроме `keepSessionId` (при смене пароля текущая сессия остаётся).
+   * Saves a new password hash. If the password is set from .env, it also remembers it (`envPasswordHash`).
+   * Terminates the user's sessions except `keepSessionId` (on password change the current session stays).
    */
   async setPasswordHash(
     userId: string,
@@ -252,7 +252,7 @@ export class AuthRepository {
     );
   }
 
-  /** Действующая сессия по хешу access-токена (не отозвана, не истекла, пользователь не отключён). */
+  /** Active session by access token hash (not revoked, not expired, user not disabled). */
   async findSessionByAccessHash(accessHash: string, now: Date): Promise<StoredSession | undefined> {
     const [row] = await this.database.query<SessionRow>(
       `SELECT ${SESSION_COLUMNS}, 'current' AS matched
@@ -264,7 +264,7 @@ export class AuthRepository {
     return row && toSession(row);
   }
 
-  /** Сессия по хешу refresh-токена: текущего или предыдущего. Истёкшие и отозванные не возвращаются. */
+  /** Session by refresh token hash: current or previous. Expired and revoked ones are not returned. */
   async findSessionByRefreshHash(refreshHash: string): Promise<StoredSession | undefined> {
     const [row] = await this.database.query<SessionRow>(
       `SELECT ${SESSION_COLUMNS},
@@ -277,7 +277,7 @@ export class AuthRepository {
     return row && toSession(row);
   }
 
-  /** Заменяет токены сессии новыми, запоминая прежний refresh-токен. Условие по старому хешу защищает от гонки. */
+  /** Replaces the session tokens with new ones, remembering the previous refresh token. The condition on the old hash protects against a race. */
   async rotate(
     sessionId: string,
     oldRefreshHash: string,
@@ -310,7 +310,7 @@ export class AuthRepository {
     );
   }
 
-  /** Удаляет сессии, срок которых вышел (с запасом), и давно отозванные. */
+  /** Deletes sessions whose time has run out (with a margin) and long-revoked ones. */
   async deleteStaleSessions(before: Date): Promise<number> {
     const deleted = await this.database.query(
       `DELETE FROM auth_sessions

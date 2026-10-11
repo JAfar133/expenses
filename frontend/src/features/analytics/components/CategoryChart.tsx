@@ -34,14 +34,14 @@ const axisTick = { fill: 'var(--chart-axis)', fontSize: 12 };
 interface CategoryChartProps {
   rows: BreakdownRow[] | undefined;
   currency: string;
-  /** Порядок категорий из справочника: по нему закрепляются цвета */
+  /** Category order from the reference data: colors are pinned by it */
   categoryOrder: string[];
-  /** Нажатие на категорию (полосу, сектор или строку легенды) открывает её наименования */
+  /** Clicking a category (bar, slice or legend row) opens its names */
   onSelect?: (category: string) => void;
   loading?: boolean;
 }
 
-/** На какие категории уходит больше всего денег: полосы, столбики, кольцо или круг. Вид запоминается. */
+/** Which categories take the most money: bars, columns, donut or pie. The view is remembered. */
 export function CategoryChart({
   rows,
   currency,
@@ -117,7 +117,7 @@ function BarsChart({
   onSelect?: (category: string) => void;
 }) {
   const { digits } = useDisplayCurrency();
-  /** Нажатие на полосу: Recharts отдаёт строку данных либо прямо, либо в `payload`. */
+  /** Bar click: Recharts passes the data row either directly or in `payload`. */
   const select = (entry: unknown) => {
     const { key, payload } = entry as { key?: string; payload?: { key?: string } };
     const category = payload?.key ?? key;
@@ -229,7 +229,7 @@ function BarsChart({
   );
 }
 
-/** «1 категория», «2 категории», «5 категорий». */
+/** Category count with a Russian plural form: 1, 2 and 5 categories. */
 function pluralCategories(count: number): string {
   const lastTwo = count % 100;
   const last = count % 10;
@@ -239,7 +239,7 @@ function pluralCategories(count: number): string {
   return 'категорий';
 }
 
-/** Доли: кольцо или круг. До 7 секторов, мелкие категории объединены в «Остальное»; рядом легенда с долями и суммами. */
+/** Shares: donut or pie. Up to 7 slices, small categories are merged into "Other"; a legend with shares and amounts sits beside it. */
 function ShareChart({
   slices,
   total,
@@ -271,7 +271,7 @@ function ShareChart({
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Tooltip
-              // Подсказка выше подписи в центре кольца, иначе подпись просвечивает сквозь неё
+              // Tooltip above the donut center label, otherwise the label shows through it
               wrapperStyle={{ zIndex: 20 }}
               content={({ active, payload }) => {
                 const slice = payload?.[0]?.payload as Slice | undefined;

@@ -6,8 +6,8 @@ interface NameSuggestionsProps {
 }
 
 /**
- * Быстрый выбор наименования из того, что уже вводили, от самых частых к редким.
- * Высота ограничена примерно тремя строками, остальное прокручивается по вертикали.
+ * Quick pick of a name from those entered before, from most to least frequent.
+ * Height is limited to about three rows, the rest scrolls vertically.
  */
 export function NameSuggestions({ suggestions, onPick }: NameSuggestionsProps) {
   if (suggestions.length === 0) return null;

@@ -31,7 +31,7 @@ interface ExpenseRow {
 
 const COLUMNS = `id, ${dateText('date')} AS date, card, category, name, amount, source, excel_status, ${timestampText('deleted_at')} AS deleted_at, deleted_reason, excel_snapshot, original_amount::float8 AS original_amount, original_currency, exchange_rate::float8 AS exchange_rate`;
 
-/** Текущие значения записи в виде снимка строки Excel (то, что записано в Excel после синхронизации). */
+/** Current record values as an Excel row snapshot (what was written to Excel after sync). */
 const SNAPSHOT_OF_VALUES = `jsonb_build_object(
   'date', to_char(date, 'YYYY-MM-DD'), 'card', card, 'category', category, 'name', name, 'amount', amount)`;
 
@@ -57,7 +57,7 @@ const toStored = (row: ExpenseRow): StoredExpense => ({
         },
 });
 
-/** Совпадают ли значения записи со строкой Excel. */
+/** Whether the record values match the Excel row. */
 const sameValues = (a: Expense, b: Expense) =>
   a.date === b.date &&
   a.card === b.card &&
@@ -113,7 +113,7 @@ export class PostgresExpenseRepository implements ExpenseRepository {
 
   async listNameSuggestions(limit: number): Promise<NameSuggestion[]> {
     return this.database.query<NameSuggestion>(
-      // Показываем написание из самой свежей записи, а считаем без учёта регистра
+      // Show the spelling from the most recent record, but count case-insensitively
       `SELECT (array_agg(name ORDER BY seq DESC))[1] AS name, category, count(*)::int AS count
          FROM expenses
         WHERE deleted_at IS NULL
@@ -143,7 +143,7 @@ export class PostgresExpenseRepository implements ExpenseRepository {
     return row!.count;
   }
 
-  /** Добавляет записи, найденные в Excel. Одним запросом, чтобы первая загрузка большой таблицы была быстрой. */
+  /** Adds records found in Excel. In a single query so the first load of a large sheet is fast. */
   async importFromExcel(db: SqlExecutor, expenses: Expense[]): Promise<number> {
     if (expenses.length === 0) return 0;
 
@@ -194,7 +194,7 @@ export class PostgresExpenseRepository implements ExpenseRepository {
 
   async markDeleted(db: SqlExecutor, ids: string[], reason: DeletedReason): Promise<void> {
     if (ids.length === 0) return;
-    // Строку убрали в Excel: снимка больше нет. Удаление в приложении снимок сохраняет: строку ещё предстоит убрать
+    // The row was removed in Excel: there is no snapshot anymore. A delete in the app keeps the snapshot: the row still has to be removed
     await db.query(
       `UPDATE expenses
           SET deleted_at = now(), deleted_reason = $2, updated_at = now(),
@@ -207,7 +207,7 @@ export class PostgresExpenseRepository implements ExpenseRepository {
   async restoreDeleted(db: SqlExecutor, ids: string[]): Promise<void> {
     if (ids.length === 0) return;
     await db.query(
-      // Строка вернулась в Excel с теми же значениями: снимок равен текущим значениям
+      // The row came back to Excel with the same values: the snapshot equals the current values
       `UPDATE expenses
           SET deleted_at = NULL, deleted_reason = NULL, updated_at = now(),
               excel_snapshot = ${SNAPSHOT_OF_VALUES}
@@ -237,8 +237,8 @@ export class PostgresExpenseRepository implements ExpenseRepository {
   }
 
   /**
-   * Что нужно сделать с Excel для записей, которые в нём уже есть (снимок задан):
-   * заменить строку, если значения записи отличаются от снимка, и убрать строку удалённой записи.
+   * What needs to be done in Excel for records already there (snapshot is set):
+   * replace the row if the record values differ from the snapshot, and remove the row of a deleted record.
    */
   async listExcelChanges(db: SqlExecutor): Promise<ExcelChanges> {
     const rows = await db.query<ExpenseRow>(
@@ -262,7 +262,7 @@ export class PostgresExpenseRepository implements ExpenseRepository {
     return changes;
   }
 
-  /** Запись под блокировкой на время правки: две одновременные правки не перепишут друг друга. */
+  /** The record under a lock for the duration of an edit: two concurrent edits will not overwrite each other. */
   async findForUpdate(db: SqlExecutor, id: string): Promise<StoredExpense | undefined> {
     const [row] = await db.query<ExpenseRow>(
       `SELECT ${COLUMNS} FROM expenses WHERE id = $1 FOR UPDATE`,
@@ -271,7 +271,7 @@ export class PostgresExpenseRepository implements ExpenseRepository {
     return row && toStored(row);
   }
 
-  /** Новые значения записи. Исходную сумму в валюте сбрасывает, если `clearOriginal`: она больше не соответствует сумме. */
+  /** New record values. Resets the original foreign-currency amount if `clearOriginal`: it no longer matches the amount. */
   async updateValues(
     db: SqlExecutor,
     id: string,
@@ -300,15 +300,15 @@ export class PostgresExpenseRepository implements ExpenseRepository {
     );
   }
 
-  /** Удаление в приложении: запись остаётся в базе, а её строку из Excel уберёт синхронизация. */
+  /** Delete in the app: the record stays in the database, and sync will remove its row from Excel. */
   async markDeletedByApp(db: SqlExecutor, id: string, by: string): Promise<void> {
     await this.markDeleted(db, [id], 'app');
     await db.query('UPDATE expenses SET updated_by = $2 WHERE id = $1', [id, by]);
   }
 
   /**
-   * Возврат удалённой записи. Если её строка ещё не убрана из Excel (снимок есть), запись просто остаётся там;
-   * если уже убрана, запись снова встаёт в очередь на добавление.
+   * Restoring a deleted record. If its row has not been removed from Excel yet (a snapshot exists), the record simply stays there;
+   * if it has already been removed, the record is queued for adding again.
    */
   async restoreByApp(db: SqlExecutor, id: string, by: string): Promise<void> {
     await db.query(

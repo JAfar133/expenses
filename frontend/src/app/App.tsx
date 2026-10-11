@@ -5,7 +5,7 @@ import { AddExpensePage } from '../pages/AddExpensePage.tsx';
 import { AppShell } from './AppShell.tsx';
 import { QueryProvider } from './providers/QueryProvider.tsx';
 
-// Страница анализа и графики грузятся только при открытии: форма добавления расхода остаётся лёгкой
+// The analytics page and charts load only when opened: the expense form stays lightweight
 const SettingsPage = lazy(() => import('../features/settings/pages/SettingsPage.tsx'));
 const AnalyticsRoutes = lazy(() => import('../features/analytics/pages/AnalyticsRoutes.tsx'));
 

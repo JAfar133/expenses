@@ -1,11 +1,11 @@
-# Публичный доступ к приложению: HTTPS на вашем адресе.
+# Public access to the app: HTTPS on your address.
 #
-# Сайт защищает вход в самом приложении (логин и пароль пользователей, сессии), поэтому отдельного пароля
-# Caddy на нём нет: двойная авторизация только мешала бы. Пароль Caddy (Basic Auth) оставлен у pgAdmin:
-# он не является частью приложения.
+# Login is enforced by the app itself (user logins and passwords, sessions), so Caddy has no separate
+# password on the site: double authentication would only get in the way. The Caddy password (Basic Auth) is kept
+# for pgAdmin, which is not part of the app.
 #
-# SITE_ADDRESS — домен, на который указывает ваш сервер (например, expenses.example.com). Домена нет — возьмите
-# бесплатный адрес вида 1-2-3-4.nip.io (IP с дефисами): Caddy сам получит для него сертификат.
+# SITE_ADDRESS is the domain your server points to (e.g. expenses.example.com). No domain? Use a free
+# address like 1-2-3-4.nip.io (IP with dashes): Caddy obtains a certificate for it itself.
 {$SITE_ADDRESS} {
 	encode zstd gzip
 
@@ -22,7 +22,7 @@
 	@assets path /assets/*
 	header @assets Cache-Control "public, max-age=31536000, immutable"
 
-	# Сервис-страницы не должны кешироваться, а ответы API (включая куки входа) не должны попадать в общий кеш
+	# Service pages must not be cached, and API responses (including login cookies) must not end up in a shared cache
 	@api path /api/*
 	header @api Cache-Control "no-store"
 
@@ -35,9 +35,9 @@
 	}
 }
 
-# pgAdmin (веб-интерфейс к базе) на отдельном адресе: пароль Caddy (Basic Auth), затем собственный вход pgAdmin.
-# Порт pgAdmin наружу не публикуется: до него можно добраться только через этот сайт, по HTTPS.
-# PGADMIN_ADDRESS — отдельное имя, например pgadmin.example.com (для nip.io: pgadmin.1-2-3-4.nip.io).
+# pgAdmin (web UI for the database) on a separate address: Caddy password (Basic Auth), then pgAdmin's own login.
+# The pgAdmin port is not published; it can only be reached through this site, over HTTPS.
+# PGADMIN_ADDRESS is a separate name, e.g. pgadmin.example.com (for nip.io: pgadmin.1-2-3-4.nip.io).
 {$PGADMIN_ADDRESS} {
 	encode zstd gzip
 

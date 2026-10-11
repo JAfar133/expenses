@@ -3,12 +3,12 @@ import { fileURLToPath } from 'node:url';
 import type { Database } from './database.ts';
 
 const MIGRATIONS_DIR = new URL('./migrations/', import.meta.url);
-/** Произвольное число: блокирует одновременный запуск миграций из нескольких процессов. */
+/** An arbitrary number: blocks concurrent migration runs from several processes. */
 const MIGRATION_LOCK_ID = 727_274;
 
 /**
- * Применяет по порядку все файлы `migrations/*.sql`, которых ещё нет в `schema_migrations`.
- * Каждая миграция выполняется в своей транзакции. Возвращает имена применённых миграций.
+ * Applies in order all `migrations/*.sql` files not yet in `schema_migrations`.
+ * Each migration runs in its own transaction. Returns the names of the applied migrations.
  */
 export async function migrate(database: Database): Promise<string[]> {
   const files = (await readdir(fileURLToPath(MIGRATIONS_DIR)))

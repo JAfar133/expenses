@@ -1,17 +1,17 @@
 import type { ExcelState } from '../../storage/excel-state.ts';
 
-/** Общие фильтры страницы анализа. Пустой список означает «без ограничения». */
+/** Common filters of the analytics page. An empty list means "no restriction". */
 export interface AnalyticsFilters {
-  /** Границы периода включительно, YYYY-MM-DD */
+  /** Period bounds, inclusive, YYYY-MM-DD */
   from?: string;
   to?: string;
   cards: string[];
   categories: string[];
-  /** Логины пользователей, добавивших расход */
+  /** Logins of the users who added the expense */
   createdBy: string[];
-  /** Валюта ввода расхода; расход в драммах это базовая валюта */
+  /** Expense entry currency; a dram expense is the base currency */
   currencies: string[];
-  /** Часть наименования, без учёта регистра */
+  /** Part of the name, case-insensitive */
   q?: string;
   minAmount?: number;
   maxAmount?: number;
@@ -24,7 +24,7 @@ export interface SummaryStats {
   average: number;
   median: number;
   max: number;
-  /** Сколько разных дней с расходами */
+  /** How many distinct days have expenses */
   activeDays: number;
   firstDate: string | null;
   lastDate: string | null;
@@ -41,7 +41,7 @@ export const BREAKDOWN_DIMENSIONS = [
 export type BreakdownBy = (typeof BREAKDOWN_DIMENSIONS)[number];
 
 export interface BreakdownRow {
-  /** Значение группы; для дня недели номер 1 (понедельник) … 7 (воскресенье) */
+  /** Group value; for the day of week the number 1 (Monday) … 7 (Sunday) */
   key: string;
   total: number;
   count: number;
@@ -55,9 +55,9 @@ export const SERIES_SPLITS = ['category', 'card'] as const;
 export type SeriesSplit = (typeof SERIES_SPLITS)[number];
 
 export interface SeriesPoint {
-  /** Первый день периода, YYYY-MM-DD */
+  /** First day of the period, YYYY-MM-DD */
   period: string;
-  /** Значение разбивки (категория или карта); нет, если разбивки нет */
+  /** Breakdown value (category or card); absent if there is no breakdown */
   key?: string;
   total: number;
   count: number;
@@ -80,24 +80,24 @@ export interface ExpenseListItem {
   card: string;
   category: string;
   name: string;
-  /** Сумма в драммах */
+  /** Amount in drams */
   amount: number;
-  /** Валюта ввода; у расходов без исходной суммы (original_currency пусто) это базовая валюта */
+  /** Entry currency; for expenses without an original amount (original_currency is empty) it is the base currency */
   currency: string;
   original: { amount: number; currency: string; rate: number } | null;
   createdBy: string;
   source: 'app' | 'excel';
   excelStatus: 'pending' | 'writing' | 'synced';
-  /** Как запись соотносится со строкой в Excel: идентична, ждёт записи, обновления или удаления */
+  /** How the record relates to the Excel row: identical, waiting for a write, update or removal */
   excelState: ExcelState;
-  /** Причина задержки записи в Excel (последняя ошибка), если она была */
+  /** Reason for the delay of the Excel write (the last error), if there was one */
   excelError: string | null;
   deletedAt: string | null;
   deletedReason: 'excel' | 'app' | null;
   updatedBy: string | null;
 }
 
-/** Кто добавлял расходы: логин для фильтра и имя для показа. */
+/** Who added expenses: login for the filter and name for display. */
 export interface Author {
   value: string;
   label: string;
@@ -106,7 +106,7 @@ export interface Author {
 
 export interface ExpenseListPage {
   items: ExpenseListItem[];
-  /** Всего записей по фильтрам (для страниц) и их сумма */
+  /** Total records matching the filters (for paging) and their sum */
   total: number;
   totalAmount: number;
 }

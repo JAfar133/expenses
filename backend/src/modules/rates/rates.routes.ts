@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { RatesService } from './rates.service.ts';
 
-/** Базовая валюта, доступные валюты и курсы к драму: форма пересчитывает сумму на лету. */
+/** Base currency, available currencies and rates to the dram: the form converts the amount on the fly. */
 export const ratesRoutes =
   (rates: Pick<RatesService, 'snapshot' | 'currencies'>): FastifyPluginAsync =>
   async (app) => {

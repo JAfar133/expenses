@@ -1,9 +1,9 @@
 export interface RemoteFileMetadata {
   size: number;
   modifiedAt: string;
-  /** QuickXorHash содержимого (в нижнем регистре), считается самим OneDrive */
+  /** QuickXorHash of the content (lowercase), computed by OneDrive itself */
   hash: string;
-  /** Идентификатор версии для проверки конфликтов: совпадает с хешем содержимого */
+  /** Version identifier for conflict checks: equals the content hash */
   version: string;
 }
 

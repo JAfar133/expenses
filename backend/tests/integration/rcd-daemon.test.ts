@@ -7,8 +7,8 @@ import { RcdRcloneClient } from '../../src/services/onedrive/rcd-client.ts';
 import { RcloneDaemon } from '../../src/services/onedrive/rcd-daemon.ts';
 
 /**
- * Запускает настоящий `rclone rcd`, но работает только с локальными папками,
- * поэтому OneDrive не нужен. Пропускается, если rclone не установлен.
+ * Starts a real `rclone rcd`, but works only with local folders,
+ * so OneDrive is not needed. Skipped if rclone is not installed.
  */
 const hasRclone = (() => {
   try {

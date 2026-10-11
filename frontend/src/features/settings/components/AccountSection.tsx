@@ -14,7 +14,7 @@ import { SettingsSection } from './SettingsSection.tsx';
 
 const fieldClass = `${inputClassName} h-11`;
 
-/** Аккаунт: имя, карта по умолчанию и часовой пояс можно менять; логин и права показаны для справки. */
+/** Account: name, default card and time zone are editable; login and permissions are shown for reference. */
 export function AccountSection({ user }: { user: AuthUser }) {
   const queryClient = useQueryClient();
   const cards = useQuery({ queryKey: ['cards'], queryFn: fetchCards, staleTime: Infinity });
@@ -31,7 +31,7 @@ export function AccountSection({ user }: { user: AuthUser }) {
     mutationFn: updateProfile,
     onSuccess: (updated) => {
       queryClient.setQueryData(CURRENT_USER_KEY, updated);
-      // «Сегодня» зависит от часового пояса: данные анализа нужно запросить заново
+      // "Today" depends on the time zone: analytics data must be refetched
       setAppTimezone(updated.timezone);
       void queryClient.invalidateQueries({ queryKey: ANALYTICS_KEY });
       setValues({

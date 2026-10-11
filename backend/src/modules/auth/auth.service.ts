@@ -17,9 +17,9 @@ import { generateToken, hashToken } from './tokens.ts';
 export interface AuthConfig {
   accessTtlMs: number;
   refreshTtlMs: number;
-  /** Абсолютный предел жизни сессии с момента входа */
+  /** Absolute session lifetime limit since login */
   sessionMaxMs: number;
-  /** Окно, в котором повторное предъявление прежнего refresh-токена считается гонкой двух запросов */
+  /** Window in which re-presenting the previous refresh token is treated as a race of two requests */
   rotationGraceMs: number;
   minPasswordLength: number;
 }
@@ -39,7 +39,7 @@ export interface LoginResult {
 
 export interface RefreshResult {
   user: AuthUser;
-  /** undefined — токены уже были обновлены параллельным запросом, куки менять не нужно */
+  /** undefined — the tokens were already refreshed by a concurrent request, no need to change cookies */
   tokens?: TokenPair;
 }
 
@@ -60,13 +60,13 @@ export class AuthService {
   }
 
   /**
-   * Приводит пользователей в базе к настройкам: создаёт, обновляет карту, отключает лишних.
-   * Пароль из `.env` хешируется и сохраняется, если он новый или изменился (тогда сессии завершаются).
+   * Brings the users in the database in line with the settings: creates, updates the card, disables extras.
+   * A password from `.env` is hashed and saved if it is new or has changed (then sessions are terminated).
    */
   async syncUsers(
     users: ConfiguredUser[],
     passwords: Map<string, string>,
-    /** Значения по умолчанию из конфигурации: кто может править и часовой пояс. Личный выбор пользователя их перекрывает. */
+    /** Defaults from the configuration: who can edit and the time zone. The user's personal choice overrides them. */
     defaults: { editors?: string[]; timezone?: string } = {},
   ): Promise<{ passwordsUpdated: string[]; withoutPassword: string[] }> {
     for (const [username, password] of passwords) {
@@ -95,15 +95,15 @@ export class AuthService {
         if (!user.passwordHash) result.withoutPassword.push(username);
         continue;
       }
-      // Пароль из .env не менялся с прошлого запуска: оставляем то, что у пользователя сейчас (возможно, он сам его сменил)
+      // The .env password has not changed since the last start: keep what the user has now (they may have changed it themselves)
       if (user.envPasswordHash && (await verifyPassword(password, user.envPasswordHash))) continue;
 
       if (user.passwordHash && (await verifyPassword(password, user.passwordHash))) {
-        // Пароль в базе уже такой же: только запоминаем, что .env учтён
+        // The password in the database is already the same: just remember that .env is accounted for
         await this.repository.markEnvPassword(user.id, user.passwordHash);
         continue;
       }
-      // .env новый или изменён: администратор задаёт (сбрасывает) пароль
+      // .env is new or changed: the administrator sets (resets) the password
       const hash = await hashPassword(password);
       await this.repository.setPasswordHash(user.id, hash, { envPasswordHash: hash });
       result.passwordsUpdated.push(username);
@@ -125,7 +125,7 @@ export class AuthService {
       password.length <= MAX_PASSWORD_LENGTH ? await this.repository.findUser(login) : undefined;
     const usable = user && !user.disabled && user.passwordHash;
 
-    // Для неизвестного пользователя тоже считаем хеш, чтобы время ответа не выдавало, есть ли такой логин
+    // For an unknown user we also compute a hash, so the response time does not reveal whether such a login exists
     const matches = await verifyPassword(
       password.slice(0, MAX_PASSWORD_LENGTH),
       usable ? user.passwordHash! : await this.getDummyHash(),
@@ -153,7 +153,7 @@ export class AuthService {
     return { user: publicUser(user), tokens };
   }
 
-  /** Пользователь по access-токену из куки или undefined, если токена нет, он неверен или истёк. */
+  /** User by the access token from the cookie, or undefined if there is no token, it is invalid or expired. */
   async authenticate(accessToken: string): Promise<AuthUser | undefined> {
     const session = await this.repository.findSessionByAccessHash(
       hashToken(accessToken),
@@ -163,8 +163,8 @@ export class AuthService {
   }
 
   /**
-   * Обновляет токены по refresh-токену. Каждый refresh-токен годится один раз: после обновления прежний
-   * считается использованным. Если им воспользуются позже окна гонки, это похоже на кражу, и вся сессия закрывается.
+   * Refreshes tokens by the refresh token. Each refresh token is good once: after refresh the previous one
+   * is considered used. If it is presented after the race window, this looks like theft and the whole session is closed.
    */
   async refresh(refreshToken: string): Promise<RefreshResult> {
     const oldHash = hashToken(refreshToken);
@@ -197,7 +197,7 @@ export class AuthService {
       now,
     );
 
-    // Параллельный запрос успел обновить сессию раньше: его куки уже у клиента
+    // A concurrent request managed to refresh the session first: its cookies are already with the client
     return rotated ? { user: session.user, tokens } : { user: session.user };
   }
 
@@ -210,8 +210,8 @@ export class AuthService {
   }
 
   /**
-   * Смена пароля самим пользователем. Текущий пароль проверяется и учитывается в защите от подбора:
-   * украденная сессия не даёт перебирать пароль. Остальные сессии пользователя закрываются, текущая остаётся.
+   * Password change by the user themselves. The current password is checked and counted in the brute-force protection:
+   * a stolen session cannot be used to guess the password. The user's other sessions are closed, the current one stays.
    */
   async changePassword(
     user: AuthUser,
@@ -256,8 +256,8 @@ export class AuthService {
   }
 
   /**
-   * Личные настройки аккаунта: имя, карта по умолчанию, часовой пояс. `null` возвращает значение по умолчанию.
-   * Допустимость значений (карта из списка, существующий часовой пояс) проверяет вызывающий.
+   * Personal account settings: name, default card, time zone. `null` restores the default value.
+   * The caller validates the values (card from the list, existing time zone).
    */
   async updateProfile(
     user: AuthUser,
@@ -273,8 +273,8 @@ export class AuthService {
   }
 
   /**
-   * Право править и удалять записи. Менять его могут только редакторы; последнего редактора лишить права нельзя,
-   * иначе управлять правами станет некому.
+   * Permission to edit and delete records. Only editors can change it; the last editor cannot be stripped of the permission,
+   * otherwise no one would be left to manage permissions.
    */
   async setUserRights(actor: AuthUser, username: string, canEdit: boolean): Promise<AuthUser> {
     if (!actor.canEdit) throw forbiddenError();
@@ -296,7 +296,7 @@ export class AuthService {
     return publicUser((await this.repository.findUser(username))!);
   }
 
-  /** Удаляет давно истёкшие и отозванные сессии. Возвращает их число. */
+  /** Deletes long-expired and revoked sessions. Returns their count. */
   deleteStaleSessions(): Promise<number> {
     return this.repository.deleteStaleSessions(new Date(this.now().getTime() - 24 * 3_600_000));
   }
@@ -333,7 +333,7 @@ export class AuthService {
   }
 }
 
-/** Пользователь без служебных полей (хешей паролей и т.п.): наружу выходят только эти поля. */
+/** User without internal fields (password hashes, etc.): only these fields go outside. */
 const publicUser = (user: AuthUser): AuthUser => ({
   id: user.id,
   username: user.username,

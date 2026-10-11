@@ -6,19 +6,19 @@ import { clearExpenseRow, writeExpenseRow } from './sheet-rows.ts';
 import { assertTableIsSupported, readTableRange } from './table.ts';
 import type { ExcelOptions, Expense } from './types.ts';
 
-/** Что нужно сделать со строками таблицы за один проход. */
+/** What needs to be done to the table rows in one pass. */
 export interface RowEdits {
-  /** Заменить строку: `from` — как она выглядит в Excel, `to` — как должна выглядеть */
+  /** Replace a row: `from` is how it looks in Excel, `to` is how it should look */
   updates: { from: Expense; to: Expense }[];
-  /** Убрать строки (как они выглядят в Excel) */
+  /** Remove rows (as they look in Excel) */
   removals: Expense[];
-  /** Дописать в конец */
+  /** Append to the end */
   appends: Expense[];
 }
 
 export type ExcelEditErrorCode = 'ROW_NOT_FOUND' | 'VERIFICATION_FAILED';
 
-/** Строку не нашли или результат не совпал с ожидаемым: файл не загружается. */
+/** The row was not found or the result did not match the expected one: the file is not uploaded. */
 export class ExcelEditError extends Error {
   constructor(
     readonly code: ExcelEditErrorCode,
@@ -32,15 +32,15 @@ export class ExcelEditError extends Error {
 const keyOf = (e: Expense) => JSON.stringify([e.date, e.card, e.category, e.name, e.amount]);
 
 /**
- * Применяет правки, удаления и добавления к таблице XLSX.
+ * Applies edits, deletions and additions to the XLSX table.
  *
- * Строки ищутся по содержимому (в Excel нет идентификаторов); одинаковые строки взаимозаменяемы.
- * Меняются только значения ячеек листа: стили, остальные части книги и номера строк остаются как были.
- * Удаление действует как «Удалить строку таблицы»: значения ниже сдвигаются вверх, последняя строка очищается.
- * Если ниже есть заполненные, но нечитаемые строки, их двигать нельзя: удаляемая строка просто очищается.
+ * Rows are found by content (Excel has no identifiers); identical rows are interchangeable.
+ * Only sheet cell values change: styles, the other parts of the workbook and row numbers stay as they were.
+ * Deletion acts like «Удалить строку таблицы» ("Delete table row"): the values below shift up, the last row is cleared.
+ * If there are filled but unreadable rows below, they must not be moved: the row being deleted is simply cleared.
  *
- * Перед возвратом файл читается заново и сверяется с ожидаемым содержимым таблицы целиком.
- * При любом расхождении выбрасывается ошибка, и загружать нечего.
+ * Before returning, the file is read again and checked against the expected content of the whole table.
+ * On any mismatch an error is thrown and there is nothing to upload.
  */
 export async function applyEditsToBuffer(
   source: Buffer,
@@ -50,7 +50,7 @@ export async function applyEditsToBuffer(
   const original = await readExcelTable(source, options);
   const invalid = new Set(original.invalidRows);
 
-  // Номера строк листа: что в них лежит сейчас
+  // Sheet row numbers: what they hold right now
   const model = new Map<number, Expense>(original.rows.map(({ row, expense }) => [row, expense]));
   const used = new Set<number>();
   const take = (expense: Expense): number => {
@@ -77,7 +77,7 @@ export async function applyEditsToBuffer(
     model.set(row, to);
   }
 
-  // Удаляем снизу вверх: сдвиг нижних строк не меняет номера тех, что выше
+  // Delete from bottom to top: shifting lower rows does not change the numbers of those above
   for (const row of removalRows) {
     const lastFilled = Math.max(...model.keys(), ...invalid);
     const canShift = ![...invalid].some((invalidRow) => invalidRow > row);
@@ -117,7 +117,7 @@ export async function applyEditsToBuffer(
   return output;
 }
 
-/** Ожидаемое содержимое таблицы: прежние строки с заменами и удалениями (по тем же строкам, что нашли), затем добавленные. */
+/** Expected table content: the previous rows with replacements and deletions (at the same rows that were found), then the added ones. */
 function expectedExpenses(
   rows: { row: number; expense: Expense }[],
   updateRows: { row: number; to: Expense }[],

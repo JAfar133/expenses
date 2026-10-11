@@ -47,7 +47,7 @@ const values = ({ date, card, category, name, amount }: StoredExpense): Expense 
   amount,
 });
 
-/** Запись приложения, уже лежащая в Excel. */
+/** An app record that is already in Excel. */
 async function syncedRecord(expense: Expense = coffee): Promise<StoredExpense> {
   const created = await expenses.insertPending(database, expense, 'misha');
   await sync.requestCycle();
@@ -75,7 +75,7 @@ beforeEach(async () => {
     excelOptions,
     state: new SyncStateRepository(database),
   });
-  await sync.requestCycle(); // импорт строк Excel
+  await sync.requestCycle(); // import of Excel rows
   baseline = await excel();
 });
 
@@ -95,7 +95,7 @@ describe('правка записи, уже находящейся в Excel', ()
     expect((await excel()).length).toBe(baseline.length + 1);
     const after = await reload(record.id);
     expect(after).toMatchObject({ ...changed, excelSnapshot: changed, excelStatus: 'synced' });
-    // Одна и та же запись: ни дубля, ни удалённой копии
+    // The same record: no duplicate and no deleted copy
     expect(
       (await expenses.listForReconcile(database)).filter((r) => r.name.startsWith('Кофе')),
     ).toHaveLength(1);
@@ -134,7 +134,7 @@ describe('правка записи, уже находящейся в Excel', ()
     expect(blocked.status).toBe('locked');
     expect(await count(coffee)).toBe(1);
     expect((await reload(record.id)).excelSnapshot).toEqual(coffee);
-    // Сверка при занятом файле не считает прежнюю строку пропавшей и не создаёт дубль
+    // Reconciliation while the file is busy does not treat the old row as missing or create a duplicate
     expect(
       (await expenses.listForReconcile(database)).filter((r) => r.name === 'Кофе'),
     ).toHaveLength(1);
@@ -163,7 +163,7 @@ describe('правка записи, уже находящейся в Excel', ()
   it('запись правили снова, пока файл загружался: следующий проход применяет и вторую правку', async () => {
     const record = await syncedRecord();
     await expenses.updateValues(database, record.id, { ...coffee, amount: 1 }, 'misha', false);
-    // Вторая правка приходит после того, как набор изменений уже собран, но до окончания загрузки
+    // The second edit arrives after the change set is built but before the upload finishes
     let release!: () => void;
     oneDrive.uploadGate = new Promise<void>((resolve) => (release = resolve));
     oneDrive.onUploadStart = () => {
@@ -174,7 +174,7 @@ describe('правка записи, уже находящейся в Excel', ()
     };
 
     const first = await sync.requestCycle();
-    // В файл попала первая правка, в снимок записана именно она
+    // The first edit made it into the file, and exactly it is recorded in the snapshot
     expect(first.updated).toBe(1);
     expect((await reload(record.id)).excelSnapshot).toEqual({ ...coffee, amount: 1 });
     oneDrive.uploadGate = undefined;
@@ -203,7 +203,7 @@ describe('правка записи, уже находящейся в Excel', ()
   it('строку изменили в Excel вручную: запись помечается удалённой из-за Excel, дубля нет', async () => {
     const record = await syncedRecord();
     await expenses.updateValues(database, record.id, { ...coffee, amount: 5 }, 'misha', false);
-    // Кто-то поправил строку прямо в Excel
+    // Someone edited the row directly in Excel
     oneDrive.remote = await (
       await import('../../src/services/excel/edit.ts')
     ).applyEditsToBuffer(
@@ -388,7 +388,7 @@ describe('сбои', () => {
     const record = await syncedRecord();
     await expenses.updateValues(database, record.id, { ...coffee, amount: 5 }, 'misha', false);
     const before = Buffer.from(oneDrive.remote);
-    // Из Excel пропало слишком много строк сразу: защита не даёт пометить их удалёнными
+    // Too many rows vanished from Excel at once: the safeguard prevents marking them deleted
     const all = await excel();
     oneDrive.remote = await (
       await import('../../src/services/excel/edit.ts')

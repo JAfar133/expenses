@@ -15,16 +15,16 @@ export interface ApiSuccess<T> {
   message?: string;
 }
 
-/** Нет ответа от сервера: запрос мог дойти, а мог и нет. */
+/** No response from the server: the request may or may not have arrived. */
 export const NETWORK_ERROR_CODE = 'NETWORK';
 
-/** Эти запросы сами отвечают за вход: обновлять по ним токен и повторять запрос бессмысленно. */
+/** These requests handle authentication themselves: refreshing the token and retrying on them is pointless. */
 const AUTH_ENDPOINTS = ['/auth/login', '/auth/refresh', '/auth/logout'];
 
 let refreshInFlight: Promise<void> | undefined;
 let sessionLostHandler: (() => void) | undefined;
 
-/** Вызывается, когда вход потерян окончательно (refresh-токен недействителен): пора показать форму входа. */
+/** Called when sign-in is lost for good (refresh token invalid): time to show the login form. */
 export function onSessionLost(handler: (() => void) | undefined): void {
   sessionLostHandler = handler;
 }
@@ -34,7 +34,7 @@ async function execute<T>(path: string, init: RequestInit): Promise<ApiSuccess<T
   try {
     response = await fetch(`/api${path}`, {
       ...init,
-      // Заголовок только для запросов с телом: Fastify отвечает 400 на JSON-запрос без тела
+      // Header only for requests with a body: Fastify answers 400 to a JSON request without a body
       headers: {
         ...(init.body === undefined ? {} : { 'Content-Type': 'application/json' }),
         ...init.headers,
@@ -57,8 +57,8 @@ async function execute<T>(path: string, init: RequestInit): Promise<ApiSuccess<T
 }
 
 /**
- * Обновляет токены по refresh-куке. Параллельные запросы, получившие 401 одновременно, ждут один общий
- * запрос на обновление: иначе они «сжигали» бы refresh-токен друг у друга.
+ * Refreshes tokens via the refresh cookie. Parallel requests that got 401 simultaneously wait for one shared
+ * refresh request: otherwise they would burn each other's refresh token.
  */
 async function refreshSession(): Promise<void> {
   refreshInFlight ??= execute('/auth/refresh', { method: 'POST' })
@@ -70,7 +70,7 @@ async function refreshSession(): Promise<void> {
   try {
     await refreshInFlight;
   } catch (error) {
-    // Отказ сервера (401) значит, что вход потерян. Сбой сети вход не отменяет.
+    // A server rejection (401) means sign-in is lost. A network failure does not cancel sign-in.
     if (error instanceof ApiError && error.status === 401) sessionLostHandler?.();
     throw error;
   }
@@ -83,7 +83,7 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     const expired = error instanceof ApiError && error.status === 401;
     if (!expired || AUTH_ENDPOINTS.some((endpoint) => path.startsWith(endpoint))) throw error;
 
-    // Access-токен истёк (живёт сутки): тихо получаем новый и повторяем запрос один раз
+    // The access token expired (lives a day): quietly get a new one and retry the request once
     await refreshSession();
     return execute<T>(path, init);
   }

@@ -7,7 +7,7 @@ interface SyncErrorInfo {
   message: string;
 }
 
-/** Превращает любую ошибку цикла в статус и понятное пользователю сообщение. */
+/** Turns any cycle error into a status and a user-friendly message. */
 export function describeSyncError(error: unknown): SyncErrorInfo {
   if (!(error instanceof OneDriveError)) {
     const code = (error as { code?: string }).code;

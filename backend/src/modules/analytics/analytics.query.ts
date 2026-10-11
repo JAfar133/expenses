@@ -1,17 +1,17 @@
 import type { AnalyticsFilters } from './analytics.types.ts';
 
 export interface WhereClause {
-  /** `WHERE …` или пустая строка */
+  /** `WHERE …` or an empty string */
   sql: string;
   params: unknown[];
 }
 
-/** Экранирует `%`, `_` и `\` для LIKE: пользователь ищет текст, а не шаблон. */
+/** Escapes `%`, `_` and `\` for LIKE: the user searches for text, not a pattern. */
 const escapeLike = (text: string) => text.replace(/[\\%_]/g, (char) => `\\${char}`);
 
 /**
- * Условие SQL по фильтрам. Значения всегда передаются параметрами ($1, $2, …),
- * в текст запроса подставляются только фиксированные фрагменты.
+ * SQL condition for the filters. Values are always passed as parameters ($1, $2, …),
+ * only fixed fragments are put into the query text.
  */
 export function buildWhere(
   filters: AnalyticsFilters,

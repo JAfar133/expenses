@@ -1,16 +1,16 @@
--- Правка и удаление расходов в приложении с переносом в Excel.
+-- Editing and deleting expenses in the app, propagated to Excel.
 --
--- excel_snapshot: как строка этой записи выглядит в Excel прямо сейчас (дата, карта, категория, наименование, стоимость).
--- Пусто, если записи в Excel нет. По снимку сверка сопоставляет строки Excel с записями, поэтому правка в приложении
--- не выглядит как «удалённая старая + новая». Что нужно сделать с Excel, выводится из состояния:
---   снимка нет, запись активна        → дописать строку
---   снимок есть и отличается          → заменить строку
---   снимок есть, запись удалена       → убрать строку
+-- excel_snapshot: how this record's row currently looks in Excel (date, card, category, name, cost).
+-- Empty if the record is not in Excel. Reconciliation uses the snapshot to match Excel rows to records, so an edit in the app
+-- does not look like "old one deleted + new one added". What must be done in Excel is derived from the state:
+--   no snapshot, record active        → append the row
+--   snapshot exists and differs       → replace the row
+--   snapshot exists, record deleted   → remove the row
 ALTER TABLE expenses
   ADD COLUMN excel_snapshot jsonb,
   ADD COLUMN updated_by text;
 
--- Уже находящиеся в Excel активные записи: строка Excel равна текущим значениям
+-- Active records already in Excel: the Excel row equals the current values
 UPDATE expenses
    SET excel_snapshot = jsonb_build_object(
          'date', to_char(date, 'YYYY-MM-DD'),
@@ -20,7 +20,7 @@ UPDATE expenses
          'amount', amount)
  WHERE excel_status = 'synced' AND deleted_at IS NULL;
 
--- Журнал изменений: кто, когда и что поменял (значения до и после)
+-- Change log: who changed what and when (values before and after)
 CREATE TABLE expense_changes (
   id          bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   expense_id  uuid        NOT NULL REFERENCES expenses (id) ON DELETE CASCADE,

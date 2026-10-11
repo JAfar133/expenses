@@ -220,7 +220,7 @@ describe('аккаунт', () => {
 
   it('после сохранения новый часовой пояс определяет «сегодня» во всём приложении', async () => {
     const { todayIso } = await import('../src/shared/utils/date.ts');
-    const instant = new Date('2026-10-14T21:30:00Z'); // по Еревану уже 15-е, по Нью-Йорку ещё 14-е
+    const instant = new Date('2026-10-14T21:30:00Z'); // Yerevan: already the 15th; New York: still the 14th
     const person = renderSettings();
     await screen.findByRole('heading', { name: 'Аккаунт' });
 

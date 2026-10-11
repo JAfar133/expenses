@@ -22,7 +22,7 @@ describe('date-math', () => {
 
   it('periodStart: день, понедельник недели, первое число месяца', () => {
     expect(periodStart('2026-10-15', 'day')).toBe('2026-10-15');
-    // 1 октября 2026 четверг, неделя начинается 28 сентября; воскресенье относится к прошедшей неделе
+    // 1 October 2026 is a Thursday, the week starts on 28 September; Sunday belongs to the past week
     expect(periodStart('2026-10-01', 'week')).toBe('2026-09-28');
     expect(periodStart('2026-10-04', 'week')).toBe('2026-09-28');
     expect(periodStart('2026-10-05', 'week')).toBe('2026-10-05');

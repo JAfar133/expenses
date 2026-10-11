@@ -7,12 +7,12 @@ import type {
 
 export { currencyLabel, flagOf } from '../../../shared/utils/currency-flags.ts';
 
-/** Сколько знаков после запятой показывать у суммы: драммы целые, остальные валюты с копейками. */
+/** How many decimals to show for an amount: drams are whole, other currencies have cents. */
 export const moneyDigits = (code: string, base: string) => (code === base ? 0 : 2);
 
 /**
- * Множитель для пересчёта из базовой валюты (драммы) в выбранную: сумма / курс.
- * Курс это сколько драмм стоит единица валюты; для базовой валюты и валюты без курса множитель 1.
+ * Multiplier for converting from the base currency (drams) to the selected one: amount / rate.
+ * The rate is how many drams a unit of currency costs; for the base currency and a currency without a rate the multiplier is 1.
  */
 export function scaleFactor(
   code: string,
@@ -33,7 +33,7 @@ const scalePeriod = (period: PeriodSummary, factor: number): PeriodSummary => ({
   perDay: period.perDay * factor,
 });
 
-/** Показатели в другой валюте. Количества, дни и даты не меняются. */
+/** Metrics in another currency. Counts, days and dates do not change. */
 export function scaleSummary(summary: SummaryResult, factor: number): SummaryResult {
   if (factor === 1) return summary;
   return {

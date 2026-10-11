@@ -3,8 +3,8 @@ import { ApiError, NETWORK_ERROR_CODE } from '../../../shared/api/http.ts';
 const GENERIC_MESSAGE = 'Не удалось сохранить расход. Попробуйте позже';
 
 /**
- * Текст ошибки сохранения. Если ответа нет, неизвестно, дошёл ли запрос,
- * поэтому просим проверить запись, чтобы не создать дубль.
+ * Save error text. If there is no response, it is unknown whether the request arrived,
+ * so we ask the user to check the record to avoid creating a duplicate.
  */
 export function toSaveErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {

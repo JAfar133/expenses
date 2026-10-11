@@ -114,7 +114,7 @@ describe('состояния', () => {
     renderAnalytics();
 
     await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('0 AMD'));
-    // График по дням, график категорий и карточка наименований
+    // Daily chart, category chart and the names card
     expect(await screen.findAllByText('За выбранный период расходов нет')).toHaveLength(3);
   });
 
@@ -139,7 +139,7 @@ describe('вид графиков', () => {
     const group = await screen
       .findByRole('radiogroup', { name: 'Вид графика', description: '' })
       .catch(() => null);
-    expect(group).toBeNull(); // два одноимённых переключателя: ниже ищем конкретный
+    expect(group).toBeNull(); // two same-named toggles: a specific one is looked up below
 
     const switches = screen.getAllByRole('radiogroup', { name: 'Вид графика' });
     const dailyKinds = within(switches[0]!)

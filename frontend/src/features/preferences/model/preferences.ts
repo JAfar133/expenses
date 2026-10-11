@@ -1,7 +1,7 @@
 /**
- * Настройки интерфейса, которые запоминаются для пользователя. Одно описание на всё приложение:
- * его используют и сами графики (допустимые значения, подписи), и страница настроек.
- * Ключи и значения должны совпадать с теми, что принимает сервер (`preferences.schema.ts`).
+ * UI preferences remembered per user. One definition for the whole app:
+ * used by the charts themselves (allowed values, labels) and by the settings page.
+ * Keys and values must match what the server accepts (`preferences.schema.ts`).
  */
 export interface PreferenceOption<V extends string> {
   value: V;
@@ -9,11 +9,11 @@ export interface PreferenceOption<V extends string> {
 }
 
 interface PreferenceDefinition<V extends string> {
-  /** Название настройки на странице настроек */
+  /** Preference title on the settings page */
   label: string;
-  /** Пояснение под названием */
+  /** Description under the title */
   description?: string;
-  /** Значение, пока пользователь ничего не выбрал */
+  /** Value until the user chooses anything */
   fallback: V;
   options: readonly PreferenceOption<V>[];
 }
@@ -94,7 +94,7 @@ export type PreferenceValue<K extends PreferenceKey> =
 
 export const PREFERENCE_KEYS = Object.keys(PREFERENCES) as PreferenceKey[];
 
-/** Все сохранённые настройки: только те, что пользователь менял. */
+/** All saved preferences: only those the user changed. */
 export type Preferences = { [K in PreferenceKey]?: PreferenceValue<K> };
 
 export const isAllowed = <K extends PreferenceKey>(
@@ -102,11 +102,11 @@ export const isAllowed = <K extends PreferenceKey>(
   value: unknown,
 ): value is PreferenceValue<K> => PREFERENCES[key].options.some((option) => option.value === value);
 
-/** Значения по умолчанию для всех настроек. */
+/** Default values for all preferences. */
 export const defaultPreferences = (): Preferences =>
   Object.fromEntries(PREFERENCE_KEYS.map((key) => [key, PREFERENCES[key].fallback])) as Preferences;
 
-/** Оставляет только известные ключи с допустимыми значениями: ответу сервера и старым записям не доверяем слепо. */
+/** Keeps only known keys with allowed values: server responses and old records are not trusted blindly. */
 export function sanitizePreferences(raw: unknown): Preferences {
   const clean: Record<string, string> = {};
   if (raw && typeof raw === 'object') {

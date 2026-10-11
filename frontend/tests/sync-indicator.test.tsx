@@ -15,7 +15,7 @@ const state = (overrides: Record<string, unknown> = {}) => {
     queued: 0,
     running: false,
     intervalMs: 300_000,
-    // До следующего запуска ровно 4 минуты 32 секунды по часам сервера
+    // Exactly 4 minutes 32 seconds until the next run, by the server clock
     nextRunAt: new Date(serverTime.getTime() + 272_000).toISOString(),
     serverTime: serverTime.toISOString(),
     lastResult: {
@@ -65,7 +65,7 @@ function renderIndicator(props: { failedVisibleMs?: number } = {}) {
   return userEvent.setup();
 }
 
-/** Единственная кнопка значка; её имя — полное описание состояния. */
+/** The badge's only button; its name is the full description of the state. */
 const button = () => screen.getByRole('button');
 
 describe('formatCountdown', () => {

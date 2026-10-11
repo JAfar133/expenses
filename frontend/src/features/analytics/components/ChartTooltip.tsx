@@ -1,11 +1,11 @@
 interface TooltipRow {
   label: string;
   value: string;
-  /** Цвет метки (не текста): текст остаётся в цвете интерфейса */
+  /** Marker color (not text): text keeps the UI color */
   color?: string;
 }
 
-/** Подсказка при наведении: заголовок и строки «метка · значение». */
+/** Hover tooltip: a title and "marker · value" rows. */
 export function ChartTooltip({ title, rows }: { title?: string; rows: TooltipRow[] }) {
   return (
     <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-800">

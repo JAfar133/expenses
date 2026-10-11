@@ -12,10 +12,10 @@ export { toExcelSerial } from './excel/dates.ts';
 export type { ExcelOptions, ExcelWriteResult, Expense } from './excel/types.ts';
 
 /**
- * Добавляет операцию в структурированную таблицу XLSX.
+ * Appends an operation to the structured XLSX table.
  *
- * Меняются только XML листа и XML таблицы. Остальные части книги (графики, стили,
- * calcChain, metadata) остаются нетронутыми — ExcelJS при пересохранении их теряет.
+ * Only the sheet XML and the table XML are changed. The other parts of the workbook (charts, styles,
+ * calcChain, metadata) stay untouched — ExcelJS loses them on re-save.
  */
 export async function appendExpenseToBuffer(
   source: Buffer,
@@ -29,7 +29,7 @@ export async function appendExpenseToBuffer(
   const { ref, range } = readTableRange(tableXml);
   assertTableIsSupported(tableXml, range);
 
-  // rowCount листа не используется: он включает пустые отформатированные строки
+  // the sheet's rowCount is not used: it includes empty formatted rows
   const lastFilledRow = findLastFilledRow(sheetXml, range.headerRow, range.lastRow);
   const targetRow = lastFilledRow + 1;
   const tableExtended = targetRow > range.lastRow;
@@ -47,7 +47,7 @@ export async function appendExpenseToBuffer(
   return { output, result };
 }
 
-/** Добавляет несколько операций подряд, каждая проверяется после записи. */
+/** Appends several operations in a row, each one is verified after the write. */
 export async function appendExpensesToBuffer(
   source: Buffer,
   expenses: Expense[],

@@ -9,7 +9,7 @@ afterEach(() => {
   setAppTimezone(undefined);
 });
 
-// Recharts следит за размером контейнера; в jsdom ResizeObserver нет
+// Recharts observes container size; jsdom has no ResizeObserver
 class ResizeObserverStub {
   observe() {}
   unobserve() {}

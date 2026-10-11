@@ -6,13 +6,13 @@
 
 body {
   @apply bg-zinc-100 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
-  /* Уважаем системный размер текста */
+  /* Respect the system text size */
   font: -apple-system-body;
   font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
-/* Цвета графиков. Палитра проверена на различимость при цветовой слепоте; в тёмной теме те же оттенки подобраны под тёмный фон */
+/* Chart colors. The palette is checked for color-blind distinguishability; dark theme uses the same hues tuned for a dark background */
 :root {
   --chart-surface: #ffffff;
   --chart-grid: #e4e4e7;
@@ -45,7 +45,7 @@ body {
   }
 }
 
-/* Календарь выбора диапазона дат */
+/* Date range picker calendar */
 .rdp-root {
   --rdp-accent-color: #4f46e5;
   --rdp-accent-background-color: #e0e7ff;

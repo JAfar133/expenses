@@ -28,7 +28,7 @@ beforeEach(async () => {
   t = await createTestApp(database);
 });
 
-/** Отправляет расход; без явного ключа каждый вызов считается новым запросом. */
+/** Submits an expense; without an explicit key every call counts as a new request. */
 const post = (body: unknown, key: string | null = randomUUID()) =>
   t.inject({
     method: 'POST',
@@ -208,7 +208,7 @@ describe('Excel отключён (не задан ONEDRIVE_FILE_PATH)', () => {
     expect(response.json().data.excelStatus).toBe('disabled');
     expect(response.json().message).toBe('Расход успешно добавлен');
     expect(t.sync.cycles).toBe(0);
-    // Запись остаётся в очереди: если Excel подключат позже, она допишется сама
+    // The record stays in the queue: if Excel is connected later, it is appended on its own
     expect(await t.repository.countQueue()).toBe(1);
   });
 });

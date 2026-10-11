@@ -23,7 +23,7 @@ const request = (overrides: { key?: string; userId?: string; payload?: unknown }
   ...overrides,
 });
 
-/** Запись, которую выполняет «работа»: так видно, сколько раз она реально произошла. */
+/** The write performed by the "job": shows how many times it actually happened. */
 const insertMarker = (
   tx: { query: (sql: string, params?: unknown[]) => Promise<unknown> },
   id: string,

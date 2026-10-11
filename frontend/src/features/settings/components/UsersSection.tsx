@@ -8,7 +8,7 @@ import { SettingsSection } from './SettingsSection.tsx';
 
 const USERS_KEY = ['users'];
 
-/** Права пользователей: кто может править и удалять записи. Блок виден только тем, у кого это право есть. */
+/** User permissions: who can edit and delete records. Visible only to those who have that permission. */
 export function UsersSection() {
   const queryClient = useQueryClient();
   const users = useQuery({ queryKey: USERS_KEY, queryFn: listUsers, retry: false });
@@ -19,7 +19,7 @@ export function UsersSection() {
       setUserRights(username, canEdit),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: USERS_KEY });
-      // Могли изменить собственные права: интерфейс должен это учесть сразу
+      // Own permissions may have changed: the UI must reflect it immediately
       queryClient.setQueryData(CURRENT_USER_KEY, await fetchCurrentUser());
     },
   });

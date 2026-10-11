@@ -7,18 +7,18 @@ const TONE_STYLES = {
   gone: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
 } as const;
 
-/** Значок состояния рядом с формой: символ дублирует цвет, чтобы смысл не зависел только от него. */
+/** State badge next to the form: the symbol duplicates the color so the meaning does not depend on it alone. */
 const TONE_ICON = { ok: '✓', queued: '⏳', gone: '–' } as const;
 
 interface ExcelStateBadgeProps {
   state: ExcelState;
-  /** Код причины задержки (например, FILE_LOCKED) */
+  /** Delay reason code (e.g. FILE_LOCKED) */
   error: string | null;
-  /** Excel отключён на сервере: сверять не с чем */
+  /** Excel is disabled on the server: nothing to reconcile with */
   excelEnabled: boolean;
 }
 
-/** Совпадает ли запись с Excel и дошла ли синхронизация; для записей в очереди ещё и почему. */
+/** Whether the record matches Excel and whether sync went through; for queued records, also why. */
 export function ExcelStateBadge({ state, error, excelEnabled }: ExcelStateBadgeProps) {
   if (!excelEnabled) {
     return (

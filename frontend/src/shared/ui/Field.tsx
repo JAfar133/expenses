@@ -29,7 +29,7 @@ export function Field({ label, htmlFor, error, children }: FieldProps) {
   );
 }
 
-/** Общий вид полей ввода: высота ≥ 48px и шрифт 16px (iOS не увеличивает страницу при фокусе). */
+/** Common look of input fields: height >= 48px and 16px font (iOS does not zoom the page on focus). */
 export const inputClassName =
   'block h-12 w-full min-w-0 appearance-none rounded-xl border border-zinc-300 bg-white px-4 text-base ' +
   'outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 ' +

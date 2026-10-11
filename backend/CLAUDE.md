@@ -1,45 +1,45 @@
 # Backend (Fastify + TypeScript + PostgreSQL)
 
-Общий контекст проекта: [../README.md](../README.md), как всё работает: [../docs/PIPELINE.md](../docs/PIPELINE.md),
-настройки и API: [README.md](README.md).
+Project context: [../README.md](../README.md), how everything works: [../docs/PIPELINE.md](../docs/PIPELINE.md) (in Russian),
+settings and API: [README.md](README.md).
 
-## Команды
+## Commands
 
 ```bash
-npm run dev         # tsx watch, http://127.0.0.1:3000 (нужен PostgreSQL: scripts/start-backend.sh поднимет его в Docker)
-npm test            # Vitest на PGlite: Docker и OneDrive не нужны (живые OneDrive-тесты пропускаются)
+npm run dev         # tsx watch, http://127.0.0.1:3000 (needs PostgreSQL: scripts/start-backend.sh starts it in Docker)
+npm test            # Vitest on PGlite: Docker and OneDrive are not needed (live OneDrive tests are skipped)
 npm run typecheck   # tsc
-npm run build       # dist/ (миграции копируются вместе)
+npm run build       # dist/ (migrations are copied along)
 npm run format      # Prettier
 ```
 
-Перед завершением работы: `typecheck`, `test`, `format`.
+Before finishing work: `typecheck`, `test`, `format`.
 
-## Структура
+## Structure
 
-- `src/modules/<имя>/` модули по задачам: `auth`, `expenses`, `sync`, `rates`, `analytics` (агрегаты и списки для страницы анализа считает SQL; значения только параметрами, сортировка по белому списку). В модуле routes, service, repository, types раздельно.
-- `src/storage/` репозиторий расходов (PostgreSQL), `src/infrastructure/` база и миграции, резервные копии, идемпотентность.
-- `src/services/` Excel (чтение через ExcelJS, запись точечной правкой XML) и OneDrive (rclone).
-- `src/config/env.ts` все переменные окружения (zod). Новая настройка: туда, в оба `.env.example`, `docker-compose.yml` и README.
-- Миграции: `src/infrastructure/database/migrations/NNNN_name.sql`, только вперёд, применённые не менять.
+- `src/modules/<name>/` modules by task: `auth`, `expenses`, `sync`, `rates`, `analytics` (aggregates and lists for the analytics page are computed by SQL; values only as parameters, sorting from an allowlist). Inside a module, routes, service, repository and types are separate.
+- `src/storage/` the expense repository (PostgreSQL), `src/infrastructure/` the database and migrations, backups, idempotency.
+- `src/services/` Excel (reading via ExcelJS, writing by targeted XML editing) and OneDrive (rclone).
+- `src/config/env.ts` all environment variables (zod). A new setting goes there, in both `.env.example` files, `docker-compose.yml` and the README.
+- Migrations: `src/infrastructure/database/migrations/NNNN_name.sql`, forward-only, do not change applied ones.
 
-## Правила
+## Rules
 
-- **PostgreSQL основное хранилище, Excel зеркало и необязателен** (`ONEDRIVE_FILE_PATH` пуст: `SyncService.enabled === false`).
-  Любой код с Excel обязан работать при отключённом и при недоступном Excel и не должен падать.
-- Расход пишется в БД вместе с ключом идемпотентности в одной транзакции, потом пробуется запись в Excel.
-- Правка и удаление в приложении меняют только базу; Excel приводит в порядок синхронизация по **снимку строки** (`excel_snapshot`).
-  Любой код, меняющий значения записи или статус удаления, должен сохранять эту связь (см. `reconcile.ts`, `excel/edit.ts`). Запись в Excel всегда проходит
-  резервную копию и проверку результата перед загрузкой.
-- Удаление записей из Excel это **мягкое удаление** (`deleted_at`), с защитой от массовой потери. Ничего не стираем физически.
-- Все маршруты кроме `/api/auth/*` и `/api/health` требуют входа (хук в `auth.plugin.ts`); публичный маршрут помечается `config: { public: true }`.
-- Настройки интерфейса пользователя: `modules/preferences` (список ключей и допустимых значений в `preferences.schema.ts`, он должен совпадать с `frontend/src/features/preferences/model/preferences.ts`).
-- Аккаунт: имя, карта, часовой пояс и право правки имеют значения по умолчанию из `.env` и личный выбор поверх них (`custom_*`, `can_edit_override`); эффективные значения собирает `EFFECTIVE_USER_COLUMNS` в `auth.repository.ts`. Права проверять по `request.user.canEdit`, а не по списку из `.env`. «Сегодня» считать по `request.user.timezone`.
-- Пароль из `.env` применяется только если значение в `.env` изменилось (`users.env_password_hash`); пароль, заданный пользователем, не перезаписывается.
-- Пароли и токены не логировать и не отдавать в ответах; в БД только хеши. Пароли пользователей берутся из `AUTH_PASSWORD_<ЛОГИН>`.
-- Ошибки для клиента: `AppError` с кодом и понятным русским сообщением, детали внутренних ошибок не раскрывать.
-- Тексты для пользователя и комментарии на русском, идентификаторы на английском.
-- Код чистый и структурированный: небольшие модули, одна задача на модуль, длинные выражения переносить (Prettier).
-- Тесты: интеграционные поверх PGlite (`tests/helpers/create-test-app.ts`, `fake-onedrive.ts`), на каждое поведение отдельный тест.
-- **Не запускать backend с реальным `backend/.env` ради проверки**: `dotenv` подтянет `ONEDRIVE_FILE_PATH` и сервер начнёт писать в настоящий Excel.
-  Для проверок задавайте `ONEDRIVE_FILE_PATH=` (пусто) и отдельные `DATABASE_URL`, `PORT`, `BACKUP_DIR`.
+- **PostgreSQL is the primary store, Excel is a mirror and is optional** (`ONEDRIVE_FILE_PATH` is empty: `SyncService.enabled === false`).
+  Any code that deals with Excel must work when Excel is disabled and when it is unavailable, and must not crash.
+- An expense is written to the DB together with the idempotency key in one transaction, then a write to Excel is attempted.
+- Editing and deleting in the app change only the database; synchronization brings Excel into line using the **row snapshot** (`excel_snapshot`).
+  Any code that changes an entry's values or deletion status must preserve this link (see `reconcile.ts`, `excel/edit.ts`). A write to Excel always goes through
+  a backup and a verification of the result before the upload.
+- Deleting entries from Excel is a **soft delete** (`deleted_at`), with protection against mass loss. We never erase anything physically.
+- All routes except `/api/auth/*` and `/api/health` require login (a hook in `auth.plugin.ts`); a public route is marked with `config: { public: true }`.
+- A user's UI settings: `modules/preferences` (the list of keys and allowed values is in `preferences.schema.ts`, and it must match `frontend/src/features/preferences/model/preferences.ts`).
+- Account: the name, card, time zone and editing right have defaults from `.env` and a personal choice on top of them (`custom_*`, `can_edit_override`); the effective values are assembled by `EFFECTIVE_USER_COLUMNS` in `auth.repository.ts`. Check rights by `request.user.canEdit`, not by the list from `.env`. Compute "today" by `request.user.timezone`.
+- The password from `.env` is applied only if the value in `.env` changed (`users.env_password_hash`); a password set by the user is not overwritten.
+- Do not log passwords and tokens or return them in responses; only hashes in the DB. Users' passwords are taken from `AUTH_PASSWORD_<USERNAME>`.
+- Errors for the client: `AppError` with a code and a clear Russian message; do not reveal the details of internal errors.
+- User-facing texts and comments are in Russian, identifiers are in English.
+- The code is clean and structured: small modules, one task per module, wrap long expressions (Prettier).
+- Tests: integration tests on top of PGlite (`tests/helpers/create-test-app.ts`, `fake-onedrive.ts`), a separate test for each behavior.
+- **Do not run the backend with the real `backend/.env` just to check something**: `dotenv` will pick up `ONEDRIVE_FILE_PATH` and the server will start writing to the real Excel.
+  For checks, set `ONEDRIVE_FILE_PATH=` (empty) and separate `DATABASE_URL`, `PORT`, `BACKUP_DIR`.

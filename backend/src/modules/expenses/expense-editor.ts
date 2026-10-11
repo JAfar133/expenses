@@ -6,19 +6,19 @@ import type {
   StoredExpense,
 } from '../../storage/expense.repository.ts';
 
-/** Какие поля записи можно править. Остальные (автор, источник, исходная валюта) остаются как были. */
+/** Which record fields can be edited. The rest (author, source, original currency) stay as they were. */
 export type ExpensePatch = Partial<Expense>;
 
 export interface EditResult {
   record: StoredExpense;
-  /** false: запись уже была в нужном состоянии, ничего не изменилось */
+  /** false: the record was already in the desired state, nothing changed */
   changed: boolean;
 }
 
 export interface ExpenseEditorOptions {
   database: Database;
   repository: ExpenseRepository;
-  /** Допустимые карты */
+  /** Allowed cards */
   cards: string[];
 }
 
@@ -38,9 +38,9 @@ const valuesOf = ({ date, card, category, name, amount }: Expense): Expense => (
 });
 
 /**
- * Правка, удаление и возврат записей. Меняет только базу: строки в Excel приводит в соответствие синхронизация
- * (она видит разницу между записью и снимком строки). Каждое изменение пишется в журнал.
- * Удаление мягкое: запись остаётся в базе и её можно вернуть.
+ * Editing, deleting and restoring records. Changes only the database: sync brings the Excel rows in line
+ * (it sees the difference between the record and the row snapshot). Every change is written to the log.
+ * Deletion is soft: the record stays in the database and can be restored.
  */
 export class ExpenseEditor {
   constructor(private readonly options: ExpenseEditorOptions) {}
@@ -58,7 +58,7 @@ export class ExpenseEditor {
       }
       if (JSON.stringify(before) === JSON.stringify(after)) return false;
 
-      // Исходная сумма в валюте перестаёт соответствовать драммам, если сумму поменяли
+      // The original currency amount no longer matches the drams if the amount was changed
       const clearOriginal = record.original !== null && after.amount !== before.amount;
       const { repository } = this.options;
       await repository.updateValues(tx, id, after, by, clearOriginal);
@@ -105,7 +105,7 @@ export class ExpenseEditor {
     });
   }
 
-  /** Общая обвязка: транзакция, блокировка записи, запрет менять запись, которую как раз пишут в Excel. */
+  /** Common wrapper: transaction, record lock, a ban on changing a record that is being written to Excel right now. */
   private async edit(
     id: string,
     work: (

@@ -100,7 +100,7 @@ describe('toSlices', () => {
     expect(slices).toHaveLength(7);
     const other = slices.at(-1)!;
     expect(other).toMatchObject({ key: 'Остальное', isOther: true, merged: 3 });
-    // Суммы: 100, 90, … 20. Шесть крупных отдельно, остальные три (40 + 30 + 20) вместе
+    // Sums: 100, 90, … 20. Six largest stay separate, the other three (40 + 30 + 20) are grouped
     expect(other.total).toBe(90);
     expect(other.count).toBe(6);
     expect(slices.reduce((sum, s) => sum + s.share, 0)).toBeCloseTo(1);
@@ -125,7 +125,7 @@ describe('cumulative', () => {
       [100, 1],
       [150, 3],
     ]);
-    expect(points[0]!.total).toBe(100); // исходные данные не меняются
+    expect(points[0]!.total).toBe(100); // source data is not mutated
   });
 });
 

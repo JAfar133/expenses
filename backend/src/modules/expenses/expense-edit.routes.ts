@@ -31,7 +31,7 @@ export interface ExpenseEditRoutesDeps {
 export const expenseEditRoutes =
   ({ editor, repository, sync, inlineExcelWaitMs }: ExpenseEditRoutesDeps): FastifyPluginAsync =>
   async (app) => {
-    /** Правка и удаление доступны только редакторам; остальные пользователи могут лишь смотреть. */
+    /** Editing and deleting are available to editors only; other users can only view. */
     const requireEditor = (request: { user?: { canEdit: boolean } }) => {
       if (!request.user?.canEdit) throw forbiddenError();
     };
@@ -42,7 +42,7 @@ export const expenseEditRoutes =
       return parsed.data;
     };
 
-    /** Ответ: запись и её состояние относительно Excel. Если Excel отвечает быстро, изменение уже в нём. */
+    /** Response: the record and its state relative to Excel. If Excel responds quickly, the change is already in it. */
     const respond = async (id: string, changed: boolean, message: string) => {
       if (changed && sync.enabled) await waitForExcelWrite(sync, inlineExcelWaitMs);
       const record = (await repository.findById(id))!;

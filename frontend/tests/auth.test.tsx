@@ -28,7 +28,7 @@ const fail = (status: number, code: string, message: string) =>
 type Access = 'valid' | 'expired';
 type LoginBehavior = 'ok' | 'invalid' | 'throttled' | 'network' | 'server-error';
 
-/** Поддельный сервер: помнит, действует ли вход, и записывает все обращения. */
+/** Fake server: remembers whether the login is valid and records all requests. */
 function installFakeServer(
   initial: {
     access?: Access;
@@ -116,7 +116,7 @@ describe('вход при открытии приложения', () => {
 
     expect(await screen.findByRole('heading', { name: 'Вход' })).toBeInTheDocument();
     expect(screen.queryByText('Добавить расход')).not.toBeInTheDocument();
-    // Сначала пробуем тихо восстановить вход по refresh-токену
+    // First try to silently restore the session using the refresh token
     expect(server.calls.slice(0, 2)).toEqual(['GET /auth/me', 'POST /auth/refresh']);
   });
 

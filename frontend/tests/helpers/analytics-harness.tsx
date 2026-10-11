@@ -39,7 +39,7 @@ export const categories = [
   { key: 'продукты', total: 600, count: 2, average: 300 },
 ];
 
-/** Наименования по категориям: ответ разбивки `by=name` при фильтре по одной категории. */
+/** Names by category: the `by=name` breakdown response when filtering by one category. */
 export const namesByCategory: Record<string, unknown[]> = {
   кафе: [
     { key: 'Латте', total: 900, count: 2, average: 450 },
@@ -50,11 +50,11 @@ export const namesByCategory: Record<string, unknown[]> = {
 
 type Handler = (url: URL) => Response | Promise<Response>;
 
-/** Ответы поддельного сервера и журнал запросов; в каждом тесте создаются заново. */
+/** Fake server responses and the request log; recreated in every test. */
 export const harness: {
   handlers: Record<string, Handler>;
   requests: string[];
-  /** Тела запросов в том же порядке, что и `requests` */
+  /** Request bodies in the same order as `requests` */
   bodies: unknown[];
 } = {
   handlers: {},
@@ -62,10 +62,13 @@ export const harness: {
   bodies: [],
 };
 
-/** Общая подготовка тестов страницы анализа: «сегодня» 15 октября 2026, поддельный сервер, чистое хранилище. */
+/**
+ * Shared setup for analytics page tests: "today" is October 15, 2026, a fake server,
+ * clean storage.
+ */
 export function setupAnalyticsHarness() {
   beforeEach(() => {
-    // Фиксируем только дату: от неё зависит текущий месяц, а таймеры нужны настоящие (задержка поиска)
+    // Fake only the date: the current month depends on it, but timers must be real (search delay)
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(2026, 9, 15, 12, 0, 0));
     localStorage.clear();
@@ -106,7 +109,7 @@ export function setupAnalyticsHarness() {
           serverTime: '',
         }),
       '/api/cards': () => ok(['Миша', 'Настя']),
-      // Настройки пользователя: по умолчанию пусты, сохранение возвращает то, что прислали
+      // User settings: empty by default, saving returns what was sent
       '/api/preferences': () => ok({}),
       'PUT /api/preferences': () => ok(harness.bodies.at(-1) ?? {}),
       '/api/categories': () => ok(['кафе', 'продукты']),
@@ -118,7 +121,7 @@ export function setupAnalyticsHarness() {
         harness.requests.push(method === 'GET' ? input : `${method} ${input}`);
         harness.bodies.push(init?.body === undefined ? undefined : JSON.parse(String(init.body)));
         const url = new URL(input, 'http://localhost');
-        // Идентификатор записи в адресе заменяем на :id, чтобы обработчики не зависели от конкретных значений
+        // Replace the record id in the URL with :id so handlers do not depend on concrete values
         const path = url.pathname.replace(
           /[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}|\/id-[\w-]+/g,
           ':id',

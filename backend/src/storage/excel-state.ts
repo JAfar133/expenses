@@ -1,13 +1,13 @@
 import type { DeletedReason, Expense } from './expense.repository.ts';
 
 /**
- * Как запись соотносится со строкой в Excel:
- *   synced          строка в Excel идентична записи, синхронизация прошла
- *   pending-add     записи в Excel ещё нет, она ждёт в очереди на добавление
- *   pending-update  запись исправлена, строка в Excel прежняя: ждёт обновления
- *   pending-remove  запись удалена, но её строка ещё в Excel: ждёт удаления
- *   removed         запись удалена в приложении, строка из Excel убрана
- *   missing         запись удалена, потому что её строку убрали в самом Excel
+ * How a record relates to its Excel row:
+ *   synced          the Excel row is identical to the record, sync is done
+ *   pending-add     the record is not in Excel yet, it waits in the add queue
+ *   pending-update  the record was edited, the Excel row is the old one: waits for an update
+ *   pending-remove  the record was deleted but its row is still in Excel: waits for removal
+ *   removed         the record was deleted in the app, the row was removed from Excel
+ *   missing         the record was deleted because its row was removed in Excel itself
  */
 export type ExcelState =
   'synced' | 'pending-add' | 'pending-update' | 'pending-remove' | 'removed' | 'missing';
@@ -25,7 +25,7 @@ const sameValues = (a: Expense, b: Expense) =>
   a.name === b.name &&
   a.amount === b.amount;
 
-/** Состояние записи относительно Excel; выводится из самой записи и снимка строки. */
+/** Record state relative to Excel; derived from the record itself and the row snapshot. */
 export function describeExcelState(row: ExcelStateInput): ExcelState {
   if (row.deletedAt !== null) {
     if (row.excelSnapshot !== null) return 'pending-remove';

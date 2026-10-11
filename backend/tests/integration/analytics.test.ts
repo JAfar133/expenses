@@ -32,8 +32,8 @@ const add = (
 ) => expenses.insertPending(database, { date, card, category, name, amount }, createdBy, original);
 
 /**
- * Октябрь 2026, «сегодня» 15 октября. В периоде 1–31 октября: 5 записей на 2100,
- * в предыдущем отрезке такой же длины (16–30 сентября): одна запись на 900.
+ * October 2026, "today" is 15 October. In the period 1-31 October: 5 records totalling 2100,
+ * in the previous span of the same length (16-30 September): one record of 900.
  */
 async function seed() {
   await add('2026-10-01', 'Миша', 'кафе', 'Латте', 500);
@@ -80,7 +80,7 @@ describe('summary', () => {
       activeDays: 3,
       firstDate: '2026-10-01',
       lastDate: '2026-10-10',
-      // С 1 по 15 октября прошло 15 дней (будущие дни месяца не считаются)
+      // 15 days passed from 1 to 15 October (future days of the month do not count)
       days: 15,
       perDay: 140,
     });
@@ -190,7 +190,7 @@ describe('breakdown', () => {
   it('дни недели: 1 понедельник … 7 воскресенье', async () => {
     const rows = await service.breakdown(OCTOBER, 'weekday', 100);
 
-    // 1 октября 2026 четверг (4), 3 и 10 октября суббота (6)
+    // 1 October 2026 is a Thursday (4), 3 and 10 October are Saturdays (6)
     expect(rows.map((r) => [r.key, r.total])).toEqual([
       ['6', 1300],
       ['4', 800],
@@ -328,7 +328,7 @@ describe('list', () => {
       currency: 'USD',
       original: { currency: 'USD' },
     });
-    // Запись, пришедшая из Excel, тоже в базовой валюте
+    // A record that came from Excel is also in the base currency
     await database.query(
       `INSERT INTO expenses (id, date, card, category, name, amount, source, excel_status, created_by)
        VALUES (gen_random_uuid(), '2026-10-04', 'Миша', 'кафе', 'Из Excel', 50, 'excel', 'synced', 'excel')`,
@@ -372,7 +372,7 @@ describe('authors', () => {
 
     const authors = await service.authors();
 
-    // misha: 4 записи (две по умолчанию в октябре + две в других местах), nastya: 2, excel: 1
+    // misha: 4 records (two default ones in October + two elsewhere), nastya: 2, excel: 1
     expect(authors.map((a) => [a.value, a.label])).toEqual([
       ['misha', 'Миша'],
       ['nastya', 'Настя'],

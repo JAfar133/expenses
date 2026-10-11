@@ -1,12 +1,12 @@
-# Публичный доступ к приложению с HTTPS. Подключается поверх основного файла:
+# Public access to the app with HTTPS. Applied on top of the main file:
 #
 #   docker compose -f docker-compose.yml -f docker-compose.public.yml up -d
 #
-# Что меняется:
-#   - web слушает порты 80 и 443 на всех адресах (нужны для выдачи сертификата и для HTTPS);
-#   - сайт защищён входом в самом приложении (логин и пароль пользователей), отдельного пароля Caddy на нём нет;
-#   - pgAdmin доступен через тот же Caddy на отдельном адресе PGADMIN_ADDRESS (HTTPS, пароль Caddy
-#     PGADMIN_BASIC_AUTH_* и собственный вход pgAdmin); его порт 5051 и порт PostgreSQL наружу не открыты.
+# What changes:
+#   - web listens on ports 80 and 443 on all addresses (needed for certificate issuance and HTTPS);
+#   - the site is protected by the app's own login (user logins and passwords), with no separate Caddy password;
+#   - pgAdmin is available through the same Caddy on a separate address PGADMIN_ADDRESS (HTTPS, Caddy password
+#     PGADMIN_BASIC_AUTH_* and pgAdmin's own login); its port 5051 and the PostgreSQL port are not exposed.
 services:
   web:
     volumes:
@@ -20,13 +20,13 @@ services:
       - "80:80"
       - "443:443"
 
-  # На сервере без паролей пользователей запускаться нельзя: войти было бы некому
+  # On a server, it must not start without user passwords: nobody would be able to log in
   backend:
     environment:
       AUTH_PASSWORD_MISHA: ${AUTH_PASSWORD_MISHA:?Задайте AUTH_PASSWORD_MISHA в .env (не короче 8 символов)}
       AUTH_PASSWORD_NASTYA: ${AUTH_PASSWORD_NASTYA:?Задайте AUTH_PASSWORD_NASTYA в .env (не короче 8 символов)}
 
-  # pgAdmin стоит за прокси: пусть учитывает заголовки X-Forwarded-* (адрес, протокол HTTPS), которые добавляет Caddy
+  # pgAdmin sits behind a proxy: let it honor the X-Forwarded-* headers (address, HTTPS protocol) added by Caddy
   pgadmin:
     environment:
       PGADMIN_CONFIG_PROXY_X_FOR_COUNT: "1"

@@ -27,7 +27,7 @@ interface MonthVsMonthProps {
   loading?: boolean;
 }
 
-/** Два месяца рядом: куда уходит больше или меньше денег, чем в другом месяце. */
+/** Two months side by side: where more or less money goes than in the other month. */
 export function MonthVsMonth({
   months,
   a,

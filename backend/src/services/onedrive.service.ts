@@ -19,21 +19,21 @@ export type {
 } from './onedrive/types.ts';
 
 export interface RcloneOneDriveOptions {
-  /** Имя remote в конфигурации rclone, например `onedrive` */
+  /** Name of the remote in the rclone config, e.g. `onedrive` */
   remote: string;
-  /** Путь к файлу внутри OneDrive, например `Документы/Расходы-dev.xlsx` */
+  /** Path to the file inside OneDrive, e.g. `Документы/Расходы-dev.xlsx` */
   filePath: string;
   client: RcloneClient;
   tempDir?: string;
-  /** Количество попыток скачивания при временных ошибках */
+  /** Number of download attempts on transient errors */
   downloadAttempts?: number;
   retryBaseDelayMs?: number;
 }
 
 /**
- * Версия файла — хеш его содержимого. Версия скачанной копии считается по самим скачанным
- * байтам, поэтому она всегда точно соответствует тому, что мы изменяем, даже если файл на
- * OneDrive поменялся прямо во время скачивания.
+ * File version is a hash of its content. The version of a downloaded copy is computed from the downloaded
+ * bytes, so it always matches exactly what we modify, even if the file on
+ * OneDrive changed right during the download.
  */
 export class RcloneOneDriveService implements OneDriveService {
   private readonly client: RcloneClient;
@@ -64,8 +64,8 @@ export class RcloneOneDriveService implements OneDriveService {
   }
 
   /**
-   * Скачивает файл в новый временный каталог. Чтение безопасно повторять,
-   * поэтому временные ошибки приводят к повтору с нарастающей паузой.
+   * Downloads the file into a new temporary directory. Reading is safe to repeat,
+   * so transient errors lead to a retry with an increasing pause.
    */
   async downloadFile(): Promise<DownloadedFile> {
     for (let attempt = 1; ; attempt++) {
@@ -82,10 +82,10 @@ export class RcloneOneDriveService implements OneDriveService {
   }
 
   /**
-   * Загружает файл поверх удалённого, если тот не менялся с момента скачивания.
-   * Запись никогда не повторяется автоматически: после сбоя неизвестно, применилась ли она.
+   * Uploads the file over the remote one if the latter has not changed since the download.
+   * A write is never retried automatically: after a failure it is unknown whether it was applied.
    *
-   * Между проверкой версии и загрузкой остаётся небольшое окно гонки (ограничение rclone).
+   * A small race window remains between the version check and the upload (an rclone limitation).
    */
   async uploadFile(localPath: string, expectedVersion: string): Promise<UploadResult> {
     const current = await this.getFileMetadata();
@@ -117,7 +117,7 @@ export class RcloneOneDriveService implements OneDriveService {
     }
   }
 
-  /** Сверяет хеш файла на OneDrive с хешем локального, чтобы убедиться в целостности. */
+  /** Compares the file hash on OneDrive with the local one to verify integrity. */
   private async verifyUpload(localPath: string): Promise<string> {
     const [localHash, remote] = await Promise.all([
       this.client.hashLocal(localPath),

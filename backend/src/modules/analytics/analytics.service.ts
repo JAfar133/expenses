@@ -14,15 +14,15 @@ import type {
 } from './analytics.types.ts';
 
 export interface PeriodSummary extends SummaryStats {
-  /** Сколько дней периода прошло (до сегодня): по ним считается расход в день */
+  /** How many days of the period have passed (up to today): daily spending is computed from them */
   days: number;
-  /** Средний расход в день за прошедшие дни периода */
+  /** Average spending per day over the elapsed days of the period */
   perDay: number;
 }
 
 export interface SummaryResult {
   current: PeriodSummary;
-  /** Предыдущий период такой же длины; только если заданы обе границы периода */
+  /** Previous period of the same length; only if both period bounds are set */
   previous: PeriodSummary | null;
 }
 
@@ -31,11 +31,11 @@ export interface AnalyticsServiceOptions {
     AnalyticsRepository,
     'summary' | 'breakdown' | 'timeseries' | 'list' | 'authors'
   >;
-  /** Сегодняшняя дата в часовом поясе пользователя (YYYY-MM-DD) */
+  /** Today's date in the user's time zone (YYYY-MM-DD) */
   today: (timezone: string) => string;
 }
 
-/** Показатели, графики и списки для страницы анализа. */
+/** Metrics, charts and lists for the analytics page. */
 export class AnalyticsService {
   constructor(private readonly options: AnalyticsServiceOptions) {}
 
@@ -44,7 +44,7 @@ export class AnalyticsService {
     const stats = await this.options.repository.summary(filters);
     const current = withPerDay(stats, elapsedDays(filters, stats, today));
 
-    // Сравниваем с таким же числом дней перед началом периода: для текущего месяца это тот же отрезок прошлого
+    // We compare with the same number of days before the period start: for the current month it is the same stretch of the previous one
     const length = elapsedDays(filters, stats, today);
     if (!filters.from || !filters.to || length === 0) return { current, previous: null };
 
@@ -63,8 +63,8 @@ export class AnalyticsService {
   }
 
   /**
-   * Суммы по периодам. Без разбивки пропущенные периоды заполняются нулями, чтобы на графике не было дыр;
-   * будущие дни не добавляются.
+   * Sums by period. Without a breakdown, missing periods are filled with zeros so the chart has no gaps;
+   * future days are not added.
    */
   async timeseries(
     filters: AnalyticsFilters,
@@ -73,7 +73,7 @@ export class AnalyticsService {
     timezone = 'UTC',
   ): Promise<SeriesPoint[]> {
     const points = await this.options.repository.timeseries(filters, granularity, splitBy);
-    // Без разбивки и без известного периода заполнять нечем
+    // Without a breakdown and without a known period there is nothing to fill with
     const noRange = points.length === 0 && !(filters.from && filters.to);
     if (splitBy || noRange) return points;
 
@@ -93,7 +93,7 @@ export class AnalyticsService {
   }
 }
 
-/** Сколько дней периода прошло к сегодняшнему дню (без будущих дней). */
+/** How many days of the period have passed by today (without future days). */
 function elapsedDays(filters: AnalyticsFilters, stats: SummaryStats, today: string): number {
   const from = filters.from ?? stats.firstDate;
   if (!from) return 0;

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Запуск backend (Fastify) в режиме разработки: http://127.0.0.1:3000
-# Если локальный PostgreSQL не запущен, поднимет его через docker compose.
+# Start the backend (Fastify) in development mode: http://127.0.0.1:3000
+# If local PostgreSQL is not running, starts it via docker compose.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 

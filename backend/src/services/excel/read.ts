@@ -7,7 +7,7 @@ import { readTableRange } from './table.ts';
 import type { ExcelOptions, ExcelWriteResult, Expense } from './types.ts';
 
 const MAX_NAME_LENGTH = 255;
-/** Сколько описаний пропущенных строк возвращаем (чтобы ответ не разрастался). */
+/** How many descriptions of skipped rows we return (so the response does not grow). */
 const MAX_REPORTED_SKIPS = 20;
 
 export interface SkippedRow {
@@ -16,29 +16,29 @@ export interface SkippedRow {
 }
 
 export interface ExcelExpenses {
-  /** Корректные операции в порядке строк таблицы */
+  /** Valid operations in table row order */
   expenses: Expense[];
-  /** Сколько заполненных строк нельзя импортировать (некорректные значения) */
+  /** How many filled rows cannot be imported (invalid values) */
   skippedCount: number;
   skipped: SkippedRow[];
 }
 
-/** Корректная строка таблицы с её номером на листе. */
+/** A valid table row with its sheet number. */
 export interface TableRow {
   row: number;
   expense: Expense;
 }
 
 export interface ExcelTable extends ExcelExpenses {
-  /** Корректные строки с номерами листа, в порядке строк */
+  /** Valid rows with sheet numbers, in row order */
   rows: TableRow[];
-  /** Номера всех заполненных, но некорректных строк (в `skipped` описаны не больше 20) */
+  /** Numbers of all filled but invalid rows (`skipped` describes at most 20) */
   invalidRows: number[];
 }
 
 /**
- * Читает все операции из структурированной таблицы вместе с номерами строк. Пустые строки игнорируются,
- * а частично заполненные или некорректные пропускаются и перечисляются в `skipped`.
+ * Reads all operations from the structured table together with row numbers. Empty rows are ignored,
+ * while partially filled or invalid ones are skipped and listed in `skipped`.
  */
 export async function readExcelTable(
   source: Uint8Array,
@@ -75,7 +75,7 @@ export async function readExcelTable(
   return table;
 }
 
-/** Читает все операции из таблицы (без номеров строк). */
+/** Reads all operations from the table (without row numbers). */
 export async function readExcelExpenses(
   source: Uint8Array,
   options: ExcelOptions,
@@ -115,7 +115,7 @@ function parseRow([date, card, category, name, amount]: CellValue[]): Expense | 
 const isEmptyCell = (value: CellValue) =>
   value === null || value === undefined || (typeof value === 'string' && value.trim() === '');
 
-/** Значение ячейки: формулы заменяются результатом, форматированный текст — склеенной строкой. */
+/** Cell value: formulas are replaced by their result, rich text by a concatenated string. */
 function unwrap(value: CellValue): CellValue {
   if (value && typeof value === 'object' && 'result' in value) {
     return (value.result ?? null) as CellValue;
@@ -143,7 +143,7 @@ function toNumber(value: CellValue): number | null {
   return typeof cell === 'number' ? cell : null;
 }
 
-/** Даты в Excel — настоящие даты (Date в UTC) или числа, если у ячейки нет формата даты. */
+/** Dates in Excel are real dates (Date in UTC) or numbers if the cell has no date format. */
 function toIsoDate(value: CellValue): string | null {
   const cell = unwrap(value);
   if (cell instanceof Date && !Number.isNaN(cell.getTime())) {
@@ -155,7 +155,7 @@ function toIsoDate(value: CellValue): string | null {
   return null;
 }
 
-/** Повторно открывает записанный файл и убеждается, что операция лежит внутри таблицы. */
+/** Reopens the written file and makes sure the operation is inside the table. */
 export async function verifyAppendedExpense(
   output: Uint8Array,
   options: ExcelOptions,

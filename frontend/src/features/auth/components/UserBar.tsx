@@ -2,7 +2,7 @@ import { Link } from 'react-router';
 import type { AuthUser } from '../api/auth.api.ts';
 import { useLogout } from '../hooks/useAuth.ts';
 
-/** Кто вошёл, и кнопка выхода. */
+/** Who is signed in, and the sign-out button. */
 export function UserBar({ user }: { user: AuthUser }) {
   const logout = useLogout();
 
@@ -41,7 +41,7 @@ export function UserBar({ user }: { user: AuthUser }) {
   );
 }
 
-/** Шестерёнка (контурная иконка), цвет берётся из текста. */
+/** Gear (outline icon), color is taken from the text. */
 function GearIcon() {
   return (
     <svg

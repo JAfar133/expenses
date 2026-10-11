@@ -2,13 +2,13 @@ import { apiRequest } from '../../../shared/api/http.ts';
 import { toSearch, type AnalyticsFilters } from './analytics.api.ts';
 
 /**
- * Как запись соотносится со строкой в Excel:
- *   synced          идентична, синхронизация прошла
- *   pending-add     в Excel ещё нет, ждёт в очереди на добавление
- *   pending-update  исправлена, в Excel прежняя строка: ждёт обновления
- *   pending-remove  удалена, но строка ещё в Excel: ждёт удаления
- *   removed         удалена в приложении, строка из Excel убрана
- *   missing         удалена, потому что строку убрали в самом Excel
+ * How a record relates to its Excel row:
+ * synced          identical, sync went through
+ * pending-add     not in Excel yet, waiting in the add queue
+ * pending-update  edited, Excel has the old row: waiting for an update
+ * pending-remove  deleted, but the row is still in Excel: waiting for removal
+ * removed         deleted in the app, the row is removed from Excel
+ * missing         deleted because the row was removed in Excel itself
  */
 export type ExcelState =
   'synced' | 'pending-add' | 'pending-update' | 'pending-remove' | 'removed' | 'missing';
@@ -19,15 +19,15 @@ export interface OperationItem {
   card: string;
   category: string;
   name: string;
-  /** Сумма в драммах */
+  /** Amount in drams */
   amount: number;
-  /** Валюта ввода; пустая исходная валюта означает базовую (AMD) */
+  /** Input currency; an empty original currency means the base (AMD) */
   currency: string;
   original: { amount: number; currency: string; rate: number } | null;
   createdBy: string;
   source: 'app' | 'excel';
   excelState: ExcelState;
-  /** Причина задержки записи в Excel (код ошибки), если была */
+  /** Reason the Excel write was delayed (error code), if any */
   excelError: string | null;
   deletedAt: string | null;
   deletedReason: 'excel' | 'app' | null;
@@ -54,13 +54,13 @@ export interface ListQuery {
 export const fetchOperations = async (filters: AnalyticsFilters, query: ListQuery) =>
   (await apiRequest<OperationsPage>(`/expenses${toSearch(filters, { ...query })}`)).data;
 
-/** Что можно править в записи. */
+/** What can be edited in a record. */
 export interface ExpensePatch {
   date?: string;
   card?: string;
   category?: string;
   name?: string;
-  /** Целая сумма в драммах */
+  /** Whole amount in drams */
   amount?: number;
 }
 

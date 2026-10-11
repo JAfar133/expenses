@@ -7,21 +7,21 @@ import type { DownloadedFile, OneDriveService } from '../../src/services/onedriv
 
 const sha = (data: Buffer) => createHash('sha1').update(data).digest('hex');
 
-/** OneDrive в памяти: «удалённый» файл — буфер; версия — хеш содержимого, как в настоящем сервисе. */
+/** In-memory OneDrive: the "remote" file is a buffer; the version is a content hash, as in the real service. */
 export class FakeOneDrive implements OneDriveService {
   downloads = 0;
   uploads = 0;
 
-  /** Файл открыт в Excel: загрузка отклоняется с 423 */
+  /** The file is open in Excel: uploads are rejected with 423 */
   locked = false;
   downloadError?: Error;
-  /** Загрузка применяется, но ответ теряется (сеть оборвалась после записи) */
+  /** The upload is applied but the response is lost (network dropped after the write) */
   failAfterUpload?: Error;
-  /** Загрузка не применяется и завершается ошибкой */
+  /** The upload is not applied and fails with an error */
   failBeforeUpload?: Error;
-  /** Вызывается после скачивания: так имитируется чужая правка файла во время нашей работы */
+  /** Called after download: simulates someone else's edit of the file while we work */
   afterDownload?: () => void;
-  /** Загрузка стартует и ждёт этого сигнала — так цикл можно остановить в нужной точке */
+  /** The upload starts and waits for this signal, so a cycle can be stopped at a chosen point */
   uploadGate?: Promise<void>;
   onUploadStart?: () => void;
 

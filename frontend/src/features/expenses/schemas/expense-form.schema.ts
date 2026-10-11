@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { parseAmount, parseDecimal } from '../../../shared/utils/money.ts';
 
-/** Форма зависит от базовой валюты: в ней сумма целая, в остальных — с копейками и курсом. */
+/** The form depends on the base currency: its amount is a whole number, other currencies have decimals and a rate. */
 export function createExpenseFormSchema(baseCurrency: string) {
   return z
     .object({
@@ -11,7 +11,7 @@ export function createExpenseFormSchema(baseCurrency: string) {
       name: z.string().trim().min(1, 'Введите наименование').max(255, 'Не более 255 символов'),
       currency: z.string().min(1, 'Выберите валюту'),
       amount: z.string(),
-      /** Курс: драммы за единицу валюты; нужен только для иностранной валюты */
+      /** Rate: drams per unit of currency; needed only for a foreign currency */
       rate: z.string(),
     })
     .superRefine((values, context) => {

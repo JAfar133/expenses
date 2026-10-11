@@ -5,22 +5,22 @@ import type { Database, SqlExecutor } from '../database/database.ts';
 export interface IdempotentRequest {
   userId: string;
   key: string;
-  /** Тело запроса: нужно, чтобы отличить повтор от другого запроса с тем же ключом */
+  /** Request body: needed to tell a repeat from a different request with the same key */
   payload: unknown;
 }
 
 export interface IdempotentResult<T> {
   value: T;
-  /** true — вернули ранее сохранённый результат, запись не выполнялась */
+  /** true — a previously stored result was returned, no write was performed */
   replayed: boolean;
 }
 
 /**
- * Защита от дублей: один ключ — не больше одной записи, повтор возвращает прежний результат.
+ * Duplicate protection: one key — at most one write, a repeat returns the earlier result.
  *
- * Ключ и сама запись сохраняются в одной транзакции PostgreSQL, поэтому «неизвестного»
- * состояния нет: либо зафиксированы оба, либо ни один. Параллельный запрос с тем же ключом
- * ждёт завершения первого и получает его результат.
+ * The key and the write itself are saved in one PostgreSQL transaction, so there is no "unknown"
+ * state: either both are committed or neither. A concurrent request with the same key
+ * waits for the first to finish and gets its result.
  */
 export class IdempotencyService {
   constructor(private readonly database: Database) {}
@@ -54,7 +54,7 @@ export class IdempotencyService {
     });
   }
 
-  /** Удаляет ключи старше указанной даты. Возвращает число удалённых. */
+  /** Removes keys older than the given date. Returns the number removed. */
   async deleteOlderThan(cutoff: Date): Promise<number> {
     const deleted = await this.database.query(
       'DELETE FROM idempotency_keys WHERE created_at < $1 RETURNING 1',

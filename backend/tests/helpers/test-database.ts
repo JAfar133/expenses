@@ -3,8 +3,8 @@ import type { Database, SqlExecutor } from '../../src/infrastructure/database/da
 import { migrate } from '../../src/infrastructure/database/migrate.ts';
 
 /**
- * PostgreSQL в памяти (PGlite — настоящий Postgres, собранный в WASM).
- * Тесты проходят по тем же SQL и миграциям, что и production, но без Docker.
+ * In-memory PostgreSQL (PGlite is a real Postgres compiled to WASM).
+ * Tests run the same SQL and migrations as production, but without Docker.
  */
 export async function createTestDatabase(): Promise<Database> {
   const pglite = new PGlite();

@@ -28,7 +28,7 @@ interface CategoryByMonthChartProps {
   loading?: boolean;
 }
 
-/** Как меняются расходы по категориям от месяца к месяцу: столбики с накоплением или линии по категориям. */
+/** How category expenses change from month to month: stacked bars or lines per category. */
 export function CategoryByMonthChart({
   matrix,
   categoryOrder,

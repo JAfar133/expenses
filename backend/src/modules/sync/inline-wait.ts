@@ -1,6 +1,6 @@
 import type { SyncService } from './sync.service.ts';
 
-/** Ждёт завершения синхронизации, но не дольше лимита. Ошибок не бросает: изменение уже сохранено в БД. */
+/** Waits for the sync to finish, but no longer than the limit. Never throws: the change is already saved in the DB. */
 export async function waitForExcelWrite(
   sync: Pick<SyncService, 'requestCycle'>,
   waitMs: number,

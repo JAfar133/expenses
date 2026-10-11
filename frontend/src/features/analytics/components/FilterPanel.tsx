@@ -12,7 +12,7 @@ interface FilterPanelProps {
   today: string;
   onChange: (patch: Partial<FilterState>) => void;
   onReset: () => void;
-  /** Показывать выбор периода; у сравнения месяцев период свой */
+  /** Show the period picker; month comparison has its own period */
   showPeriod?: boolean;
 }
 
@@ -28,7 +28,7 @@ function FieldGroup({ label, children }: { label: string; children: ReactNode })
 const amountOrUndefined = (text: string) =>
   /^\d+$/.test(text.trim()) ? Number(text.trim()) : undefined;
 
-/** Общая панель фильтров страницы анализа: период сверху, остальные условия раскрываются кнопкой «Фильтры». */
+/** Shared filter panel of the analytics page: period on top, other conditions expand with the Filters button. */
 export function FilterPanel({
   state,
   today,

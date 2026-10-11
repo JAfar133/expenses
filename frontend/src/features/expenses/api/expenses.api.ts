@@ -5,15 +5,15 @@ export interface CreateExpenseRequest {
   card: string;
   category: string;
   name: string;
-  /** Сумма в валюте `currency`; в драммах целая */
+  /** Amount in `currency`; a whole number in drams */
   amount: number;
-  /** Не указана: драммы */
+  /** Not specified: drams */
   currency?: string;
-  /** Курс: драммы за единицу валюты; нужен для иностранной валюты */
+  /** Rate: drams per unit of currency; needed for a foreign currency */
   rate?: number;
 }
 
-/** Исходная сумма расхода в иностранной валюте. */
+/** Original expense amount in a foreign currency. */
 export interface ExpenseOriginal {
   amount: number;
   currency: string;
@@ -22,9 +22,9 @@ export interface ExpenseOriginal {
 
 export interface CreatedExpense extends Omit<CreateExpenseRequest, 'currency' | 'rate'> {
   id: string;
-  /** synced — запись уже в Excel, queued — ждёт в очереди (файл занят или OneDrive недоступен) */
+  /** synced: the record is already in Excel, queued: waiting in the queue (file busy or OneDrive unavailable) */
   excelStatus: 'synced' | 'queued' | 'disabled';
-  /** `amount` всегда в драммах; для иностранной валюты здесь исходная сумма и курс, иначе null */
+  /** `amount` is always in drams; for a foreign currency this holds the original amount and rate, otherwise null */
   original: ExpenseOriginal | null;
 }
 
@@ -44,23 +44,23 @@ export async function createExpense(expense: CreateExpenseRequest, idempotencyKe
   return response.data;
 }
 
-/** Сколько раз наименование встречается в категории: основа для подсказок под полем «Наименование». */
+/** How many times a name occurs in a category: the basis for suggestions under the name field. */
 export interface NameSuggestion {
   name: string;
   category: string;
   count: number;
 }
 
-/** Уже отсортированы от самых частых к редким. */
+/** Already sorted from most to least frequent. */
 export const fetchNameSuggestions = async () =>
   (await apiRequest<NameSuggestion[]>('/name-suggestions')).data;
 
 export interface RatesResponse {
-  /** Базовая валюта: в ней ведётся учёт */
+  /** Base currency: accounting is kept in it */
   base: string;
-  /** Валюты, в которых можно вводить расходы */
+  /** Currencies in which expenses can be entered */
   currencies: string[];
-  /** Драммы за единицу валюты; для валюты без курса записи нет */
+  /** Drams per unit of currency; no entry for a currency without a rate */
   rates: { currency: string; rate: number; fetchedAt: string }[];
 }
 

@@ -3,16 +3,16 @@ import type { Expense } from '../services/excel/types.ts';
 
 export type { Expense };
 
-/** pending — ждёт записи в Excel, writing — запись начата, synced — запись есть в Excel. */
+/** pending — waiting to be written to Excel, writing — write started, synced — the record is in Excel. */
 export type ExcelStatus = 'pending' | 'writing' | 'synced';
 
 export type DeletedReason = 'excel' | 'app';
 
-/** Расход в иностранной валюте: исходная сумма и курс на момент ввода (amount при этом в драммах). */
+/** Expense in a foreign currency: the original amount and the rate at entry time (amount is in drams). */
 export interface ExpenseOriginal {
   amount: number;
   currency: string;
-  /** Драммы за единицу валюты */
+  /** Drams per unit of currency */
   rate: number;
 }
 
@@ -20,32 +20,32 @@ export interface StoredExpense extends Expense {
   id: string;
   source: 'app' | 'excel';
   excelStatus: ExcelStatus;
-  /** Когда запись помечена удалённой (ISO) или null, если она активна */
+  /** When the record was marked deleted (ISO), or null if it is active */
   deletedAt: string | null;
-  /** Кто удалил: excel (строку убрали в Excel) или app (удалили в приложении); null у активных записей */
+  /** Who deleted it: excel (the row was removed in Excel) or app (deleted in the app); null for active records */
   deletedReason: DeletedReason | null;
-  /** Как строка выглядит в Excel сейчас; null, если записи в Excel нет (см. миграцию 0005) */
+  /** How the row currently looks in Excel; null if the record is not in Excel (see migration 0005) */
   excelSnapshot: Expense | null;
-  /** Исходная сумма в иностранной валюте; null для расходов в драммах и записей из Excel */
+  /** Original amount in the foreign currency; null for dram expenses and records from Excel */
   original: ExpenseOriginal | null;
 }
 
-/** Как часто в категории встречается наименование (без учёта регистра и пробелов по краям). */
+/** How often a name occurs in a category (case-insensitive, ignoring surrounding whitespace). */
 export interface NameSuggestion {
   name: string;
   category: string;
   count: number;
 }
 
-/** Изменения Excel, которые нужны для записей, уже лежащих в Excel. */
+/** Excel changes needed for records that are already in Excel. */
 export interface ExcelChanges {
-  /** Заменить строку: `from` — как она выглядит в Excel, `to` — как должна выглядеть */
+  /** Replace a row: `from` is how it looks in Excel, `to` is how it should look */
   updates: { id: string; from: Expense; to: Expense }[];
-  /** Убрать строку удалённой записи */
+  /** Remove the row of a deleted record */
   removals: { id: string; snapshot: Expense }[];
 }
 
-/** Хранилище расходов (PostgreSQL). Excel — отдельное зеркало, см. модуль sync. */
+/** Expense storage (PostgreSQL). Excel is a separate mirror, see the sync module. */
 export interface ExpenseRepository {
   insertPending(
     db: SqlExecutor,
@@ -55,25 +55,25 @@ export interface ExpenseRepository {
   ): Promise<StoredExpense>;
   findById(id: string): Promise<StoredExpense | undefined>;
   listCategories(): Promise<string[]>;
-  /** Наименования по категориям от самых частых к редким (не больше limit). */
+  /** Names per category from most to least frequent (at most limit). */
   listNameSuggestions(limit: number): Promise<NameSuggestion[]>;
 
-  /** Все записи для сверки с Excel, включая помеченные удалёнными. */
+  /** All records for reconciliation with Excel, including those marked deleted. */
   listForReconcile(db: SqlExecutor): Promise<StoredExpense[]>;
-  /** Записи, которые нужно дописать в Excel, от старых к новым. */
+  /** Records that need to be appended to Excel, oldest first. */
   listQueue(db: SqlExecutor): Promise<StoredExpense[]>;
   countQueue(): Promise<number>;
 
   importFromExcel(db: SqlExecutor, expenses: Expense[]): Promise<number>;
   markWriting(db: SqlExecutor, ids: string[]): Promise<void>;
   markSynced(db: SqlExecutor, ids: string[]): Promise<void>;
-  /** Помечает записи удалёнными (мягкое удаление): из базы они не пропадают. */
+  /** Marks records as deleted (soft delete): they are not removed from the database. */
   markDeleted(db: SqlExecutor, ids: string[], reason: DeletedReason): Promise<void>;
-  /** Снимает пометку удаления (строка вернулась в Excel). */
+  /** Clears the deletion mark (the row is back in Excel). */
   restoreDeleted(db: SqlExecutor, ids: string[]): Promise<void>;
-  /** Забывает снимок: строки записи в Excel больше нет. */
+  /** Forgets the snapshot: the record's row is no longer in Excel. */
   clearSnapshots(db: SqlExecutor, ids: string[]): Promise<void>;
-  /** Запоминает, как строки записей выглядят в Excel (null: строки нет). */
+  /** Remembers how record rows look in Excel (null: there is no row). */
   setSnapshots(db: SqlExecutor, entries: { id: string; snapshot: Expense | null }[]): Promise<void>;
   listExcelChanges(db: SqlExecutor): Promise<ExcelChanges>;
   findForUpdate(db: SqlExecutor, id: string): Promise<StoredExpense | undefined>;
@@ -96,6 +96,6 @@ export interface ExpenseRepository {
       after: unknown;
     },
   ): Promise<void>;
-  /** Возвращает записи в очередь; `error` и счётчик попыток нужны, чтобы видеть причину задержки. */
+  /** Puts records back in the queue; `error` and the attempt counter are needed to see the reason for the delay. */
   markPending(db: SqlExecutor, ids: string[], error?: string): Promise<void>;
 }

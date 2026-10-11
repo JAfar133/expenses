@@ -1,4 +1,4 @@
-# Общие функции для скриптов запуска. Подключается через `source`.
+# Shared functions for the start scripts. Included via `source`.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -9,7 +9,7 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "не найдена команда '$1'. $2"
 }
 
-# Node 22.13+ (встроенный node:sqlite работает без флагов)
+# Node 22.13+ (built-in node:sqlite works without flags)
 check_node() {
   require_command node "Установите Node.js 22.13 или новее."
   node -e '
@@ -18,7 +18,7 @@ check_node() {
   ' || fail "нужен Node.js 22.13+, сейчас $(node -v)."
 }
 
-# Ставит зависимости, если node_modules ещё нет
+# Installs dependencies if node_modules does not exist yet
 ensure_dependencies() {
   local dir="$1"
   if [ ! -d "$dir/node_modules" ]; then
@@ -27,8 +27,8 @@ ensure_dependencies() {
   fi
 }
 
-# Пароли для входа в приложение при разработке. Если в backend/.env они не заданы или пусты,
-# создаём случайные и записываем туда же (в Git этот файл не попадает).
+# Login passwords for the app in development. If they are not set or empty in backend/.env,
+# random ones are generated and written there (this file is not tracked by Git).
 ensure_auth_passwords() {
   local env_file="$ROOT_DIR/backend/.env" name current password created=0
 
@@ -51,8 +51,8 @@ ensure_auth_passwords() {
   fi
 }
 
-# Проверяет .env и, если задан файл Excel, rclone и доступность файла в OneDrive.
-# Excel необязателен: без ONEDRIVE_FILE_PATH приложение хранит расходы только в базе.
+# Checks .env and, if an Excel file is set, rclone and the availability of the file in OneDrive.
+# Excel is optional: without ONEDRIVE_FILE_PATH the app stores expenses in the database only.
 check_backend_env() {
   local backend="$ROOT_DIR/backend"
 
@@ -62,7 +62,7 @@ check_backend_env() {
   fi
   ensure_auth_passwords
 
-  # Читаем значения из .env, не выполняя его как shell-код
+  # Read values from .env without executing it as shell code
   local remote path
   remote="$(sed -n 's/^ONEDRIVE_REMOTE=//p' "$backend/.env" | tail -n1)"
   path="$(sed -n 's/^ONEDRIVE_FILE_PATH=//p' "$backend/.env" | tail -n1)"
@@ -81,9 +81,9 @@ check_backend_env() {
   fi
 }
 
-# Локальный PostgreSQL. Если DATABASE_URL указывает на порт нашего docker compose (по умолчанию 5433),
-# поднимаем контейнер. Если указана другая база, только проверяем, что она отвечает:
-# чужой Postgres на этом компьютере мы не трогаем и контейнером не подменяем.
+# Local PostgreSQL. If DATABASE_URL points to our docker compose port (5433 by default),
+# start the container. If another database is specified, only check that it responds:
+# we do not touch someone else's Postgres on this machine or replace it with a container.
 ensure_postgres() {
   local url port compose_port
   url="$(sed -n 's/^DATABASE_URL=//p' "$ROOT_DIR/backend/.env" | tail -n1)"

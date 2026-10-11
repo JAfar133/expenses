@@ -1,12 +1,12 @@
 import type { NameSuggestion } from '../api/expenses.api.ts';
 
-/** Сколько подсказок показываем: остальные дальше по популярности не нужны. */
+/** How many suggestions to show: the rest are not popular enough to matter. */
 export const MAX_SUGGESTIONS = 30;
 
 interface PickOptions {
-  /** Выбранная категория; пусто: подсказок нет */
+  /** Selected category; empty: no suggestions */
   category: string;
-  /** Уже введённый текст наименования */
+  /** Name text already entered */
   query: string;
   limit?: number;
 }
@@ -14,8 +14,8 @@ interface PickOptions {
 const normalize = (text: string) => text.trim().toLowerCase();
 
 /**
- * Подсказки для поля «Наименование» из выбранной категории, от самых популярных к редким.
- * Исходный список уже отсортирован сервером, порядок сохраняется. Пока категория не выбрана, подсказок нет.
+ * Suggestions for the name field from the selected category, from most to least popular.
+ * The source list is already sorted by the server, order is preserved. No category selected: no suggestions.
  */
 export function pickSuggestions(
   all: NameSuggestion[],
@@ -28,7 +28,7 @@ export function pickSuggestions(
     .filter((item) => {
       if (item.category !== category) return false;
       const name = normalize(item.name);
-      // Точное совпадение уже введено: подсказывать его незачем
+      // Exact match already entered: no point suggesting it
       return name.includes(typed) && name !== typed;
     })
     .slice(0, limit);

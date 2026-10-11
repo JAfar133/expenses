@@ -9,7 +9,7 @@ interface RecordedRequest {
   body: Record<string, unknown>;
 }
 
-/** 'hang' — сервер принимает запрос, но не отвечает */
+/** 'hang': the server accepts the request but never responds */
 type Handler = (request: RecordedRequest) => { status?: number; body: unknown } | 'hang';
 
 let server: Server | undefined;
@@ -18,7 +18,7 @@ afterEach(
   () => new Promise<void>((resolve) => (server ? server.close(() => resolve()) : resolve())),
 );
 
-/** Поднимает поддельный rclone rcd и возвращает клиент к нему. */
+/** Starts a fake rclone rcd and returns a client connected to it. */
 async function createClient(handler: Handler, timeoutMs = 2000) {
   const requests: RecordedRequest[] = [];
 

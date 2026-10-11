@@ -10,7 +10,7 @@ export interface Option {
 
 const asOptions = (values: string[]): Option[] => values.map((value) => ({ value, label: value }));
 
-/** Варианты для фильтров: карты, категории, авторы и валюты. Пока не загрузились, списки пустые. */
+/** Filter options: cards, categories, authors and currencies. Lists are empty until loaded. */
 export function useFilterOptions() {
   const cards = useBreakdown({}, 'card');
   const categories = useQuery({

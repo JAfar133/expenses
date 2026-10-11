@@ -20,11 +20,11 @@ interface ListJsonItem {
 }
 
 /**
- * Каждая операция запускает новый процесс rclone. Медленно (4–5 с на команду из-за
- * установки соединения), зато не требует фонового процесса.
+ * Each operation starts a new rclone process. Slow (4–5 s per command because of
+ * connection setup), but needs no background process.
  *
- * Запуск через execFile: аргументы передаются массивом и не проходят через shell,
- * поэтому инъекция команд невозможна.
+ * Launched via execFile: arguments are passed as an array and do not go through a shell,
+ * so command injection is impossible.
  */
 export class CliRcloneClient implements RcloneClient {
   constructor(private readonly options: CliRcloneClientOptions) {}
@@ -86,7 +86,7 @@ export class CliRcloneClient implements RcloneClient {
 
 const toSpec = (file: RemoteFile) => `${file.fs}${file.path}`;
 
-/** Последняя строка stderr обычно содержит причину; весь вывод в сообщение не тащим. */
+/** The last stderr line usually contains the cause; we do not drag the whole output into the message. */
 function lastLine(stderr: string): string {
   const lines = stderr.trim().split('\n');
   return lines[lines.length - 1] || 'rclone failed';

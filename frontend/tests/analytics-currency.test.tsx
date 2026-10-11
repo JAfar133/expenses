@@ -1,4 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react';
+import type userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { compactNumber } from '../src/features/analytics/model/chart-data.ts';
 import {
@@ -104,7 +105,9 @@ describe('модель пересчёта', () => {
 
 const tile = (label: string) =>
   screen.getByText(label, { selector: 'div' }).parentElement as HTMLElement;
-const select = () => screen.findByRole('combobox', { name: 'Валюта отображения' });
+const group = () => screen.findByRole('radiogroup', { name: 'Валюта отображения' });
+const pick = async (user: ReturnType<typeof userEvent.setup>, code: string) =>
+  user.click(within(await group()).getByRole('radio', { name: new RegExp(code) }));
 const withRates = () => {
   harness.handlers['/api/rates'] = () =>
     ok({ base: 'AMD', currencies: ['AMD', 'RUB', 'USD', 'EUR'], rates: RATES });
@@ -115,32 +118,32 @@ describe('выбор валюты на странице анализа', () => {
     withRates();
     renderAnalytics();
 
-    const field = await select();
+    const field = await group();
 
     await waitFor(() =>
       expect(
         within(field)
-          .getAllByRole('option')
+          .getAllByRole('radio')
           .map((o) => o.textContent),
       ).toEqual(['🇦🇲 AMD', '🇷🇺 RUB', '🇺🇸 USD']),
     );
-    expect(field).toHaveValue('AMD');
+    expect(within(field).getByRole('radio', { name: /AMD/ })).toBeChecked();
   });
 
   it('если курсов нет или они не загрузились, выбора нет и всё в базовой валюте', async () => {
     renderAnalytics();
 
     await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('2 100 AMD'));
-    expect(screen.queryByRole('combobox', { name: 'Валюта отображения' })).toBeNull();
+    expect(screen.queryByRole('radiogroup', { name: 'Валюта отображения' })).toBeNull();
   });
 
   it('выбор доллара пересчитывает плитки, количества не меняются', async () => {
     withRates();
     const user = renderAnalytics();
     await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('2 100 AMD'));
-    await waitFor(() => expect(screen.getByRole('option', { name: '🇺🇸 USD' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('radio', { name: '🇺🇸 USD' })).toBeInTheDocument());
 
-    await user.selectOptions(await select(), 'USD');
+    await pick(user, 'USD');
 
     // 2100 / 380 = 5,53; 140 / 380 = 0,37; 420 / 380 = 1,11; 700 / 380 = 1,84
     await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('5,53 USD'));
@@ -156,7 +159,7 @@ describe('выбор валюты на странице анализа', () => {
     const user = renderAnalytics();
     await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('больше на 110%'));
 
-    await user.selectOptions(await select(), 'USD');
+    await pick(user, 'USD');
 
     await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('USD'));
     expect(tile('Потрачено')).toHaveTextContent('больше на 110%');
@@ -165,13 +168,13 @@ describe('выбор валюты на странице анализа', () => {
   it('таблицы данных графиков пересчитаны, доли остаются', async () => {
     withRates();
     const user = renderAnalytics();
-    await waitFor(() => expect(screen.getByRole('option', { name: '🇺🇸 USD' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('radio', { name: '🇺🇸 USD' })).toBeInTheDocument());
 
-    await user.selectOptions(await select(), 'USD');
+    await pick(user, 'USD');
 
     const tables = await screen.findAllByRole('table', { hidden: true });
     const categories = tables.find((t) => within(t).queryByText('Категория', { exact: false }))!;
-    // 1500 / 380 = 3,95, доля 71,4%
+    // 1500 / 380 = 3.95, share 71.4%
     await waitFor(() => expect(within(categories).getByText('3,95')).toBeInTheDocument());
     expect(within(categories).getByText('71,4%')).toBeInTheDocument();
     expect(within(categories).getByText('Сумма, USD', { exact: false })).toBeInTheDocument();
@@ -180,10 +183,10 @@ describe('выбор валюты на странице анализа', () => {
   it('под выбором указан курс ЦБ и дата', async () => {
     withRates();
     const user = renderAnalytics();
-    await waitFor(() => expect(screen.getByRole('option', { name: '🇺🇸 USD' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('radio', { name: '🇺🇸 USD' })).toBeInTheDocument());
     expect(screen.queryByText(/курс ЦБ/)).toBeNull();
 
-    await user.selectOptions(await select(), 'USD');
+    await pick(user, 'USD');
 
     expect(await screen.findByText('1 USD = 380 AMD · курс ЦБ на 10.10.2026')).toBeInTheDocument();
   });
@@ -191,9 +194,9 @@ describe('выбор валюты на странице анализа', () => {
   it('выбор сохраняется в настройках пользователя', async () => {
     withRates();
     const user = renderAnalytics();
-    await waitFor(() => expect(screen.getByRole('option', { name: '🇷🇺 RUB' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('radio', { name: '🇷🇺 RUB' })).toBeInTheDocument());
 
-    await user.selectOptions(await select(), 'RUB');
+    await pick(user, 'RUB');
 
     await waitFor(() => {
       const index = harness.requests.findIndex((r) => r === 'PUT /api/preferences');
@@ -208,7 +211,7 @@ describe('выбор валюты на странице анализа', () => {
     renderAnalytics();
 
     await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('5,53 USD'));
-    expect(await select()).toHaveValue('USD');
+    expect(within(await group()).getByRole('radio', { name: /USD/ })).toBeChecked();
   });
 
   it('сохранённая валюта без курса не ломает страницу: показываются драммы', async () => {
@@ -228,9 +231,9 @@ describe('выбор валюты на странице анализа', () => {
 
     await user.click(screen.getByRole('link', { name: 'Сравнение месяцев' }));
 
-    expect(await select()).toHaveValue('USD');
+    expect(within(await group()).getByRole('radio', { name: /USD/ })).toBeChecked();
     await user.click(screen.getByRole('link', { name: 'Операции' }));
-    expect(await select()).toHaveValue('USD');
+    expect(within(await group()).getByRole('radio', { name: /USD/ })).toBeChecked();
   });
 
   it('на вкладке сравнения месяцев суммы тоже пересчитаны', async () => {

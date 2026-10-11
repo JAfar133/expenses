@@ -234,13 +234,13 @@ describe('isMassDeletion: защита от массовой потери', () =
 describe('правка и удаление в приложении (снимок строки Excel)', () => {
   const edited: Expense = { ...coffee, name: 'Кофе с молоком', amount: 700 };
 
-  /** Запись, которую поправили в приложении: значения новые, а в Excel пока лежат прежние (снимок). */
+  /** A record edited in the app: new values, while Excel still holds the old ones (snapshot). */
   const editedRow = (): StoredExpense => ({
     ...stored(edited, 'synced'),
     excelSnapshot: coffee,
   });
 
-  /** Запись, удалённую в приложении: строка ещё в Excel. */
+  /** A record deleted in the app: the row is still in Excel. */
   const removingRow = (expense: Expense = coffee): StoredExpense => ({
     ...stored(expense, 'synced', '2026-10-11T10:00:00.000Z'),
     deletedReason: 'app',
@@ -254,7 +254,7 @@ describe('правка и удаление в приложении (снимок
   });
 
   it('правка дошла до Excel, но снимок не обновлён: сверка видит прежнее состояние, а не дубль', () => {
-    // Если процесс упал после загрузки файла, в Excel лежат новые значения, а в базе снимок старый
+    // If the process crashed after the file upload, Excel has the new values but the DB snapshot is old
     const plan = reconcile([edited], [editedRow()]);
 
     expect(plan.toImport).toEqual([edited]);
@@ -310,12 +310,12 @@ describe('правка и удаление в приложении (снимок
     const removing = removingRow();
 
     expect(reconcile([coffee, coffee], [active, removing])).toEqual(EMPTY);
-    // Строка пропала: сначала сбрасывается та, что и так должна была исчезнуть, активная остаётся
+    // A row is gone: the one that was meant to disappear anyway is dropped first, the active one stays
     expect(reconcile([coffee], [active, removing])).toEqual({
       ...EMPTY,
       toClearSnapshot: [removing.id],
     });
-    // Пропали обе: активная запись тоже помечается удалённой
+    // Both are gone: the active record is also marked deleted
     expect(reconcile([], [active, removing])).toEqual({
       ...EMPTY,
       toClearSnapshot: [removing.id],

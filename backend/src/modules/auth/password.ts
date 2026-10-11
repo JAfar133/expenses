@@ -1,14 +1,14 @@
 import { randomBytes, scrypt, timingSafeEqual, type ScryptOptions } from 'node:crypto';
 
 /**
- * Хеширование паролей через scrypt (встроен в Node, не требует нативных модулей).
- * Параметры N=2^15, r=8, p=1 (около 32 МБ памяти и 100 мс на хеш) соответствуют рекомендациям OWASP.
- * Формат: scrypt$N$r$p$соль(base64)$хеш(base64)
+ * Password hashing via scrypt (built into Node, needs no native modules).
+ * Parameters N=2^15, r=8, p=1 (about 32 MB of memory and 100 ms per hash) follow OWASP recommendations.
+ * Format: scrypt$N$r$p$salt(base64)$hash(base64)
  */
 const PARAMS = { N: 32_768, r: 8, p: 1 } as const;
 const KEY_LENGTH = 64;
 const SALT_LENGTH = 16;
-/** Node по умолчанию разрешает 32 МБ, а scrypt с такими параметрами занимает чуть больше. */
+/** Node allows 32 MB by default, while scrypt with these parameters needs slightly more. */
 const MAX_MEMORY = 128 * 1024 * 1024;
 
 function derive(password: string, salt: Buffer, options: ScryptOptions): Promise<Buffer> {
@@ -32,7 +32,7 @@ export async function hashPassword(password: string): Promise<string> {
   ].join('$');
 }
 
-/** Проверка в постоянное время. Любой неверный формат хеша означает «пароль не подходит». */
+/** Constant-time check. Any invalid hash format means "password does not match". */
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const [scheme, n, r, p, salt, hash] = stored.split('$');
   if (scheme !== 'scrypt' || !n || !r || !p || !salt || !hash) return false;

@@ -1,4 +1,4 @@
-/** Идентификатор запроса для Idempotency-Key. randomUUID недоступен вне HTTPS/localhost. */
+/** Request identifier for Idempotency-Key. randomUUID is unavailable outside HTTPS/localhost. */
 export function newRequestId(): string {
   if (typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();

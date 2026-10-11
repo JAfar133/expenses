@@ -14,7 +14,7 @@ interface RcItem {
   Hashes?: Record<string, string>;
 }
 
-/** Работает через HTTP-API постоянного `rclone rcd`: соединения с OneDrive переиспользуются. */
+/** Works through the HTTP API of a persistent `rclone rcd`: connections to OneDrive are reused. */
 export class RcdRcloneClient implements RcloneClient {
   constructor(
     private readonly daemon: RcdEndpointProvider,
@@ -58,7 +58,7 @@ export class RcdRcloneClient implements RcloneClient {
       hashType: HASH_TYPE,
     });
 
-    // Строки вида "<hash>  <имя файла>" для каждого файла каталога
+    // Lines like "<hash>  <file name>" for each file of the directory
     const name = basename(localPath);
     const hash = hashsum.find((line) => line.endsWith(`  ${name}`))?.split(/\s+/)[0];
     if (!hash) {
@@ -92,8 +92,8 @@ export class RcdRcloneClient implements RcloneClient {
 }
 
 /**
- * Не удалось получить ответ от rcd. При таймауте операция в rclone может ещё продолжаться,
- * поэтому для записи такая ошибка считается «результат неизвестен».
+ * Failed to get a response from rcd. On timeout the operation may still be running in rclone,
+ * so for a write such an error is treated as "outcome unknown".
  */
 function toTransportError(error: unknown, timeoutMs: number): OneDriveError {
   if (error instanceof Error && error.name === 'TimeoutError') {

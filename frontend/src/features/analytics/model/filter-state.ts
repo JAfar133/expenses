@@ -4,12 +4,12 @@ import { addDays, daysBetween, isMonthKey, monthOf, monthRange, type MonthKey } 
 export const PERIODS = ['month', '30d', '90d', 'year', 'all', 'custom'] as const;
 export type PeriodKind = (typeof PERIODS)[number];
 
-/** Состояние фильтров страницы анализа. Хранится в адресной строке, поэтому ссылкой можно поделиться. */
+/** Analytics page filter state. Stored in the URL, so the link can be shared. */
 export interface FilterState {
   period: PeriodKind;
-  /** Месяц для периода «месяц» */
+  /** Month for the "month" period */
   month: MonthKey;
-  /** Границы для периода «свой»; YYYY-MM-DD */
+  /** Bounds for the "custom" period; YYYY-MM-DD */
   from?: string;
   to?: string;
   cards: string[];
@@ -23,7 +23,7 @@ export interface FilterState {
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-/** Настоящая дата календаря: 31 февраля не пройдёт, даже если движок JavaScript умеет «переносить» дни. */
+/** A real calendar date: February 31 will not pass, even if the JavaScript engine can "roll over" days. */
 const isIsoDate = (value: string | null): value is string => {
   if (value === null || !ISO_DATE.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00Z`);
@@ -36,7 +36,7 @@ const amountParam = (value: string | null): number | undefined => {
   return amount <= 2_147_483_647 ? amount : undefined;
 };
 
-/** Разбирает адресную строку; всё некорректное заменяется значением по умолчанию. */
+/** Parses the URL; anything invalid is replaced with the default. */
 export function parseFilterState(params: URLSearchParams, today: string): FilterState {
   const latest = monthOf(today);
   const requestedMonth = params.get('month');
@@ -51,7 +51,7 @@ export function parseFilterState(params: URLSearchParams, today: string): Filter
   let to = params.get('to');
   const fromOk = isIsoDate(from) ? from : undefined;
   const toOk = isIsoDate(to) ? to : undefined;
-  // Свой период без границ или с перепутанными границами не имеет смысла: возвращаемся к месяцу
+  // A custom period without bounds or with swapped bounds makes no sense: fall back to month
   if (period === 'custom' && ((!fromOk && !toOk) || (fromOk && toOk && fromOk > toOk))) {
     period = 'month';
   }
@@ -82,7 +82,7 @@ export function parseFilterState(params: URLSearchParams, today: string): Filter
 
 const unique = (values: string[]) => [...new Set(values.filter(Boolean))];
 
-/** Состояние в адресную строку: значения по умолчанию не пишутся. */
+/** State to the URL: default values are not written. */
 export function serializeFilterState(state: FilterState, today: string): URLSearchParams {
   const params = new URLSearchParams();
   const latest = monthOf(today);
@@ -104,7 +104,7 @@ export function serializeFilterState(state: FilterState, today: string): URLSear
   return params;
 }
 
-/** Границы периода; для «всё время» их нет. */
+/** Period bounds; there are none for "all time". */
 export function periodRange(state: FilterState, today: string): { from?: string; to?: string } {
   switch (state.period) {
     case 'month':
@@ -122,7 +122,7 @@ export function periodRange(state: FilterState, today: string): { from?: string;
   }
 }
 
-/** Фильтры для запросов к серверу (без периода, если `withPeriod` выключен). */
+/** Filters for server requests (without the period if `withPeriod` is off). */
 export function toApiFilters(
   state: FilterState,
   today: string,
@@ -142,8 +142,8 @@ export function toApiFilters(
 }
 
 /**
- * Шаг графика по времени: до двух месяцев по дням, до года по неделям, дальше по месяцам.
- * Так на графике остаётся читаемое число столбиков.
+ * Chart time step: up to two months by day, up to a year by week, beyond that by month.
+ * This keeps a readable number of bars on the chart.
  */
 export function granularityFor(state: FilterState, today: string): Granularity {
   const { from, to } = periodRange(state, today);
@@ -154,7 +154,7 @@ export function granularityFor(state: FilterState, today: string): Granularity {
   return days <= 400 ? 'week' : 'month';
 }
 
-/** Сколько фильтров включено (период не считается). */
+/** How many filters are enabled (the period does not count). */
 export function activeFilterCount(state: FilterState): number {
   return (
     (state.cards.length ? 1 : 0) +
@@ -167,7 +167,7 @@ export function activeFilterCount(state: FilterState): number {
   );
 }
 
-/** Состояние без фильтров, но с тем же периодом. */
+/** State without filters but with the same period. */
 export const withoutFilters = (state: FilterState): FilterState => ({
   ...state,
   cards: [],
@@ -180,7 +180,7 @@ export const withoutFilters = (state: FilterState): FilterState => ({
   includeDeleted: false,
 });
 
-/** Параметры адреса, которыми управляют фильтры; остальные (вкладки, сравнение месяцев) не трогаем. */
+/** URL parameters controlled by filters; others (tabs, month comparison) are left alone. */
 const FILTER_KEYS = [
   'period',
   'month',
@@ -196,7 +196,7 @@ const FILTER_KEYS = [
   'deleted',
 ];
 
-/** Записывает состояние в адрес, сохраняя посторонние параметры. */
+/** Writes the state to the URL, preserving foreign parameters. */
 export function mergeFilterParams(
   current: URLSearchParams,
   state: FilterState,

@@ -5,7 +5,7 @@ interface CardPickerProps {
   registration: UseFormRegisterReturn;
 }
 
-/** Выбор карты крупными кнопками: удобно нажимать одной рукой. */
+/** Card picker with large buttons: easy to tap with one hand. */
 export function CardPicker({ cards, registration }: CardPickerProps) {
   return (
     <div role="radiogroup" aria-label="Карта" className="grid grid-cols-2 gap-3">

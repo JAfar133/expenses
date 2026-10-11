@@ -20,7 +20,7 @@ import { AmountFields } from './AmountFields.tsx';
 import { CardPicker } from './CardPicker.tsx';
 import { NameSuggestions } from './NameSuggestions.tsx';
 
-/** Последняя категория запоминается отдельно для каждого пользователя: на одном устройстве могут быть двое. */
+/** The last category is remembered per user: two people may share one device. */
 const lastCategoryKey = (username: string) => `expenses.lastCategory.${username}`;
 const SUCCESS_VISIBLE_MS = 4000;
 
@@ -31,13 +31,13 @@ interface ExpenseFormProps {
   user: AuthUser;
 }
 
-/** Последний выбор пользователя, если он всё ещё есть в справочнике. */
+/** The user's last choice, if it is still in the reference data. */
 function rememberedChoice(key: string, options: string[]): string | undefined {
   const value = readStored(key);
   return value && options.includes(value) ? value : undefined;
 }
 
-/** Что уходит на сервер: в драммах целая сумма, в иностранной валюте сумма, валюта и курс, который видел пользователь. */
+/** What goes to the server: whole amount in drams; for a foreign currency, the amount, currency and the rate the user saw. */
 function amountPayload(values: ExpenseFormValues, base: string) {
   if (values.currency === base) {
     return { amount: parseAmount(values.amount)! };
@@ -56,7 +56,7 @@ function successMessage({ amount, original }: CreatedExpense, base: string): str
 
 export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormProps) {
   const createExpense = useCreateExpense();
-  // Один ключ на попытку: повторная отправка той же операции не создаст дубль
+  // One key per attempt: resubmitting the same operation will not create a duplicate
   const idempotencyKey = useRef(newRequestId());
 
   const schema = useMemo(() => createExpenseFormSchema(currency), [currency]);
@@ -65,7 +65,7 @@ export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormPr
     resolver: zodResolver(schema),
     defaultValues: {
       date: todayIso(),
-      // Карта по умолчанию — карта вошедшего пользователя (Миша → «Миша», Настя → «Настя»)
+      // The default card is the signed-in user's card (the card is named after the user)
       card: cards.includes(user.card) ? user.card : (cards[0] ?? ''),
       category: rememberedChoice(lastCategoryKey(user.username), categories) ?? '',
       name: '',
@@ -96,7 +96,7 @@ export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormPr
     setFocus('amount');
   };
 
-  // Сообщение об успехе исчезает само
+  // The success message disappears on its own
   useEffect(() => {
     if (!createExpense.isSuccess) return;
     const timer = setTimeout(createExpense.reset, SUCCESS_VISIBLE_MS);
@@ -121,7 +121,7 @@ export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormPr
           writeStored(lastCategoryKey(user.username), values.category);
           idempotencyKey.current = newRequestId();
 
-          // Дата, карта и категория остаются для быстрого ввода следующего расхода
+          // Date, card and category are kept for quick entry of the next expense
           reset({ ...getValues(), name: '', amount: '' });
           setFocus('name');
         },

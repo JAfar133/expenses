@@ -31,12 +31,12 @@ export class OneDriveError extends Error {
     this.name = 'OneDriveError';
   }
 
-  /** Операция отклонена до изменения файла: запись точно не применилась. */
+  /** The operation was rejected before the file was changed: the write definitely did not apply. */
   get wasRejected(): boolean {
     return REJECTED_CODES.includes(this.code);
   }
 
-  /** Временные ошибки, при которых безопасно повторять только чтение. */
+  /** Transient errors for which only a read is safe to repeat. */
   get isTransient(): boolean {
     return (
       this.code === 'NETWORK' ||
@@ -47,7 +47,7 @@ export class OneDriveError extends Error {
   }
 }
 
-/** Сопоставление текста stderr rclone с кодом ошибки. Порядок правил важен. */
+/** Mapping of rclone stderr text to an error code. The order of the rules matters. */
 const STDERR_RULES: Array<[RegExp, OneDriveErrorCode]> = [
   [/directory not found|object not found|itemNotFound/i, 'FILE_NOT_FOUND'],
   [

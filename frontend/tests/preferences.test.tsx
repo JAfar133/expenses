@@ -41,7 +41,7 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-/** Крошечный компонент, показывающий значение настройки и кнопку её смены. */
+/** Tiny component showing a setting's value and a button to change it. */
 function Probe({ next = 'line' }: { next?: 'bars' | 'line' | 'area' }) {
   const [value, change] = usePreference('daily.type');
   return (
@@ -116,7 +116,7 @@ describe('usePreference', () => {
   it('выбор, сделанный только в браузере, один раз переносится на сервер', async () => {
     localStorage.setItem('analytics.daily.type', 'line');
     localStorage.setItem('analytics.category.type', 'donut');
-    server = { 'category.type': 'pie' }; // уже есть на сервере: не перезаписывается
+    server = { 'category.type': 'pie' }; // already on the server: not overwritten
     renderProbe();
 
     await waitFor(() => expect(puts).toEqual([{ 'daily.type': 'line' }]));

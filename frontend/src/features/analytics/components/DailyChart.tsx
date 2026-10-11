@@ -33,7 +33,7 @@ const CHART_HEIGHT = 240;
 
 const axisTick = { fill: 'var(--chart-axis)', fontSize: 12 };
 
-/** Подписи по шагу графика: по дням, неделям или месяцам. */
+/** Labels by chart step: days, weeks or months. */
 const STEP = {
   day: { title: 'Расходы по дням', tick: dayOfMonth, full: dayLabel },
   week: {
@@ -53,13 +53,13 @@ const STEP = {
 
 interface DailyChartProps {
   points: SeriesPoint[] | undefined;
-  /** Шаг графика; по умолчанию дни */
+  /** Chart step; days by default */
   granularity?: Granularity;
   currency: string;
   loading?: boolean;
 }
 
-/** Расходы по дням: столбики, линия или область; за день или нарастающим итогом. Вид запоминается. */
+/** Expenses by day: bars, line or area; per day or cumulative. The view is remembered. */
 export function DailyChart({
   points,
   currency,

@@ -1,13 +1,13 @@
-/** Пользователь, вошедший в приложение. */
+/** User logged in to the app. */
 export interface AuthUser {
   id: string;
   username: string;
   displayName: string;
-  /** Карта по умолчанию для формы расхода */
+  /** Default card for the expense form */
   card: string;
-  /** Может ли править и удалять записи */
+  /** Whether the user can edit and delete records */
   canEdit: boolean;
-  /** Часовой пояс пользователя (IANA): по нему определяется «сегодня» */
+  /** User's time zone (IANA): it determines what "today" is */
   timezone: string;
 }
 

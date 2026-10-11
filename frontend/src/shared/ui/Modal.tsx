@@ -8,7 +8,7 @@ interface ModalProps {
 
 const FOCUSABLE = 'input, select, textarea, button:not([disabled]), [href]';
 
-/** Модальное окно: закрывается по Escape и нажатию на затемнение, фокус уходит внутрь и возвращается назад. */
+/** Modal window: closes on Escape and on backdrop click, focus moves inside and returns back. */
 export function Modal({ title, onClose, children }: ModalProps) {
   const panel = useRef<HTMLDivElement>(null);
 
@@ -24,7 +24,7 @@ export function Modal({ title, onClose, children }: ModalProps) {
       document.removeEventListener('keydown', onKey);
       previous?.focus?.();
     };
-    // Эффект нужен один раз при открытии
+    // The effect is needed only once, on open
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

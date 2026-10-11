@@ -3,7 +3,7 @@ import { parseQuery } from './analytics.filters.ts';
 import type { AnalyticsService } from './analytics.service.ts';
 import type { AnalyticsFilters } from './analytics.types.ts';
 
-/** Фильтры из разобранного запроса (без служебных параметров вроде `by` и `limit`). */
+/** Filters from the parsed query (without service parameters such as `by` and `limit`). */
 function filtersOf(query: AnalyticsFilters): AnalyticsFilters {
   return {
     from: query.from,
@@ -51,10 +51,10 @@ export const analyticsRoutes =
       };
     });
 
-    /** Авторы расходов для фильтра «кто добавил». */
+    /** Expense authors for the "кто добавил" (who added) filter. */
     app.get('/analytics/authors', async () => ({ success: true, data: await analytics.authors() }));
 
-    /** Список операций: сортировка и страницы выполняет база. */
+    /** List of operations: sorting and paging are done by the database. */
     app.get('/expenses', async (request) => {
       const query = parseQuery('list', request.query);
       const { sort, direction, limit, offset } = query;

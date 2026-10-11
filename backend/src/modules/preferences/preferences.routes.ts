@@ -3,7 +3,7 @@ import { validationError } from '../../errors/app-error.ts';
 import type { PreferencesRepository } from './preferences.repository.ts';
 import { preferencesSchema } from './preferences.schema.ts';
 
-/** Настройки текущего пользователя. Чужие настройки недоступны: идентификатор берётся из сессии. */
+/** Settings of the current user. Other users' settings are inaccessible: the id comes from the session. */
 export const preferencesRoutes =
   (repository: Pick<PreferencesRepository, 'get' | 'merge'>): FastifyPluginAsync =>
   async (app) => {
@@ -12,7 +12,7 @@ export const preferencesRoutes =
       data: await repository.get(request.user!.id),
     }));
 
-    /** Меняет только переданные настройки. */
+    /** Changes only the settings that were passed. */
     app.put('/preferences', async (request) => {
       const parsed = preferencesSchema.safeParse(request.body);
       if (!parsed.success) {

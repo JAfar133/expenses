@@ -12,7 +12,7 @@ export interface ExpensesRoutesDeps {
   expenseService: ExpenseService;
   idempotency: IdempotencyService;
   sync: Pick<SyncService, 'requestCycle' | 'enabled'>;
-  /** Сколько ждать записи в Excel перед ответом. Дольше — расход остаётся в очереди. */
+  /** How long to wait for the Excel write before responding. Longer: the expense stays in the queue. */
   inlineExcelWaitMs: number;
 }
 
@@ -26,20 +26,20 @@ export const expensesRoutes =
   async (app) => {
     app.post('/expenses', async (request, reply) => {
       const startedAt = performance.now();
-      // Ключи идемпотентности привязаны к id пользователя, а в расход и в лог пишем понятный логин
+      // Idempotency keys are bound to the user id, while the expense and the log get a readable login
       const { id: userId, username } = request.user!;
 
       try {
         const key = readIdempotencyKey(request);
         const input = parseExpense(request.body);
 
-        // Расход надёжно сохраняется в БД вместе с ключом идемпотентности
+        // The expense is reliably saved to the DB together with the idempotency key
         const { value: saved, replayed } = await idempotency.run(
           { userId, key, payload: input },
           (tx) => expenseService.create(tx, input, username),
         );
 
-        // Затем пробуем записать его в Excel. Если файл занят — расход ждёт в очереди.
+        // Then we try to write it to Excel. If the file is busy, the expense waits in the queue.
         if (!replayed && sync.enabled) {
           await waitForExcelWrite(sync, inlineExcelWaitMs);
         }
@@ -90,7 +90,7 @@ export const expensesRoutes =
     }));
   };
 
-/** disabled — работа с Excel отключена. synced — запись уже в Excel, queued — ждёт (файл открыт, OneDrive недоступен или запись идёт). */
+/** disabled — Excel is disabled. synced — the record is already in Excel, queued — waiting (file open, OneDrive unavailable, or a write in progress). */
 async function currentExcelStatus(
   service: ExpenseService,
   id: string,
@@ -132,8 +132,8 @@ interface OperationLog {
 }
 
 /**
- * Одна строка аудита на операцию: кто, что, сколько заняло и чем закончилось.
- * Данные расхода (наименование, сумма) в лог не попадают.
+ * One audit line per operation: who, what, how long it took and how it ended.
+ * Expense data (name, amount) does not go into the log.
  */
 function logOperation(request: FastifyRequest, entry: OperationLog): void {
   const fields = {

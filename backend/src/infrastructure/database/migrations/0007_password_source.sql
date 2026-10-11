@@ -1,4 +1,4 @@
--- Пароли можно менять в приложении. Чтобы пароль из .env не перезаписывал выбранный пользователем при каждом запуске,
--- запоминаем хеш последнего применённого пароля из .env: пока значение в .env прежнее, пароль пользователя остаётся.
--- Изменили значение в .env, значит администратор сбрасывает пароль, и побеждает .env.
+-- Passwords can be changed in the app. So that a password from .env does not overwrite the one the user chose on every start,
+-- we remember the hash of the last applied .env password: while the .env value is unchanged, the user's password stays.
+-- If the .env value changed, the administrator is resetting the password, and .env wins.
 ALTER TABLE users ADD COLUMN env_password_hash text;

@@ -1,7 +1,7 @@
--- Личные настройки аккаунта: имя, карта по умолчанию, часовой пояс и право правки.
--- custom_*: выбор самого пользователя; пусто означает «как задано в конфигурации» (default).
--- Значения по умолчанию (card, timezone_default, can_edit_default) обновляются из .env при каждом запуске,
--- а личный выбор остаётся поверх них.
+-- Personal account settings: name, default card, time zone and the edit permission.
+-- custom_*: the user's own choice; empty means "as set in the configuration" (default).
+-- The defaults (card, timezone_default, can_edit_default) are refreshed from .env on every start,
+-- while the personal choice stays on top of them.
 ALTER TABLE users
   ADD COLUMN custom_display_name text,
   ADD COLUMN custom_card text,

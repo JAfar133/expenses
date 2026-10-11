@@ -24,21 +24,21 @@ export interface AppDependencies {
   auth: AuthService;
   rates: Pick<RatesService, 'snapshot' | 'currencies'>;
   analytics: AnalyticsService;
-  /** Настройки интерфейса пользователя */
+  /** User interface settings */
   preferences: Pick<PreferencesRepository, 'get' | 'merge'>;
-  /** Правка и удаление записей */
+  /** Editing and deleting records */
   editor: ExpenseEditor;
-  /** Логины, которым разрешены правка и удаление */
+  /** Logins allowed to edit and delete */
   editors?: string[];
   idempotency: IdempotencyService;
   sync: SyncService;
   scheduler: SyncScheduler;
-  /** Сколько ждать записи в Excel перед ответом на создание расхода */
+  /** How long to wait for the Excel write before responding to expense creation */
   inlineExcelWaitMs?: number;
   currency?: string;
-  /** За обратным прокси (Caddy): реальный IP и протокол берутся из X-Forwarded-* */
+  /** Behind a reverse proxy (Caddy): the real IP and protocol are taken from X-Forwarded-* */
   trustProxy?: boolean;
-  /** Дополнительные допустимые источники запросов (Origin) */
+  /** Additional allowed request origins (Origin) */
   allowedOrigins?: string[];
   logger?: FastifyServerOptions['logger'];
 }
@@ -62,13 +62,13 @@ export function buildApp({
   const app = Fastify({
     logger,
     trustProxy,
-    // Короткий идентификатор запроса попадает во все строки лога и в заголовок ответа
+    // A short request id goes into every log line and the response header
     genReqId: () => randomUUID().slice(0, 8),
     logController: new LogController({ requestIdLogLabel: 'requestId' }),
   });
 
-  // Клиенты часто шлют `Content-Type: application/json` и для запросов без тела (например, POST /api/sync).
-  // Пустое тело допустимо, а битый JSON по-прежнему даёт 400.
+  // Clients often send `Content-Type: application/json` even for requests without a body (e.g. POST /api/sync).
+  // An empty body is allowed, while broken JSON still yields 400.
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (_request, body, done) => {
     if (body === '') return done(null, undefined);
     try {
@@ -83,10 +83,10 @@ export function buildApp({
   });
 
   app.setErrorHandler((rawError, request, reply) => {
-    // Недоступная БД — это «попробуйте позже», а не внутренняя ошибка
+    // An unavailable DB means "try again later", not an internal error
     const error = isConnectionError(rawError) ? databaseUnavailableError(rawError) : rawError;
 
-    // Для ошибок приложения строка лога уже записана в обработчике операции
+    // For application errors the log line has already been written in the operation handler
     if (error instanceof AppError) {
       return reply
         .code(error.statusCode)
@@ -94,7 +94,7 @@ export function buildApp({
         .send(errorBody(error.code, error.message));
     }
 
-    // Ошибки Fastify до наших обработчиков: битый JSON, неверный Content-Type и т.п.
+    // Fastify errors raised before our handlers: broken JSON, wrong Content-Type, etc.
     const status = (error as { statusCode?: number }).statusCode;
     if (status && status >= 400 && status < 500) {
       return reply.code(status).send(errorBody('BAD_REQUEST', 'Некорректный запрос'));
@@ -106,7 +106,7 @@ export function buildApp({
       .send(errorBody('INTERNAL_ERROR', 'Не удалось сохранить расход. Попробуйте позже'));
   });
 
-  // Сначала разбор кук и проверки входа, затем маршруты: хуки должны подключиться раньше них
+  // Cookie parsing and login checks first, then routes: the hooks must be registered before them
   app.register(authPlugin, { auth, allowedOrigins });
 
   app.get('/api/health', { config: { public: true } }, async () => ({ status: 'ok' }));
@@ -137,7 +137,7 @@ const errorBody = (code: string, message: string) => ({
   error: { code, message },
 });
 
-/** Коды сетевых ошибок Node и ошибок PostgreSQL «сервер недоступен / завершает работу». */
+/** Node network error codes and PostgreSQL "server unavailable / shutting down" errors. */
 const CONNECTION_ERROR_CODES = new Set([
   'ECONNREFUSED',
   'ECONNRESET',

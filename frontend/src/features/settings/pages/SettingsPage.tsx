@@ -5,7 +5,7 @@ import { UsersSection } from '../components/UsersSection.tsx';
 import { PasswordSection } from '../components/PasswordSection.tsx';
 
 /**
- * Настройки пользователя. Страница собрана из независимых блоков: новая настройка это новый блок в списке.
+ * User settings. The page is built from independent blocks: a new setting is a new block in the list.
  */
 export default function SettingsPage() {
   const { data: user } = useCurrentUser();

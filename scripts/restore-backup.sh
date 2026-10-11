@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Восстановление Excel из резервной копии.
+# Restore Excel from a backup.
 #
-#   ./scripts/restore-backup.sh --list            показать доступные копии
-#   ./scripts/restore-backup.sh <файл-копии>      вернуть эту копию в OneDrive
+#   ./scripts/restore-backup.sh --list            show available backups
+#   ./scripts/restore-backup.sh <backup-file>     put this backup back into OneDrive
 #
-# Перед заменой текущая версия файла сохраняется в backups/before-restore/, а после загрузки
-# хеш файла в OneDrive сверяется с хешем копии. Путь к файлу берётся из backend/.env;
-# его можно переопределить: ONEDRIVE_FILE_PATH="Документы/другой.xlsx" ./scripts/restore-backup.sh ...
+# Before replacing, the current version of the file is saved to backups/before-restore/, and after upload
+# the file hash in OneDrive is compared with the backup hash. The file path is taken from backend/.env;
+# it can be overridden: ONEDRIVE_FILE_PATH="Документы/другой.xlsx" ./scripts/restore-backup.sh ...
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 BACKEND="$ROOT_DIR/backend"
 
-# Значение из backend/.env (читаем как текст, не выполняя), переменная окружения важнее
+# Value from backend/.env (read as text, not executed); an environment variable takes precedence
 env_value() {
   local name="$1" fallback="${2:-}"
   if [ -n "${!name:-}" ]; then printf '%s' "${!name}"; return; fi
@@ -28,7 +28,7 @@ case "$BACKUP_DIR" in /*) ;; *) BACKUP_DIR="$BACKEND/${BACKUP_DIR#./}" ;; esac
 
 list_backups() {
   [ -d "$BACKUP_DIR" ] || fail "папка с копиями не найдена: $BACKUP_DIR"
-  # Новые копии сверху; before-restore — копии, сделанные самим скриптом восстановления
+  # Newest copies first; before-restore holds copies made by the restore script itself
   find "$BACKUP_DIR" -type f -name '*.xlsx' | sort -r | while read -r file; do
     printf '%s  %s\n' "$(du -h "$file" | cut -f1 | tr -d ' ')" "$file"
   done
@@ -46,7 +46,7 @@ BACKUP_FILE="$1"
 require_command rclone "Установите rclone."
 require_command unzip "Нужен для проверки файла."
 
-# Копия должна быть целой книгой Excel
+# The backup must be a complete Excel workbook
 unzip -tqq "$BACKUP_FILE" >/dev/null 2>&1 || fail "файл повреждён или это не xlsx: $BACKUP_FILE"
 unzip -l "$BACKUP_FILE" | grep -q 'xl/workbook.xml' || fail "в файле нет xl/workbook.xml, это не книга Excel."
 
@@ -58,7 +58,7 @@ printf 'Для продолжения введите "yes": '
 read -r answer
 [ "$answer" = "yes" ] || fail "отменено."
 
-# Сохраняем то, что сейчас лежит в OneDrive, чтобы восстановление можно было отменить
+# Save what is currently in OneDrive so the restore can be undone
 SAFETY_DIR="$BACKUP_DIR/before-restore"
 SAFETY_FILE="$SAFETY_DIR/$(date +%Y-%m-%d_%H-%M-%S)-$(basename "$REMOTE_PATH")"
 mkdir -p "$SAFETY_DIR"

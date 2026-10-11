@@ -29,7 +29,7 @@ beforeEach(async () => {
 const json = { 'content-type': 'application/json' };
 const body = (payload: object) => JSON.stringify(payload);
 
-/** Вход по логину и паролю: возвращает ответ и куки, которые поставил сервер. */
+/** Login by username and password: returns the response and the cookies set by the server. */
 async function login(
   username = 'misha',
   password = TEST_PASSWORD,
@@ -51,7 +51,7 @@ const cookiesOf = (response: LightMyRequestResponse) =>
 const cookie = (response: LightMyRequestResponse, name: string) =>
   response.cookies.find((c) => c.name === name)!;
 
-/** Запрос с заданными куками и Origin нашего сайта. */
+/** A request with the given cookies and the Origin of our site. */
 const authed = (cookies: Record<string, string>, options: InjectOptions) =>
   t.app.inject({ ...options, cookies, headers: { origin: TEST_ORIGIN, ...options.headers } });
 

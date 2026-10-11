@@ -10,9 +10,9 @@ import {
 
 setupAnalyticsHarness();
 
-/** 12 месяцев до октября 2026 включительно, как отдаёт сервер (пропуски заполнены нулями). */
+/** 12 months up to and including October 2026, as the server returns them (gaps zero-filled). */
 const MONTHS = Array.from({ length: 12 }, (_, i) => {
-  const index = 2025 * 12 + 11 + i; // с ноября 2025
+  const index = 2025 * 12 + 11 + i; // starting from November 2025
   return `${Math.floor((index - 1) / 12)}-${String(((index - 1) % 12) + 1).padStart(2, '0')}-01`;
 });
 const TOTALS: Record<string, [number, number]> = {
@@ -52,7 +52,7 @@ const timeseriesRequests = () =>
   harness.requests.filter((r) => r.startsWith('/api/analytics/timeseries'));
 const location = () => screen.getByTestId('location');
 
-/** `configure` меняет ответы сервера после значений по умолчанию, но до первого запроса. */
+/** `configure` changes the server responses after the defaults but before the first request. */
 function renderCompare(path = '/analytics/compare', configure?: () => void) {
   useCompareData();
   configure?.();
@@ -142,8 +142,8 @@ describe('таблица по месяцам', () => {
     const october = rowOf('Октябрь 2026');
     expect(october).toHaveTextContent('не закончился');
     expect(october).toHaveTextContent('600 AMD');
-    expect(october).toHaveTextContent('40'); // 600 за 15 прошедших дней
-    // Незаконченный месяц с предыдущим не сравнивается
+    expect(october).toHaveTextContent('40'); // 600 over 15 elapsed days
+    // An unfinished month is not compared with the previous one
     expect(october).toHaveTextContent('—');
     expect(october).not.toHaveTextContent('%');
     const september = rowOf('Сентябрь 2026');
@@ -169,7 +169,7 @@ describe('таблица по месяцам', () => {
     const header = () => within(monthsTable).getByRole('columnheader', { name: /Потрачено/ });
 
     await user.click(within(monthsTable).getByRole('button', { name: /Потрачено/ }));
-    expect(first()).toContain('Сентябрь 2026'); // 1500 — самая большая сумма
+    expect(first()).toContain('Сентябрь 2026'); // 1500 is the largest sum
     expect(header()).toHaveAttribute('aria-sort', 'descending');
 
     await user.click(within(monthsTable).getByRole('button', { name: /Потрачено/ }));
@@ -190,7 +190,7 @@ describe('месяц к месяцу', () => {
     const housing = rows.find(
       (r) => r.textContent?.startsWith('жилье') && r.textContent.includes('900'),
     )!;
-    // Октябрь 0, сентябрь 900: разница −900, −100%
+    // October 0, September 900: difference −900, −100%
     expect(housing).toHaveTextContent('-900');
     expect(housing).toHaveTextContent('-100%');
     const cafe = rows.find(
@@ -269,7 +269,7 @@ describe('месяц к месяцу', () => {
 describe('состояния', () => {
   it('нет расходов за выбранные месяцы: сообщения вместо графиков', async () => {
     renderCompare('/analytics/compare', () => {
-      // Как отдаёт сервер: месяцы с нулями, а при разбивке по категориям точек нет вовсе
+      // As the server returns: zero-filled months, and no points at all when split by category
       harness.handlers['/api/analytics/timeseries'] = (url) =>
         ok(
           url.searchParams.get('splitBy') === 'category'

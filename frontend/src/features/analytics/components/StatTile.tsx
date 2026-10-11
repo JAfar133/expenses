@@ -3,17 +3,17 @@ import { formatMoney } from '../../../shared/utils/money.ts';
 interface StatTileProps {
   label: string;
   value: string;
-  /** Изменение к предыдущему периоду, %; null или не задано: не показываем */
+  /** Change versus the previous period, %; null or unset: not shown */
   change?: number | null;
-  /** Название периода сравнения, например «к 1–15 сентября» */
+  /** Name of the comparison period, e.g. "vs 1-15 September" */
   changeNote?: string;
-  /** Дополнительные классы раскладки (например, растянуть на две колонки) */
+  /** Extra layout classes (e.g. span two columns) */
   className?: string;
 }
 
 /**
- * Плитка показателя: подпись, значение и (необязательно) изменение к предыдущему периоду.
- * Для расходов рост это плохо, а снижение хорошо; направление всегда дублируется стрелкой и текстом, а не только цветом.
+ * Metric tile: label, value and (optionally) change versus the previous period.
+ * For expenses growth is bad and a decrease is good; direction is always duplicated by an arrow and text, not only color.
  */
 export function StatTile({
   label,

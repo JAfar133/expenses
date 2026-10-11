@@ -5,7 +5,7 @@ import { useRunSync, useSyncState } from '../hooks/useSyncState.ts';
 
 type Tone = 'neutral' | 'warning' | 'error';
 
-/** Сколько секунд значок остаётся красным после неудачного нажатия. */
+/** How many seconds the indicator stays red after a failed press. */
 const FAILED_VISIBLE_MS = 8000;
 
 const TONE_STYLES: Record<Tone, string> = {
@@ -18,8 +18,8 @@ const TONE_STYLES: Record<Tone, string> = {
 };
 
 /**
- * Значок синхронизации с Excel: иконка и обратный отсчёт до следующего запуска.
- * Нажатие запускает синхронизацию сразу. Цвет показывает проблемы, число — очередь записи в Excel.
+ * Excel sync indicator: an icon and a countdown to the next run.
+ * Pressing it starts a sync immediately. Color shows problems, the number shows the Excel write queue.
  */
 export function SyncIndicator({
   failedVisibleMs = FAILED_VISIBLE_MS,
@@ -29,8 +29,8 @@ export function SyncIndicator({
   const { data: state, dataUpdatedAt, isError } = useSyncState();
   const runSyncNow = useRunSync();
 
-  // Неудачный ручной запуск — разовое событие: показываем его недолго, а не до перезагрузки страницы.
-  // Состояние самой синхронизации (последний результат) при этом берётся с сервера и обновляется само.
+  // A failed manual run is a one-off event: show it briefly, not until the page reloads.
+  // The sync state itself (the last result) is taken from the server and updates on its own.
   const { isError: startFailed, reset: clearStartFailure } = runSyncNow;
   useEffect(() => {
     if (!startFailed) return;
@@ -53,7 +53,7 @@ export function SyncIndicator({
     );
   }
 
-  // Excel не подключён: синхронизировать нечего
+  // Excel is not connected: nothing to sync
   if (!state.enabled) return null;
 
   return (
@@ -101,7 +101,7 @@ function toneOf(state: SyncState, failed: boolean): Tone {
   return 'neutral';
 }
 
-/** Полное описание для screen reader и всплывающей подсказки: на значке места мало. */
+/** Full description for screen readers and the tooltip: there is little room on the indicator. */
 function describe(state: SyncState, timer: string, busy: boolean, failed: boolean): string {
   const parts = ['Синхронизация с Excel'];
 

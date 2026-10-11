@@ -12,7 +12,7 @@ import {
 } from '../../preferences/model/preferences.ts';
 import { SettingsSection } from './SettingsSection.tsx';
 
-/** Одна настройка: название, пояснение и переключатель. Выбор сразу сохраняется на сервере. */
+/** A single setting: title, description and a switch. The choice is saved to the server immediately. */
 function PreferenceRow({ prefKey }: { prefKey: PreferenceKey }) {
   const definition = PREFERENCES[prefKey];
   const [value, change] = usePreference(prefKey);
@@ -36,7 +36,7 @@ function PreferenceRow({ prefKey }: { prefKey: PreferenceKey }) {
   );
 }
 
-/** Как показывать анализ по умолчанию: виды графиков и панель фильтров. */
+/** How to show analytics by default: chart types and the filter panel. */
 export function AnalyticsSection() {
   const { save } = useSavePreferences();
   const { isSaving, isError } = useSaveStatus();

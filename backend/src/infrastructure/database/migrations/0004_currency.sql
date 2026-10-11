@@ -1,5 +1,5 @@
--- Расходы в иностранной валюте: в amount всегда сумма в драммах (она идёт в Excel), а исходная сумма,
--- валюта и курс на момент ввода хранятся отдельно. У старых записей и записей в драммах эти поля пусты.
+-- Expenses in a foreign currency: amount is always the amount in drams (it goes to Excel), while the original amount,
+-- currency and rate at entry time are stored separately. For old records and dram records these fields are empty.
 ALTER TABLE expenses
   ADD COLUMN original_amount   numeric(14, 2),
   ADD COLUMN original_currency text,
@@ -9,7 +9,7 @@ ALTER TABLE expenses
     AND (original_amount IS NULL) = (exchange_rate IS NULL)
   );
 
--- Последние известные курсы (драммы за единицу валюты): запасной вариант, если источник курса недоступен
+-- Latest known rates (drams per unit of currency): a fallback if the rate source is unavailable
 CREATE TABLE exchange_rates (
   currency   text          PRIMARY KEY,
   rate       numeric(18, 6) NOT NULL CHECK (rate > 0),

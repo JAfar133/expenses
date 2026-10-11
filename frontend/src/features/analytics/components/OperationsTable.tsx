@@ -10,9 +10,9 @@ interface OperationsTableProps {
   onSort: (column: SortColumn) => void;
   canEdit: boolean;
   excelEnabled: boolean;
-  /** Логин → имя для показа */
+  /** Login to display name */
   authorLabel: (login: string) => string;
-  /** Запись, с которой сейчас что-то делают (кнопки недоступны) */
+  /** Record currently being acted on (buttons disabled) */
   busyId?: string;
   onEdit: (item: OperationItem) => void;
   onDelete: (item: OperationItem) => void;
@@ -30,7 +30,7 @@ const COLUMNS: { id: SortColumn; label: string; numeric?: boolean }[] = [
 
 const formatDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 
-/** Сумма с пометкой об исходной валюте, если расход вводили не в драммах. */
+/** Amount with a note of the original currency if the expense was not entered in drams. */
 function Amount({ item, currency }: { item: OperationItem; currency: string }) {
   return (
     <span className="inline-flex flex-col items-end">
@@ -100,7 +100,7 @@ function Actions({
 const nameClass = (item: OperationItem) =>
   item.deletedAt ? 'text-zinc-400 line-through dark:text-zinc-500' : '';
 
-/** Таблица операций: на широком экране таблицей с сортировкой по заголовкам, на телефоне карточками. */
+/** Operations table: on wide screens a table sortable by headers, on phones cards. */
 export function OperationsTable(props: OperationsTableProps) {
   const { items, currency, sort, direction, onSort, canEdit, excelEnabled, authorLabel, busyId } =
     props;

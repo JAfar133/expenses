@@ -83,7 +83,7 @@ describe('Excel отключён', () => {
     expect(result).toMatchObject({ status: 'disabled', imported: 0, written: 0 });
     expect(result.error).toBeUndefined();
     expect(await disabled.status()).toMatchObject({ enabled: false, queued: 0, running: false });
-    // Запись ждёт в очереди и допишется, когда Excel подключат
+    // The record waits in the queue and will be appended once Excel is connected
     expect(await expenses.countQueue()).toBe(1);
   });
 });
@@ -102,7 +102,7 @@ describe('импорт из Excel', () => {
     expect((await expenses.listForReconcile(database)).every((e) => e.source === 'excel')).toBe(
       true,
     );
-    // Ничего не меняли в Excel: ни копии, ни загрузки
+    // Nothing changed in Excel: no copy and no upload
     expect(oneDrive.uploads).toBe(0);
     expect(backups.saved).toBe(0);
   });
@@ -130,7 +130,7 @@ describe('импорт из Excel', () => {
   it('сообщает о строках, которые нельзя импортировать, и не падает', async () => {
     const broken = await readFile(FIXTURE);
     oneDrive.remote = (await appendExpenseToBuffer(broken, coffee, excelOptions)).output;
-    // Заменяем стоимость добавленной строки на дробную
+    // Replace the cost of the added row with a fractional one
     const JSZip = (await import('jszip')).default;
     const zip = await JSZip.loadAsync(oneDrive.remote);
     const xml = await zip.file('xl/worksheets/sheet1.xml')!.async('string');
@@ -257,12 +257,12 @@ describe('сбои', () => {
     oneDrive.afterDownload = () => {
       if (edited) return;
       edited = true;
-      // Кто-то добавил строку в Excel, пока мы работали
+      // Someone added a row in Excel while we were working
       void appendExpenseToBuffer(oneDrive.remote, bread, excelOptions).then(
         (r) => (oneDrive.remote = r.output),
       );
     };
-    // Дожидаемся асинхронной правки до загрузки
+    // Wait for the asynchronous edit before the upload
     const original = oneDrive.uploadFile.bind(oneDrive);
     oneDrive.uploadFile = async (path, version) => {
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -275,7 +275,7 @@ describe('сбои', () => {
     expect(await statusOf(item.id)).toBe('synced');
     const names = (await excelRows()).map((e) => e.name);
     expect(names.slice(-2).sort()).toEqual(['Кофе', 'Хлеб'].sort());
-    // Чужая строка тоже попала в БД
+    // The other user's row also made it into the DB
     expect((await expenses.listForReconcile(database)).some((e) => e.name === 'Хлеб')).toBe(true);
   });
 
@@ -346,7 +346,7 @@ describe('запуск циклов', () => {
   });
 
   it('запрос во время цикла получает цикл, начатый после него, и видит новую запись', async () => {
-    // Первый цикл останавливаем перед загрузкой: очередь он уже прочитал
+    // Stop the first cycle before the upload: it has already read the queue
     let release!: () => void;
     oneDrive.uploadGate = new Promise<void>((resolve) => (release = resolve));
     const uploadStarted = new Promise<void>((resolve) => (oneDrive.onUploadStart = resolve));
@@ -378,7 +378,7 @@ describe('запуск циклов', () => {
   });
 });
 
-/** Записи, которых нет в Excel: так имитируется строка, удалённая в Excel после синхронизации. */
+/** Records missing from Excel: simulates a row deleted in Excel after sync. */
 const addRowsMissingInExcel = (count: number, prefix = 'Нет в Excel') =>
   expenses.importFromExcel(
     database,
@@ -409,7 +409,7 @@ describe('мягкое удаление: строки пропали из Excel'
       expect.stringMatching(/^\d{4}-\d\d-\d\dT/),
     );
     expect(rows.get('Нет в Excel 1')?.deletedAt).not.toBeNull();
-    // Строки, которые есть в Excel, не затронуты
+    // Rows that are in Excel are untouched
     const active = (await expenses.listForReconcile(database)).filter((r) => r.deletedAt === null);
     expect(active).toHaveLength(excelRowCount);
     expect(result.warning).toBeUndefined();
@@ -467,16 +467,16 @@ describe('мягкое удаление: строка вернулась в Exce
   it('вернувшаяся строка восстанавливает запись и не создаёт дубликат', async () => {
     await sync.requestCycle();
     oneDrive.remote = (await appendExpenseToBuffer(oneDrive.remote, bread, excelOptions)).output;
-    await sync.requestCycle(); // «Хлеб» есть и в Excel, и в базе
+    await sync.requestCycle(); // "Хлеб" is in both Excel and the DB
     const total = (await expenses.listForReconcile(database)).length;
 
-    // Excel откатили к старой копии: строки «Хлеб» там больше нет
+    // Excel was rolled back to an old copy: the "Хлеб" row is no longer there
     oneDrive.remote = await readFile(FIXTURE);
     const removed = await sync.requestCycle();
     expect(removed).toMatchObject({ deleted: 1 });
     expect((await rowsByName()).get('Хлеб')?.deletedAt).not.toBeNull();
 
-    // Строку вернули в Excel
+    // The row was restored in Excel
     oneDrive.remote = (await appendExpenseToBuffer(oneDrive.remote, bread, excelOptions)).output;
     const restored = await sync.requestCycle();
 
@@ -489,7 +489,7 @@ describe('мягкое удаление: строка вернулась в Exce
 describe('защита от массового удаления', () => {
   it('если пропало слишком много записей, они не помечаются удалёнными и выводится предупреждение', async () => {
     await sync.requestCycle();
-    await addRowsMissingInExcel(15); // 15 из 54 активных ≈ 28% > 25%
+    await addRowsMissingInExcel(15); // 15 of 54 active ≈ 28% > 25%
 
     const result = await sync.requestCycle();
 

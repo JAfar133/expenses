@@ -31,7 +31,7 @@ beforeEach(async () => {
   t = await createTestApp(database);
 });
 
-/** Запись, уже лежащая в Excel (снимок строки равен значениям). */
+/** A record already in Excel (the row snapshot equals the values). */
 async function inExcel(expense: Expense = coffee): Promise<StoredExpense> {
   const created = await repository.insertPending(database, expense, 'misha');
   await repository.markSynced(database, [created.id]);
@@ -129,7 +129,7 @@ describe('правка', () => {
   });
 
   it('запись, которой ещё нет в Excel, просто получает новые значения и остаётся в очереди на добавление', async () => {
-    t.sync.excelAvailable = false; // Excel занят: очередь не записывается
+    t.sync.excelAvailable = false; // Excel is busy: the queue is not written
     const created = await repository.insertPending(database, coffee, 'misha');
 
     const response = await patch(created.id, { amount: 5 });
@@ -259,7 +259,7 @@ describe('удаление и возврат', () => {
   it('возврат после удаления строки из Excel: запись снова встаёт в очередь на добавление', async () => {
     const record = await inExcel();
     await del(record.id);
-    await repository.clearSnapshots(database, [record.id]); // синхронизация убрала строку
+    await repository.clearSnapshots(database, [record.id]); // sync removed the row
     t.sync.excelAvailable = false;
 
     const response = await restore(record.id);

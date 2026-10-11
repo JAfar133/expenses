@@ -23,11 +23,11 @@ import {
   type MonthKey,
 } from '../model/periods.ts';
 
-/** Месяц из адреса, если он в показанном диапазоне; иначе значение по умолчанию. */
+/** Month from the URL if it is in the shown range; otherwise the default. */
 const monthParam = (value: string | null, months: MonthKey[], fallback: MonthKey): MonthKey =>
   isMonthKey(value) && months.includes(value) ? value : fallback;
 
-/** Сравнение месяцев: динамика, категории по месяцам, таблица и «месяц к месяцу». Период свой, остальные фильтры общие. */
+/** Month comparison: dynamics, categories by month, a table and "month vs month". The period is its own, other filters are shared. */
 export default function ComparePage() {
   const { state, today } = useFilterState();
   const [params, setParams] = useSearchParams();

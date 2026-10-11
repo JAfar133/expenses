@@ -4,7 +4,7 @@ import ComparePage from './ComparePage.tsx';
 import OperationsPage from './OperationsPage.tsx';
 import OverviewPage from './OverviewPage.tsx';
 
-/** Маршруты раздела «Анализ»; грузятся одним фрагментом. */
+/** Routes of the "Analytics" section; loaded as a single chunk. */
 export default function AnalyticsRoutes() {
   return (
     <Routes>

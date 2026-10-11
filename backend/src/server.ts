@@ -30,7 +30,7 @@ const DAY_MS = 86_400_000;
 
 const env = loadEnv();
 
-// --- OneDrive через rclone (только если задан файл Excel)
+// --- OneDrive via rclone (only if an Excel file is set)
 const rclone = env.ONEDRIVE_FILE_PATH ? createRclone(env.ONEDRIVE_FILE_PATH) : undefined;
 
 function createRclone(filePath: string) {
@@ -142,7 +142,7 @@ const app = buildApp({
   }),
 });
 
-/** Удаляет устаревшие резервные копии и ключи идемпотентности. */
+/** Removes stale backups and idempotency keys. */
 async function runMaintenance(): Promise<void> {
   const removedBackups = await backups.cleanup();
   const removedSessions = await auth.deleteStaleSessions();
@@ -161,7 +161,7 @@ if (applied.length > 0) {
   app.log.info({ migrations: applied }, 'Database migrations applied');
 }
 
-// Пользователи и пароли берутся из настроек. Пароль хешируется и сохраняется в базе, если он новый или изменился.
+// Users and passwords come from the settings. A password is hashed and stored in the database if it is new or has changed.
 const userSync = await auth.syncUsers(env.AUTH_USERS, readUserPasswords(env.AUTH_USERS), {
   editors: env.EDITOR_USERS,
   timezone: env.APP_TIMEZONE,
@@ -182,7 +182,7 @@ if (unknownCards.length > 0) {
 
 await app.listen({ host: env.HOST, port: env.PORT });
 
-// Первая синхронизация стартует сразу: подтянет строки Excel и допишет очередь
+// The first sync starts immediately: it pulls in the Excel rows and appends the queue
 if (sync.enabled) {
   scheduler.start();
 } else {

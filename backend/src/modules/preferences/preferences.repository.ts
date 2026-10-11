@@ -12,7 +12,7 @@ export class PreferencesRepository {
     return row?.preferences ?? {};
   }
 
-  /** Добавляет и заменяет указанные ключи, остальные настройки остаются. Возвращает итоговый набор. */
+  /** Adds and replaces the given keys, other settings remain. Returns the resulting set. */
   async merge(userId: string, patch: Preferences): Promise<Preferences> {
     const [row] = await this.database.query<{ preferences: Preferences }>(
       `UPDATE users SET preferences = preferences || $2::jsonb, updated_at = now()

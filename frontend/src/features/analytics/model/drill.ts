@@ -1,8 +1,8 @@
 import type { BreakdownRow } from '../api/analytics.api.ts';
 
 /**
- * Категория для разбивки по наименованиям: запрошенная, если она есть в списке,
- * иначе самая затратная (список уже отсортирован по сумме). Нет категорий: нечего показывать.
+ * Category for the name breakdown: the requested one if it is in the list,
+ * otherwise the biggest spend (the list is already sorted by amount). No categories: nothing to show.
  */
 export function pickDrillCategory(
   requested: string | null,
@@ -17,13 +17,13 @@ export interface NameShare {
   total: number;
   count: number;
   average: number;
-  /** Доля от суммы категории, 0..1 */
+  /** Share of the category amount, 0..1 */
   share: number;
-  /** Длина полосы относительно самого крупного наименования, 0..1 */
+  /** Bar length relative to the largest name, 0..1 */
   relative: number;
 }
 
-/** Строки наименований с долями в категории; `categoryTotal` берётся из разбивки по категориям. */
+/** Name rows with shares in the category; `categoryTotal` is taken from the category breakdown. */
 export function toNameShares(rows: BreakdownRow[], categoryTotal: number): NameShare[] {
   const largest = rows.reduce((max, row) => Math.max(max, row.total), 0);
   return rows.map((row) => ({

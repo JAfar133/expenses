@@ -14,8 +14,8 @@ import { PostgresExpenseRepository } from '../../src/storage/postgres/postgres.r
 import { okResult } from '../helpers/create-test-app.ts';
 
 /**
- * Настоящий драйвер `pg` (тот, что работает в production) по сетевому протоколу PostgreSQL.
- * Сервером служит PGlite: это тот же Postgres, но без Docker.
+ * The real `pg` driver (the one used in production) over the PostgreSQL network protocol.
+ * The server is PGlite: the same Postgres, but without Docker.
  */
 let database: Database;
 let server: PGLiteSocketServer;

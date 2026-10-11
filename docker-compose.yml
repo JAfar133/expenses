@@ -1,13 +1,13 @@
-# Expenses Tracker: PostgreSQL + backend (Fastify) + web (Caddy: статика и прокси /api).
+# Expenses Tracker: PostgreSQL + backend (Fastify) + web (Caddy: static files and /api proxy).
 #
-#   cp .env.example .env              # и заполните значения
+#   cp .env.example .env              # and fill in the values
 #   mkdir -p secrets && cp ~/.config/rclone/rclone.conf secrets/rclone.conf
-#       (Excel в OneDrive необязателен: без него создайте пустой файл `touch secrets/rclone.conf`
-#        и не задавайте ONEDRIVE_FILE_PATH, расходы будут храниться только в базе)
+#       (Excel in OneDrive is optional: without it create an empty file `touch secrets/rclone.conf`
+#        and do not set ONEDRIVE_FILE_PATH; expenses will be stored in the database only)
 #   docker compose up -d --build
 #
-# Только база для локальной разработки:  docker compose up -d --wait postgres pgadmin
-# pgAdmin: http://127.0.0.1:5051 (вход: PGADMIN_EMAIL / PGADMIN_PASSWORD из .env)
+# Database only for local development:  docker compose up -d --wait postgres pgadmin
+# pgAdmin: http://127.0.0.1:5051 (login: PGADMIN_EMAIL / PGADMIN_PASSWORD from .env)
 name: expenses-tracker
 
 services:
@@ -20,8 +20,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Задайте POSTGRES_PASSWORD в файле .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    # Порт открыт только на localhost: нужен для запуска backend вне Docker (npm run dev).
-    # Не 5432, чтобы не конфликтовать с другими Postgres на компьютере.
+    # The port is open on localhost only: needed to run the backend outside Docker (npm run dev).
+    # Not 5432, to avoid conflicts with other Postgres instances on the computer.
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     healthcheck:
@@ -39,7 +39,7 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?Задайте PGADMIN_PASSWORD в файле .env}
-      # Не отключайте вход: pgAdmin даёт полный доступ к базе
+      # Do not disable login: pgAdmin gives full access to the database
       PGADMIN_CONFIG_SERVER_MODE: "True"
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
     volumes:
@@ -60,7 +60,7 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: "3000"
-      # Пароль подставляется в URL как есть: используйте буквы и цифры (openssl rand -hex 24)
+      # The password is substituted into the URL as is: use letters and digits (openssl rand -hex 24)
       DATABASE_URL: postgres://expenses:${POSTGRES_PASSWORD}@postgres:5432/expenses
       APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Yerevan}
       DEFAULT_CURRENCY: ${DEFAULT_CURRENCY:-AMD}
@@ -70,7 +70,7 @@ services:
       EXCEL_SHEET_NAME: ${EXCEL_SHEET_NAME:-Лист1}
       EXCEL_TABLE_NAME: ${EXCEL_TABLE_NAME:-Операции}
       ONEDRIVE_REMOTE: ${ONEDRIVE_REMOTE:-onedrive}
-      # Не задан: работа с Excel отключена, расходы хранятся только в базе
+      # Not set: Excel is disabled, expenses are stored in the database only
       ONEDRIVE_FILE_PATH: ${ONEDRIVE_FILE_PATH:-}
       BACKUP_DIR: /data/backups
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
@@ -78,28 +78,28 @@ services:
       SYNC_RETRY_SECONDS: ${SYNC_RETRY_SECONDS:-60}
       SYNC_INLINE_WAIT_SECONDS: ${SYNC_INLINE_WAIT_SECONDS:-15}
       SYNC_MAX_DELETE_PERCENT: ${SYNC_MAX_DELETE_PERCENT:-25}
-      # Вход в приложение: пользователи (логин:карта по умолчанию) и их пароли. Без пароля пользователь не может войти
-      # (backend предупредит в логе). В серверном режиме (docker-compose.public.yml) пароли обязательны.
+      # App login: users (login:default card) and their passwords. Without a password a user cannot log in
+      # (the backend warns in the log). In server mode (docker-compose.public.yml) passwords are required.
       AUTH_USERS: ${AUTH_USERS:-misha:Миша,nastya:Настя}
-      # Кто может править и удалять записи (остальные только смотрят)
+      # Who can edit and delete records (everyone else is read-only)
       EDITOR_USERS: ${EDITOR_USERS:-misha}
       AUTH_PASSWORD_MISHA: ${AUTH_PASSWORD_MISHA:-}
       AUTH_PASSWORD_NASTYA: ${AUTH_PASSWORD_NASTYA:-}
       ACCESS_TOKEN_TTL_HOURS: ${ACCESS_TOKEN_TTL_HOURS:-24}
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
       SESSION_MAX_DAYS: ${SESSION_MAX_DAYS:-30}
-      # Backend стоит за Caddy: реальный IP и HTTPS берём из заголовков X-Forwarded-*
+      # The backend sits behind Caddy: the real IP and HTTPS come from the X-Forwarded-* headers
       TRUST_PROXY: "true"
       AUTH_MIN_PASSWORD_LENGTH: ${AUTH_MIN_PASSWORD_LENGTH:-8}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
       CARDS: ${CARDS:-Миша,Настя}
       CATEGORIES: ${CATEGORIES:-кафе,одежда,продукты,жилье,маркетплейс,другое}
     volumes:
-      # Конфигурация rclone (с обновляемыми токенами) и резервные копии Excel
+      # rclone config (with refreshed tokens) and Excel backups
       - backend-data:/data
     secrets:
       - rclone.conf
-    # Наружу не публикуется: доступен только сервису web
+    # Not published: reachable only by the web service
     expose:
       - "3000"
 
@@ -112,10 +112,10 @@ services:
       backend:
         condition: service_healthy
     environment:
-      # Для HTTPS на сервере укажите домен, например expenses.example.com
+      # For HTTPS on a server, set a domain, e.g. expenses.example.com
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
     ports:
-      # Пока в приложении нет авторизации, порт слушает только localhost
+      # While the app has no authorization, the port listens on localhost only
       - "${WEB_BIND:-127.0.0.1}:${HTTP_PORT:-8080}:80"
       - "${WEB_BIND:-127.0.0.1}:${HTTPS_PORT:-8443}:443"
     volumes:

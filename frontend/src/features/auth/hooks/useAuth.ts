@@ -4,15 +4,15 @@ import { fetchCurrentUser, login, logout, type AuthUser } from '../api/auth.api.
 export const CURRENT_USER_KEY = ['auth', 'current-user'];
 
 /**
- * Забывает данные предыдущего пользователя (справочники, состояние синхронизации) и запоминает нового.
- * Сам запрос текущего пользователя не удаляем: на него подписан экран, и он мог бы зависнуть.
+ * Forgets the previous user's data (reference data, sync state) and remembers the new one.
+ * The current-user query itself is not removed: the screen subscribes to it and it could hang.
  */
 export function resetCacheFor(queryClient: QueryClient, user: AuthUser | null) {
   queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'auth' });
   queryClient.setQueryData(CURRENT_USER_KEY, user);
 }
 
-/** Текущий пользователь: AuthUser, null (не вошли) или ошибка (нет связи с сервером). */
+/** Current user: AuthUser, null (not signed in) or an error (no connection to the server). */
 export function useCurrentUser() {
   return useQuery({
     queryKey: CURRENT_USER_KEY,

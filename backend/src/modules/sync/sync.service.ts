@@ -20,12 +20,12 @@ import type { SyncResult, SyncStatusView } from './sync.types.ts';
 export interface SyncServiceDeps {
   database: Database;
   expenses: ExpenseRepository;
-  /** Не задан: работа с Excel отключена, расходы остаются только в базе */
+  /** Unset: Excel is disabled, expenses stay in the database only */
   oneDrive?: OneDriveService;
   backups: BackupStore;
   excelOptions: ExcelOptions;
   state: SyncStateRepository;
-  /** Максимальная доля записей, которую можно пометить удалёнными за один цикл (по умолчанию 25%) */
+  /** Maximum share of records that may be marked deleted in one cycle (25% by default) */
   maxDeletePercent?: number;
   logger?: {
     info: (fields: object, message: string) => void;
@@ -34,13 +34,13 @@ export interface SyncServiceDeps {
 }
 
 export interface CycleOptions {
-  /** Применить удаления, даже если пропало подозрительно много записей (ручное подтверждение) */
+  /** Apply deletions even if a suspiciously large number of records vanished (manual confirmation) */
   applyDeletions?: boolean;
 }
 
 const DEFAULT_MAX_DELETE_PERCENT = 25;
 
-/** Строка для Excel: только пять столбцов таблицы, без служебных полей записи. */
+/** A row for Excel: only the five table columns, without the record's internal fields. */
 const toExcelRow = ({ date, card, category, name, amount }: Expense): Expense => ({
   date,
   card,
@@ -49,23 +49,23 @@ const toExcelRow = ({ date, card, category, name, amount }: Expense): Expense =>
   amount,
 });
 
-/** Сколько раз подряд повторяем цикл, если файл изменили прямо во время записи. */
+/** How many times in a row we repeat the cycle if the file was changed right during the write. */
 const MAX_CONFLICT_ATTEMPTS = 2;
 
 /**
- * Синхронизация PostgreSQL ↔ Excel. За один цикл:
- *   1. скачиваем свежий Excel;
- *   2. строки, которых нет в БД (добавлены в Excel вручную), добавляем в БД; записи, строк которых
- *      больше нет в Excel (удалены или изменены), помечаем удалёнными, но не стираем (мягкое удаление);
- *   3. записи из очереди (ещё не попавшие в Excel) дописываем в Excel и загружаем файл.
+ * PostgreSQL ↔ Excel sync. One cycle:
+ *   1. download a fresh Excel;
+ *   2. rows missing from the DB (added to Excel manually) are added to the DB; records whose rows
+ *      are no longer in Excel (deleted or changed) are marked deleted but not erased (soft delete);
+ *   3. queued records (not yet in Excel) are appended to Excel and the file is uploaded.
  *
- * Цикл всегда один за раз. Запросы, пришедшие во время работы цикла, объединяются в один
- * следующий цикл: он стартует после запроса, поэтому видит все записи, добавленные до него.
+ * Only one cycle runs at a time. Requests that arrive while a cycle is running are merged into one
+ * next cycle: it starts after the request, so it sees all records added before it.
  */
 export class SyncService {
   private running?: Promise<SyncResult>;
   private next?: Promise<SyncResult>;
-  /** Параметры следующего цикла: запросы, которые к нему присоединились, объединяются */
+  /** Parameters of the next cycle: requests that joined it are merged */
   private nextOptions: CycleOptions = {};
   private lastResult?: SyncResult;
 
@@ -75,12 +75,12 @@ export class SyncService {
     return this.running !== undefined;
   }
 
-  /** Работа с Excel включена, если задан файл в OneDrive. */
+  /** Excel is enabled if an OneDrive file is set. */
   get enabled(): boolean {
     return this.deps.oneDrive !== undefined;
   }
 
-  /** Запускает цикл (или присоединяется к ожидающему). Не бросает ошибок: итог — в результате. */
+  /** Starts a cycle (or joins the pending one). Never throws: the outcome is in the result. */
   requestCycle(options: CycleOptions = {}): Promise<SyncResult> {
     if (!this.enabled) {
       return Promise.resolve(this.disabledResult());
@@ -89,7 +89,7 @@ export class SyncService {
       return this.start(options);
     }
 
-    // Следующий цикл один на всех: если кто-то из присоединившихся просит применить удаления, применяем
+    // The next cycle is shared by everyone: if any of those who joined asks to apply deletions, we apply them
     this.nextOptions = {
       applyDeletions: this.nextOptions.applyDeletions || options.applyDeletions,
     };
@@ -104,7 +104,7 @@ export class SyncService {
 
   async status(): Promise<SyncStatusView> {
     if (!this.enabled) {
-      // Записи остаются в очереди: если Excel подключат позже, они допишутся сами
+      // Records stay in the queue: if Excel is connected later, they will be appended on their own
       return { enabled: false, lastResult: this.disabledResult(), queued: 0, running: false };
     }
     this.lastResult ??= await this.deps.state.get();
@@ -221,7 +221,7 @@ export class SyncService {
     }
   }
 
-  /** Шаг 2: сверка с Excel: импорт новых строк, мягкое удаление пропавших, восстановление вернувшихся. */
+  /** Step 2: reconciliation with Excel: import of new rows, soft delete of vanished ones, restoring of returned ones. */
   private async importFromExcel(
     source: Buffer,
     result: SyncResult,
@@ -235,7 +235,7 @@ export class SyncService {
       const dbRows = await expenses.listForReconcile(tx);
       const plan = reconcile(excel.expenses, dbRows);
 
-      // Защита: если пропало слишком много записей сразу, удаления не применяем
+      // Safeguard: if too many records vanished at once, we do not apply the deletions
       const blocked =
         !options.applyDeletions &&
         isMassDeletion({
@@ -281,8 +281,8 @@ export class SyncService {
   }
 
   /**
-   * Шаг 3: перенос в Excel всего, что накопилось в приложении: новые записи дописываются,
-   * исправленные заменяют свою строку, удалённые убираются. Всё одним файлом и одной загрузкой.
+   * Step 3: transfer to Excel everything accumulated in the app: new records are appended,
+   * edited ones replace their row, deleted ones are removed. All in one file and one upload.
    */
   private async writeChangesToExcel(
     oneDrive: OneDriveService,
@@ -302,8 +302,8 @@ export class SyncService {
       removals: removals.map(({ snapshot }) => snapshot),
     });
 
-    // «writing» фиксируем до загрузки: если процесс упадёт после неё, следующая сверка
-    // поймёт по содержимому Excel, дошла ли запись, и не создаст дубль.
+    // We record "writing" before the upload: if the process crashes after it, the next reconciliation
+    // will tell from the Excel contents whether the write went through, and will not create a duplicate.
     await expenses.markWriting(database, ids);
 
     try {
@@ -313,8 +313,8 @@ export class SyncService {
       throw error;
     }
 
-    // В снимок попадает то, что записано в файл, а не то, что в записи сейчас: если запись успели
-    // исправить снова, следующая синхронизация заменит строку ещё раз.
+    // The snapshot gets what was written to the file, not what the record holds now: if the record was
+    // edited again in the meantime, the next sync will replace the row once more.
     await expenses.markSynced(database, ids);
     await expenses.setSnapshots(
       database,
@@ -329,7 +329,7 @@ export class SyncService {
     result.removed = removals.length;
   }
 
-  /** Резервная копия и новый файл с учётом всех изменений. До загрузки БД не меняется. */
+  /** Backup and a new file with all changes applied. The DB is not changed before the upload. */
   private async prepareFile(
     file: DownloadedFile,
     source: Buffer,
@@ -354,8 +354,8 @@ export class SyncService {
   }
 
   private async handleUploadFailure(error: unknown, ids: string[]): Promise<void> {
-    // Файл точно не менялся — возвращаем в очередь. Иначе результат неизвестен: оставляем
-    // «writing», следующая сверка разберётся.
+    // The file was definitely not changed — return to the queue. Otherwise the outcome is unknown: leave
+    // "writing", the next reconciliation will sort it out.
     if (error instanceof OneDriveError && error.wasRejected) {
       await this.deps.expenses.markPending(this.deps.database, ids, error.code);
     }

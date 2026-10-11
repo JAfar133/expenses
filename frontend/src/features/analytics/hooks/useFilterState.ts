@@ -8,7 +8,7 @@ import {
   type FilterState,
 } from '../model/filter-state.ts';
 
-/** Фильтры страницы анализа: читаются из адресной строки и пишутся в неё же (без новых записей в истории). */
+/** Analytics page filters: read from the URL and written back to it (without new history entries). */
 export function useFilterState() {
   const [params, setParams] = useSearchParams();
   const today = todayIso();
@@ -25,7 +25,7 @@ export function useFilterState() {
     [setParams, today],
   );
 
-  /** Сбрасывает фильтры, период остаётся. */
+  /** Resets filters, the period stays. */
   const reset = useCallback(
     () =>
       setParams(

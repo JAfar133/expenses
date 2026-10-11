@@ -24,7 +24,7 @@ import {
   rangeLabel,
 } from '../model/operations.ts';
 
-/** Вкладка «Операции»: все записи с сортировкой и страницами; редакторам доступны правка, удаление и возврат. */
+/** "Operations" tab: all records with sorting and pages; editors can edit, delete and restore. */
 export default function OperationsPage() {
   const { state, today } = useFilterState();
   const [params, setParams] = useSearchParams();
@@ -62,18 +62,18 @@ export default function OperationsPage() {
       { replace: true },
     );
 
-  // При смене фильтров или сортировки возвращаемся на первую страницу
+  // When filters or sorting change, go back to the first page
   const filterKey = JSON.stringify([filters, sort, direction]);
   const previousKey = useRef(filterKey);
   useEffect(() => {
     if (previousKey.current === filterKey) return;
     previousKey.current = filterKey;
     setPage(1);
-    // setPage зависит только от setParams
+    // setPage depends only on setParams
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterKey]);
 
-  // Страница стала пустой (например, после удаления последней записи): переходим на последнюю
+  // The page became empty (e.g. after deleting the last record): go to the last one
   const total = list.data?.total ?? 0;
   const lastPage = clampPage(page, total);
   useEffect(() => {

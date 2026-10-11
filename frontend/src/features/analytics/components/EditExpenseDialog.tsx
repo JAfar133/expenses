@@ -11,15 +11,15 @@ interface EditExpenseDialogProps {
   cards: string[];
   categories: string[];
   currency: string;
-  /** Идёт сохранение */
+  /** Saving in progress */
   saving: boolean;
-  /** Ошибка последнего сохранения */
+  /** Error of the last save */
   error: unknown;
   onSave: (patch: ExpensePatch) => void;
   onClose: () => void;
 }
 
-/** Значения из формы в правку: только то, что реально изменилось. */
+/** Form values to a patch: only what actually changed. */
 export function buildPatch(
   item: OperationItem,
   values: { date: string; card: string; category: string; name: string; amount: string },
@@ -49,7 +49,7 @@ export function buildPatch(
   return { patch, errors };
 }
 
-/** Правка записи: дата, карта, категория, наименование и стоимость в драммах. Отправляются только изменённые поля. */
+/** Record edit: date, card, category, name and cost in drams. Only changed fields are sent. */
 export function EditExpenseDialog({
   item,
   cards,
@@ -76,7 +76,7 @@ export function EditExpenseDialog({
   const set = (field: keyof typeof values) => (value: string) =>
     setValues((current) => ({ ...current, [field]: value }));
 
-  // Выбранное значение, которого нет в справочнике (например, старая карта), остаётся доступным
+  // A selected value missing from the reference data (e.g. an old card) stays available
   const withCurrent = (options: string[], current: string) =>
     options.includes(current) ? options : [current, ...options];
 
@@ -175,7 +175,7 @@ export function EditExpenseDialog({
           </button>
           <button
             type="submit"
-            // Недоступно, пока ничего не менялось; с ошибками доступно: нажатие покажет, что исправить
+            // Disabled while nothing changed; enabled with errors: pressing shows what to fix
             disabled={saving || (!changed && !invalid)}
             aria-busy={saving}
             className="h-11 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"

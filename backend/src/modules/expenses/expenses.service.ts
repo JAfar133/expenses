@@ -8,7 +8,7 @@ import type {
 import { resolveAmount, type AmountContext } from './expense-amount.ts';
 import type { CreateExpenseInput } from './expenses.schema.ts';
 
-/** Сколько пар «категория + наименование» отдаём форме для подсказок. */
+/** How many "category + name" pairs we give the form for suggestions. */
 const NAME_SUGGESTIONS_LIMIT = 500;
 
 export interface ReferenceData {
@@ -18,7 +18,7 @@ export interface ReferenceData {
 
 export interface ExpenseServiceOptions {
   reference: ReferenceData;
-  /** Базовая валюта, доступные валюты и курсы для пересчёта в драммы */
+  /** Base currency, available currencies and rates for conversion to drams */
   currency: AmountContext;
   logger?: { warn: (object: object, message: string) => void };
 }
@@ -33,14 +33,14 @@ export class ExpenseService {
     return this.options.reference.cards;
   }
 
-  /** Категории из конфигурации + уникальные значения из БД (в том числе из Excel). */
+  /** Categories from the configuration + unique values from the DB (including those from Excel). */
   async getCategories(): Promise<string[]> {
     const configured = this.options.reference.categories;
     const stored = await this.readStoredCategories();
     return [...new Set([...configured, ...stored])];
   }
 
-  /** Подсказки наименований: от самых частых к редким. Недоступная БД не ломает форму. */
+  /** Name suggestions: from most to least frequent. An unavailable DB does not break the form. */
   async getNameSuggestions(limit = NAME_SUGGESTIONS_LIMIT): Promise<NameSuggestion[]> {
     try {
       return await this.repository.listNameSuggestions(limit);
@@ -50,7 +50,7 @@ export class ExpenseService {
     }
   }
 
-  /** Сохраняет расход в БД. В Excel он попадёт через очередь синхронизации. */
+  /** Saves the expense to the DB. It reaches Excel through the sync queue. */
   async create(db: SqlExecutor, input: CreateExpenseInput, userId: string): Promise<StoredExpense> {
     if (!this.getCards().includes(input.card)) {
       throw validationError('INVALID_CARD', 'Выберите карту из списка');
@@ -76,7 +76,7 @@ export class ExpenseService {
     return this.repository.findById(id);
   }
 
-  /** Недоступность БД не должна ломать форму: отдаём категории из конфигурации. */
+  /** DB unavailability must not break the form: return the categories from the configuration. */
   private async readStoredCategories(): Promise<string[]> {
     try {
       return await this.repository.listCategories();

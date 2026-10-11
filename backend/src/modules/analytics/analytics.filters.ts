@@ -8,7 +8,7 @@ import {
   type AnalyticsFilters,
 } from './analytics.types.ts';
 
-/** Список в адресе: `cards=Миша&cards=Настя` или `cards=Миша,Настя`. */
+/** List in the address: `cards=Миша&cards=Настя` or `cards=Миша,Настя`. */
 const list = z.preprocess(
   (value) => {
     if (value === undefined) return [];
@@ -21,7 +21,7 @@ const list = z.preprocess(
   z.array(z.string().max(100)).max(50),
 );
 
-/** Пустое значение в адресе (`?q=`) считаем «не задано». */
+/** An empty value in the address (`?q=`) is treated as "not set". */
 const optional = <T extends z.ZodType>(schema: T) =>
   z.preprocess((value) => (value === '' ? undefined : value), schema.optional());
 
@@ -95,7 +95,7 @@ const schemas = {
   ),
 };
 
-/** Разбирает параметры запроса; при ошибке отвечает 400 с понятным сообщением. */
+/** Parses the query parameters; on error responds with 400 and a clear message. */
 export function parseQuery<K extends keyof typeof schemas>(
   kind: K,
   query: unknown,

@@ -1,15 +1,15 @@
 import type { ExcelState, SortColumn, SortDirection } from '../api/operations.api.ts';
 
 export interface ExcelStateInfo {
-  /** Короткая подпись в таблице */
+  /** Short label in the table */
   label: string;
-  /** Подробное пояснение */
+  /** Detailed explanation */
   hint: string;
-  /** Как выделять: всё в порядке, ждёт в очереди или записи уже нет в Excel */
+  /** How to highlight: all fine, waiting in the queue, or the record is no longer in Excel */
   tone: 'ok' | 'queued' | 'gone';
 }
 
-/** Что сказать пользователю о записи: совпадает ли она с Excel и дошла ли синхронизация. */
+/** What to tell the user about a record: whether it matches Excel and whether sync went through. */
 export const EXCEL_STATES: Record<ExcelState, ExcelStateInfo> = {
   synced: {
     label: 'Совпадает с Excel',
@@ -43,7 +43,7 @@ export const EXCEL_STATES: Record<ExcelState, ExcelStateInfo> = {
   },
 };
 
-/** Причины, по которым запись ждёт в очереди. */
+/** Reasons why a record waits in the queue. */
 const QUEUE_REASONS: Record<string, string> = {
   FILE_LOCKED: 'файл открыт в Excel',
   VERSION_CONFLICT: 'файл изменился во время записи',
@@ -60,14 +60,14 @@ export function queueReason(code: string | null): string | null {
   return QUEUE_REASONS[code] ?? `ошибка ${code}`;
 }
 
-/** Слово в круглых скобках для состояний «в очереди»: почему запись ещё не в Excel. */
+/** A word in parentheses for "queued" states: why the record is not in Excel yet. */
 export function describeQueued(state: ExcelState, error: string | null): string | null {
   return EXCEL_STATES[state].tone === 'queued' ? queueReason(error) : null;
 }
 
 export const TEXT_COLUMNS: SortColumn[] = ['card', 'category', 'name', 'createdBy'];
 
-/** Новая сортировка при нажатии на заголовок: тот же столбец меняет направление, новый начинает с естественного. */
+/** New sort on header click: the same column flips direction, a new one starts with its natural direction. */
 export function nextSort(
   current: { sort: SortColumn; direction: SortDirection },
   column: SortColumn,
@@ -82,13 +82,13 @@ export const PAGE_SIZE = 50;
 
 export const pageCount = (total: number, size = PAGE_SIZE) => Math.max(1, Math.ceil(total / size));
 
-/** Страница из адреса, приведённая к допустимой. */
+/** Page from the URL, coerced to a valid one. */
 export function clampPage(requested: number, total: number, size = PAGE_SIZE): number {
   if (!Number.isInteger(requested) || requested < 1) return 1;
   return Math.min(requested, pageCount(total, size));
 }
 
-/** «1–50 из 120» для строки под таблицей. */
+/** "1-50 of 120" for the line under the table. */
 export function rangeLabel(page: number, total: number, size = PAGE_SIZE): string {
   if (total === 0) return '0 записей';
   const from = (page - 1) * size + 1;
@@ -98,7 +98,7 @@ export function rangeLabel(page: number, total: number, size = PAGE_SIZE): strin
 
 const DEFAULT_SORT = { sort: 'date' as SortColumn, direction: 'desc' as SortDirection };
 
-/** Сортировка из адреса: только известные значения, иначе по дате от новых к старым. */
+/** Sorting from the URL: only known values, otherwise by date, newest first. */
 export function parseSort(sort: string | null, dir: string | null) {
   const column = (['date', 'card', 'category', 'name', 'amount', 'createdBy'] as const).find(
     (value) => value === sort,

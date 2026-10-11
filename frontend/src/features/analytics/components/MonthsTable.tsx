@@ -23,7 +23,7 @@ interface MonthsTableProps {
   currency: string;
 }
 
-/** Таблица по месяцам с сортировкой по любому столбцу (по умолчанию новые месяцы сверху). */
+/** Table by month sortable by any column (newest months on top by default). */
 export function MonthsTable({ rows, currency }: MonthsTableProps) {
   const { digits } = useDisplayCurrency();
   const [sort, setSort] = useState<{ column: Column; direction: SortDirection }>({
@@ -109,7 +109,7 @@ export function MonthsTable({ rows, currency }: MonthsTableProps) {
   );
 }
 
-/** Изменение в процентах со стрелкой: направление видно и без цвета. */
+/** Percent change with an arrow: direction is visible without color. */
 export function Change({ value }: { value: number | null }) {
   if (value === null) return <span className="text-zinc-400">—</span>;
   const rounded = Math.round(value);

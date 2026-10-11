@@ -1,14 +1,14 @@
-/** Курс: сколько драмм стоит единица валюты. */
+/** Rate: how many drams a unit of currency costs. */
 export interface StoredRate {
   currency: string;
   rate: number;
-  /** Когда курс получен от источника (ISO) */
+  /** When the rate was received from the source (ISO) */
   fetchedAt: string;
 }
 
 export interface RatesSnapshot {
-  /** Базовая валюта: в ней хранятся суммы и ведётся Excel */
+  /** Base currency: amounts are stored in it and Excel is kept in it */
   base: string;
-  /** Курсы доступных валют; для валюты без курса записи нет: пользователь вводит курс вручную */
+  /** Rates of the available currencies; a currency without a rate has no entry: the user enters the rate manually */
   rates: StoredRate[];
 }

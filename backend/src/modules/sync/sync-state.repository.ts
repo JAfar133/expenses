@@ -1,7 +1,7 @@
 import type { Database } from '../../infrastructure/database/database.ts';
 import type { SyncResult } from './sync.types.ts';
 
-/** Хранит результат последней синхронизации, чтобы он переживал перезапуск backend. */
+/** Stores the result of the last sync so it survives a backend restart. */
 export class SyncStateRepository {
   constructor(private readonly database: Database) {}
 

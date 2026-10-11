@@ -15,27 +15,27 @@ const RATE_DECIMALS = 6;
 
 interface AmountFieldsProps {
   form: UseFormReturn<ExpenseFormValues>;
-  /** Базовая валюта (драмы): в ней учёт и Excel */
+  /** Base currency (drams): accounting and Excel use it */
   base: string;
-  /** Доступные валюты и курсы; пока не загрузились, доступна только базовая */
+  /** Available currencies and rates; until loaded, only the base currency is available */
   rates?: RatesResponse;
 }
 
-/** Курс валюты в виде для поля ввода (`380,5`); пусто, если курса нет. */
+/** Currency rate formatted for the input (`380,5`); empty if there is no rate. */
 export function rateText(rates: RatesResponse | undefined, currency: string): string {
   const rate = rates?.rates.find((item) => item.currency === currency)?.rate;
   return rate === undefined ? '' : formatDecimalInput(String(rate), { maxDecimals: RATE_DECIMALS });
 }
 
-/** Сумма в драммах по введённым сумме и курсу; null, пока что-то не введено. */
+/** Amount in drams from the entered amount and rate; null until something is missing. */
 export function convertedAmount(amount: string, rate: string): number | null {
   const [value, factor] = [parseDecimal(amount), parseDecimal(rate)];
   return value === null || factor === null ? null : Math.round(value * factor);
 }
 
 /**
- * Стоимость, валюта и (для иностранной валюты) курс с пересчётом в драммы.
- * В драммах сумма целая, в иностранной валюте можно вводить копейки.
+ * Cost, currency and (for a foreign currency) rate with conversion to drams.
+ * In drams the amount is a whole number; in a foreign currency decimals can be entered.
  */
 export function AmountFields({ form, base, rates }: AmountFieldsProps) {
   const { register, setValue, getValues, watch, formState } = form;
@@ -49,7 +49,7 @@ export function AmountFields({ form, base, rates }: AmountFieldsProps) {
   const currencyField = register('currency');
 
   const changeCurrency = (next: string) => {
-    // Сумма с копейками в драммах невозможна: оставляем целую часть
+    // A fractional amount in drams is impossible: keep the integer part
     if (next === base) {
       const whole = getValues('amount').split(/[.,]/)[0] ?? '';
       setValue('amount', formatAmountInput(whole));

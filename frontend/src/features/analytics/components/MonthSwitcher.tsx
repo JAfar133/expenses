@@ -2,7 +2,7 @@ import { monthLabel, shiftMonth, type MonthKey } from '../model/periods.ts';
 
 interface MonthSwitcherProps {
   month: MonthKey;
-  /** Текущий месяц: дальше него переключать нельзя */
+  /** Current month: cannot switch past it */
   latest: MonthKey;
   onChange: (month: MonthKey) => void;
 }
@@ -10,7 +10,7 @@ interface MonthSwitcherProps {
 const arrowClass =
   'flex size-10 items-center justify-center rounded-full text-lg text-zinc-600 hover:bg-zinc-200/70 disabled:opacity-30 disabled:hover:bg-transparent dark:text-zinc-300 dark:hover:bg-zinc-800';
 
-/** Переключатель месяца: стрелки и название. */
+/** Month switcher: arrows and the name. */
 export function MonthSwitcher({ month, latest, onChange }: MonthSwitcherProps) {
   return (
     <div className="flex w-full items-center gap-1 sm:w-auto">

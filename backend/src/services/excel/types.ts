@@ -1,5 +1,5 @@
 export interface Expense {
-  /** Дата в формате YYYY-MM-DD */
+  /** Date in YYYY-MM-DD format */
   date: string;
   card: string;
   category: string;
@@ -13,14 +13,14 @@ export interface ExcelOptions {
 }
 
 export interface ExcelWriteResult {
-  /** Номер строки листа, в которую записана операция */
+  /** Number of the sheet row the operation was written to */
   row: number;
-  /** Диапазон таблицы после записи */
+  /** Table range after the write */
   tableRef: string;
   tableExtended: boolean;
 }
 
-/** Столбцы таблицы «Операции» в порядке следования. */
+/** Columns of the «Операции» (Operations) table in order. */
 export const COLUMNS = ['A', 'B', 'C', 'D', 'E'] as const;
 export type Column = (typeof COLUMNS)[number];
 

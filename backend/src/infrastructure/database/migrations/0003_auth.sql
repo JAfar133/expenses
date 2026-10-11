@@ -1,20 +1,20 @@
--- Пользователи приложения и их сессии (вход по логину и паролю).
+-- App users and their sessions (login by username and password).
 
 CREATE TABLE users (
   id            uuid PRIMARY KEY,
   username      text        NOT NULL UNIQUE CHECK (username = lower(username)),
-  -- Имя для интерфейса
+  -- Name for the UI
   display_name  text        NOT NULL,
-  -- Карта по умолчанию: подставляется в форму расхода после входа
+  -- Default card: pre-filled in the expense form after login
   card          text        NOT NULL,
-  -- Хеш пароля (scrypt). NULL — пароль ещё не задан, войти нельзя
+  -- Password hash (scrypt). NULL — no password set yet, login is impossible
   password_hash text,
   disabled_at   timestamptz,
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
 
--- Сессия = один вход с одного устройства. Токены в базе не хранятся, только их SHA-256.
+-- A session = one login from one device. Tokens are not stored in the database, only their SHA-256.
 CREATE TABLE auth_sessions (
   id                    uuid PRIMARY KEY,
   user_id               uuid        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
@@ -24,7 +24,7 @@ CREATE TABLE auth_sessions (
 
   refresh_hash          text        NOT NULL,
   refresh_expires_at    timestamptz NOT NULL,
-  -- Предыдущий refresh-токен: нужен, чтобы отличить гонку двух вкладок от кражи токена
+  -- Previous refresh token: needed to tell a race between two tabs from token theft
   previous_refresh_hash text,
   rotated_at            timestamptz,
 

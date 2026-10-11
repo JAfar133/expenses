@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Запуск frontend (Vite): http://127.0.0.1:5173
-# Для проверки с телефона: ./scripts/start-frontend.sh --host
+# Start the frontend (Vite): http://127.0.0.1:5173
+# To test from a phone: ./scripts/start-frontend.sh --host
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 

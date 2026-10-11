@@ -43,7 +43,7 @@ describe('диапазон дат', () => {
 
     expect(rangeButton('01.10.2026 – 31.10.2026')).toBeInTheDocument();
     expect(location()).toHaveTextContent('/analytics?period=custom&from=2026-10-01&to=2026-10-31');
-    // Переключателя месяца у своего периода нет
+    // A custom period has no month switcher
     expect(screen.queryByRole('button', { name: 'Предыдущий месяц' })).toBeNull();
   });
 
@@ -84,7 +84,7 @@ describe('диапазон дат', () => {
 
     await user.click(within(dialog).getByRole('button', { name: /(?<!\d)5 октября/ }));
 
-    // Пока выбрано только начало, ничего не применяется и календарь открыт
+    // While only the start is picked, nothing is applied and the calendar stays open
     expect(within(dialog).getByText('Выберите последний день')).toBeInTheDocument();
     expect(location()).toHaveTextContent('from=2026-10-01&to=2026-10-31');
 
@@ -251,7 +251,7 @@ describe('панель фильтров', () => {
     await user.click(misha);
 
     expect(misha).toHaveAttribute('aria-pressed', 'false');
-    // Запрос без карты уже есть в кэше, поэтому проверяем адрес страницы
+    // The request without the map is already cached, so we check the page URL
     await waitFor(() => expect(location()).toHaveTextContent(/^\/analytics$/));
   });
 
@@ -294,7 +294,7 @@ describe('панель фильтров', () => {
       timeout: 2000,
     });
     expect(location()).toHaveTextContent('q=%D0%BB%D0%B0%D1%82%D1%82%D0%B5');
-    // Одно обращение на всё слово, а не шесть
+    // One request for the whole word, not six
     expect(summaryRequests().filter((r) => r.includes('q=')).length).toBeLessThanOrEqual(2);
   });
 
@@ -361,7 +361,7 @@ describe('панель фильтров', () => {
 
     expect(chip).toHaveAttribute('aria-pressed', 'true');
     await user.click(chip);
-    // Снятое значение не из справочника больше не показывается
+    // A cleared value that is not in the dictionary is no longer shown
     expect(
       within(screen.getByRole('group', { name: 'Карты' })).queryByRole('button', { name: 'Вася' }),
     ).toBeNull();
@@ -385,7 +385,7 @@ describe('панель фильтров', () => {
     await openPanel(user);
 
     await waitFor(() => expect(screen.getAllByText('Нет вариантов')).toHaveLength(1));
-    // Остальные фильтры работают
+    // The other filters work
     expect(screen.getByRole('group', { name: 'Категории' })).toBeInTheDocument();
   });
 });

@@ -1,21 +1,21 @@
-# SITE_ADDRESS по умолчанию ":80" (обычный HTTP, для локального запуска).
-# Для HTTPS на сервере укажите домен, например expenses.example.com: Caddy сам получит сертификат.
+# SITE_ADDRESS defaults to ":80" (plain HTTP, for local runs).
+# For HTTPS on a server, set a domain, e.g. expenses.example.com: Caddy obtains the certificate itself.
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
 
-	# API: запросы идут на backend, он не публикуется наружу отдельным портом
+	# API: requests go to the backend, which is not published on a separate port
 	handle /api/* {
 		reverse_proxy backend:3000
 	}
 
-	# Frontend: статические файлы, неизвестные пути отдают index.html
+	# Frontend: static files; unknown paths fall back to index.html
 	handle {
 		root * /srv
 		try_files {path} /index.html
 		file_server
 	}
 
-	# Ответы API (в том числе с куками входа) не должны попадать в общий кеш
+	# API responses (including login cookies) must not end up in a shared cache
 	@api path /api/*
 	header @api Cache-Control "no-store"
 

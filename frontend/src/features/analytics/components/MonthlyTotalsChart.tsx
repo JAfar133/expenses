@@ -26,7 +26,7 @@ interface MonthlyTotalsChartProps {
   loading?: boolean;
 }
 
-/** Расходы по месяцам: столбики и линия среднего по завершённым месяцам. Текущий (неполный) месяц светлее. */
+/** Expenses by month: bars and an average line over completed months. The current (partial) month is lighter. */
 export function MonthlyTotalsChart({ rows, currency, loading = false }: MonthlyTotalsChartProps) {
   const { digits } = useDisplayCurrency();
   const hasSpending = rows?.some((row) => row.total > 0) ?? false;

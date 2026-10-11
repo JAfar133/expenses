@@ -9,7 +9,7 @@ export interface LocatedTable {
   tableXml: string;
 }
 
-/** Находит в пакете XLSX части листа и структурированной таблицы по их именам. */
+/** Finds the sheet and structured table parts in the XLSX package by their names. */
 export async function locateTable(zip: JSZip, options: ExcelOptions): Promise<LocatedTable> {
   const sheetPath = await resolveSheetPath(zip, options.sheetName);
 
@@ -62,7 +62,7 @@ async function resolveTablePaths(zip: JSZip, sheetPath: string): Promise<string[
     .map((tag) => toPartPath(getAttr(tag, 'Target')!, sheetPath));
 }
 
-/** Превращает Target связи (абсолютный или относительный) в путь внутри архива. */
+/** Turns a relationship Target (absolute or relative) into a path inside the archive. */
 function toPartPath(target: string, sourcePart: string): string {
   if (target.startsWith('/')) {
     return target.slice(1);

@@ -1,25 +1,25 @@
-/** Оставляет только цифры и группирует их по тысячам: `25890` → `25 890`. */
+/** Keeps only digits and groups them by thousands: `25890` → `25 890`. */
 export function formatAmountInput(value: string): string {
   const digits = value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 
-/** Разбирает введённую стоимость. Допускает пробелы между тысячами, иначе возвращает null. */
+/** Parses an entered cost. Allows spaces between thousands, otherwise returns null. */
 export function parseAmount(value: string): number | null {
   const compact = value.replace(/[\s ]/g, '');
   return /^\d+$/.test(compact) ? Number(compact) : null;
 }
 
 interface DecimalInputOptions {
-  /** Сколько знаков после запятой можно ввести */
+  /** How many decimals may be entered */
   maxDecimals: number;
-  /** Группировать целую часть по тысячам: `1234,5` → `1 234,5` */
+  /** Group the integer part by thousands: `1234,5` → `1 234,5` */
   group?: boolean;
 }
 
 /**
- * Приводит вводимое число с дробной частью к виду `1 234,56`: оставляет цифры и один разделитель (точка или запятая),
- * дробная часть обрезается до `maxDecimals` знаков.
+ * Normalizes an entered number with a fraction to `1 234,56`: keeps digits and one separator (dot or comma),
+ * the fraction is truncated to `maxDecimals` digits.
  */
 export function formatDecimalInput(
   value: string,
@@ -39,18 +39,18 @@ export function formatDecimalInput(
     : '';
 
   const shown = group ? integer.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : integer;
-  // Ведущий разделитель превращаем в «0,»: так проще вводить 0,5
+  // A leading separator becomes "0,": this makes entering 0,5 easier
   const head = shown === '' && hasSeparator ? '0' : shown;
   return hasSeparator && maxDecimals > 0 ? `${head},${fraction}` : head;
 }
 
-/** Разбирает число с запятой или точкой и пробелами между тысячами; null, если это не число. */
+/** Parses a number with a comma or dot and spaces between thousands; null if it is not a number. */
 export function parseDecimal(value: string): number | null {
   const compact = value.replace(/[\s ]/g, '');
   return /^\d+([.,]\d+)?$/.test(compact) ? Number(compact.replace(',', '.')) : null;
 }
 
-/** Число для показа: `3990` → `3 990`, `10.5` → `10,5`. */
+/** Number for display: `3990` → `3 990`, `10.5` → `10,5`. */
 export function formatMoney(value: number, maxFractionDigits = 2): string {
   return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: maxFractionDigits })
     .format(value)

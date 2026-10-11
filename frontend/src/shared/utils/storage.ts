@@ -1,4 +1,4 @@
-/** localStorage может быть недоступен (приватный режим), поэтому все обращения защищены. */
+/** localStorage may be unavailable (private mode), so all accesses are guarded. */
 export function readStored(key: string): string | null {
   try {
     return localStorage.getItem(key);
@@ -11,6 +11,6 @@ export function writeStored(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
   } catch {
-    // Не критично: просто не запомним выбор
+    // Not critical: we just will not remember the choice
   }
 }

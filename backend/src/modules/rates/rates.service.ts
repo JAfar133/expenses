@@ -7,20 +7,20 @@ const RETRY_MS = 5 * 60_000;
 export interface RatesServiceOptions {
   repository: Pick<RatesRepository, 'list' | 'save'>;
   fetchRates: RateFetcher;
-  /** Базовая валюта (драмы) и валюты, в которых можно вводить расходы */
+  /** Base currency (drams) and the currencies in which expenses can be entered */
   base: string;
   currencies: string[];
-  /** Как долго курс считается свежим */
+  /** How long a rate is considered fresh */
   refreshMs: number;
-  /** Через сколько повторить, если источник не ответил (по умолчанию 5 минут) */
+  /** How long to wait before retrying if the source did not respond (5 minutes by default) */
   retryMs?: number;
   now?: () => number;
   logger?: { warn: (fields: object, message: string) => void };
 }
 
 /**
- * Курсы валют к драму. Свежие курсы берутся у источника не чаще, чем раз в `refreshMs`, и сохраняются в базе.
- * Если источник недоступен, используется последний известный курс: расход можно ввести, а курс при желании поправить вручную.
+ * Currency rates to the dram. Fresh rates are fetched from the source at most once per `refreshMs` and saved in the database.
+ * If the source is unavailable, the last known rate is used: an expense can still be entered, and the rate can be corrected manually.
  */
 export class RatesService {
   private cache = new Map<string, StoredRate>();
@@ -41,7 +41,7 @@ export class RatesService {
     return this.options.currencies;
   }
 
-  /** Курсы для формы. Не бросает ошибок: без курса валюта просто отсутствует в списке. */
+  /** Rates for the form. Never throws: a currency without a rate is simply absent from the list. */
   async snapshot(): Promise<RatesSnapshot> {
     await this.ensureFresh();
     return {
@@ -50,7 +50,7 @@ export class RatesService {
     };
   }
 
-  /** Курс одной валюты; для базовой всегда 1; undefined, если курса нет. */
+  /** Rate of one currency; always 1 for the base one; undefined if there is no rate. */
   async rateOf(currency: string): Promise<number | undefined> {
     if (currency === this.options.base) return 1;
     await this.ensureFresh();
@@ -65,14 +65,14 @@ export class RatesService {
     await this.loadStored();
     if (this.now() - this.refreshedAt < this.options.refreshMs) return;
 
-    // Параллельные запросы ждут один и тот же обмен с источником
+    // Concurrent requests wait for the same exchange with the source
     this.refreshing ??= this.refresh().finally(() => {
       this.refreshing = undefined;
     });
     await this.refreshing;
   }
 
-  /** Последние сохранённые курсы: нужны после перезапуска, пока источник не ответил. */
+  /** Last saved rates: needed after a restart until the source responds. */
   private async loadStored(): Promise<void> {
     if (this.loaded) return;
     try {
@@ -99,7 +99,7 @@ export class RatesService {
           this.options.logger?.warn({ err: error }, 'Failed to save exchange rates'),
         );
     } catch (error) {
-      // Недоступный источник не опрашиваем на каждый запрос, но и не ждём полного срока до повтора
+      // An unavailable source is not polled on every request, but we do not wait the full period before retrying either
       this.refreshedAt = this.now() - this.options.refreshMs + (this.options.retryMs ?? RETRY_MS);
       this.options.logger?.warn(
         { err: error },

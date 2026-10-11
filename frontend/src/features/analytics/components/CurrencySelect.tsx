@@ -1,34 +1,36 @@
 import { formatMoney } from '../../../shared/utils/money.ts';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency.tsx';
 import { currencyLabel } from '../model/currency.ts';
+import { ChartTypeSwitch } from './ChartTypeSwitch.tsx';
 
-/** Дата в виде «10.10.2026» из ISO-времени. */
+/** Date like "10.10.2026" from an ISO timestamp. */
 const shortDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 
-/** Выбор валюты показа сумм: в списке флаг страны и код валюты. Под ним курс, по которому идёт пересчёт. */
+/** Columns of the switch on phones: one per currency, at most four. */
+const columnsFor = (count: number) => Math.min(Math.max(count, 2), 4) as 2 | 3 | 4;
+
+/**
+ * Display currency switch: flag and code per option.
+ * The line below always takes one row, so the layout does not jump when the rate note appears.
+ */
 export function CurrencySelect() {
   const { code, base, options, select, rate } = useDisplayCurrency();
   if (options.length < 2) return null;
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <select
-        aria-label="Валюта отображения"
+    <div className="flex flex-col gap-1 sm:items-end">
+      <ChartTypeSwitch
+        label="Валюта отображения"
+        options={options.map((option) => ({ value: option, label: currencyLabel(option) }))}
         value={code}
-        onChange={(event) => select(event.target.value)}
-        className="h-9 rounded-lg border border-zinc-300 bg-white px-2.5 text-sm font-medium outline-none hover:border-indigo-400 focus:border-indigo-500 dark:border-zinc-700 dark:bg-zinc-900"
-      >
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {currencyLabel(option)}
-          </option>
-        ))}
-      </select>
-      {rate && (
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          1 {code} = {formatMoney(rate.rate, 4)} {base} · курс ЦБ на {shortDate(rate.fetchedAt)}
-        </p>
-      )}
+        onChange={select}
+        mobileColumns={columnsFor(options.length)}
+      />
+      <p className="h-4 text-xs text-zinc-500 dark:text-zinc-400">
+        {rate
+          ? `1 ${code} = ${formatMoney(rate.rate, 4)} ${base} · курс ЦБ на ${shortDate(rate.fetchedAt)}`
+          : `Суммы в ${base}`}
+      </p>
     </div>
   );
 }

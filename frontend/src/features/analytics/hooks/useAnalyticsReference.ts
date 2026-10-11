@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchCategories, fetchCurrency } from '../../expenses/api/expenses.api.ts';
 
-/** Справочники для страницы анализа: базовая валюта и порядок категорий (по нему закрепляются цвета). */
+/** Reference data for the analytics page: base currency and category order (colors are pinned by it). */
 export function useAnalyticsReference() {
   const currency = useQuery({
     queryKey: ['currency'],

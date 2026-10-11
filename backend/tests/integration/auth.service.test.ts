@@ -292,7 +292,7 @@ describe('обновление по refresh-токену', () => {
     now = Date.parse('2026-10-11T12:00:00Z') + 29 * DAY;
     const last = (await auth.refresh(tokens.refreshToken)).tokens!;
 
-    // Срок refresh-токена урезан границей сессии
+    // The refresh token lifetime is capped by the session limit
     expect(last.refreshExpiresAt.getTime()).toBe(Date.parse('2026-10-11T12:00:00Z') + 30 * DAY);
     now = Date.parse('2026-10-11T12:00:00Z') + 30 * DAY + 1000;
     await expect(auth.refresh(last.refreshToken)).rejects.toMatchObject({ statusCode: 401 });
@@ -305,7 +305,7 @@ describe('обновление по refresh-токену', () => {
     now += 3000;
     const second = await auth.refresh(tokens.refreshToken);
 
-    expect(second.tokens).toBeUndefined(); // куки уже обновлены первым запросом
+    expect(second.tokens).toBeUndefined(); // the cookies were already refreshed by the first request
     expect(await auth.authenticate(first.tokens!.accessToken)).toBeDefined();
   });
 
@@ -316,7 +316,7 @@ describe('обновление по refresh-токену', () => {
     now += 60_000;
 
     await expect(auth.refresh(tokens.refreshToken)).rejects.toMatchObject({ statusCode: 401 });
-    // Закрыта вся сессия, в том числе токены, выданные при первом обновлении
+    // The whole session is closed, including tokens issued on the first refresh
     expect(await auth.authenticate(first.tokens!.accessToken)).toBeUndefined();
     await expect(auth.refresh(first.tokens!.refreshToken)).rejects.toMatchObject({
       statusCode: 401,
@@ -387,7 +387,7 @@ describe('очистка', () => {
 });
 
 describe('пароль из .env и пароль, заданный пользователем', () => {
-  /** Пользователь входит и меняет пароль самостоятельно. */
+  /** The user logs in and changes the password on their own. */
   async function changeOwnPassword(newPassword = 'new-misha-password-2') {
     const { user, tokens } = await login();
     await auth.changePassword(user, tokens.accessToken, PASSWORDS.get('misha')!, newPassword, {

@@ -2,20 +2,20 @@ import pg from 'pg';
 
 export type Row = Record<string, unknown>;
 
-/** Выполнение SQL. Параметры подставляются как $1, $2, … (никакой конкатенации значений в запрос). */
+/** SQL execution. Parameters are substituted as $1, $2, … (no value concatenation into the query). */
 export interface SqlExecutor {
   query<T = Row>(text: string, params?: unknown[]): Promise<T[]>;
-  /** Несколько команд подряд без параметров (для миграций). */
+  /** Several commands in a row without parameters (for migrations). */
   exec(text: string): Promise<void>;
 }
 
 export interface Database extends SqlExecutor {
-  /** Выполняет работу в транзакции: при ошибке всё откатывается. */
+  /** Runs work in a transaction: everything is rolled back on error. */
   transaction<T>(work: (tx: SqlExecutor) => Promise<T>): Promise<T>;
   close(): Promise<void>;
 }
 
-/** Подключение к настоящему PostgreSQL. */
+/** Connection to a real PostgreSQL. */
 export function createPostgresDatabase(connectionString: string): Database {
   const pool = new pg.Pool({ connectionString, max: 10 });
 
@@ -46,7 +46,7 @@ export function createPostgresDatabase(connectionString: string): Database {
   };
 }
 
-/** Ждёт, пока база начнёт отвечать (например, контейнер Postgres ещё запускается). */
+/** Waits until the database starts responding (e.g. the Postgres container is still starting). */
 export async function waitForDatabase(
   database: Database,
   {

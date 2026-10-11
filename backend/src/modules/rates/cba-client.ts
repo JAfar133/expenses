@@ -1,7 +1,7 @@
 export type RateFetcher = (currencies: string[]) => Promise<Map<string, number>>;
 
 export interface CbaClientOptions {
-  /** Адрес JSON с курсами ЦБ Армении: `{"USD":"361.93","RUB":"4.2677",...}` (драммы за единицу валюты) */
+  /** URL of the Central Bank of Armenia rates JSON: `{"USD":"361.93","RUB":"4.2677",...}` (drams per unit of currency) */
   url: string;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
@@ -9,7 +9,7 @@ export interface CbaClientOptions {
 
 const DEFAULT_TIMEOUT_MS = 5000;
 
-/** Загружает официальные курсы ЦБ Армении. Валюты без курса в ответ не попадают. */
+/** Loads the official Central Bank of Armenia rates. Currencies without a rate are absent from the response. */
 export function createCbaClient({
   url,
   timeoutMs = DEFAULT_TIMEOUT_MS,

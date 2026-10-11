@@ -9,9 +9,9 @@ import { RcdRcloneClient } from '../../src/services/onedrive/rcd-client.ts';
 import { RcloneDaemon } from '../../src/services/onedrive/rcd-daemon.ts';
 
 /**
- * Работает с настоящим OneDrive, поэтому запускается только явно:
+ * Works with the real OneDrive, so it only runs when explicitly requested:
  *   RUN_ONEDRIVE_TESTS=1 npm test
- * Использует отдельный файл и никогда не трогает рабочий Расходы-dev.xlsx.
+ * Uses a separate file and never touches the working Расходы-dev.xlsx.
  */
 const enabled = process.env.RUN_ONEDRIVE_TESTS === '1';
 const REMOTE = process.env.ONEDRIVE_REMOTE ?? 'onedrive';

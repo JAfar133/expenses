@@ -1,7 +1,7 @@
--- Расходы. PostgreSQL хранит все операции; Excel — зеркало, которое поддерживается синхронизацией.
+-- Expenses. PostgreSQL stores all operations; Excel is a mirror maintained by sync.
 CREATE TABLE expenses (
   id              uuid PRIMARY KEY,
-  -- Строгий порядок добавления (время now() может совпасть): по нему идёт очередь в Excel
+  -- Strict insertion order (now() may coincide): the Excel queue follows it
   seq             bigint GENERATED ALWAYS AS IDENTITY,
   date            date        NOT NULL,
   card            text        NOT NULL,
@@ -9,13 +9,13 @@ CREATE TABLE expenses (
   name            text        NOT NULL,
   amount          integer     NOT NULL CHECK (amount > 0),
 
-  -- Откуда взята запись: добавлена в приложении или обнаружена в Excel при синхронизации
+  -- Where the record came from: added in the app or discovered in Excel during sync
   source          text        NOT NULL CHECK (source IN ('app', 'excel')),
 
-  -- Состояние в Excel:
-  --   pending — ждёт записи в Excel (очередь)
-  --   writing — запись в Excel начата, результат ещё не подтверждён
-  --   synced  — запись есть в Excel
+  -- State in Excel:
+  --   pending — waiting to be written to Excel (queue)
+  --   writing — Excel write started, result not confirmed yet
+  --   synced  — the record is in Excel
   excel_status    text        NOT NULL CHECK (excel_status IN ('pending', 'writing', 'synced')),
   excel_attempts  integer     NOT NULL DEFAULT 0,
   excel_last_error text,
@@ -27,10 +27,10 @@ CREATE TABLE expenses (
 );
 
 CREATE INDEX expenses_date_idx ON expenses (date DESC);
--- Очередь в Excel: только записи, которые ещё не синхронизированы
+-- Excel queue: only records that are not synced yet
 CREATE INDEX expenses_excel_queue_idx ON expenses (seq) WHERE excel_status <> 'synced';
 
--- Защита от дублей: ключ и сам расход сохраняются в одной транзакции
+-- Duplicate protection: the key and the expense itself are saved in one transaction
 CREATE TABLE idempotency_keys (
   user_id      text        NOT NULL,
   key          text        NOT NULL,
@@ -40,7 +40,7 @@ CREATE TABLE idempotency_keys (
   PRIMARY KEY (user_id, key)
 );
 
--- Результат последней синхронизации с Excel (одна строка)
+-- Result of the last sync with Excel (one row)
 CREATE TABLE sync_state (
   id          integer PRIMARY KEY CHECK (id = 1),
   last_result jsonb       NOT NULL,

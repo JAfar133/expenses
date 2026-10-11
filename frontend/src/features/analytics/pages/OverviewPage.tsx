@@ -14,7 +14,7 @@ import { changePercent } from '../model/chart-data.ts';
 import { pickDrillCategory } from '../model/drill.ts';
 import { granularityFor, toApiFilters } from '../model/filter-state.ts';
 
-/** Обзор выбранного периода с учётом всех фильтров: показатели, динамика по времени и категории. */
+/** Overview of the selected period with all filters applied: metrics, dynamics over time and categories. */
 export default function OverviewPage() {
   const { state, today } = useFilterState();
   const filters = toApiFilters(state, today);
@@ -26,7 +26,7 @@ export default function OverviewPage() {
   const series = useTimeseries(filters, granularity);
   const categories = useBreakdown(filters, 'category');
 
-  // Категория для разбивки по наименованиям хранится в адресе (`?drill=кафе`)
+  // The category for the name breakdown is kept in the URL (`?drill=...`)
   const [params, setParams] = useSearchParams();
   const drill = pickDrillCategory(params.get('drill'), categories.data ?? []);
   const names = useBreakdown({ ...filters, categories: drill ? [drill] : [] }, 'name', {
@@ -42,7 +42,7 @@ export default function OverviewPage() {
       { replace: true },
     );
 
-  // В базе суммы в драммах; в выбранную валюту пересчитываем при показе
+  // Amounts are in drams in the database; converted to the selected currency on display
   const scaled = summary.data && scaleSummary(summary.data, factor);
   const current = scaled?.current;
   const previous = scaled?.previous ?? undefined;

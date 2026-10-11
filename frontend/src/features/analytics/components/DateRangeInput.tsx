@@ -4,15 +4,15 @@ import { ru } from 'react-day-picker/locale';
 import 'react-day-picker/style.css';
 
 interface DateRangeInputProps {
-  /** Границы выбранного диапазона, YYYY-MM-DD */
+  /** Bounds of the selected range, YYYY-MM-DD */
   from?: string;
   to?: string;
-  /** Последний день, который можно выбрать (обычно сегодня) */
+  /** Last selectable day (usually today) */
   max: string;
   onChange: (range: { from: string; to: string }) => void;
 }
 
-/** Дата без времени: полдень, чтобы смена часового пояса не сдвигала день. */
+/** A date without time: noon, so a time zone change does not shift the day. */
 const toDate = (iso: string | undefined): Date | undefined =>
   iso
     ? new Date(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)), 12)
@@ -23,7 +23,7 @@ const toIso = (date: Date) =>
   `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 const display = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 
-/** Сколько месяцев показывать: на узком экране один, на широком два. */
+/** How many months to show: one on narrow screens, two on wide. */
 function useMonthsShown(): number {
   const query = '(min-width: 640px)';
   const [wide, setWide] = useState(() => globalThis.matchMedia?.(query).matches ?? false);
@@ -47,8 +47,8 @@ function rangeText(from?: string, to?: string): string {
 }
 
 /**
- * Один «input» для диапазона дат: кнопка с выбранным периодом открывает календарь,
- * где нажимаются начало и конец. Выбор завершается вторым нажатием.
+ * A single "input" for a date range: a button with the chosen period opens a calendar
+ * where start and end are clicked. The selection completes on the second click.
  */
 export function DateRangeInput({ from, to, max, onChange }: DateRangeInputProps) {
   const [open, setOpen] = useState(false);
@@ -56,7 +56,7 @@ export function DateRangeInput({ from, to, max, onChange }: DateRangeInputProps)
   const root = useRef<HTMLDivElement>(null);
   const months = useMonthsShown();
 
-  // Календарь закрывается по Escape и нажатию вне него
+  // The calendar closes on Escape and on a click outside it
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setOpen(false);
@@ -76,7 +76,7 @@ export function DateRangeInput({ from, to, max, onChange }: DateRangeInputProps)
     setOpen((current) => !current);
   };
 
-  /** Первое нажатие задаёт начало, второе конец (раньше начала: границы меняются местами). */
+  /** The first click sets the start, the second the end (earlier than the start: bounds are swapped). */
   const pick = (day: Date) => {
     if (!draft?.from || draft.to) {
       setDraft({ from: day, to: undefined });

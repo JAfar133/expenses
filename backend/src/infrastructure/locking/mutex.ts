@@ -1,4 +1,4 @@
-/** Выполняет задачи строго по очереди. Достаточно для одного экземпляра backend. */
+/** Runs tasks strictly one after another. Enough for a single backend instance. */
 export class Mutex {
   private tail: Promise<unknown> = Promise.resolve();
 

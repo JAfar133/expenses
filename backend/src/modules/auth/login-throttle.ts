@@ -1,15 +1,15 @@
 export interface LoginThrottleOptions {
-  /** Сколько неудачных попыток подряд допускается для пары «логин + адрес» */
+  /** How many consecutive failed attempts are allowed for a "login + address" pair */
   maxPerUser?: number;
-  /** Сколько неудачных попыток допускается с одного адреса (подбор разных логинов) */
+  /** How many failed attempts are allowed from one address (guessing different logins) */
   maxPerIp?: number;
   windowMs?: number;
   now?: () => number;
 }
 
 /**
- * Ограничение подбора пароля. Хранится в памяти процесса: приложение работает в одном экземпляре,
- * а после перезапуска счётчики сбрасываются (это не страшно: перезапуск делает владелец).
+ * Password guessing limit. Kept in process memory: the app runs as a single instance,
+ * and counters reset after a restart (this is fine: the owner does the restarting).
  */
 export class LoginThrottle {
   private readonly failures = new Map<string, number[]>();
@@ -25,7 +25,7 @@ export class LoginThrottle {
     this.now = options.now ?? Date.now;
   }
 
-  /** Через сколько секунд можно пробовать снова; 0, если попытка разрешена. */
+  /** In how many seconds one may try again; 0 if the attempt is allowed. */
   retryAfterSeconds(username: string, ip = 'unknown'): number {
     const waits = [
       this.waitFor(userKey(username, ip), this.maxPerUser),
@@ -40,7 +40,7 @@ export class LoginThrottle {
     }
   }
 
-  /** Успешный вход снимает счётчик пары «логин + адрес». */
+  /** A successful login clears the counter of the "login + address" pair. */
   recordSuccess(username: string, ip = 'unknown'): void {
     this.failures.delete(userKey(username, ip));
   }
@@ -55,7 +55,7 @@ export class LoginThrottle {
   private waitFor(key: string, limit: number): number {
     const recent = this.recent(key);
     if (recent.length < limit) return 0;
-    // Блокировка снимается, когда самая старая из значимых попыток выйдет из окна
+    // The block is lifted when the oldest of the relevant attempts leaves the window
     const oldestCounted = recent[recent.length - limit]!;
     return Math.max(oldestCounted + this.windowMs - this.now(), 0);
   }

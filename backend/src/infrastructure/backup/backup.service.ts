@@ -5,7 +5,7 @@ import { join } from 'node:path';
 export interface BackupServiceOptions {
   dir: string;
   retentionDays: number;
-  /** Часовой пояс для имён папок и файлов, например Asia/Yerevan */
+  /** Time zone for folder and file names, e.g. Asia/Yerevan */
   timezone: string;
   now?: () => Date;
 }
@@ -18,9 +18,9 @@ const DAY_MS = 86_400_000;
 const DATE_DIR = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * Резервные копии Excel перед каждым изменением:
+ * Excel backups before every change:
  *   <dir>/2026-10-10/expenses-20-15-32-a1b2c3.xlsx
- * Копии содержат финансовые данные, поэтому доступны только владельцу (0700/0600).
+ * The copies contain financial data, so they are accessible only to the owner (0700/0600).
  */
 export class BackupService implements BackupStore {
   private readonly now: () => Date;
@@ -29,7 +29,7 @@ export class BackupService implements BackupStore {
     this.now = options.now ?? (() => new Date());
   }
 
-  /** Копирует файл в резервный каталог и возвращает путь копии. Существующие копии не затираются. */
+  /** Copies a file to the backup directory and returns the copy path. Existing copies are not overwritten. */
   async save(sourcePath: string): Promise<string> {
     const { date, time } = this.formatLocal(this.now());
     const directory = join(this.options.dir, date);
@@ -41,7 +41,7 @@ export class BackupService implements BackupStore {
     return target;
   }
 
-  /** Удаляет папки с датой старше срока хранения. Возвращает число удалённых папок. */
+  /** Removes date folders older than the retention period. Returns the number of removed folders. */
   async cleanup(): Promise<number> {
     const cutoff = this.formatLocal(
       new Date(this.now().getTime() - this.options.retentionDays * DAY_MS),
@@ -51,10 +51,10 @@ export class BackupService implements BackupStore {
     try {
       entries = await readdir(this.options.dir);
     } catch {
-      return 0; // Копий ещё не было
+      return 0; // No copies yet
     }
 
-    // Даты в формате YYYY-MM-DD сравниваются как строки; чужие папки и файлы не трогаем
+    // YYYY-MM-DD dates compare as strings; we leave foreign folders and files alone
     const expired = entries.filter((name) => DATE_DIR.test(name) && name < cutoff);
     await Promise.all(
       expired.map((name) => rm(join(this.options.dir, name), { recursive: true, force: true })),

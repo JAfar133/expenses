@@ -1,11 +1,11 @@
 import type { SkippedRow } from '../../services/excel/read.ts';
 
 /**
- * ok          — Excel прочитан и очередь записана
- * locked      — файл открыт в Excel: чтение прошло, запись отложена
- * unavailable — OneDrive недоступен (сеть, авторизация, нет файла)
- * error       — другая ошибка (повреждённый файл, сбой резервной копии и т.п.)
- * disabled    — работа с Excel отключена (не задан ONEDRIVE_FILE_PATH)
+ * ok          — Excel was read and the queue was written
+ * locked      — the file is open in Excel: reading worked, writing is postponed
+ * unavailable — OneDrive is unavailable (network, authorization, no file)
+ * error       — another error (corrupted file, backup failure, etc.)
+ * disabled    — Excel is disabled (ONEDRIVE_FILE_PATH is not set)
  */
 export type SyncStatus = 'ok' | 'locked' | 'unavailable' | 'error' | 'disabled';
 
@@ -13,32 +13,32 @@ export interface SyncResult {
   startedAt: string;
   finishedAt: string;
   status: SyncStatus;
-  /** Новые строки Excel, добавленные в БД */
+  /** New Excel rows added to the DB */
   imported: number;
-  /** Записи из очереди, дописанные в Excel */
+  /** Records from the queue appended to Excel */
   written: number;
-  /** Исправленные в приложении записи, чьи строки заменены в Excel */
+  /** Records edited in the app whose rows were replaced in Excel */
   updated: number;
-  /** Удалённые в приложении записи, чьи строки убраны из Excel */
+  /** Records deleted in the app whose rows were removed from Excel */
   removed: number;
-  /** Сколько записей ещё ждёт записи в Excel */
+  /** How many records are still waiting to be written to Excel */
   queued: number;
-  /** Записи БД, помеченные удалёнными: их строку удалили или изменили в Excel (мягкое удаление) */
+  /** DB records marked deleted: their row was deleted or changed in Excel (soft delete) */
   deleted: number;
-  /** Ранее удалённые записи, строки которых снова появились в Excel */
+  /** Previously deleted records whose rows reappeared in Excel */
   restored: number;
-  /** Сколько удалений не применено: пропало слишком много записей сразу, это похоже на ошибку */
+  /** How many deletions were not applied: too many records vanished at once, which looks like an error */
   deletionsBlocked: number;
-  /** Строки Excel, которые нельзя импортировать */
+  /** Excel rows that cannot be imported */
   skipped: number;
   skippedRows: SkippedRow[];
   error?: { code: string; message: string };
-  /** Предупреждение: цикл прошёл, но нужно внимание пользователя (например, заблокировано массовое удаление) */
+  /** Warning: the cycle completed but needs the user's attention (e.g. a mass deletion was blocked) */
   warning?: { code: string; message: string };
 }
 
 export interface SyncStatusView {
-  /** Включена ли работа с Excel */
+  /** Whether Excel is enabled */
   enabled: boolean;
   lastResult?: SyncResult;
   queued: number;

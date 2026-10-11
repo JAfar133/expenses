@@ -23,12 +23,12 @@ const DEFAULT_STARTUP_TIMEOUT_MS = 15_000;
 const STOP_GRACE_MS = 3_000;
 
 /**
- * Постоянный процесс `rclone rcd`, который держит соединения и кеш OneDrive между запросами.
+ * A persistent `rclone rcd` process that keeps OneDrive connections and cache between requests.
  *
- * - слушает только 127.0.0.1 на случайном свободном порту;
- * - логин и пароль генерируются при каждом запуске и передаются через окружение,
- *   поэтому не видны в списке процессов;
- * - если процесс упал, следующий запрос запустит его заново.
+ * - listens only on 127.0.0.1 on a random free port;
+ * - login and password are generated on every start and passed through the environment,
+ *   so they are not visible in the process list;
+ * - if the process crashed, the next request will start it again.
  */
 export class RcloneDaemon implements RcdEndpointProvider {
   private child?: ChildProcess;
@@ -94,7 +94,7 @@ export class RcloneDaemon implements RcdEndpointProvider {
         );
       }
     });
-    // Не оставляем процесс сиротой при штатном завершении Node
+    // Do not leave the process orphaned on a normal Node shutdown
     process.once('exit', () => child.kill());
 
     const endpoint: RcdEndpoint = {
@@ -139,7 +139,7 @@ async function waitUntilReady(endpoint: RcdEndpoint, child: ChildProcess, timeou
         });
         if (response.ok) return;
       } catch {
-        // Процесс ещё не начал слушать порт
+        // The process has not started listening on the port yet
       }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }

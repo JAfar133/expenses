@@ -4,7 +4,7 @@ import { formatMoney } from '../../../shared/utils/money.ts';
 import { useSummary } from '../hooks/useAnalytics.ts';
 import { monthOf, monthRange } from '../model/periods.ts';
 
-/** Ненавязчивая строка под формой: сколько потрачено в текущем месяце. При ошибке не показывается. */
+/** An unobtrusive line under the form: how much was spent this month. Not shown on error. */
 export function MonthSpent({ currency }: { currency: string }) {
   const { data } = useSummary(monthRange(monthOf(todayIso())));
   if (!data) return null;

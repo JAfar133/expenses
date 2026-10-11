@@ -28,7 +28,7 @@ const tableRef = async (buffer: Buffer) =>
 const read = (buffer: Buffer) => readExcelTable(buffer, opts);
 const table = async (buffer: Buffer) => (await read(buffer)).expenses;
 
-/** Стили ячеек A:E строки листа: по ним видно, что оформление не съехало. */
+/** Styles of cells A:E of a sheet row: show that the formatting did not shift. */
 async function styles(buffer: Buffer, rows: number[]) {
   const xml = await (await JSZip.loadAsync(buffer)).file(SHEET)!.async('string');
   return rows.map((row) =>
@@ -153,10 +153,10 @@ describe('удаление строки', () => {
 
     const after = await read(output);
     expect(after.expenses).toEqual(original.filter((_, i) => i !== 5));
-    // Строки идут подряд без дыры: последняя заполненная строка теперь на одну выше
+    // Rows are contiguous with no gap: the last filled row is now one higher
     expect(after.rows.at(-1)!.row).toBe(originalRows.at(-1)!.row - 1);
     expect(after.rows.map((r) => r.row)).toEqual(originalRows.slice(0, -1).map((r) => r.row));
-    // Диапазон таблицы не изменился
+    // The table range is unchanged
     expect(await tableRef(output)).toBe(await tableRef(fixture));
   });
 
@@ -217,7 +217,7 @@ describe('удаление строки', () => {
     const zip = await JSZip.loadAsync(fixture);
     const xml = await zip.file(SHEET)!.async('string');
     const brokenRow = originalRows[10]!.row;
-    // Портим стоимость строки ниже удаляемой: дробное число
+    // Corrupt the cost of the row below the one being deleted: a fractional number
     zip.file(
       SHEET,
       xml.replace(new RegExp(`(<c r="E${brokenRow}"[^>]*>)<v>[^<]*</v>`), '$1<v>12.5</v>'),
@@ -229,8 +229,8 @@ describe('удаление строки', () => {
     const output = await applyEditsToBuffer(damaged, { ...NONE, removals: [original[2]!] }, opts);
 
     const after = await read(output);
-    expect(after.invalidRows).toEqual([brokenRow]); // нечитаемая строка осталась на своём месте
-    // Удалена строка 2, остальные читаемые строки на месте и в том же порядке
+    expect(after.invalidRows).toEqual([brokenRow]); // the unreadable row stayed in place
+    // Row 2 is deleted, the other readable rows are in place and in the same order
     expect(after.expenses).toEqual(before.expenses.filter((_, index) => index !== 2));
     expect(after.rows.find((r) => r.row === originalRows[3]!.row)?.expense).toEqual(original[3]);
   });

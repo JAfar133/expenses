@@ -10,7 +10,7 @@ const tabClass = ({ isActive }: { isActive: boolean }) =>
     ? 'border-indigo-600 text-indigo-700 dark:border-indigo-400 dark:text-indigo-300'
     : 'border-transparent text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100');
 
-/** Рамка раздела «Анализ»: вкладки, выбор валюты и общая панель фильтров. Фильтры при смене вкладки сохраняются. */
+/** Frame of the "Analytics" section: tabs, currency picker and the shared filter panel. Filters persist when switching tabs. */
 export default function AnalyticsLayout() {
   const { state, update, reset, today } = useFilterState();
   const { search, pathname } = useLocation();
@@ -19,8 +19,11 @@ export default function AnalyticsLayout() {
   return (
     <DisplayCurrencyProvider>
       <div className="space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-2 border-b border-zinc-200 dark:border-zinc-800">
-          <nav aria-label="Виды анализа" className="flex gap-1">
+        <div className="space-y-3">
+          <nav
+            aria-label="Виды анализа"
+            className="flex gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-800"
+          >
             <NavLink to={{ pathname: '/analytics', search }} end className={tabClass}>
               Обзор
             </NavLink>
@@ -31,12 +34,12 @@ export default function AnalyticsLayout() {
               Сравнение месяцев
             </NavLink>
           </nav>
-          <div className="pb-2">
+          <div className="sm:flex sm:justify-end">
             <CurrencySelect />
           </div>
         </div>
 
-        {/* У сравнения месяцев свой период (последние месяцы), остальные фильтры общие */}
+        {/* Month comparison has its own period (last months), other filters are shared */}
         <FilterPanel
           state={state}
           today={today}

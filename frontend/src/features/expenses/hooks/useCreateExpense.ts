@@ -13,12 +13,12 @@ export function useCreateExpense() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    // Повторы отключены: запись не должна уходить повторно без решения пользователя
+    // Retries disabled: a record must not be resent without the user's decision
     retry: false,
     mutationFn: ({ expense, idempotencyKey }: CreateExpenseVariables) =>
       createExpense(expense, idempotencyKey),
     onSuccess: () => {
-      // Новая категория могла появиться в справочнике, а очередь Excel — измениться
+      // A new category may have appeared in the reference data, and the Excel queue may have changed
       void queryClient.invalidateQueries({ queryKey: ['categories'] });
       void queryClient.invalidateQueries({ queryKey: NAME_SUGGESTIONS_KEY });
       void queryClient.invalidateQueries({ queryKey: ANALYTICS_KEY });

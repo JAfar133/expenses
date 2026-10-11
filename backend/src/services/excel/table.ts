@@ -27,7 +27,7 @@ export function readTableRange(tableXml: string): { ref: string; range: TableRan
   };
 }
 
-/** Проверяет, что таблица подходит для записи: столбцы A:E, нужные заголовки, нет строки итогов. */
+/** Checks that the table is suitable for writing: columns A:E, required headers, no totals row. */
 export function assertTableIsSupported(tableXml: string, range: TableRange): void {
   if (range.firstColumn !== 'A' || range.lastColumn !== 'E') {
     throw new Error(`Table must span A:E, got ${range.firstColumn}:${range.lastColumn}`);
@@ -44,7 +44,7 @@ export function assertTableIsSupported(tableXml: string, range: TableRange): voi
   }
 }
 
-/** Заменяет диапазон таблицы (и совпадающий с ним автофильтр) на новый. */
+/** Replaces the table range (and the autofilter matching it) with a new one. */
 export function replaceTableRef(tableXml: string, oldRef: string, newRef: string): string {
   return tableXml.split(`ref="${oldRef}"`).join(`ref="${newRef}"`);
 }

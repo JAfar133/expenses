@@ -9,7 +9,7 @@ function toLoginErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.code === NETWORK_ERROR_CODE)
       return 'Не удалось связаться с сервером. Проверьте соединение';
-    // Сервер сам объясняет неверный пароль и блокировку из-за частых попыток
+    // The server itself explains a wrong password and lockout after frequent attempts
     if (error.code === 'INVALID_CREDENTIALS' || error.code === 'TOO_MANY_ATTEMPTS')
       return error.message;
   }

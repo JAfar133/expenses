@@ -12,9 +12,9 @@ export const createExpenseSchema = z.object({
   amount: z
     .number({ error: 'Стоимость должна быть числом' })
     .positive('Стоимость должна быть больше нуля'),
-  /** Валюта суммы; не указана: базовая (драмы). Целую сумму в драммах и дробную в иностранной проверяет сервис */
+  /** Currency of the amount; if omitted: the base one (drams). The service checks a whole amount in drams and a fractional one in a foreign currency */
   currency: z.string({ error: 'Выберите валюту' }).trim().min(1, 'Выберите валюту').optional(),
-  /** Курс вручную (драммы за единицу валюты); не указан: курс ЦБ */
+  /** Manual rate (drams per unit of currency); if omitted: the CBA rate */
   rate: z
     .number({ error: 'Курс должен быть числом' })
     .positive('Курс должен быть больше нуля')
@@ -23,7 +23,7 @@ export const createExpenseSchema = z.object({
 
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;
 
-/** Код ошибки по полю, которое не прошло проверку. */
+/** Error code for the field that failed validation. */
 export const FIELD_ERROR_CODES: Record<string, string> = {
   date: 'INVALID_DATE',
   card: 'INVALID_CARD',

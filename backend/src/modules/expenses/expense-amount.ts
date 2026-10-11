@@ -1,23 +1,23 @@
 import { validationError } from '../../errors/app-error.ts';
 import type { ExpenseOriginal } from '../../storage/expense.repository.ts';
 
-/** Наибольшая сумма в драммах: столбец amount хранит целое (int4). */
+/** Maximum amount in drams: the amount column holds an integer (int4). */
 const MAX_AMOUNT = 2_147_483_647;
-/** Разумный предел курса: защита от опечатки при ручном вводе и от переполнения столбца. */
+/** Reasonable rate limit: protects against a typo in manual input and against column overflow. */
 const MAX_RATE = 1_000_000;
 const RATE_DECIMALS = 1_000_000;
 
 export interface AmountInput {
   amount: number;
   currency: string;
-  /** Курс вручную; не указан: курс из справочника */
+  /** Manual rate; if omitted: the rate from the reference */
   manualRate?: number;
 }
 
 export interface ResolvedAmount {
-  /** Сумма в драммах: идёт в Excel */
+  /** Amount in drams: goes to Excel */
   amount: number;
-  /** Исходная сумма и курс; нет для расходов в драммах */
+  /** Original amount and rate; absent for dram expenses */
   original?: ExpenseOriginal;
 }
 
@@ -31,8 +31,8 @@ const hasAtMostTwoDecimals = (value: number) =>
   Math.abs(value * 100 - Math.round(value * 100)) < 1e-6;
 
 /**
- * Приводит введённую сумму к драммам. В драммах нужна целая сумма, в иностранной валюте допустимы копейки,
- * и она пересчитывается по курсу (ручному или из справочника).
+ * Converts the entered amount to drams. Drams require a whole amount, a foreign currency allows cents,
+ * and it is converted by the rate (manual or from the reference).
  */
 export async function resolveAmount(
   { amount, currency, manualRate }: AmountInput,

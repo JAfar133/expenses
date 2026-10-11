@@ -7,11 +7,11 @@ import { ACCESS_COOKIE, REFRESH_COOKIE, type AuthUser, type TokenPair } from './
 
 declare module 'fastify' {
   interface FastifyRequest {
-    /** Пользователь, вошедший в приложение (есть у всех маршрутов, кроме публичных) */
+    /** The user logged in to the app (present on all routes except public ones) */
     user?: AuthUser;
   }
   interface FastifyContextConfig {
-    /** Маршрут доступен без входа */
+    /** The route is accessible without login */
     public?: boolean;
   }
 }
@@ -20,16 +20,16 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 export interface AuthPluginOptions {
   auth: AuthService;
-  /** Дополнительные допустимые источники запросов, например https://expenses.example.com */
+  /** Additional allowed request origins, e.g. https://expenses.example.com */
   allowedOrigins?: string[];
 }
 
 /**
- * Подключает разбор кук и две проверки для всех маршрутов:
- *   1. защита от CSRF: изменяющие запросы должны приходить с нашего же сайта (заголовок Origin);
- *   2. вход: без действующего access-токена остаются доступны только публичные маршруты.
+ * Registers cookie parsing and two checks for all routes:
+ *   1. CSRF protection: state-changing requests must come from our own site (Origin header);
+ *   2. login: without a valid access token only public routes remain accessible.
  *
- * Обёрнут в fastify-plugin, чтобы хуки действовали на весь сервер, а не только внутри плагина.
+ * Wrapped in fastify-plugin so the hooks apply to the whole server, not only inside the plugin.
  */
 export const authPlugin = fp(
   async (app: FastifyInstance, options: AuthPluginOptions) => {
@@ -56,7 +56,7 @@ export const authPlugin = fp(
   { name: 'auth' },
 );
 
-/** Источник запроса (Origin или, если его нет, Referer) должен совпадать с адресом сайта. */
+/** The request origin (Origin or, if absent, Referer) must match the site address. */
 export function isAllowedOrigin(request: FastifyRequest, allowedOrigins: string[]): boolean {
   const source = request.headers.origin ?? request.headers.referer;
   if (!source) return false;
@@ -74,7 +74,7 @@ export function isAllowedOrigin(request: FastifyRequest, allowedOrigins: string[
 
 const stripDefaultPort = (host: string) => host.toLowerCase().replace(/:(80|443)$/, '');
 
-/** Куки входа: HttpOnly (недоступны скриптам), SameSite=Lax; Secure, когда сайт открыт по HTTPS. */
+/** Login cookies: HttpOnly (not accessible to scripts), SameSite=Lax; Secure when the site is opened over HTTPS. */
 export function setAuthCookies(reply: FastifyReply, tokens: TokenPair, secure: boolean): void {
   const base = { httpOnly: true, sameSite: 'lax', secure } as const;
   reply.setCookie(ACCESS_COOKIE, tokens.accessToken, {
@@ -82,7 +82,7 @@ export function setAuthCookies(reply: FastifyReply, tokens: TokenPair, secure: b
     path: '/api',
     expires: tokens.accessExpiresAt,
   });
-  // Refresh-токен отправляется только на адреса /api/auth, чтобы не ездить с каждым запросом
+  // The refresh token is sent only to /api/auth addresses, so it does not travel with every request
   reply.setCookie(REFRESH_COOKIE, tokens.refreshToken, {
     ...base,
     path: '/api/auth',

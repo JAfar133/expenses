@@ -3,16 +3,16 @@ import type { SyncResult } from './sync.types.ts';
 
 export interface SyncSchedulerOptions {
   sync: Pick<SyncService, 'requestCycle'>;
-  /** Обычный интервал между синхронизациями */
+  /** Regular interval between syncs */
   intervalMs: number;
-  /** Интервал, пока в очереди есть записи, которые не удалось записать в Excel */
+  /** Interval while the queue holds records that could not be written to Excel */
   retryMs: number;
   now?: () => number;
 }
 
 /**
- * Запускает синхронизацию по таймеру. После каждого запуска (по таймеру или вручную)
- * таймер начинается заново, поэтому пользователь видит один понятный обратный отсчёт.
+ * Runs the sync on a timer. After each run (by timer or manual)
+ * the timer starts over, so the user sees a single clear countdown.
  */
 export class SyncScheduler {
   private timer?: NodeJS.Timeout;
@@ -24,7 +24,7 @@ export class SyncScheduler {
     this.now = options.now ?? Date.now;
   }
 
-  /** Запускает расписание. По умолчанию первая синхронизация выполняется сразу. */
+  /** Starts the schedule. By default the first sync runs immediately. */
   start({ runNow = true }: { runNow?: boolean } = {}): void {
     this.stopped = false;
     this.scheduleIn(runNow ? 0 : this.options.intervalMs);
@@ -36,7 +36,7 @@ export class SyncScheduler {
     this.nextRunAt = undefined;
   }
 
-  /** Время следующего запуска; undefined, пока синхронизация выполняется или расписание остановлено. */
+  /** Time of the next run; undefined while a sync is running or the schedule is stopped. */
   get nextRun(): Date | undefined {
     return this.nextRunAt === undefined ? undefined : new Date(this.nextRunAt);
   }
@@ -45,7 +45,7 @@ export class SyncScheduler {
     return this.options.intervalMs;
   }
 
-  /** Ручной запуск (кнопка в интерфейсе). */
+  /** Manual run (a button in the UI). */
   syncNow(options: CycleOptions = {}): Promise<SyncResult> {
     return this.run(options);
   }
@@ -69,7 +69,7 @@ export class SyncScheduler {
     return result;
   }
 
-  /** Если записи застряли в очереди (файл открыт в Excel), пробуем чаще обычного. */
+  /** If records are stuck in the queue (the file is open in Excel), we try more often than usual. */
   private delayAfter(result: SyncResult): number {
     const stuck = result.queued > 0 && result.status !== 'ok';
     return stuck ? this.options.retryMs : this.options.intervalMs;

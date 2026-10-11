@@ -1,6 +1,6 @@
 /**
- * Фрагменты SQL, которые делают результат одинаковым для всех драйверов:
- * даты и время возвращаются строками, а не объектами Date (без сдвигов часового пояса).
+ * SQL fragments that make the result identical for all drivers:
+ * dates and times are returned as strings, not Date objects (no time zone shifts).
  */
 export const dateText = (column: string) => `to_char(${column}, 'YYYY-MM-DD')`;
 

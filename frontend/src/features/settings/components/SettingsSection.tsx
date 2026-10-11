@@ -6,7 +6,7 @@ interface SettingsSectionProps {
   children: ReactNode;
 }
 
-/** Блок страницы настроек: заголовок, пояснение и содержимое. Новые настройки добавляются новыми блоками. */
+/** Settings page block: title, description and content. New settings are added as new blocks. */
 export function SettingsSection({ title, description, children }: SettingsSectionProps) {
   return (
     <section className="space-y-4 rounded-2xl bg-white p-5 shadow-sm dark:bg-zinc-900">

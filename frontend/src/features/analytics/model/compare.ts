@@ -6,16 +6,16 @@ export interface MonthRow {
   month: MonthKey;
   total: number;
   count: number;
-  /** Сколько дней месяца прошло (для текущего месяца только до сегодня) */
+  /** Days of the month elapsed (only up to today for the current month) */
   days: number;
   perDay: number;
-  /** Изменение суммы к предыдущему месяцу списка, %; у первого и у незаконченного месяца null */
+  /** Change of the amount versus the previous month in the list, %; null for the first and an unfinished month */
   change: number | null;
-  /** Месяц ещё не закончился */
+  /** The month has not ended yet */
   partial: boolean;
 }
 
-/** Строки по месяцам из точек `timeseries` с шагом «месяц» (пропуски уже заполнены нулями). */
+/** Rows by month from `timeseries` points with a "month" step (gaps are already filled with zeros). */
 export function toMonthRows(points: SeriesPoint[], today: string): MonthRow[] {
   const currentMonth = monthOf(today);
 
@@ -29,7 +29,7 @@ export function toMonthRows(points: SeriesPoint[], today: string): MonthRow[] {
       count: point.count,
       days,
       perDay: days > 0 ? point.total / days : 0,
-      // Незаконченный месяц нельзя честно сравнивать с целым предыдущим
+      // An unfinished month cannot be fairly compared with a whole previous one
       change: index === 0 || partial ? null : changePercent(point.total, points[index - 1]!.total),
       partial,
     };
@@ -37,8 +37,8 @@ export function toMonthRows(points: SeriesPoint[], today: string): MonthRow[] {
 }
 
 /**
- * Средний расход за завершённый месяц. Считается с первого месяца, где есть расходы:
- * пустые месяцы до начала учёта среднее не занижают. Нужно хотя бы два завершённых месяца.
+ * Average expense per completed month. Counted from the first month with expenses:
+ * empty months before tracking began do not lower the average. At least two completed months are needed.
  */
 export function averageOfCompleteMonths(rows: MonthRow[]): number | null {
   const firstWithSpending = rows.findIndex((row) => row.total > 0);
@@ -51,13 +51,13 @@ export function averageOfCompleteMonths(rows: MonthRow[]): number | null {
 
 export interface CategoryMatrix {
   months: MonthKey[];
-  /** Крупнейшие категории по всему периоду, затем «Остальное», если категорий больше лимита */
+  /** Largest categories over the whole period, then "Other" if there are more categories than the limit */
   categories: string[];
-  /** Сумма по категории за месяц */
+  /** Amount per category per month */
   rows: { month: MonthKey; values: Record<string, number> }[];
 }
 
-/** Месяцы × категории из точек `timeseries` с разбивкой по категории. */
+/** Months x categories from `timeseries` points broken down by category. */
 export function toCategoryMatrix(
   points: SeriesPoint[],
   months: MonthKey[],
@@ -92,13 +92,13 @@ export interface CategoryDifference {
   key: string;
   a: number;
   b: number;
-  /** a − b: на сколько месяц A больше месяца B */
+  /** a - b: how much month A exceeds month B */
   difference: number;
-  /** Изменение A к B в процентах; null, если в B ничего не было */
+  /** Change of A versus B in percent; null if B had nothing */
   change: number | null;
 }
 
-/** Сравнение двух месяцев по категориям; сначала самые заметные расхождения. */
+/** Comparison of two months by category; the most notable differences first. */
 export function compareCategories(a: BreakdownRow[], b: BreakdownRow[]): CategoryDifference[] {
   const totalsA = new Map(a.map((row) => [row.key, row.total]));
   const totalsB = new Map(b.map((row) => [row.key, row.total]));
@@ -121,7 +121,7 @@ export function compareCategories(a: BreakdownRow[], b: BreakdownRow[]): Categor
 
 export type SortDirection = 'asc' | 'desc';
 
-/** Сортировка небольшой таблицы по числовому или текстовому столбцу; пустые значения в конце. */
+/** Sorting a small table by a numeric or text column; empty values go last. */
 export function sortRows<T>(
   rows: T[],
   value: (row: T) => number | string | null,

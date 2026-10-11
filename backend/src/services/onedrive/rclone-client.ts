@@ -1,7 +1,7 @@
-/** Хеш, который OneDrive считает сам и который rclone умеет считать локально. */
+/** A hash that OneDrive computes itself and rclone can compute locally. */
 export const HASH_TYPE = 'quickxor';
 
-/** Файл в хранилище rclone: `fs` — корень (`onedrive:`), `path` — путь внутри него. */
+/** A file in rclone storage: `fs` is the root (`onedrive:`), `path` is the path inside it. */
 export interface RemoteFile {
   fs: string;
   path: string;
@@ -14,15 +14,15 @@ export interface RemoteFileStat {
 }
 
 /**
- * Минимальный набор операций rclone, нужный приложению.
- * Реализации: запуск процесса на каждую команду (CLI) и обращение к постоянному `rclone rcd`.
+ * The minimal set of rclone operations the app needs.
+ * Implementations: a process per command (CLI) and calls to a persistent `rclone rcd`.
  */
 export interface RcloneClient {
-  /** Метаданные файла или undefined, если файла нет. */
+  /** File metadata or undefined if there is no file. */
   stat(file: RemoteFile): Promise<RemoteFileStat | undefined>;
   download(file: RemoteFile, localPath: string): Promise<void>;
-  /** Загружает локальный файл поверх удалённого. */
+  /** Uploads a local file over the remote one. */
   upload(localPath: string, file: RemoteFile): Promise<void>;
-  /** Хеш локального файла того же типа, что считает OneDrive. */
+  /** Hash of the local file of the same type that OneDrive computes. */
   hashLocal(localPath: string): Promise<string>;
 }

@@ -6,22 +6,22 @@ import { toNameShares } from '../model/drill.ts';
 import { ChartCard, ChartMessage } from './ChartCard.tsx';
 import { ChartTypeSwitch } from './ChartTypeSwitch.tsx';
 
-/** Сколько наименований показываем сразу; остальные раскрываются кнопкой. */
+/** How many names to show at once; the rest expand with a button. */
 const VISIBLE_NAMES = 10;
 
 interface CategoryNamesProps {
-  /** Категории периода от самых затратных */
+  /** Categories of the period, biggest spend first */
   categories: BreakdownRow[];
   selected: string | undefined;
   onSelect: (category: string) => void;
-  /** Наименования выбранной категории от самых затратных; undefined, пока грузятся */
+  /** Names in the selected category, biggest spend first; undefined while loading */
   names: BreakdownRow[] | undefined;
   categoryOrder: string[];
   currency: string;
   loading?: boolean;
 }
 
-/** На какие наименования тратится больше всего внутри выбранной категории. */
+/** Which names take the most spend within the selected category. */
 export function CategoryNames({
   categories,
   selected,

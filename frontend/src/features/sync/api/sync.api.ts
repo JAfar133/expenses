@@ -6,35 +6,35 @@ export interface SyncResult {
   startedAt: string;
   finishedAt: string;
   status: SyncStatus;
-  /** Новые строки Excel, добавленные в базу */
+  /** New Excel rows added to the database */
   imported: number;
-  /** Записи из очереди, дописанные в Excel */
+  /** Queued records appended to Excel */
   written: number;
   queued: number;
-  /** Записи базы, помеченные удалёнными: их строку удалили или изменили в Excel (мягкое удаление) */
+  /** Database records marked deleted: their row was deleted or changed in Excel (soft delete) */
   deleted: number;
-  /** Ранее удалённые записи, строки которых снова появились в Excel */
+  /** Previously deleted records whose rows reappeared in Excel */
   restored: number;
-  /** Сколько удалений не применено: пропало слишком много записей сразу */
+  /** How many deletions were not applied: too many records disappeared at once */
   deletionsBlocked: number;
-  /** Строки Excel, которые нельзя импортировать */
+  /** Excel rows that cannot be imported */
   skipped: number;
   error?: { code: string; message: string };
-  /** Нужно внимание пользователя, хотя синхронизация прошла (например, заблокировано массовое удаление) */
+  /** Needs the user's attention although sync succeeded (e.g. mass deletion was blocked) */
   warning?: { code: string; message: string };
 }
 
 export interface SyncState {
-  /** false: работа с Excel отключена на сервере, значок синхронизации не нужен */
+  /** false: Excel is disabled on the server, the sync indicator is not needed */
   enabled: boolean;
   lastResult?: SyncResult;
-  /** Сколько записей ждёт записи в Excel */
+  /** How many records are waiting to be written to Excel */
   queued: number;
   running: boolean;
   intervalMs: number;
-  /** Когда запустится следующая синхронизация; null, пока идёт текущая */
+  /** When the next sync starts; null while one is running */
   nextRunAt: string | null;
-  /** Время сервера: по нему считаем таймер, не полагаясь на часы устройства */
+  /** Server time: the timer is computed from it, not relying on the device clock */
   serverTime: string;
 }
 

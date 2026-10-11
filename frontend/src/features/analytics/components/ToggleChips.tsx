@@ -1,14 +1,14 @@
 import type { Option } from '../hooks/useFilterOptions.ts';
 
 interface ToggleChipsProps {
-  /** Что выбираем, для скринридера */
+  /** What is being chosen, for screen readers */
   label: string;
   options: Option[];
   selected: string[];
   onChange: (selected: string[]) => void;
 }
 
-/** Мультивыбор кнопками-метками: нажатие включает и выключает значение. Выбранное, которого нет в списке, тоже показывается. */
+/** Multi-select with label buttons: pressing toggles the value. A selected value missing from the list is shown too. */
 export function ToggleChips({ label, options, selected, onChange }: ToggleChipsProps) {
   const known = new Set(options.map((option) => option.value));
   const all = [

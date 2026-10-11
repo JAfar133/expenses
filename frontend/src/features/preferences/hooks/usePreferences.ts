@@ -15,7 +15,7 @@ import {
 export const PREFERENCES_KEY = ['preferences'];
 const SAVE_KEY = ['preferences', 'save'];
 
-/** Прежнее место хранения (браузер): оно остаётся быстрым кэшем и источником для переноса на сервер. */
+/** Former storage location (browser): stays as a fast cache and a source for migration to the server. */
 const localKey = (key: PreferenceKey) => `analytics.${key}`;
 
 const readLocal = (key: PreferenceKey): string | undefined => {
@@ -24,8 +24,8 @@ const readLocal = (key: PreferenceKey): string | undefined => {
 };
 
 /**
- * Загружает настройки пользователя с сервера. Выборы, которые раньше сохранялись только в браузере,
- * один раз переносятся на сервер: так ничего не теряется при переходе.
+ * Loads user preferences from the server. Choices that used to be saved only in the browser
+ * are migrated to the server once, so nothing is lost during the transition.
  */
 async function loadPreferences(): Promise<Preferences> {
   const server = await fetchPreferences();
@@ -36,12 +36,12 @@ async function loadPreferences(): Promise<Preferences> {
   }
   if (Object.keys(missing).length === 0) return server;
 
-  // Не удалось перенести: не страшно, значения останутся в браузере и перенесутся в следующий раз
+  // Migration failed: not a problem, values stay in the browser and migrate next time
   const merged = await savePreferences(missing as Preferences).catch(() => undefined);
   return merged ?? { ...server, ...(missing as Preferences) };
 }
 
-/** Настройки пользователя. Пока не загрузились (или сервер недоступен), используются значения из браузера. */
+/** User preferences. Until loaded (or if the server is unavailable), browser values are used. */
 export function usePreferences() {
   return useQuery({
     queryKey: PREFERENCES_KEY,
@@ -51,7 +51,7 @@ export function usePreferences() {
   });
 }
 
-/** Запись настроек: сразу в интерфейс и в браузер, затем на сервер (при ошибке выбор не теряется). */
+/** Saves preferences: to the UI and browser immediately, then to the server (the choice is kept on error). */
 export function useSavePreferences() {
   const queryClient = useQueryClient();
 
@@ -81,8 +81,8 @@ export function useSavePreferences() {
 }
 
 /**
- * Состояние последнего сохранения настроек на сервер. Мутации создаёт каждый компонент отдельно,
- * поэтому статус берётся из общего журнала мутаций: так он виден везде, где его показывают.
+ * Status of the last preferences save to the server. Each component creates its own mutations,
+ * so the status comes from the shared mutation log: it is visible everywhere it is shown.
  */
 export function useSaveStatus(): { isSaving: boolean; isError: boolean } {
   const statuses = useMutationState({
@@ -93,7 +93,7 @@ export function useSaveStatus(): { isSaving: boolean; isError: boolean } {
   return { isSaving: latest === 'pending', isError: latest === 'error' };
 }
 
-/** Значение одной настройки и способ её изменить: сервер, затем браузер, затем значение по умолчанию. */
+/** Value of a single preference and a way to change it: server, then browser, then default. */
 export function usePreference<K extends PreferenceKey>(
   key: K,
 ): [PreferenceValue<K>, (value: PreferenceValue<K>) => void] {

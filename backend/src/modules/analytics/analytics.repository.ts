@@ -18,7 +18,7 @@ import type {
   SummaryStats,
 } from './analytics.types.ts';
 
-/** Колонки сортировки: только из этого списка, в запрос попадают готовые фрагменты, а не ввод пользователя. */
+/** Sort columns: only from this list, ready-made fragments go into the query, not user input. */
 const SORT_SQL: Record<SortColumn, string> = {
   date: 'date',
   card: 'card',
@@ -28,11 +28,11 @@ const SORT_SQL: Record<SortColumn, string> = {
   createdBy: 'created_by',
 };
 
-/** Выражение группировки для каждого разреза. Валюта расхода в драммах это базовая валюта. */
+/** Grouping expression for each dimension. The currency of a dram expense is the base currency. */
 const GROUP_SQL: Record<Exclude<BreakdownBy, 'currency'>, string> = {
   category: 'category',
   card: 'card',
-  // Регистр и пробелы по краям не различаем; показываем написание из самой свежей записи
+  // Case and surrounding whitespace are not distinguished; we show the spelling from the most recent record
   name: 'lower(btrim(name))',
   weekday: 'EXTRACT(ISODOW FROM date)::int',
   createdBy: 'created_by',
@@ -57,11 +57,11 @@ interface SummaryRow {
   last_date: string | null;
 }
 
-/** Агрегаты и списки для страницы анализа. Все подсчёты выполняет SQL, наружу идут только готовые числа. */
+/** Aggregates and lists for the analytics page. SQL does all the calculations, only ready numbers go out. */
 export class AnalyticsRepository {
   constructor(
     private readonly database: Database,
-    /** Базовая валюта: так отмечены расходы без исходной суммы */
+    /** Base currency: this is how expenses without an original amount are marked */
     private readonly baseCurrency: string,
   ) {}
 
@@ -162,7 +162,7 @@ export class AnalyticsRepository {
     );
   }
 
-  /** Авторы расходов (без удалённых) от самых активных; записи, пришедшие из Excel, подписаны «Из Excel». */
+  /** Expense authors (excluding deleted ones) from most active; records that came from Excel are labeled «Из Excel» ("From Excel"). */
   async authors(): Promise<Author[]> {
     return this.database.query<Author>(
       `SELECT e.created_by AS value,
@@ -228,7 +228,7 @@ interface ListRow {
   exchange_rate: number | null;
 }
 
-/** Пустая валюта (`original_currency IS NULL`) означает базовую: расход введён в драммах или пришёл из Excel. */
+/** An empty currency (`original_currency IS NULL`) means the base one: the expense was entered in drams or came from Excel. */
 const toListItem = (row: ListRow, baseCurrency: string): ExpenseListItem => ({
   id: row.id,
   date: row.date,

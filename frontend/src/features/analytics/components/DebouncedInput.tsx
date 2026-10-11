@@ -10,14 +10,14 @@ interface DebouncedInputProps extends Omit<
   delayMs?: number;
 }
 
-/** Поле, которое сообщает о значении не на каждую букву, а когда пользователь на мгновение остановился. */
+/** An input that reports its value not on every keystroke but when the user pauses briefly. */
 export function DebouncedInput({ value, onCommit, delayMs = 300, ...props }: DebouncedInputProps) {
   const [draft, setDraft] = useState(value);
-  // Свежий обработчик без перезапуска таймера при каждой перерисовке родителя
+  // Fresh handler without restarting the timer on every parent re-render
   const commit = useRef(onCommit);
   commit.current = onCommit;
 
-  // Значение изменили снаружи (например, сброс фильтров)
+  // The value was changed from outside (e.g. filter reset)
   useEffect(() => setDraft(value), [value]);
 
   useEffect(() => {

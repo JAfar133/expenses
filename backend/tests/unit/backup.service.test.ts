@@ -25,7 +25,7 @@ const createService = (now: Date, retentionDays = 30) =>
 
 describe('save', () => {
   it('кладёт копию в папку с датой по времени часового пояса', async () => {
-    // 21:15:32 UTC = 01:15:32 следующего дня в Ереване (UTC+4)
+    // 21:15:32 UTC = 01:15:32 the next day in Yerevan (UTC+4)
     const service = createService(new Date('2026-10-10T21:15:32Z'));
 
     const path = await service.save(source);
@@ -65,7 +65,7 @@ describe('cleanup', () => {
 
     const removed = await service.cleanup();
 
-    // Граница: 2026-10-10 минус 30 дней = 2026-09-10 (эта папка ещё хранится)
+    // Boundary: 2026-10-10 minus 30 days = 2026-09-10 (this folder is still kept)
     expect(removed).toBe(2);
     expect((await readdir(root)).sort()).toEqual(['2026-09-10', '2026-10-09', 'notes']);
   });

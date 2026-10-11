@@ -2,7 +2,7 @@ import { COLUMNS, type Column, type Expense } from './types.ts';
 import { toExcelSerial } from './dates.ts';
 import { escapeXml } from './xml.ts';
 
-/** Находит XML строки листа (`<row r="N">…</row>` или `<row r="N" …/>`). */
+/** Finds the sheet row XML (`<row r="N">…</row>` or `<row r="N" …/>`). */
 function findRow(sheetXml: string, rowNumber: number): string | undefined {
   return new RegExp(`<row r="${rowNumber}"(?:[^>]*/>|[^>]*>.*?</row>)`, 's').exec(sheetXml)?.[0];
 }
@@ -23,8 +23,8 @@ function isRowEmpty(rowXml: string, rowNumber: number): boolean {
 }
 
 /**
- * Номер последней строки с данными в диапазоне (firstRow, lastRow].
- * Пустые отформатированные строки не считаются заполненными.
+ * Number of the last row with data in the range (firstRow, lastRow].
+ * Empty formatted rows do not count as filled.
  */
 export function findLastFilledRow(sheetXml: string, firstRow: number, lastRow: number): number {
   let lastFilled = firstRow;
@@ -40,8 +40,8 @@ export function findLastFilledRow(sheetXml: string, firstRow: number, lastRow: n
 }
 
 /**
- * Записывает операцию в строку `targetRow`. Стили ячеек берутся из самой строки,
- * а если там ячейки нет — из строки `styleSourceRow`.
+ * Writes an operation into row `targetRow`. Cell styles are taken from the row itself,
+ * and if it has no cell there, from row `styleSourceRow`.
  */
 export function writeExpenseRow(
   sheetXml: string,
@@ -76,8 +76,8 @@ export function writeExpenseRow(
 }
 
 /**
- * Очищает значения A:E в строке, оставляя ячейки со стилями: строка остаётся внутри таблицы пустой.
- * Строки или ячейки, которых нет, не трогаются.
+ * Clears the A:E values in a row, leaving the styled cells: the row stays inside the table, empty.
+ * Rows or cells that do not exist are left alone.
  */
 export function clearExpenseRow(sheetXml: string, rowNumber: number): string {
   const existingRow = findRow(sheetXml, rowNumber);
@@ -100,7 +100,7 @@ function readStyle(sheetXml: string, rowNumber: number, column: Column): string 
   return cell ? getStyle(cell[1]!) : '';
 }
 
-/** Строки в sheetData должны идти по возрастанию номера. */
+/** Rows in sheetData must go in ascending number order. */
 function insertRow(sheetXml: string, rowNumber: number, rowXml: string): string {
   const nextRow = [...sheetXml.matchAll(/<row r="(\d+)"/g)].find(
     (match) => Number(match[1]) > rowNumber,
@@ -112,7 +112,7 @@ function insertRow(sheetXml: string, rowNumber: number, rowXml: string): string 
   return sheetXml.slice(0, nextRow.index) + rowXml + sheetXml.slice(nextRow.index);
 }
 
-/** Ячейки в строке должны идти по порядку столбцов: вставляем перед первой ячейкой правее E. */
+/** Cells in a row must go in column order: we insert before the first cell to the right of E. */
 function insertCell(rowXml: string, rowNumber: number, cellXml: string): string {
   const rightCell = new RegExp(`<c r="[F-Z]${rowNumber}"`).exec(rowXml);
 
@@ -140,7 +140,7 @@ function buildCell(column: Column, row: number, style: string, expense: Expense)
   }
 }
 
-/** Inline-строка всегда остаётся текстом и никогда не вычисляется как формула. */
+/** An inline string always stays text and is never evaluated as a formula. */
 function buildTextCell(ref: string, styleAttr: string, text: string): string {
   const escaped = escapeXml(text);
   return `<c r="${ref}"${styleAttr} t="inlineStr"><is><t xml:space="preserve">${escaped}</t></is></c>`;

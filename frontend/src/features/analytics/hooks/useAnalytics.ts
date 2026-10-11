@@ -9,12 +9,12 @@ import {
   type Granularity,
 } from '../api/analytics.api.ts';
 
-/** Общий префикс ключей: по нему данные сбрасываются после добавления расхода и синхронизации. */
+/** Common key prefix: data is invalidated by it after adding an expense and after sync. */
 export const ANALYTICS_KEY = ['analytics'];
 
 const options = {
   staleTime: 30_000,
-  // При смене фильтра прежние данные остаются на экране, пока приходят новые
+  // When the filter changes, previous data stays on screen while new data arrives
   placeholderData: keepPreviousData,
 };
 
@@ -48,7 +48,7 @@ export const useTimeseries = (
     ...options,
   });
 
-/** Список авторов для фильтра; меняется редко. */
+/** List of authors for the filter; changes rarely. */
 export const useAuthors = () =>
   useQuery({
     queryKey: [...ANALYTICS_KEY, 'authors'],

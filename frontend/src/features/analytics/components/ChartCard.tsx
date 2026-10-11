@@ -3,14 +3,14 @@ import type { ReactNode } from 'react';
 interface ChartCardProps {
   title: string;
   description?: string;
-  /** Переключатели вида, справа от заголовка */
+  /** View switches, to the right of the title */
   actions?: ReactNode;
   children: ReactNode;
-  /** Те же данные таблицей: точные цифры и доступность для скринридера */
+  /** The same data as a table: exact numbers and screen reader accessibility */
   table?: ReactNode;
 }
 
-/** Рамка графика: заголовок, переключатели, сам график и раскрывающаяся таблица с данными. */
+/** Chart frame: title, switches, the chart itself and a collapsible data table. */
 export function ChartCard({ title, description, actions, children, table }: ChartCardProps) {
   return (
     <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-5 dark:bg-zinc-900">
@@ -36,7 +36,7 @@ export function ChartCard({ title, description, actions, children, table }: Char
   );
 }
 
-/** Состояние графика без данных или с ошибкой. */
+/** State of a chart with no data or with an error. */
 export function ChartMessage({ children }: { children: ReactNode }) {
   return (
     <p className="flex min-h-40 items-center justify-center text-center text-sm text-zinc-500 dark:text-zinc-400">
@@ -45,7 +45,7 @@ export function ChartMessage({ children }: { children: ReactNode }) {
   );
 }
 
-/** Таблица данных графика: просто, с выравниванием чисел по правому краю. */
+/** Chart data table: plain, with numbers right-aligned. */
 export function DataTable({ columns, rows }: { columns: string[]; rows: (string | number)[][] }) {
   return (
     <table className="w-full border-collapse text-left">

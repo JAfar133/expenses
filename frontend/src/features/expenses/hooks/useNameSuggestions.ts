@@ -3,7 +3,7 @@ import { fetchNameSuggestions } from '../api/expenses.api.ts';
 
 export const NAME_SUGGESTIONS_KEY = ['name-suggestions'];
 
-/** Подсказки необязательны: при ошибке или пока грузятся, форма работает без них. */
+/** Suggestions are optional: on error or while loading, the form works without them. */
 export function useNameSuggestions() {
   return useQuery({
     queryKey: NAME_SUGGESTIONS_KEY,

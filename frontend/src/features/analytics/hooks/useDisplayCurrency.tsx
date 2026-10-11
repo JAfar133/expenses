@@ -5,18 +5,18 @@ import { moneyDigits, scaleFactor } from '../model/currency.ts';
 import { useAnalyticsReference } from './useAnalyticsReference.ts';
 
 export interface DisplayCurrency {
-  /** Валюта, в которой показываются суммы */
+  /** Currency in which amounts are shown */
   code: string;
-  /** Базовая валюта: в ней хранятся суммы */
+  /** Base currency: amounts are stored in it */
   base: string;
-  /** Множитель пересчёта из базовой валюты (1 для базовой) */
+  /** Conversion multiplier from the base currency (1 for the base) */
   factor: number;
-  /** Знаков после запятой у денежных сумм */
+  /** Decimal places for money amounts */
   digits: number;
-  /** Валюты, которые можно выбрать: базовая и те, у которых есть курс */
+  /** Selectable currencies: the base and those that have a rate */
   options: string[];
   select: (code: string) => void;
-  /** Курс выбранной валюты (драммы за единицу) и когда он получен; нет у базовой валюты */
+  /** Rate of the selected currency (drams per unit) and when it was obtained; absent for the base currency */
   rate?: { rate: number; fetchedAt: string };
 }
 
@@ -31,7 +31,7 @@ const DEFAULT: DisplayCurrency = {
 
 const Context = createContext<DisplayCurrency>(DEFAULT);
 
-/** Валюта показа сумм на странице анализа. Предпочтение хранится в настройках пользователя. */
+/** Display currency of amounts on the analytics page. The preference is stored in user settings. */
 export function DisplayCurrencyProvider({ children }: { children: ReactNode }) {
   const [preferred, setPreferred] = usePreference('analytics.currency');
   const { currency: base } = useAnalyticsReference();
@@ -39,7 +39,7 @@ export function DisplayCurrencyProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<DisplayCurrency>(() => {
     const options = [base, ...(rates ?? []).map((item) => item.currency)];
-    // Выбранной валюты может не быть (нет курса или её убрали из настроек): тогда показываем базовую
+    // The selected currency may be missing (no rate or removed from settings): then show the base
     const code = options.includes(preferred) ? preferred : base;
     const rate = rates?.find((item) => item.currency === code);
 

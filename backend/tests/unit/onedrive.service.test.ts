@@ -12,13 +12,13 @@ import { RcloneOneDriveService } from '../../src/services/onedrive.service.ts';
 
 const sha = (content: string | Buffer) => createHash('sha1').update(content).digest('hex');
 
-/** Поддельный rclone: «удалённый» файл хранится в памяти, обращения записываются в `calls`. */
+/** Fake rclone: the "remote" file is kept in memory, calls are recorded in `calls`. */
 class FakeRclone implements RcloneClient {
   calls: string[] = [];
   remoteContent: string | undefined = 'original';
-  /** Ошибки, которые нужно выбросить при следующих вызовах соответствующих операций */
+  /** Errors to throw on the next calls of the corresponding operations */
   failures: { stat?: Error[]; download?: Error[]; upload?: Error[] } = {};
-  /** Подменяет содержимое удалённого файла после скачивания (имитация чужой правки) */
+  /** Replaces the remote file's content after download (simulates someone else's edit) */
   afterDownload?: () => void;
 
   async stat(): Promise<RemoteFileStat | undefined> {
@@ -194,7 +194,7 @@ describe('uploadFile', () => {
 
     expect(result.version).toBe(sha('updated'));
     expect(client.remoteContent).toBe('updated');
-    // Минимум обращений к OneDrive: проверка версии, загрузка, сверка
+    // Minimal OneDrive round trips: version check, upload, verification
     expect(client.calls).toEqual(['stat', 'upload', 'hashLocal', 'stat']);
   });
 

@@ -34,13 +34,13 @@ export const okResult = (overrides: Partial<SyncResult> = {}): SyncResult => ({
   ...overrides,
 });
 
-/** Поддельная синхронизация: по запросу помечает очередь как записанную в Excel (или нет). */
+/** Fake sync: on request marks the queue as written to Excel (or not). */
 export class FakeSync {
   cycles = 0;
-  /** true — Excel доступен, очередь записывается; false — файл занят, записи остаются в очереди */
+  /** true: Excel is available, the queue is written; false: the file is busy, records stay queued */
   excelAvailable = true;
   delayMs = 0;
-  /** Параметры последнего запрошенного цикла */
+  /** Parameters of the last requested cycle */
   lastOptions?: { applyDeletions?: boolean };
   lastResult?: SyncResult;
 
@@ -49,7 +49,7 @@ export class FakeSync {
     private readonly database: Database,
   ) {}
 
-  /** false: имитирует отсутствие ONEDRIVE_FILE_PATH */
+  /** false: simulates a missing ONEDRIVE_FILE_PATH */
   enabled = true;
 
   async requestCycle(options: { applyDeletions?: boolean } = {}): Promise<SyncResult> {
@@ -80,7 +80,7 @@ export class FakeSync {
   }
 }
 
-/** Поддельные курсы: драммы за единицу валюты; убрав курс, можно имитировать недоступный источник. */
+/** Fake rates: drams per unit of currency; removing a rate simulates an unavailable source. */
 export class FakeRates {
   readonly base = 'AMD';
   readonly currencies = ['AMD', 'RUB', 'USD', 'EUR'];
@@ -106,12 +106,12 @@ export class FakeRates {
   }
 }
 
-/** Пароль обоих тестовых пользователей. */
+/** Password of both test users. */
 export const TEST_PASSWORD = 'shared-test-password-1';
 
 export type TestUsername = 'misha' | 'nastya';
 
-/** Хеш считается один раз на весь прогон: scrypt специально медленный. */
+/** The hash is computed once per run: scrypt is deliberately slow. */
 let sharedPasswordHash: Promise<string> | undefined;
 const passwordHash = () => (sharedPasswordHash ??= hashPassword(TEST_PASSWORD));
 
@@ -124,9 +124,9 @@ export interface TestApp {
   scheduler: SyncScheduler;
   auth: AuthService;
   authRepository: AuthRepository;
-  /** Запрос от имени вошедшего пользователя (по умолчанию misha): с куками входа и заголовком Origin сайта */
+  /** A request as the logged-in user (misha by default): with login cookies and the site Origin header */
   inject: (options: InjectOptions, as?: TestUsername) => Promise<LightMyRequestResponse>;
-  /** Куки входа для пользователя: создаёт сессию напрямую, без проверки пароля */
+  /** Login cookies for a user: creates a session directly, without checking the password */
   sessionCookies: (username: TestUsername) => Promise<{ et_access: string; et_refresh: string }>;
 }
 
@@ -137,7 +137,7 @@ export interface TestAppOptions {
   throttle?: LoginThrottle;
 }
 
-/** «Сегодня» в тестах: фиксированная дата, чтобы расчёты не зависели от календаря. */
+/** "Today" in tests: a fixed date so calculations do not depend on the calendar. */
 export const TEST_TODAY = '2026-10-15';
 
 export const TEST_ORIGIN = 'http://localhost';
@@ -167,7 +167,7 @@ export async function createTestApp(
     ['misha', 'Миша'],
     ['nastya', 'Настя'],
   ] as const) {
-    // Право правки по умолчанию только у misha (как EDITOR_USERS по умолчанию)
+    // Edit permission by default only for misha (like the default EDITOR_USERS)
     await authRepository.upsertUser(username, card, {
       canEdit: username === 'misha',
       timezone: 'Asia/Yerevan',

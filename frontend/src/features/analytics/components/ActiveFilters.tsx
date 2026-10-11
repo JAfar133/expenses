@@ -15,7 +15,7 @@ interface Chip {
   clear: Partial<FilterState>;
 }
 
-/** Включённые фильтры видны всегда, даже когда панель свёрнута: каждый снимается одним нажатием. */
+/** Enabled filters are always visible, even when the panel is collapsed: each is removed with one press. */
 export function ActiveFilters({ state, authors, onChange, onReset }: ActiveFiltersProps) {
   const authorLabel = (value: string) => authors.find((a) => a.value === value)?.label ?? value;
   const chips: Chip[] = [];

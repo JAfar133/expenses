@@ -1,18 +1,18 @@
-/** Месяц в виде `YYYY-MM`. Все даты в приложении без времени и часового пояса: `YYYY-MM-DD`. */
+/** Month as `YYYY-MM`. All dates in the app have no time or time zone: `YYYY-MM-DD`. */
 export type MonthKey = string;
 
 const pad = (value: number) => String(value).padStart(2, '0');
 
 export const monthOf = (isoDate: string): MonthKey => isoDate.slice(0, 7);
 
-/** Первый и последний день месяца. */
+/** First and last day of a month. */
 export function monthRange(month: MonthKey): { from: string; to: string } {
   const [year, number] = month.split('-').map(Number) as [number, number];
   const lastDay = new Date(Date.UTC(year, number, 0)).getUTCDate();
   return { from: `${month}-01`, to: `${month}-${pad(lastDay)}` };
 }
 
-/** Соседний месяц: `shiftMonth('2026-01', -1)` → `2025-12`. */
+/** Adjacent month: `shiftMonth('2026-01', -1)` → `2025-12`. */
 export function shiftMonth(month: MonthKey, delta: number): MonthKey {
   const [year, number] = month.split('-').map(Number) as [number, number];
   const index = year * 12 + (number - 1) + delta;
@@ -32,27 +32,27 @@ const shortDayFormat = formatter({ day: 'numeric', month: 'short' });
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 const atUtc = (isoDate: string) => new Date(`${isoDate}T00:00:00Z`);
 
-/** «Октябрь 2026» */
+/** Month name with year, e.g. "October 2026" (Russian locale) */
 export const monthLabel = (month: MonthKey) =>
   capitalize(monthFormat.format(atUtc(`${month}-01`)).replace(/\s*г\.$/, ''));
 
-/** «суббота, 10 октября» */
+/** Weekday, day and month, e.g. "Saturday, 10 October" (Russian locale) */
 export const dayLabel = (isoDate: string) => dayFormat.format(atUtc(isoDate));
 
-/** «10 окт.» */
+/** Short day and month, e.g. "10 Oct." (Russian locale) */
 export const shortDayLabel = (isoDate: string) => shortDayFormat.format(atUtc(isoDate));
 
-/** Число месяца: `2026-10-05` → `5`. */
+/** Day of the month: `2026-10-05` → `5`. */
 export const dayOfMonth = (isoDate: string) => String(Number(isoDate.slice(8, 10)));
 
 const DAY_MS = 86_400_000;
 const atUtcMs = (isoDate: string) => Date.parse(`${isoDate}T00:00:00Z`);
 
-/** Сдвиг даты на заданное число дней. */
+/** Shift a date by a given number of days. */
 export const addDays = (isoDate: string, days: number) =>
   new Date(atUtcMs(isoDate) + days * DAY_MS).toISOString().slice(0, 10);
 
-/** Сколько дней от `from` до `to` включительно (0, если `to` раньше). */
+/** Days from `from` to `to` inclusive (0 if `to` is earlier). */
 export const daysBetween = (from: string, to: string) =>
   Math.max(0, Math.round((atUtcMs(to) - atUtcMs(from)) / DAY_MS) + 1);
 
@@ -61,18 +61,18 @@ export const daysInMonth = (month: MonthKey) => {
   return daysBetween(from, to);
 };
 
-/** Последние `count` месяцев, заканчивая `end`, от старого к новому. */
+/** The last `count` months ending at `end`, from old to new. */
 export const monthsEndingAt = (end: MonthKey, count: number): MonthKey[] =>
   Array.from({ length: count }, (_, index) => shiftMonth(end, index - (count - 1)));
 
 const monthShortFormat = formatter({ month: 'short' });
 const monthYearShortFormat = formatter({ month: 'short', year: '2-digit' });
 
-/** «окт.» */
+/** Short month name, e.g. "Oct." (Russian locale) */
 export const monthShortLabel = (month: MonthKey) =>
   monthShortFormat.format(atUtc(`${month}-01`)).replace('.', '');
 
-/** «окт 26» */
+/** Short month and year, e.g. "Oct 26" (Russian locale) */
 export const monthYearShortLabel = (month: MonthKey) =>
   monthYearShortFormat
     .format(atUtc(`${month}-01`))

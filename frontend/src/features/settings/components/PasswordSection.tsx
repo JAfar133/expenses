@@ -6,13 +6,13 @@ import { Notice } from '../../../shared/ui/Notice.tsx';
 import { changePassword } from '../api/password.api.ts';
 import { SettingsSection } from './SettingsSection.tsx';
 
-/** Подсказка о длине; окончательную проверку делает сервер (его минимум задаётся настройкой). */
+/** Length hint; the server does the final check (its minimum is configurable). */
 const MIN_LENGTH = 8;
 
 type Values = { current: string; next: string; repeat: string };
 const EMPTY: Values = { current: '', next: '', repeat: '' };
 
-/** Проверка формы до отправки. */
+/** Form validation before submit. */
 export function validatePassword({
   current,
   next,
@@ -37,7 +37,7 @@ function errorMessage(error: unknown): string {
   return 'Не удалось сменить пароль. Попробуйте позже';
 }
 
-/** Смена пароля: текущий, новый и повтор. После смены остальные устройства выходят из аккаунта. */
+/** Password change: current, new and confirmation. After the change, other devices are signed out. */
 export function PasswordSection() {
   const [values, setValues] = useState<Values>(EMPTY);
   const [submitted, setSubmitted] = useState(false);

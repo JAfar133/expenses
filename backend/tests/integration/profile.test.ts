@@ -314,7 +314,7 @@ describe('часовой пояс в аналитике', () => {
   it('«сегодня» определяется по часовому поясу пользователя', async () => {
     const service = new AnalyticsService({
       repository: new AnalyticsRepository(database, 'AMD'),
-      // 15 октября по Еревану, ещё 14-е по Нью-Йорку
+      // 15 October in Yerevan, still the 14th in New York
       today: (timezone) => (timezone === 'America/New_York' ? '2026-10-14' : '2026-10-15'),
     });
     const filters = {

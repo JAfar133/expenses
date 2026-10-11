@@ -1,8 +1,8 @@
 import { apiRequest } from '../../../shared/api/http.ts';
 
-/** Общие фильтры страницы анализа. Пустое значение означает «без ограничения». */
+/** Common analytics page filters. An empty value means "no restriction". */
 export interface AnalyticsFilters {
-  /** Границы периода включительно, YYYY-MM-DD */
+  /** Period bounds, inclusive, YYYY-MM-DD */
   from?: string;
   to?: string;
   cards?: string[];
@@ -27,15 +27,15 @@ export interface SummaryStats {
 }
 
 export interface PeriodSummary extends SummaryStats {
-  /** Сколько дней периода прошло (до сегодня) */
+  /** Days of the period elapsed (up to today) */
   days: number;
-  /** Средний расход в день за прошедшие дни */
+  /** Average daily expense over elapsed days */
   perDay: number;
 }
 
 export interface SummaryResult {
   current: PeriodSummary;
-  /** Предыдущий период такой же длины; null, если период не задан */
+  /** Previous period of the same length; null if no period is set */
   previous: PeriodSummary | null;
 }
 
@@ -51,7 +51,7 @@ export interface BreakdownRow {
 export type Granularity = 'day' | 'week' | 'month';
 
 export interface SeriesPoint {
-  /** Первый день периода, YYYY-MM-DD */
+  /** First day of the period, YYYY-MM-DD */
   period: string;
   key?: string;
   total: number;
@@ -60,7 +60,7 @@ export interface SeriesPoint {
 
 type Param = string | number | boolean | string[] | undefined;
 
-/** Фильтры и дополнительные параметры в адресную строку. Списки передаются повторами: `cards=a&cards=b`. */
+/** Filters and extra parameters to the URL. Lists are passed as repeats: `cards=a&cards=b`. */
 export function toSearch(filters: AnalyticsFilters, extra: Record<string, Param> = {}): string {
   const params = new URLSearchParams();
   const entries: [string, Param][] = [...Object.entries(filters), ...Object.entries(extra)];
@@ -91,7 +91,7 @@ export const fetchTimeseries = async (
     )
   ).data;
 
-/** Кто добавлял расходы: логин для фильтра, имя для показа. */
+/** Who added expenses: login for the filter, name for display. */
 export interface Author {
   value: string;
   label: string;

@@ -95,7 +95,7 @@ describe('formatMoney', () => {
 });
 
 describe('todayIso и часовой пояс пользователя', () => {
-  // Для Еревана (UTC+4) уже 15 октября, для Нью-Йорка (UTC−4) ещё 14-е
+  // In Yerevan (UTC+4) it is already October 15, in New York (UTC−4) still the 14th
   const instant = new Date('2026-10-14T21:30:00Z');
 
   it('по часовому поясу пользователя, а не устройства', () => {

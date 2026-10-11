@@ -3,15 +3,15 @@ import { ApiError, apiRequest } from '../../../shared/api/http.ts';
 export interface AuthUser {
   username: string;
   displayName: string;
-  /** Карта по умолчанию для формы расхода */
+  /** Default card for the expense form */
   card: string;
-  /** Может ли пользователь править и удалять записи */
+  /** Whether the user can edit and delete records */
   canEdit: boolean;
-  /** Часовой пояс пользователя (IANA): по нему определяется «сегодня» */
+  /** User time zone (IANA): "today" is determined by it */
   timezone: string;
 }
 
-/** Текущий пользователь или null, если не выполнен вход. Остальные ошибки (сеть, сервер) пробрасываются. */
+/** Current user, or null if not signed in. Other errors (network, server) are rethrown. */
 export async function fetchCurrentUser(): Promise<AuthUser | null> {
   try {
     return (await apiRequest<{ user: AuthUser }>('/auth/me')).data.user;
@@ -33,7 +33,7 @@ export async function logout(): Promise<void> {
   await apiRequest('/auth/logout', { method: 'POST' });
 }
 
-/** Личные настройки аккаунта; `null` возвращает значение по умолчанию, не указанное поле не меняется. */
+/** Personal account settings; `null` resets to the default, an omitted field is unchanged. */
 export interface ProfilePatch {
   displayName?: string | null;
   card?: string | null;

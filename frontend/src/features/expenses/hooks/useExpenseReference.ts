@@ -1,7 +1,7 @@
 import { useQueries } from '@tanstack/react-query';
 import { fetchCards, fetchCategories, fetchCurrency } from '../api/expenses.api.ts';
 
-/** Справочники для формы: карты, категории и валюта. */
+/** Reference data for the form: cards, categories and currency. */
 export function useExpenseReference() {
   const [cards, categories, currency] = useQueries({
     queries: [

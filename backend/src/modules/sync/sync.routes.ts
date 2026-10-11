@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { SyncScheduler } from './sync.scheduler.ts';
 import type { SyncService } from './sync.service.ts';
 
-/** Тело запроса необязательно. applyDeletions подтверждает массовое удаление, заблокированное защитой. */
+/** Request body is optional. applyDeletions confirms a mass deletion blocked by the safeguard. */
 const runSyncBodySchema = z.object({ applyDeletions: z.boolean().optional() }).optional();
 
 export interface SyncRoutesDeps {
@@ -14,7 +14,7 @@ export interface SyncRoutesDeps {
 export const syncRoutes =
   ({ sync, scheduler }: SyncRoutesDeps): FastifyPluginAsync =>
   async (app) => {
-    /** Состояние для интерфейса: очередь, последний результат и время следующего запуска. */
+    /** State for the UI: the queue, the last result and the next run time. */
     const view = async () => {
       const status = await sync.status();
       return {
@@ -23,7 +23,7 @@ export const syncRoutes =
           ...status,
           intervalMs: scheduler.intervalMs,
           nextRunAt: scheduler.nextRun?.toISOString() ?? null,
-          // Нужно клиенту, чтобы показывать таймер без привязки к часам устройства
+          // The client needs it to show a timer independent of the device clock
           serverTime: new Date().toISOString(),
         },
       };
@@ -31,7 +31,7 @@ export const syncRoutes =
 
     app.get('/sync/status', view);
 
-    /** Ручной запуск. Если синхронизация уже идёт, присоединяется к ней. */
+    /** Manual run. If a sync is already in progress, it joins it. */
     app.post('/sync', async (request) => {
       const body = runSyncBodySchema.safeParse(request.body);
       await scheduler.syncNow({ applyDeletions: body.success ? body.data?.applyDeletions : false });

@@ -22,9 +22,9 @@ export function useRunSync() {
     mutationFn: runSync,
     onSuccess: (state) => {
       queryClient.setQueryData(SYNC_STATE_KEY, state);
-      // Синхронизация могла принести новые категории из Excel
+      // Sync may have brought new categories from Excel
       void queryClient.invalidateQueries({ queryKey: ['categories'] });
-      // Из Excel могли прийти новые расходы
+      // New expenses may have come from Excel
       void queryClient.invalidateQueries({ queryKey: ANALYTICS_KEY });
     },
   });

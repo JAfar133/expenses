@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Запуск backend и frontend одной командой. Остановка: Ctrl+C.
-# Для проверки с телефона: ./scripts/start-all.sh --host
+# Start backend and frontend with one command. Stop: Ctrl+C.
+# To test from a phone: ./scripts/start-all.sh --host
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -13,7 +13,7 @@ ensure_postgres
 BACKEND_PORT="$(sed -n 's/^PORT=//p' "$ROOT_DIR/backend/.env" | tail -n1)"
 BACKEND_PORT="${BACKEND_PORT:-3000}"
 
-# Не запускаем второй экземпляр, если порты заняты
+# Do not start a second instance if the ports are taken
 for port in "$BACKEND_PORT" 5173; do
   if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
     fail "порт $port уже занят. Остановите запущенное приложение."
@@ -22,7 +22,7 @@ done
 
 PIDS=()
 
-# Завершает процесс вместе со всеми потомками (npm → node → tsx/vite)
+# Kills a process together with all its descendants (npm → node → tsx/vite)
 kill_tree() {
   local pid="$1" child
   for child in $(pgrep -P "$pid" 2>/dev/null || true); do
@@ -41,7 +41,7 @@ cleanup() {
 }
 trap cleanup INT TERM EXIT
 
-# Вывод процесса идёт с префиксом, чтобы различать логи backend и frontend
+# Process output is prefixed so backend and frontend logs can be told apart
 run() {
   local name="$1" dir="$2"; shift 2
   cd "$dir"
@@ -57,8 +57,8 @@ log "Backend:  http://127.0.0.1:$BACKEND_PORT"
 log "Frontend: http://127.0.0.1:5173   (откройте это в браузере)"
 log "Остановка: Ctrl+C"
 
-# bash 3.2 на macOS не умеет `wait -n`: проверяем процессы раз в секунду.
-# Если упал один из них, останавливаем всё.
+# bash 3.2 on macOS has no `wait -n`: check the processes once a second.
+# If one of them dies, stop everything.
 while true; do
   for pid in "${PIDS[@]}"; do
     kill -0 "$pid" 2>/dev/null || { log "Один из процессов завершился."; exit 1; }

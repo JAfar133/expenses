@@ -4,13 +4,13 @@ interface ConfirmDialogProps {
   title: string;
   message: string;
   confirmLabel: string;
-  /** Идёт выполнение: кнопки недоступны */
+  /** In progress: buttons are disabled */
   busy?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-/** Подтверждение опасного действия (например, удаления). */
+/** Confirmation of a dangerous action (e.g. deletion). */
 export function ConfirmDialog({
   title,
   message,
