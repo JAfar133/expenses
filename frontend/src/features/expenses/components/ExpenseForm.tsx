@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useRef } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import type { AuthUser } from '../../auth/api/auth.api.ts';
 import { Button } from '../../../shared/ui/Button.tsx';
 import { Field, inputClassName } from '../../../shared/ui/Field.tsx';
@@ -9,10 +9,14 @@ import { todayIso } from '../../../shared/utils/date.ts';
 import { formatAmountInput, parseAmount } from '../../../shared/utils/money.ts';
 import { newRequestId } from '../../../shared/utils/request-id.ts';
 import { readStored, writeStored } from '../../../shared/utils/storage.ts';
+import type { NameSuggestion } from '../api/expenses.api.ts';
 import { toSaveErrorMessage } from '../api/save-error-message.ts';
 import { useCreateExpense } from '../hooks/useCreateExpense.ts';
+import { useNameSuggestions } from '../hooks/useNameSuggestions.ts';
 import { expenseFormSchema, type ExpenseFormValues } from '../schemas/expense-form.schema.ts';
+import { pickSuggestions } from '../utils/pick-suggestions.ts';
 import { CardPicker } from './CardPicker.tsx';
+import { NameSuggestions } from './NameSuggestions.tsx';
 
 /** Последняя категория запоминается отдельно для каждого пользователя: на одном устройстве могут быть двое. */
 const lastCategoryKey = (username: string) => `expenses.lastCategory.${username}`;
@@ -42,6 +46,8 @@ export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormPr
     reset,
     setFocus,
     getValues,
+    setValue,
+    control,
     formState: { errors },
   } = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseFormSchema),
@@ -54,6 +60,15 @@ export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormPr
       amount: '',
     },
   });
+
+  const { data: knownNames = [] } = useNameSuggestions();
+  const [category, name] = useWatch({ control, name: ['category', 'name'] });
+  const suggestions = pickSuggestions(knownNames, { category, query: name });
+
+  const pickSuggestion = ({ name: picked }: NameSuggestion) => {
+    setValue('name', picked, { shouldValidate: true, shouldDirty: true });
+    setFocus('amount');
+  };
 
   // Сообщение об успехе исчезает само
   useEffect(() => {
@@ -134,6 +149,7 @@ export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormPr
           aria-invalid={!!errors.name}
           {...register('name')}
         />
+        <NameSuggestions suggestions={suggestions} onPick={pickSuggestion} />
       </Field>
 
       <Field label="Стоимость" htmlFor="amount" error={errors.amount?.message}>

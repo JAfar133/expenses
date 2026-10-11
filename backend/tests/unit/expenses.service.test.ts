@@ -59,6 +59,27 @@ describe('create', () => {
   });
 });
 
+describe('getNameSuggestions', () => {
+  it('отдаёт подсказки из БД', async () => {
+    await repository.importFromExcel(database, [{ ...input, name: 'Латте' }]);
+
+    expect(await createService().getNameSuggestions()).toEqual([
+      { name: 'Латте', category: input.category, count: 1 },
+    ]);
+  });
+
+  it('если БД недоступна, отдаёт пустой список', async () => {
+    const broken = {
+      ...repository,
+      listNameSuggestions: async () => {
+        throw new Error('db down');
+      },
+    } as unknown as ExpenseRepository;
+
+    expect(await createService(broken).getNameSuggestions()).toEqual([]);
+  });
+});
+
 describe('getCategories', () => {
   it('объединяет конфигурацию и значения из БД без дублей', async () => {
     await repository.importFromExcel(database, [

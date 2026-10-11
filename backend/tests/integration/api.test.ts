@@ -285,6 +285,27 @@ describe('справочники и health', () => {
     expect(response.json()).toEqual({ success: true, data: ['кафе', 'продукты', 'путешествия'] });
   });
 
+  it('GET /api/name-suggestions отдаёт наименования от самых частых, только для вошедших', async () => {
+    await t.repository.importFromExcel(database, [
+      { ...validBody, name: 'Хлеб', category: 'продукты' },
+      { ...validBody, name: 'Латте', category: 'кафе' },
+      { ...validBody, name: 'Латте', category: 'кафе' },
+    ]);
+
+    const response = await t.inject({ method: 'GET', url: '/api/name-suggestions' });
+
+    expect(response.json()).toEqual({
+      success: true,
+      data: [
+        { name: 'Латте', category: 'кафе', count: 2 },
+        { name: 'Хлеб', category: 'продукты', count: 1 },
+      ],
+    });
+    expect((await t.app.inject({ method: 'GET', url: '/api/name-suggestions' })).statusCode).toBe(
+      401,
+    );
+  });
+
   it('GET /api/config возвращает валюту', async () => {
     const response = await t.inject({ method: 'GET', url: '/api/config' });
 

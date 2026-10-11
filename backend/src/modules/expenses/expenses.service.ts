@@ -1,7 +1,14 @@
 import type { SqlExecutor } from '../../infrastructure/database/database.ts';
 import { validationError } from '../../errors/app-error.ts';
-import type { ExpenseRepository, StoredExpense } from '../../storage/expense.repository.ts';
+import type {
+  ExpenseRepository,
+  NameSuggestion,
+  StoredExpense,
+} from '../../storage/expense.repository.ts';
 import type { CreateExpenseInput } from './expenses.schema.ts';
+
+/** Сколько пар «категория + наименование» отдаём форме для подсказок. */
+const NAME_SUGGESTIONS_LIMIT = 500;
 
 export interface ReferenceData {
   cards: string[];
@@ -28,6 +35,16 @@ export class ExpenseService {
     const configured = this.options.reference.categories;
     const stored = await this.readStoredCategories();
     return [...new Set([...configured, ...stored])];
+  }
+
+  /** Подсказки наименований: от самых частых к редким. Недоступная БД не ломает форму. */
+  async getNameSuggestions(limit = NAME_SUGGESTIONS_LIMIT): Promise<NameSuggestion[]> {
+    try {
+      return await this.repository.listNameSuggestions(limit);
+    } catch (error) {
+      this.options.logger?.warn({ err: error }, 'Failed to read name suggestions from database');
+      return [];
+    }
   }
 
   /** Сохраняет расход в БД. В Excel он попадёт через очередь синхронизации. */

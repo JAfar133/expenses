@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AddExpensePage } from '../src/pages/AddExpensePage.tsx';
@@ -18,9 +18,15 @@ const created = (body: Record<string, unknown>, excelStatus = 'synced') =>
   });
 
 let postExpense: ReturnType<typeof vi.fn<Responder>>;
+let nameSuggestions: { name: string; category: string; count: number }[];
 
 beforeEach(() => {
   postExpense = vi.fn<Responder>((body) => created(body));
+  nameSuggestions = [
+    { name: 'Латте', category: 'кафе', count: 9 },
+    { name: 'Хлеб', category: 'продукты', count: 7 },
+    { name: 'Эспрессо', category: 'кафе', count: 2 },
+  ];
 
   vi.stubGlobal(
     'fetch',
@@ -41,6 +47,8 @@ beforeEach(() => {
           },
         });
       }
+      if (url === '/api/name-suggestions')
+        return json(200, { success: true, data: nameSuggestions });
       if (url === '/api/config') return json(200, { success: true, data: { currency: 'AMD' } });
       if (url === '/api/expenses') {
         return postExpense(JSON.parse(String(init?.body)), new Headers(init?.headers));
@@ -151,6 +159,73 @@ describe('карта по умолчанию зависит от пользов�
     await renderPage(NASTYA);
 
     expect(screen.getByLabelText('Категория')).toHaveValue('кафе');
+  });
+});
+
+describe('подсказки наименования', () => {
+  const chips = () =>
+    within(screen.getByRole('group', { name: 'Подсказки наименования' }))
+      .getAllByRole('button')
+      .map((button) => button.textContent);
+
+  it('с выбранной категорией показывает её наименования от самых частых', async () => {
+    const user = await renderPage();
+    await user.selectOptions(screen.getByLabelText('Категория'), 'кафе');
+
+    await waitFor(() => expect(chips()).toEqual(['Латте', 'Эспрессо']));
+  });
+
+  it('пока категория не выбрана, подсказок нет', async () => {
+    await renderPage();
+
+    expect(screen.queryByRole('group', { name: 'Подсказки наименования' })).toBeNull();
+  });
+
+  it('фильтрует по вводимому тексту', async () => {
+    const user = await renderPage();
+    await user.selectOptions(screen.getByLabelText('Категория'), 'кафе');
+    await screen.findByRole('group', { name: 'Подсказки наименования' });
+
+    await user.type(screen.getByLabelText('Наименование'), 'пре');
+
+    expect(chips()).toEqual(['Эспрессо']);
+  });
+
+  it('нажатие подставляет наименование и переводит на стоимость', async () => {
+    const user = await renderPage();
+    await user.selectOptions(screen.getByLabelText('Категория'), 'кафе');
+
+    await user.click(await screen.findByRole('button', { name: 'Эспрессо' }));
+
+    expect(screen.getByLabelText('Наименование')).toHaveValue('Эспрессо');
+    expect(screen.getByLabelText('Стоимость')).toHaveFocus();
+  });
+
+  it('нажатие не меняет выбранную категорию', async () => {
+    const user = await renderPage();
+    await user.selectOptions(screen.getByLabelText('Категория'), 'продукты');
+
+    await user.click(await screen.findByRole('button', { name: 'Хлеб' }));
+
+    expect(screen.getByLabelText('Наименование')).toHaveValue('Хлеб');
+    expect(screen.getByLabelText('Категория')).toHaveValue('продукты');
+  });
+
+  it('без подходящих вариантов блок не показывается', async () => {
+    nameSuggestions = [];
+    const user = await renderPage();
+    await user.selectOptions(screen.getByLabelText('Категория'), 'кафе');
+
+    expect(screen.queryByRole('group', { name: 'Подсказки наименования' })).toBeNull();
+  });
+
+  it('форма работает, если подсказки не загрузились', async () => {
+    nameSuggestions = undefined as never;
+    const user = await renderPage();
+    await fillForm(user);
+    await submit(user);
+
+    await waitFor(() => expect(postExpense).toHaveBeenCalled());
   });
 });
 

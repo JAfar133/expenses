@@ -77,6 +77,11 @@ export const expensesRoutes =
 
     app.get('/cards', async () => ({ success: true, data: expenseService.getCards() }));
 
+    app.get('/name-suggestions', async () => ({
+      success: true,
+      data: await expenseService.getNameSuggestions(),
+    }));
+
     app.get('/categories', async () => ({
       success: true,
       data: await expenseService.getCategories(),

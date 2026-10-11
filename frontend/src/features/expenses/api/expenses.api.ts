@@ -29,3 +29,14 @@ export async function createExpense(expense: CreateExpenseRequest, idempotencyKe
   });
   return response.data;
 }
+
+/** Сколько раз наименование встречается в категории: основа для подсказок под полем «Наименование». */
+export interface NameSuggestion {
+  name: string;
+  category: string;
+  count: number;
+}
+
+/** Уже отсортированы от самых частых к редким. */
+export const fetchNameSuggestions = async () =>
+  (await apiRequest<NameSuggestion[]>('/name-suggestions')).data;

@@ -14,11 +14,20 @@ export interface StoredExpense extends Expense {
   deletedAt: string | null;
 }
 
+/** Как часто в категории встречается наименование (без учёта регистра и пробелов по краям). */
+export interface NameSuggestion {
+  name: string;
+  category: string;
+  count: number;
+}
+
 /** Хранилище расходов (PostgreSQL). Excel — отдельное зеркало, см. модуль sync. */
 export interface ExpenseRepository {
   insertPending(db: SqlExecutor, expense: Expense, createdBy: string): Promise<StoredExpense>;
   findById(id: string): Promise<StoredExpense | undefined>;
   listCategories(): Promise<string[]>;
+  /** Наименования по категориям от самых частых к редким (не больше limit). */
+  listNameSuggestions(limit: number): Promise<NameSuggestion[]>;
 
   /** Все записи для сверки с Excel, включая помеченные удалёнными. */
   listForReconcile(db: SqlExecutor): Promise<StoredExpense[]>;

@@ -147,6 +147,58 @@ describe('listCategories', () => {
   });
 });
 
+describe('listNameSuggestions', () => {
+  const add = (name: string, category: string, times = 1) =>
+    repository.importFromExcel(
+      database,
+      Array.from({ length: times }, () => ({ ...coffee, name, category })),
+    );
+
+  it('сортирует по частоте, при равенстве свежие выше', async () => {
+    await add('Латте', 'кафе', 3);
+    await add('Хлеб', 'продукты', 1);
+    await add('Эспрессо', 'кафе', 1);
+    await add('Молоко', 'продукты', 2);
+
+    const names = (await repository.listNameSuggestions(10)).map((s) => s.name);
+
+    expect(names).toEqual(['Латте', 'Молоко', 'Эспрессо', 'Хлеб']);
+  });
+
+  it('считает регистр и пробелы по краям одним названием, показывает свежее написание', async () => {
+    await add('латте', 'кафе');
+    await add(' Латте ', 'кафе');
+    await add('Латте', 'кафе');
+
+    expect(await repository.listNameSuggestions(10)).toEqual([
+      { name: 'Латте', category: 'кафе', count: 3 },
+    ]);
+  });
+
+  it('одно название в разных категориях даёт отдельные записи', async () => {
+    await add('Кофе', 'кафе', 2);
+    await add('Кофе', 'продукты', 1);
+
+    expect(await repository.listNameSuggestions(10)).toEqual([
+      { name: 'Кофе', category: 'кафе', count: 2 },
+      { name: 'Кофе', category: 'продукты', count: 1 },
+    ]);
+  });
+
+  it('не включает удалённые записи и уважает лимит', async () => {
+    await add('Латте', 'кафе', 2);
+    await add('Хлеб', 'продукты', 1);
+    const [bread] = await database.query<{ id: string }>(
+      "SELECT id FROM expenses WHERE name = 'Хлеб'",
+    );
+    await repository.markDeleted(database, [bread!.id], 'excel');
+
+    expect(await repository.listNameSuggestions(10)).toHaveLength(1);
+    await add('Чай', 'кафе', 1);
+    expect(await repository.listNameSuggestions(1)).toHaveLength(1);
+  });
+});
+
 describe('мягкое удаление', () => {
   const deletedAtOf = async (id: string) =>
     (await repository.listForReconcile(database)).find((e) => e.id === id)?.deletedAt;

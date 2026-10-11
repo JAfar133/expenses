@@ -5,6 +5,7 @@ import type {
   Expense,
   ExpenseRepository,
   ExcelStatus,
+  NameSuggestion,
   StoredExpense,
 } from '../expense.repository.ts';
 
@@ -72,6 +73,19 @@ export class PostgresExpenseRepository implements ExpenseRepository {
       'SELECT category FROM expenses WHERE deleted_at IS NULL GROUP BY category ORDER BY min(seq), category',
     );
     return rows.map((row) => row.category);
+  }
+
+  async listNameSuggestions(limit: number): Promise<NameSuggestion[]> {
+    return this.database.query<NameSuggestion>(
+      // Показываем написание из самой свежей записи, а считаем без учёта регистра
+      `SELECT (array_agg(name ORDER BY seq DESC))[1] AS name, category, count(*)::int AS count
+         FROM expenses
+        WHERE deleted_at IS NULL
+        GROUP BY category, lower(btrim(name))
+        ORDER BY count(*) DESC, max(seq) DESC
+        LIMIT $1`,
+      [limit],
+    );
   }
 
   async listForReconcile(db: SqlExecutor): Promise<StoredExpense[]> {
