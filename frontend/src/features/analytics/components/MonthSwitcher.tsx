@@ -13,7 +13,7 @@ const arrowClass =
 /** Переключатель месяца: стрелки и название. */
 export function MonthSwitcher({ month, latest, onChange }: MonthSwitcherProps) {
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex w-full items-center gap-1 sm:w-auto">
       <button
         type="button"
         aria-label="Предыдущий месяц"
@@ -22,7 +22,10 @@ export function MonthSwitcher({ month, latest, onChange }: MonthSwitcherProps) {
       >
         ‹
       </button>
-      <h2 className="min-w-36 text-center text-lg font-semibold" aria-live="polite">
+      <h2
+        className="min-w-36 flex-1 text-center text-lg font-semibold sm:flex-none"
+        aria-live="polite"
+      >
         {monthLabel(month)}
       </h2>
       <button

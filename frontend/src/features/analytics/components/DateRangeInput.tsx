@@ -93,14 +93,14 @@ export function DateRangeInput({ from, to, max, onChange }: DateRangeInputProps)
   const firstMonth = new Date(anchor.getFullYear(), anchor.getMonth() - (months - 1), 1);
 
   return (
-    <div ref={root} className="relative">
+    <div ref={root} className="relative w-full sm:w-auto">
       <button
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={`Диапазон дат: ${label}`}
         onClick={toggle}
-        className="flex h-10 items-center gap-2 rounded-xl border border-zinc-300 bg-white px-3 text-sm outline-none hover:border-indigo-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-zinc-700 dark:bg-zinc-900"
+        className="flex h-10 w-full items-center justify-center gap-2 rounded-xl sm:w-auto sm:justify-start border border-zinc-300 bg-white px-3 text-sm outline-none hover:border-indigo-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-zinc-700 dark:bg-zinc-900"
       >
         <span aria-hidden="true">📅</span>
         <span className="tabular-nums">{label}</span>

@@ -63,12 +63,12 @@ export function CategoryChart({
 
   return (
     <ChartCard
-      title="На что уходит больше всего"
-      description="Категории от самых затратных"
+      title="Расход по категориям"
       actions={
         <ChartTypeSwitch
           label="Вид графика"
           options={TYPE_OPTIONS}
+          mobileColumns={4}
           value={type}
           onChange={setType}
         />

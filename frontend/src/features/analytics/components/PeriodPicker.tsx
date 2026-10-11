@@ -24,9 +24,10 @@ export function PeriodPicker({ state, today, onChange }: PeriodPickerProps) {
   const { from, to } = periodRange(state, today);
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
       <ChartTypeSwitch
         label="Период"
+        mobileColumns={3}
         options={PERIOD_OPTIONS}
         value={state.period}
         onChange={(period) => {

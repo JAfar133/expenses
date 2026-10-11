@@ -14,7 +14,7 @@ interface ChartCardProps {
 export function ChartCard({ title, description, actions, children, table }: ChartCardProps) {
   return (
     <section className="rounded-2xl bg-white p-4 shadow-sm sm:p-5 dark:bg-zinc-900">
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-base font-semibold">{title}</h2>
           {description && <p className="text-sm text-zinc-500 dark:text-zinc-400">{description}</p>}

@@ -63,6 +63,7 @@ export default function OverviewPage() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <StatTile
           label="Потрачено"
+          className="col-span-2 lg:col-span-1"
           value={money(current?.total)}
           change={current && changePercent(current.total, previous?.total)}
           changeNote={note}

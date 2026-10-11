@@ -81,6 +81,7 @@ export default function ComparePage() {
         <ChartTypeSwitch
           label="За сколько месяцев"
           options={RANGE_OPTIONS}
+          mobileColumns={3}
           value={range}
           onChange={setRange}
         />

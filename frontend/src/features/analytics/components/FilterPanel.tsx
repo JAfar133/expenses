@@ -50,13 +50,13 @@ export function FilterPanel({
     >
       {showPeriod && <PeriodPicker state={state} today={today} onChange={onChange} />}
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <button
           type="button"
           aria-expanded={open}
           aria-controls="filter-fields"
           onClick={() => setOpenState(open ? 'closed' : 'open')}
-          className="flex h-9 items-center gap-2 rounded-lg border border-zinc-300 px-3 text-sm font-medium hover:border-indigo-400 dark:border-zinc-700"
+          className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-zinc-300 px-3 text-sm font-medium hover:border-indigo-400 sm:h-9 sm:w-auto dark:border-zinc-700"
         >
           Фильтры
           {count > 0 && (

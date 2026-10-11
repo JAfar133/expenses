@@ -93,16 +93,18 @@ export function DailyChart({
       title={step.title}
       description={mode === 'cumulative' ? 'Нарастающим итогом с начала периода' : undefined}
       actions={
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <ChartTypeSwitch
             label="Что показывать"
             options={MODE_OPTIONS}
+            mobileColumns={2}
             value={mode}
             onChange={setMode}
           />
           <ChartTypeSwitch
             label="Вид графика"
             options={TYPE_OPTIONS}
+            mobileColumns={3}
             value={type}
             onChange={setType}
           />

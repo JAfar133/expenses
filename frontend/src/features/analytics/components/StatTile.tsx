@@ -7,6 +7,8 @@ interface StatTileProps {
   change?: number | null;
   /** Название периода сравнения, например «к 1–15 сентября» */
   changeNote?: string;
+  /** Дополнительные классы раскладки (например, растянуть на две колонки) */
+  className?: string;
 }
 
 /**
@@ -18,14 +20,17 @@ export function StatTile({
   value,
   change,
   changeNote = 'к прошлому периоду',
+  className = '',
 }: StatTileProps) {
   const rounded = change === null || change === undefined ? null : Math.round(change);
   const direction = rounded === null || rounded === 0 ? 'flat' : rounded > 0 ? 'up' : 'down';
 
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-zinc-900">
+    <div className={`rounded-2xl bg-white p-4 shadow-sm dark:bg-zinc-900 ${className}`}>
       <div className="text-sm text-zinc-500 dark:text-zinc-400">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tracking-tight">{value}</div>
+      <div className="mt-1 whitespace-nowrap text-xl font-semibold tracking-tight sm:text-2xl">
+        {value}
+      </div>
       {rounded !== null && (
         <div className="mt-1 flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
           <span

@@ -120,6 +120,7 @@ export function CategoryByMonthChart({
         <ChartTypeSwitch
           label="Вид графика"
           options={TYPE_OPTIONS}
+          mobileColumns={2}
           value={type}
           onChange={setType}
         />
