@@ -586,28 +586,49 @@ docker stats --no-stream
 
 ### 10.3. Резервная копия базы
 
-```bash
-mkdir -p ~/backups
-docker compose exec -T postgres pg_dump -U expenses --clean --if-exists expenses | gzip > ~/backups/expenses-$(date +%F).sql.gz
-```
+Excel **не заменяет** копию базы: в нём нет очереди записей, истории правок, сессий и валютных данных.
+Копию делает скрипт `scripts/backup-db.sh`:
 
-Ежедневно в 03:00 с удалением копий старше 14 дней (`crontab -e`; в crontab символ `%` экранируется):
+- пишет дамп во временный файл и переименовывает его только после проверки (архив цел, в нём есть таблица `expenses`);
+  упавший `pg_dump` не оставляет «похожего на настоящий» архива;
+- хранит локальные копии в `~/backups/expenses-ГГГГ-ММ-ДД-ЧЧММ.sql.gz` 14 дней, старые удаляет только после успешной новой;
+- копирует дамп в OneDrive (папка `Бэкапы/expenses`, хранится 30 дней) через rclone из контейнера backend,
+  поэтому копия переживёт потерю сервера. Если `ONEDRIVE_FILE_PATH` пуст, этот шаг пропускается.
 
-```
-0 3 * * * cd ~/projects/expenses && docker compose exec -T postgres pg_dump -U expenses --clean --if-exists expenses | gzip > ~/backups/expenses-$(date +\%F).sql.gz && find ~/backups -name 'expenses-*.sql.gz' -mtime +14 -delete
-```
-
-Копии храните не только на этом же сервере: периодически забирайте их на другой компьютер (`scp`/`rsync`).
-
-**Восстановление базы:**
+Ручной запуск и ежедневный запуск в 03:00 (`crontab -e`):
 
 ```bash
+cd ~/projects/expenses && ./scripts/backup-db.sh
+```
+
+```
+0 3 * * * cd ~/projects/expenses && ./scripts/backup-db.sh >> ~/backups/backup.log 2>&1
+```
+
+Раз в месяц (и после изменения схемы) проверяйте, что копия восстанавливается. Скрипт `scripts/verify-backup.sh`
+разворачивает последнюю копию во **временную** базу, сравнивает данные и удаляет её; рабочая база и приложение не затрагиваются:
+
+```bash
+./scripts/verify-backup.sh                 # последняя копия
+./scripts/verify-backup.sh ~/backups/expenses-2026-10-10-0300.sql.gz
+```
+
+**Восстановление рабочей базы** (если она потеряна или испорчена). Копию из OneDrive можно скачать на Mac и передать на
+сервер через `scp`.
+
+```bash
+cd ~/projects/expenses
+./scripts/verify-backup.sh ~/backups/expenses-2026-10-10-0300.sql.gz   # сначала убедитесь, что копия цела
 docker compose stop backend
-gunzip -c ~/backups/expenses-2026-10-10.sql.gz | docker compose exec -T postgres psql -U expenses -d expenses
+gunzip -c ~/backups/expenses-2026-10-10-0300.sql.gz \
+  | docker compose exec -T postgres psql -U expenses -d expenses -v ON_ERROR_STOP=1 --single-transaction
 docker compose start backend
 ```
 
+`--single-transaction` и `ON_ERROR_STOP` гарантируют, что при ошибке база останется как была, а не восстановится наполовину.
 После восстановления первая синхронизация сверит Excel с базой.
+
+> **Осторожно:** `docker compose down -v` удаляет тома вместе с базой. Для остановки используйте `docker compose down` (без `-v`).
 
 ### 10.4. Резервные копии Excel
 
