@@ -93,3 +93,22 @@ describe('транзакции', () => {
     expect(await database.query('SELECT 1 FROM sync_state')).toHaveLength(0);
   });
 });
+
+describe('мягкое удаление в схеме', () => {
+  const insertWith = (deletedAt: string | null, reason: string | null) =>
+    database.query(
+      `INSERT INTO expenses (id, date, card, category, name, amount, source, excel_status, created_by, deleted_at, deleted_reason)
+       VALUES (gen_random_uuid(), '2026-10-10', 'Миша', 'кафе', 'Кофе', 640, 'app', 'synced', 'local', $1, $2)`,
+      [deletedAt, reason],
+    );
+
+  it('принимает активную и удалённую запись', async () => {
+    await expect(insertWith(null, null)).resolves.toBeDefined();
+    await expect(insertWith('2026-10-10T10:00:00Z', 'excel')).resolves.toBeDefined();
+  });
+
+  it('время удаления без причины (и наоборот) отклоняется', async () => {
+    await expect(insertWith('2026-10-10T10:00:00Z', null)).rejects.toThrow();
+    await expect(insertWith(null, 'excel')).rejects.toThrow();
+  });
+});

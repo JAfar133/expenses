@@ -1,4 +1,4 @@
-import type { SyncService } from './sync.service.ts';
+import type { CycleOptions, SyncService } from './sync.service.ts';
 import type { SyncResult } from './sync.types.ts';
 
 export interface SyncSchedulerOptions {
@@ -46,8 +46,8 @@ export class SyncScheduler {
   }
 
   /** Ручной запуск (кнопка в интерфейсе). */
-  syncNow(): Promise<SyncResult> {
-    return this.run();
+  syncNow(options: CycleOptions = {}): Promise<SyncResult> {
+    return this.run(options);
   }
 
   private scheduleIn(delayMs: number): void {
@@ -57,11 +57,11 @@ export class SyncScheduler {
     this.timer.unref();
   }
 
-  private async run(): Promise<SyncResult> {
+  private async run(options: CycleOptions = {}): Promise<SyncResult> {
     clearTimeout(this.timer);
     this.nextRunAt = undefined;
 
-    const result = await this.options.sync.requestCycle();
+    const result = await this.options.sync.requestCycle(options);
 
     if (!this.stopped) {
       this.scheduleIn(this.delayAfter(result));

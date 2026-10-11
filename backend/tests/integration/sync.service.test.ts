@@ -75,7 +75,7 @@ describe('импорт из Excel', () => {
       imported: excelRowCount,
       written: 0,
       queued: 0,
-      diverged: 0,
+      deleted: 0,
     });
     expect((await expenses.listForReconcile(database)).every((e) => e.source === 'excel')).toBe(
       true,
@@ -124,19 +124,6 @@ describe('импорт из Excel', () => {
     expect(result.skipped).toBe(1);
     expect(result.skippedRows[0]).toMatchObject({ row: 41 });
     expect(result.imported).toBe(excelRowCount);
-  });
-
-  it('удалённая в Excel строка считается расхождением и не удаляется из БД', async () => {
-    await sync.requestCycle();
-    await database.query(
-      `INSERT INTO expenses (id, date, card, category, name, amount, source, excel_status, created_by)
-       VALUES (gen_random_uuid(), '2020-01-01', 'Миша', 'кафе', 'Нет в Excel', 100, 'excel', 'synced', 'excel')`,
-    );
-
-    const result = await sync.requestCycle();
-
-    expect(result.diverged).toBe(1);
-    expect(await expenses.listForReconcile(database)).toHaveLength(excelRowCount + 1);
   });
 });
 
@@ -366,5 +353,184 @@ describe('запуск циклов', () => {
       lastResult: { status: 'ok', written: 1 },
     });
     expect(await new SyncStateRepository(database).get()).toMatchObject({ status: 'ok' });
+  });
+});
+
+/** Записи, которых нет в Excel: так имитируется строка, удалённая в Excel после синхронизации. */
+const addRowsMissingInExcel = (count: number, prefix = 'Нет в Excel') =>
+  expenses.importFromExcel(
+    database,
+    Array.from({ length: count }, (_, i) => ({
+      date: '2020-01-01',
+      card: 'Миша',
+      category: 'старое',
+      name: `${prefix} ${i}`,
+      amount: 100 + i,
+    })),
+  );
+
+const rowsByName = async () => {
+  const all = await expenses.listForReconcile(database);
+  return new Map(all.map((row) => [row.name, row]));
+};
+
+describe('мягкое удаление: строки пропали из Excel', () => {
+  it('удалённая в Excel строка помечается удалённой, но остаётся в базе', async () => {
+    await sync.requestCycle();
+    await addRowsMissingInExcel(2);
+
+    const result = await sync.requestCycle();
+
+    expect(result).toMatchObject({ status: 'ok', deleted: 2, deletionsBlocked: 0 });
+    const rows = await rowsByName();
+    expect(rows.get('Нет в Excel 0')?.deletedAt).toEqual(
+      expect.stringMatching(/^\d{4}-\d\d-\d\dT/),
+    );
+    expect(rows.get('Нет в Excel 1')?.deletedAt).not.toBeNull();
+    // Строки, которые есть в Excel, не затронуты
+    const active = (await expenses.listForReconcile(database)).filter((r) => r.deletedAt === null);
+    expect(active).toHaveLength(excelRowCount);
+    expect(result.warning).toBeUndefined();
+  });
+
+  it('удалённые записи не попадают в категории', async () => {
+    await sync.requestCycle();
+    await addRowsMissingInExcel(1);
+    expect(await expenses.listCategories()).toContain('старое');
+
+    await sync.requestCycle();
+
+    expect(await expenses.listCategories()).not.toContain('старое');
+  });
+
+  it('повторная синхронизация ничего не меняет и не затирает время удаления', async () => {
+    await sync.requestCycle();
+    await addRowsMissingInExcel(1);
+    await sync.requestCycle();
+    const first = (await rowsByName()).get('Нет в Excel 0')!.deletedAt;
+
+    const again = await sync.requestCycle();
+
+    expect(again).toMatchObject({ deleted: 0, restored: 0, imported: 0 });
+    expect((await rowsByName()).get('Нет в Excel 0')!.deletedAt).toBe(first);
+  });
+
+  it('правка строки: старая версия удаляется, новая попадает в базу', async () => {
+    await sync.requestCycle();
+    await addRowsMissingInExcel(1, 'Старая версия');
+    oneDrive.remote = (await appendExpenseToBuffer(oneDrive.remote, bread, excelOptions)).output;
+
+    const result = await sync.requestCycle();
+
+    expect(result).toMatchObject({ imported: 1, deleted: 1 });
+    const rows = await rowsByName();
+    expect(rows.get('Старая версия 0')?.deletedAt).not.toBeNull();
+    expect(rows.get('Хлеб')).toMatchObject({ deletedAt: null, source: 'excel' });
+  });
+
+  it('очередь записи не затрагивается удалением', async () => {
+    await sync.requestCycle();
+    await addRowsMissingInExcel(1);
+    const pending = await queue(coffee);
+
+    const result = await sync.requestCycle();
+
+    expect(result).toMatchObject({ deleted: 1, written: 1 });
+    expect((await expenses.findById(pending.id))?.deletedAt).toBeNull();
+    expect(await statusOf(pending.id)).toBe('synced');
+  });
+});
+
+describe('мягкое удаление: строка вернулась в Excel', () => {
+  it('вернувшаяся строка восстанавливает запись и не создаёт дубликат', async () => {
+    await sync.requestCycle();
+    oneDrive.remote = (await appendExpenseToBuffer(oneDrive.remote, bread, excelOptions)).output;
+    await sync.requestCycle(); // «Хлеб» есть и в Excel, и в базе
+    const total = (await expenses.listForReconcile(database)).length;
+
+    // Excel откатили к старой копии: строки «Хлеб» там больше нет
+    oneDrive.remote = await readFile(FIXTURE);
+    const removed = await sync.requestCycle();
+    expect(removed).toMatchObject({ deleted: 1 });
+    expect((await rowsByName()).get('Хлеб')?.deletedAt).not.toBeNull();
+
+    // Строку вернули в Excel
+    oneDrive.remote = (await appendExpenseToBuffer(oneDrive.remote, bread, excelOptions)).output;
+    const restored = await sync.requestCycle();
+
+    expect(restored).toMatchObject({ restored: 1, imported: 0, deleted: 0 });
+    expect((await rowsByName()).get('Хлеб')?.deletedAt).toBeNull();
+    expect((await expenses.listForReconcile(database)).length).toBe(total);
+  });
+});
+
+describe('защита от массового удаления', () => {
+  it('если пропало слишком много записей, они не помечаются удалёнными и выводится предупреждение', async () => {
+    await sync.requestCycle();
+    await addRowsMissingInExcel(15); // 15 из 54 активных ≈ 28% > 25%
+
+    const result = await sync.requestCycle();
+
+    expect(result).toMatchObject({ status: 'ok', deleted: 0, deletionsBlocked: 15 });
+    expect(result.warning?.code).toBe('MASS_DELETION_BLOCKED');
+    expect([...(await rowsByName()).values()].every((r) => r.deletedAt === null)).toBe(true);
+  });
+
+  it('предупреждение повторяется при каждой синхронизации, пока причина не устранена', async () => {
+    await sync.requestCycle();
+    await addRowsMissingInExcel(15);
+    await sync.requestCycle();
+
+    const again = await sync.requestCycle();
+
+    expect(again.warning?.code).toBe('MASS_DELETION_BLOCKED');
+  });
+
+  it('ручное подтверждение (applyDeletions) применяет заблокированные удаления', async () => {
+    await sync.requestCycle();
+    await addRowsMissingInExcel(15);
+    await sync.requestCycle();
+
+    const result = await sync.requestCycle({ applyDeletions: true });
+
+    expect(result).toMatchObject({ deleted: 15, deletionsBlocked: 0 });
+    expect(result.warning).toBeUndefined();
+  });
+
+  it('подтверждение присоединяется к ожидающему циклу, а не теряется', async () => {
+    await sync.requestCycle();
+    await addRowsMissingInExcel(15);
+    let release!: () => void;
+    oneDrive.uploadGate = new Promise<void>((resolve) => (release = resolve));
+    const uploadStarted = new Promise<void>((resolve) => (oneDrive.onUploadStart = resolve));
+    await queue(coffee);
+    const first = sync.requestCycle();
+    await uploadStarted;
+
+    const regular = sync.requestCycle();
+    const forced = sync.requestCycle({ applyDeletions: true });
+    release();
+    await first;
+
+    expect(regular).toBe(forced);
+    expect(await forced).toMatchObject({ deleted: 15 });
+  });
+
+  it('порог настраивается', async () => {
+    const lenient = new SyncService({
+      database,
+      expenses,
+      oneDrive,
+      backups,
+      excelOptions,
+      state: new SyncStateRepository(database),
+      maxDeletePercent: 80,
+    });
+    await lenient.requestCycle();
+    await addRowsMissingInExcel(15);
+
+    const result = await lenient.requestCycle();
+
+    expect(result).toMatchObject({ deleted: 15, deletionsBlocked: 0 });
   });
 });

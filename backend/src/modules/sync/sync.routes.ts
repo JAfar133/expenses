@@ -1,6 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import type { SyncScheduler } from './sync.scheduler.ts';
 import type { SyncService } from './sync.service.ts';
+
+/** Тело запроса необязательно. applyDeletions подтверждает массовое удаление, заблокированное защитой. */
+const runSyncBodySchema = z.object({ applyDeletions: z.boolean().optional() }).optional();
 
 export interface SyncRoutesDeps {
   sync: SyncService;
@@ -28,8 +32,9 @@ export const syncRoutes =
     app.get('/sync/status', view);
 
     /** Ручной запуск. Если синхронизация уже идёт, присоединяется к ней. */
-    app.post('/sync', async () => {
-      await scheduler.syncNow();
+    app.post('/sync', async (request) => {
+      const body = runSyncBodySchema.safeParse(request.body);
+      await scheduler.syncNow({ applyDeletions: body.success ? body.data?.applyDeletions : false });
       return view();
     });
   };

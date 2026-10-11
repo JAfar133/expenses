@@ -51,9 +51,11 @@ afterAll(async () => {
 
 describe('драйвер pg', () => {
   it('применяет миграции', async () => {
-    const [row] = await database.query<{ name: string }>('SELECT name FROM schema_migrations');
+    const rows = await database.query<{ name: string }>(
+      'SELECT name FROM schema_migrations ORDER BY name',
+    );
 
-    expect(row!.name).toBe('0001_init.sql');
+    expect(rows.map((r) => r.name)).toEqual(['0001_init.sql', '0002_soft_delete.sql']);
   });
 
   it('возвращает даты строкой, а числа — числами', async () => {

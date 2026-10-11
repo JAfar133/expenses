@@ -11,11 +11,17 @@ export interface SyncResult {
   /** Записи из очереди, дописанные в Excel */
   written: number;
   queued: number;
-  /** Записи базы, которых нет в Excel (удалены или изменены там) */
-  diverged: number;
+  /** Записи базы, помеченные удалёнными: их строку удалили или изменили в Excel (мягкое удаление) */
+  deleted: number;
+  /** Ранее удалённые записи, строки которых снова появились в Excel */
+  restored: number;
+  /** Сколько удалений не применено: пропало слишком много записей сразу */
+  deletionsBlocked: number;
   /** Строки Excel, которые нельзя импортировать */
   skipped: number;
   error?: { code: string; message: string };
+  /** Нужно внимание пользователя, хотя синхронизация прошла (например, заблокировано массовое удаление) */
+  warning?: { code: string; message: string };
 }
 
 export interface SyncState {

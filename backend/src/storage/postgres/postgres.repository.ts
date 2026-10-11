@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Database, SqlExecutor } from '../../infrastructure/database/database.ts';
-import { dateText } from '../../infrastructure/database/sql.ts';
+import { dateText, timestampText } from '../../infrastructure/database/sql.ts';
 import type {
   Expense,
   ExpenseRepository,
@@ -17,9 +17,10 @@ interface ExpenseRow {
   amount: number;
   source: 'app' | 'excel';
   excel_status: ExcelStatus;
+  deleted_at: string | null;
 }
 
-const COLUMNS = `id, ${dateText('date')} AS date, card, category, name, amount, source, excel_status`;
+const COLUMNS = `id, ${dateText('date')} AS date, card, category, name, amount, source, excel_status, ${timestampText('deleted_at')} AS deleted_at`;
 
 const toStored = (row: ExpenseRow): StoredExpense => ({
   id: row.id,
@@ -30,6 +31,7 @@ const toStored = (row: ExpenseRow): StoredExpense => ({
   amount: row.amount,
   source: row.source,
   excelStatus: row.excel_status,
+  deletedAt: row.deleted_at,
 });
 
 export class PostgresExpenseRepository implements ExpenseRepository {
@@ -67,7 +69,7 @@ export class PostgresExpenseRepository implements ExpenseRepository {
 
   async listCategories(): Promise<string[]> {
     const rows = await this.database.query<{ category: string }>(
-      'SELECT category FROM expenses GROUP BY category ORDER BY min(seq), category',
+      'SELECT category FROM expenses WHERE deleted_at IS NULL GROUP BY category ORDER BY min(seq), category',
     );
     return rows.map((row) => row.category);
   }
@@ -86,7 +88,7 @@ export class PostgresExpenseRepository implements ExpenseRepository {
 
   async countQueue(): Promise<number> {
     const [row] = await this.database.query<{ count: number }>(
-      `SELECT count(*)::int AS count FROM expenses WHERE excel_status <> 'synced'`,
+      `SELECT count(*)::int AS count FROM expenses WHERE excel_status <> 'synced' AND deleted_at IS NULL`,
     );
     return row!.count;
   }
@@ -135,6 +137,24 @@ export class PostgresExpenseRepository implements ExpenseRepository {
            updated_at = now()
        WHERE id = ANY($1::uuid[])`,
       [ids, error ?? null],
+    );
+  }
+
+  async markDeleted(db: SqlExecutor, ids: string[], reason: 'excel'): Promise<void> {
+    if (ids.length === 0) return;
+    await db.query(
+      `UPDATE expenses SET deleted_at = now(), deleted_reason = $2, updated_at = now()
+       WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL`,
+      [ids, reason],
+    );
+  }
+
+  async restoreDeleted(db: SqlExecutor, ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    await db.query(
+      `UPDATE expenses SET deleted_at = NULL, deleted_reason = NULL, updated_at = now()
+       WHERE id = ANY($1::uuid[])`,
+      [ids],
     );
   }
 

@@ -24,7 +24,9 @@ const state = (overrides: Record<string, unknown> = {}) => {
       imported: 3,
       written: 2,
       queued: 0,
-      diverged: 0,
+      deleted: 0,
+      restored: 0,
+      deletionsBlocked: 0,
       skipped: 0,
     },
     ...overrides,
@@ -132,6 +134,28 @@ describe('очередь и ошибки', () => {
 
     await waitFor(() => expect(button()).toHaveAccessibleName(/Файл открыт в Excel/));
     expect(button()).toHaveAttribute('data-tone', 'warning');
+  });
+
+  it('если заблокировано массовое удаление, значок жёлтый и объясняет причину', async () => {
+    statusResponse.mockImplementation(() =>
+      json({
+        success: true,
+        data: state({
+          lastResult: {
+            ...state().lastResult,
+            deletionsBlocked: 15,
+            warning: {
+              code: 'MASS_DELETION_BLOCKED',
+              message: 'В Excel пропало 15 записей сразу: это похоже на ошибку. Проверьте файл',
+            },
+          },
+        }),
+      }),
+    );
+    renderIndicator();
+
+    await waitFor(() => expect(button()).toHaveAttribute('data-tone', 'warning'));
+    expect(button()).toHaveAccessibleName(/В Excel пропало 15 записей/);
   });
 
   it('при ошибке синхронизации значок красный', async () => {

@@ -15,7 +15,9 @@ export const okResult = (overrides: Partial<SyncResult> = {}): SyncResult => ({
   imported: 0,
   written: 0,
   queued: 0,
-  diverged: 0,
+  deleted: 0,
+  restored: 0,
+  deletionsBlocked: 0,
   skipped: 0,
   skippedRows: [],
   ...overrides,
@@ -27,6 +29,8 @@ export class FakeSync {
   /** true — Excel доступен, очередь записывается; false — файл занят, записи остаются в очереди */
   excelAvailable = true;
   delayMs = 0;
+  /** Параметры последнего запрошенного цикла */
+  lastOptions?: { applyDeletions?: boolean };
   lastResult?: SyncResult;
 
   constructor(
@@ -34,8 +38,9 @@ export class FakeSync {
     private readonly database: Database,
   ) {}
 
-  async requestCycle(): Promise<SyncResult> {
+  async requestCycle(options: { applyDeletions?: boolean } = {}): Promise<SyncResult> {
     this.cycles++;
+    this.lastOptions = options;
     if (this.delayMs) await new Promise((resolve) => setTimeout(resolve, this.delayMs));
 
     if (this.excelAvailable) {

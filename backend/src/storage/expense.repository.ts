@@ -10,6 +10,8 @@ export interface StoredExpense extends Expense {
   id: string;
   source: 'app' | 'excel';
   excelStatus: ExcelStatus;
+  /** Когда запись помечена удалённой (ISO) или null, если она активна */
+  deletedAt: string | null;
 }
 
 /** Хранилище расходов (PostgreSQL). Excel — отдельное зеркало, см. модуль sync. */
@@ -18,7 +20,7 @@ export interface ExpenseRepository {
   findById(id: string): Promise<StoredExpense | undefined>;
   listCategories(): Promise<string[]>;
 
-  /** Все записи для сверки с Excel. */
+  /** Все записи для сверки с Excel, включая помеченные удалёнными. */
   listForReconcile(db: SqlExecutor): Promise<StoredExpense[]>;
   /** Записи, которые нужно дописать в Excel, от старых к новым. */
   listQueue(db: SqlExecutor): Promise<StoredExpense[]>;
@@ -27,6 +29,10 @@ export interface ExpenseRepository {
   importFromExcel(db: SqlExecutor, expenses: Expense[]): Promise<number>;
   markWriting(db: SqlExecutor, ids: string[]): Promise<void>;
   markSynced(db: SqlExecutor, ids: string[]): Promise<void>;
+  /** Помечает записи удалёнными (мягкое удаление): из базы они не пропадают. */
+  markDeleted(db: SqlExecutor, ids: string[], reason: 'excel'): Promise<void>;
+  /** Снимает пометку удаления. */
+  restoreDeleted(db: SqlExecutor, ids: string[]): Promise<void>;
   /** Возвращает записи в очередь; `error` и счётчик попыток нужны, чтобы видеть причину задержки. */
   markPending(db: SqlExecutor, ids: string[], error?: string): Promise<void>;
 }

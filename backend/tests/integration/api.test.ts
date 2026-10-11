@@ -307,3 +307,33 @@ describe('запросы без тела', () => {
     expect(response.json().error.code).toBe('BAD_REQUEST');
   });
 });
+
+describe('подтверждение удалений через POST /api/sync', () => {
+  const sync = (payload?: unknown) =>
+    t.app.inject({
+      method: 'POST',
+      url: '/api/sync',
+      headers: { 'content-type': 'application/json' },
+      ...(payload === undefined ? {} : { payload: payload as object }),
+    });
+
+  it('applyDeletions: true передаётся в синхронизацию', async () => {
+    const response = await sync({ applyDeletions: true });
+
+    expect(response.statusCode).toBe(200);
+    expect(t.sync.lastOptions?.applyDeletions).toBe(true);
+  });
+
+  it('без тела удаления не подтверждаются', async () => {
+    await sync();
+
+    expect(t.sync.lastOptions?.applyDeletions).toBeFalsy();
+  });
+
+  it('некорректное значение игнорируется как «не подтверждено»', async () => {
+    const response = await sync({ applyDeletions: 'yes' });
+
+    expect(response.statusCode).toBe(200);
+    expect(t.sync.lastOptions?.applyDeletions).toBeFalsy();
+  });
+});

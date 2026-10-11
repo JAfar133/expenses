@@ -60,6 +60,7 @@ const sync = new SyncService({
   backups,
   excelOptions: { sheetName: env.EXCEL_SHEET_NAME, tableName: env.EXCEL_TABLE_NAME },
   state: new SyncStateRepository(database),
+  maxDeletePercent: env.SYNC_MAX_DELETE_PERCENT,
   logger: {
     info: (fields, message) => app.log.info(fields, message),
     warn: (fields, message) => app.log.warn(fields, message),

@@ -94,6 +94,7 @@ function toneOf(state: SyncState, failed: boolean): Tone {
   const status = state.lastResult?.status;
   if (failed || status === 'error') return 'error';
   if (state.queued > 0 || status === 'locked' || status === 'unavailable') return 'warning';
+  if (state.lastResult?.warning) return 'warning';
   return 'neutral';
 }
 
@@ -105,6 +106,7 @@ function describe(state: SyncState, timer: string, busy: boolean, failed: boolea
   if (state.queued > 0) parts.push(`в очереди на запись: ${state.queued}`);
   if (failed) parts.push('не удалось запустить синхронизацию');
   if (state.lastResult?.error) parts.push(state.lastResult.error.message);
+  if (state.lastResult?.warning) parts.push(state.lastResult.warning.message);
   if (!busy) parts.push('нажмите, чтобы синхронизировать сейчас');
 
   return parts.join('. ');

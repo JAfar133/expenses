@@ -34,6 +34,8 @@ const envSchema = z.object({
   SYNC_INTERVAL_MINUTES: z.coerce.number().positive().default(5),
   /** Как часто повторять, пока в очереди есть записи, которые не удалось записать в Excel */
   SYNC_RETRY_SECONDS: z.coerce.number().positive().default(60),
+  /** Какую долю записей можно пометить удалёнными за один цикл (защита от подмены Excel) */
+  SYNC_MAX_DELETE_PERCENT: z.coerce.number().min(1).max(100).default(25),
   /** Сколько ждать записи в Excel перед ответом на создание расхода */
   SYNC_INLINE_WAIT_SECONDS: z.coerce.number().positive().default(15),
 

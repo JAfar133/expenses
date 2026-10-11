@@ -18,12 +18,18 @@ export interface SyncResult {
   written: number;
   /** Сколько записей ещё ждёт записи в Excel */
   queued: number;
-  /** Записи БД, которых больше нет в Excel (удалены или изменены там). Не удаляются. */
-  diverged: number;
+  /** Записи БД, помеченные удалёнными: их строку удалили или изменили в Excel (мягкое удаление) */
+  deleted: number;
+  /** Ранее удалённые записи, строки которых снова появились в Excel */
+  restored: number;
+  /** Сколько удалений не применено: пропало слишком много записей сразу, это похоже на ошибку */
+  deletionsBlocked: number;
   /** Строки Excel, которые нельзя импортировать */
   skipped: number;
   skippedRows: SkippedRow[];
   error?: { code: string; message: string };
+  /** Предупреждение: цикл прошёл, но нужно внимание пользователя (например, заблокировано массовое удаление) */
+  warning?: { code: string; message: string };
 }
 
 export interface SyncStatusView {

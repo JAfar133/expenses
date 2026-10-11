@@ -146,3 +146,65 @@ describe('listCategories', () => {
     expect(await repository.listCategories()).toEqual(['кафе', 'продукты', 'транспорт']);
   });
 });
+
+describe('мягкое удаление', () => {
+  const deletedAtOf = async (id: string) =>
+    (await repository.listForReconcile(database)).find((e) => e.id === id)?.deletedAt;
+
+  it('запись помечается удалённой, но остаётся в базе', async () => {
+    const { id } = await repository.insertPending(database, coffee, 'misha');
+    await repository.markSynced(database, [id]);
+
+    await repository.markDeleted(database, [id], 'excel');
+
+    expect(await deletedAtOf(id)).toEqual(expect.stringMatching(/^\d{4}-\d\d-\d\dT.*Z$/));
+    expect((await repository.findById(id))?.deletedAt).not.toBeNull();
+  });
+
+  it('повторная пометка не меняет время удаления', async () => {
+    const { id } = await repository.insertPending(database, coffee, 'misha');
+    await repository.markDeleted(database, [id], 'excel');
+    const first = await deletedAtOf(id);
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await repository.markDeleted(database, [id], 'excel');
+
+    expect(await deletedAtOf(id)).toBe(first);
+  });
+
+  it('восстановление снимает пометку', async () => {
+    const { id } = await repository.insertPending(database, coffee, 'misha');
+    await repository.markDeleted(database, [id], 'excel');
+
+    await repository.restoreDeleted(database, [id]);
+
+    expect(await deletedAtOf(id)).toBeNull();
+  });
+
+  it('удалённые записи не попадают в категории', async () => {
+    const kept = await repository.insertPending(database, { ...coffee, category: 'кафе' }, 'misha');
+    const gone = await repository.insertPending(
+      database,
+      { ...coffee, category: 'старое' },
+      'misha',
+    );
+    await repository.markDeleted(database, [gone.id], 'excel');
+
+    expect(await repository.listCategories()).toEqual(['кафе']);
+    expect(kept.id).toBeTruthy();
+  });
+
+  it('listForReconcile возвращает и удалённые записи: они нужны для восстановления', async () => {
+    const { id } = await repository.insertPending(database, coffee, 'misha');
+    await repository.markDeleted(database, [id], 'excel');
+
+    const ids = (await repository.listForReconcile(database)).map((e) => e.id);
+
+    expect(ids).toContain(id);
+  });
+
+  it('пустой список id безопасен', async () => {
+    await expect(repository.markDeleted(database, [], 'excel')).resolves.toBeUndefined();
+    await expect(repository.restoreDeleted(database, [])).resolves.toBeUndefined();
+  });
+});

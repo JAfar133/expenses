@@ -71,6 +71,7 @@ services:
       SYNC_INTERVAL_MINUTES: ${SYNC_INTERVAL_MINUTES:-5}
       SYNC_RETRY_SECONDS: ${SYNC_RETRY_SECONDS:-60}
       SYNC_INLINE_WAIT_SECONDS: ${SYNC_INLINE_WAIT_SECONDS:-15}
+      SYNC_MAX_DELETE_PERCENT: ${SYNC_MAX_DELETE_PERCENT:-25}
       CARDS: ${CARDS:-Миша,Настя}
       CATEGORIES: ${CATEGORIES:-кафе,одежда,продукты,жилье,маркетплейс,другое}
     volumes:
