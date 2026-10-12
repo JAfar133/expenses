@@ -31,7 +31,7 @@ Before finishing work: `typecheck`, `test`, `format`.
   (one retry) and reports a lost session. Do not use `fetch` directly.
 - Tokens are stored in HttpOnly cookies and are not in JS or `localStorage`. `localStorage` holds only conveniences (for example, the user's last category).
 - The default card is always the logged-in user's card (`user.card`); the last selected card is not remembered.
-- Excel on the server is optional: if `GET /api/sync/status` returned `enabled: false`, the sync icon is not shown.
+- Excel on the server is optional: if `GET /api/sync/status` returned `enabled: false`, the sync icon is not shown and the status is not polled (also when an admin switched sync off on `/admin`; the switch invalidates the status query).
 - Works on a phone (PWA): fields no smaller than 16px, large controls, take the light and dark themes into account.
 - UI texts are in Russian, identifiers are in English.
 - The code is clean and structured: small components, one task per module, wrap long expressions (Prettier).

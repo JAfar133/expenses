@@ -11,7 +11,11 @@ export function useSyncState() {
   return useQuery({
     queryKey: SYNC_STATE_KEY,
     queryFn: fetchSyncState,
-    refetchInterval: (query) => (query.state.data?.running ? POLL_WHILE_RUNNING_MS : POLL_MS),
+    // While Excel sync is switched off there is nothing to watch: no polling (a switch-on refetches the state)
+    refetchInterval: (query) => {
+      if (query.state.data?.enabled === false) return false;
+      return query.state.data?.running ? POLL_WHILE_RUNNING_MS : POLL_MS;
+    },
   });
 }
 

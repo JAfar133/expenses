@@ -2,6 +2,7 @@ import { Navigate } from 'react-router';
 import { useCurrentUser } from '../../auth/hooks/useAuth.ts';
 import { GroupsSection } from '../components/GroupsSection.tsx';
 import { PasswordResetSection } from '../components/PasswordResetSection.tsx';
+import { SyncSection } from '../components/SyncSection.tsx';
 
 /** Application administration: groups and password reset links. Only for an application admin. */
 export default function AdminPage() {
@@ -14,6 +15,7 @@ export default function AdminPage() {
       <h2 className="text-xl font-bold">Администрирование</h2>
       <GroupsSection />
       <PasswordResetSection />
+      <SyncSection />
     </div>
   );
 }

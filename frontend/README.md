@@ -95,6 +95,7 @@ chunk, so the expense form stays light. To run the development mode against a di
 - `/invite/:token` is a public page (no sign-in): joining a group by an invitation link or setting a new password by a reset link. On success the server signs the person in.
 - `/group` (link "Группа", only for a group owner): group name, members (role, password reset link, removal), invitations (the link is shown once, with a copy button), cards with per-member access, categories.
 - `/admin` (link "Админ", only for an application admin): all groups (owner link, disable/enable, create a group) and password reset links by login.
+- `/admin` also has the "Синхронизация с Excel" switch (`GET/PUT /api/admin/sync`, with a confirmation): while it is off the header sync icon is not rendered at all and `/api/sync/status` is no longer polled; switching it refetches the status.
 - The UI of a regular member (role `member`) is unchanged: these links and pages are not rendered for them.
 
 ## Structure

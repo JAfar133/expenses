@@ -34,3 +34,19 @@ export const createUserResetLink = async (username: string) =>
       method: 'POST',
     })
   ).data;
+
+/** The installation-wide Excel sync switch: `configured` is false when Excel is not set up on the server. */
+export interface AdminSync {
+  configured: boolean;
+  enabled: boolean;
+}
+
+export const fetchAdminSync = async () => (await apiRequest<AdminSync>('/admin/sync')).data;
+
+export const setAdminSync = async (enabled: boolean) =>
+  (
+    await apiRequest<AdminSync>('/admin/sync', {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
+    })
+  ).data;
