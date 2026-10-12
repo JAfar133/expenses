@@ -47,7 +47,8 @@ nice -n 10 docker compose exec -T postgres pg_dump -U "$DB_USER" --clean --if-ex
   | gzip > "$partial" || fail "pg_dump завершился с ошибкой, копия не создана"
 
 gzip -t "$partial" || fail "архив повреждён"
-zcat "$partial" | grep -q '^COPY public.expenses ' || fail "в дампе нет таблицы expenses, копия отброшена"
+# grep without -q reads the whole dump: with `-q` it exits at the first match, zcat gets SIGPIPE and pipefail fails the check
+zcat "$partial" | grep '^COPY public.expenses ' >/dev/null || fail "в дампе нет таблицы expenses, копия отброшена"
 [ "$(wc -c < "$partial")" -gt 1000 ] || fail "дамп подозрительно маленький, копия отброшена"
 mv "$partial" "$final"
 log "Копия готова: $final ($(du -h "$final" | cut -f1))"
