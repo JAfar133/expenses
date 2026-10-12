@@ -90,8 +90,12 @@ describe('карты', () => {
     const created = await call('POST', '/api/group/cards', 'misha', { name: 'Общая' });
 
     expect(created.statusCode).toBe(201);
-    expect((await call('GET', '/api/cards', 'nastya')).json().data).toEqual(['Миша', 'Настя']);
-    expect((await call('GET', '/api/cards', 'misha')).json().data).toContain('Общая');
+    expect(
+      (await call('GET', '/api/cards', 'nastya')).json().data.map((c: { name: string }) => c.name),
+    ).toEqual(['Миша', 'Настя']);
+    expect(
+      (await call('GET', '/api/cards', 'misha')).json().data.map((c: { name: string }) => c.name),
+    ).toContain('Общая');
     const again = await call('POST', '/api/group/cards', 'misha', { name: 'Общая' });
     expect(again.statusCode).toBe(409);
     expect(again.json().error.code).toBe('NAME_TAKEN');
@@ -108,7 +112,9 @@ describe('карты', () => {
     const response = await call('PATCH', `/api/group/cards/${id}`, 'misha', { name: 'Зарплатная' });
 
     expect(response.statusCode).toBe(200);
-    expect((await call('GET', '/api/cards', 'misha')).json().data).toEqual(['Зарплатная', 'Настя']);
+    expect(
+      (await call('GET', '/api/cards', 'misha')).json().data.map((c: { name: string }) => c.name),
+    ).toEqual(['Зарплатная', 'Настя']);
     const list = (await call('GET', '/api/expenses?limit=10', 'misha')).json().data.items;
     expect(list.map((i: { card: string }) => i.card)).toEqual(['Зарплатная']);
     expect((await rows('SELECT card FROM expenses'))[0]).toEqual({ card: 'Зарплатная' });
@@ -126,14 +132,19 @@ describe('карты', () => {
     const id = await cardId('Настя');
 
     await call('PATCH', `/api/group/cards/${id}`, 'misha', { archived: true });
-    expect((await call('GET', '/api/cards', 'misha')).json().data).toEqual(['Миша']);
+    expect(
+      (await call('GET', '/api/cards', 'misha')).json().data.map((c: { name: string }) => c.name),
+    ).toEqual(['Миша']);
     await call('PATCH', `/api/group/cards/${id}`, 'misha', { archived: false });
-    expect((await call('GET', '/api/cards', 'misha')).json().data).toEqual(['Миша', 'Настя']);
+    expect(
+      (await call('GET', '/api/cards', 'misha')).json().data.map((c: { name: string }) => c.name),
+    ).toEqual(['Миша', 'Настя']);
   });
 
   it('доступ участника: выдать, сузить до просмотра, забрать', async () => {
     const id = await cardId('Настя');
-    const cardsOfNastya = async () => (await call('GET', '/api/cards', 'nastya')).json().data;
+    const cardsOfNastya = async () =>
+      (await call('GET', '/api/cards', 'nastya')).json().data.map((c: { name: string }) => c.name);
     expect(await cardsOfNastya()).toEqual(['Миша', 'Настя']);
 
     await call('PUT', `/api/group/cards/${id}/access`, 'misha', { access: { nastya: 'view' } });
@@ -323,7 +334,9 @@ describe('приглашения', () => {
       "SELECT 1 FROM card_access a JOIN users u ON u.id = a.user_id WHERE u.username = 'olya' AND a.level = 'edit'",
     );
     expect(access).toHaveLength(2);
-    expect((await call('GET', '/api/cards', 'olya')).json().data).toEqual(['Миша', 'Настя']);
+    expect(
+      (await call('GET', '/api/cards', 'olya')).json().data.map((c: { name: string }) => c.name),
+    ).toEqual(['Миша', 'Настя']);
     expect((await call('GET', '/api/group', 'olya')).statusCode).toBe(403);
   });
 
@@ -579,11 +592,15 @@ describe('администратор приложения', () => {
       (await call('PATCH', `/api/admin/groups/${group!.id}`, 'misha', { disabled: true }))
         .statusCode,
     ).toBe(200);
-    expect((await call('GET', '/api/cards', 'nastya')).json().data).toEqual([]);
+    expect(
+      (await call('GET', '/api/cards', 'nastya')).json().data.map((c: { name: string }) => c.name),
+    ).toEqual([]);
     expect((await call('GET', '/api/expenses', 'nastya')).json().data.total).toBe(0);
 
     await call('PATCH', `/api/admin/groups/${group!.id}`, 'misha', { disabled: false });
-    expect((await call('GET', '/api/cards', 'nastya')).json().data).toEqual(['Миша', 'Настя']);
+    expect(
+      (await call('GET', '/api/cards', 'nastya')).json().data.map((c: { name: string }) => c.name),
+    ).toEqual(['Миша', 'Настя']);
   });
 
   it('новая ссылка владельцу и сброс пароля любому пользователю', async () => {
@@ -596,5 +613,34 @@ describe('администратор приложения', () => {
     expect((await call('POST', '/api/admin/users/ghost/reset-password', 'misha')).statusCode).toBe(
       404,
     );
+  });
+});
+
+describe('синхронизация с Excel принадлежит одной группе', () => {
+  it('траты других групп не попадают в очередь и не сверяются с файлом', async () => {
+    const repository = new PostgresExpenseRepository(database);
+    await repository.insertPending(
+      database,
+      { date: '2026-10-10', card: 'Миша', category: 'кафе', name: 'Своя', amount: 10 },
+      'misha',
+    );
+    const [other] = await rows<{ id: string }>(
+      "INSERT INTO groups (name, reporting_currency, timezone) VALUES ('Чужая', 'AMD', 'UTC') RETURNING id",
+    );
+    await rows("INSERT INTO cards (group_id, name, currency) VALUES ($1, 'Чужая карта', 'AMD')", [
+      other!.id,
+    ]);
+    await database.query(
+      `INSERT INTO expenses (id, group_id, date, card, category, name, amount, source, excel_status, created_by)
+       VALUES (gen_random_uuid(), $1, '2026-10-10', 'Чужая карта', 'кафе', 'Чужая трата', 20, 'app', 'pending', 'olga')`,
+      [other!.id],
+    );
+
+    const queue = (await repository.listQueue(database)).map((e) => e.name);
+    const reconcile = (await repository.listForReconcile(database)).map((e) => e.name);
+
+    expect(queue).toEqual(['Своя']);
+    expect(reconcile).toEqual(['Своя']);
+    expect(await repository.countQueue()).toBe(1);
   });
 });

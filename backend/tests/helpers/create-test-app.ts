@@ -207,7 +207,11 @@ export async function createTestApp(
     expenseService: new ExpenseService(repository, { groups, currency: rates }),
     groups,
     invitations,
-    groupService: new GroupService(new GroupAdminRepository(database), invitations, auth),
+    groupService: new GroupService(new GroupAdminRepository(database), invitations, auth, {
+      currencies: ['AMD', 'USD', 'RUB', 'EUR'],
+      base: 'AMD',
+      rateOf: (currency) => rates.rateOf(currency),
+    }),
     platformAdmin: new PlatformAdminService({
       database,
       invitations,

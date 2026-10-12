@@ -3,6 +3,7 @@ import type { Database } from '../../src/infrastructure/database/database.ts';
 import { AnalyticsRepository } from '../../src/modules/analytics/analytics.repository.ts';
 import { AnalyticsService } from '../../src/modules/analytics/analytics.service.ts';
 import type { AnalyticsFilters } from '../../src/modules/analytics/analytics.types.ts';
+import type { ExpenseMoney } from '../../src/storage/expense.repository.ts';
 import { PostgresExpenseRepository } from '../../src/storage/postgres/postgres.repository.ts';
 import { createTestApp, TEST_TODAY, type TestApp } from '../helpers/create-test-app.ts';
 import { createTestDatabase } from '../helpers/test-database.ts';
@@ -29,7 +30,15 @@ const add = (
   amount: number,
   createdBy = 'misha',
   original?: { amount: number; currency: string; rate: number },
-) => expenses.insertPending(database, { date, card, category, name, amount }, createdBy, original);
+  money?: ExpenseMoney,
+) =>
+  expenses.insertPending(
+    database,
+    { date, card, category, name, amount },
+    createdBy,
+    original,
+    money,
+  );
 
 /**
  * October 2026, "today" is 15 October. In the period 1-31 October: 5 records totalling 2100,
@@ -40,11 +49,17 @@ async function seed() {
   await add('2026-10-01', 'Миша', 'кафе', 'Эспрессо', 300);
   await add('2026-10-03', 'Настя', 'продукты', 'Хлеб', 200, 'nastya');
   await add('2026-10-10', 'Настя', 'кафе', 'латте', 700, 'nastya');
-  await add('2026-10-10', 'Миша', 'продукты', 'Молоко', 400, 'misha', {
-    amount: 1,
-    currency: 'USD',
-    rate: 400,
-  });
+  // Kept in dollars (the currency of the record is the currency of its card); the reporting amount is in drams
+  await add(
+    '2026-10-10',
+    'Миша',
+    'продукты',
+    'Молоко',
+    400,
+    'misha',
+    { amount: 1, currency: 'USD', rate: 400 },
+    { cardCurrency: 'USD', cardAmount: 1, reportingCurrency: 'AMD', reportingAmount: 400 },
+  );
   await add('2026-09-20', 'Миша', 'кафе', 'Латте', 900);
   const deleted = await add('2026-10-05', 'Миша', 'кафе', 'Удалённая', 9999);
   await expenses.markDeleted(database, [deleted.id], 'excel');
@@ -134,7 +149,7 @@ describe('фильтры', () => {
     expect(await total({ cards: ['Миша', 'Настя'], categories: ['кафе'] })).toBe(1500);
   });
 
-  it('валюта ввода: расходы в драммах это базовая валюта', async () => {
+  it('валюта записи: траты на драммовых картах это драммы', async () => {
     expect(await total({ currencies: ['USD'] })).toBe(400);
     expect(await total({ currencies: ['AMD'] })).toBe(1700);
     expect(await total({ currencies: ['AMD', 'USD'] })).toBe(2100);
@@ -197,7 +212,7 @@ describe('breakdown', () => {
     ]);
   });
 
-  it('валюты ввода', async () => {
+  it('валюты записей', async () => {
     const rows = await service.breakdown(OCTOBER, 'currency', 100);
 
     expect(rows.map((r) => [r.key, r.total])).toEqual([
@@ -281,12 +296,11 @@ describe('list', () => {
   });
 
   it('сортирует по сумме в обе стороны', async () => {
-    expect((await page({ sort: 'amount', direction: 'desc' })).items.map((i) => i.amount)).toEqual([
-      700, 500, 400, 300, 200,
-    ]);
-    expect((await page({ sort: 'amount', direction: 'asc' })).items.map((i) => i.amount)).toEqual([
-      200, 300, 400, 500, 700,
-    ]);
+    // Sorted by the amount in the reporting currency (the dollar record is 400 drams)
+    const reporting = async (direction: 'asc' | 'desc') =>
+      (await page({ sort: 'amount', direction })).items.map((i) => i.reportingAmount);
+    expect(await reporting('desc')).toEqual([700, 500, 400, 300, 200]);
+    expect(await reporting('asc')).toEqual([200, 300, 400, 500, 700]);
   });
 
   it('сортирует по наименованию без учёта регистра', async () => {
@@ -310,7 +324,10 @@ describe('list', () => {
     const milk = (await page()).items.find((i) => i.name === 'Молоко')!;
 
     expect(milk).toMatchObject({
-      amount: 400,
+      amount: 1,
+      currency: 'USD',
+      reportingAmount: 400,
+      reportingCurrency: 'AMD',
       original: { amount: 1, currency: 'USD', rate: 400 },
       createdBy: 'misha',
       source: 'app',
@@ -320,7 +337,7 @@ describe('list', () => {
     expect((await page()).items.find((i) => i.name === 'Хлеб')!.original).toBeNull();
   });
 
-  it('валюта записи: пустая original_currency означает базовую (AMD), иначе валюта ввода', async () => {
+  it('валюта записи: валюта её карты (для записей без неё драммы)', async () => {
     const items = (await page()).items;
 
     expect(items.find((i) => i.name === 'Хлеб')).toMatchObject({ currency: 'AMD', original: null });
@@ -337,7 +354,7 @@ describe('list', () => {
     expect(fromExcel.currency).toBe('AMD');
   });
 
-  it('фильтр по валюте: пустая валюта попадает в базовую, а не пропадает', async () => {
+  it('фильтр по валюте: запись без валюты попадает в драммы, а не пропадает', async () => {
     const amd = await service.list(
       { ...OCTOBER, currencies: ['AMD'] },
       { sort: 'amount', direction: 'desc', limit: 50, offset: 0 },

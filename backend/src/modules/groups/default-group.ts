@@ -150,6 +150,7 @@ async function assignExpenses(tx: SqlExecutor): Promise<number> {
      RETURNING e.id`,
     [group.id],
   );
+  await fillDramMoney(tx);
   return assigned.length;
 }
 
@@ -165,5 +166,17 @@ async function ensureCategories(tx: SqlExecutor): Promise<void> {
                FROM expenses e GROUP BY 1, 2) used
       WHERE used.group_id IS NOT NULL
      ON CONFLICT (group_id, name) DO NOTHING`,
+  );
+}
+
+/** Records that got their card only now (the migration ran before the group existed): money in drams as it is. */
+async function fillDramMoney(tx: SqlExecutor): Promise<void> {
+  await tx.query(
+    `UPDATE expenses e
+        SET card_currency = c.currency, card_amount = e.amount,
+            reporting_currency = g.reporting_currency, reporting_amount = e.amount
+       FROM cards c JOIN groups g ON g.id = c.group_id
+      WHERE c.id = e.card_id AND e.card_amount IS NULL
+        AND c.currency = 'AMD' AND g.reporting_currency = 'AMD'`,
   );
 }

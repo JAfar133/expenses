@@ -15,7 +15,8 @@ const patchSchema = z
     card: createExpenseSchema.shape.card,
     category: createExpenseSchema.shape.category,
     name: createExpenseSchema.shape.name,
-    amount: createExpenseSchema.shape.amount.int('Стоимость должна быть целым числом'),
+    // In the currency of the card; the service checks whole drams / two decimals
+    amount: createExpenseSchema.shape.amount,
   })
   .partial()
   .strict();

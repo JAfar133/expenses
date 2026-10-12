@@ -8,6 +8,7 @@ import type {
   ExcelStatus,
   DeletedReason,
   ExcelChanges,
+  ExpenseMoney,
   ExpenseOriginal,
   NameSuggestion,
   StoredExpense,
@@ -29,13 +30,33 @@ interface ExpenseRow {
   original_amount: number | null;
   original_currency: string | null;
   exchange_rate: number | null;
+  card_currency: string | null;
+  card_amount: number | null;
+  reporting_currency: string | null;
+  reporting_amount: number | null;
 }
 
-const COLUMNS = `id, group_id, ${dateText('date')} AS date, COALESCE((SELECT c.name FROM cards c WHERE c.id = card_id), card) AS card, category, name, amount, source, excel_status, ${timestampText('deleted_at')} AS deleted_at, deleted_reason, excel_snapshot, original_amount::float8 AS original_amount, original_currency, exchange_rate::float8 AS exchange_rate`;
+const COLUMNS = `id, group_id, ${dateText('date')} AS date, COALESCE((SELECT c.name FROM cards c WHERE c.id = card_id), card) AS card, category, name, amount, source, excel_status, ${timestampText('deleted_at')} AS deleted_at, deleted_reason, excel_snapshot, original_amount::float8 AS original_amount, original_currency, exchange_rate::float8 AS exchange_rate, card_currency, card_amount::float8 AS card_amount, reporting_currency, reporting_amount::float8 AS reporting_amount`;
+
+/**
+ * The Excel sync belongs to one group, the first one (the installation that had Excel before groups existed).
+ * The records of other groups never go to the file and are never compared with it.
+ */
+const IN_EXCEL_GROUP = `(group_id IS NULL OR group_id = (SELECT id FROM groups ORDER BY created_at, id LIMIT 1))`;
 
 /** Current record values as an Excel row snapshot (what was written to Excel after sync). */
 const SNAPSHOT_OF_VALUES = `jsonb_build_object(
   'date', to_char(date, 'YYYY-MM-DD'), 'card', card, 'category', category, 'name', name, 'amount', amount)`;
+
+const toMoney = (row: ExpenseRow): ExpenseMoney | null =>
+  row.card_amount === null || row.reporting_amount === null
+    ? null
+    : {
+        cardCurrency: row.card_currency!,
+        cardAmount: row.card_amount,
+        reportingCurrency: row.reporting_currency!,
+        reportingAmount: row.reporting_amount,
+      };
 
 const toStored = (row: ExpenseRow): StoredExpense => ({
   id: row.id,
@@ -58,6 +79,7 @@ const toStored = (row: ExpenseRow): StoredExpense => ({
           currency: row.original_currency!,
           rate: row.exchange_rate!,
         },
+  money: toMoney(row),
 });
 
 /** Whether the record values match the Excel row. */
@@ -76,12 +98,14 @@ export class PostgresExpenseRepository implements ExpenseRepository {
     expense: Expense,
     createdBy: string,
     original?: ExpenseOriginal,
+    money?: ExpenseMoney,
   ): Promise<StoredExpense> {
     const [row] = await db.query<ExpenseRow>(
       `INSERT INTO expenses (
          id, date, card, category, name, amount, source, excel_status, created_by,
-         original_amount, original_currency, exchange_rate
-       ) VALUES ($1, $2, $3, $4, $5, $6, 'app', 'pending', $7, $8, $9, $10)
+         original_amount, original_currency, exchange_rate,
+         card_currency, card_amount, reporting_currency, reporting_amount
+       ) VALUES ($1, $2, $3, $4, $5, $6, 'app', 'pending', $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING ${COLUMNS}`,
       [
         randomUUID(),
@@ -94,6 +118,10 @@ export class PostgresExpenseRepository implements ExpenseRepository {
         original?.amount ?? null,
         original?.currency ?? null,
         original?.rate ?? null,
+        money?.cardCurrency ?? null,
+        money?.cardAmount ?? null,
+        money?.reportingCurrency ?? null,
+        money?.reportingAmount ?? null,
       ],
     );
     return toStored(row!);
@@ -143,20 +171,22 @@ export class PostgresExpenseRepository implements ExpenseRepository {
   }
 
   async listForReconcile(db: SqlExecutor): Promise<StoredExpense[]> {
-    const rows = await db.query<ExpenseRow>(`SELECT ${COLUMNS} FROM expenses ORDER BY seq`);
+    const rows = await db.query<ExpenseRow>(
+      `SELECT ${COLUMNS} FROM expenses WHERE ${IN_EXCEL_GROUP} ORDER BY seq`,
+    );
     return rows.map(toStored);
   }
 
   async listQueue(db: SqlExecutor): Promise<StoredExpense[]> {
     const rows = await db.query<ExpenseRow>(
-      `SELECT ${COLUMNS} FROM expenses WHERE excel_status = 'pending' AND deleted_at IS NULL ORDER BY seq`,
+      `SELECT ${COLUMNS} FROM expenses WHERE excel_status = 'pending' AND deleted_at IS NULL AND ${IN_EXCEL_GROUP} ORDER BY seq`,
     );
     return rows.map(toStored);
   }
 
   async countQueue(): Promise<number> {
     const [row] = await this.database.query<{ count: number }>(
-      `SELECT count(*)::int AS count FROM expenses WHERE excel_status <> 'synced' AND deleted_at IS NULL`,
+      `SELECT count(*)::int AS count FROM expenses WHERE excel_status <> 'synced' AND deleted_at IS NULL AND ${IN_EXCEL_GROUP}`,
     );
     return row!.count;
   }
@@ -272,7 +302,7 @@ export class PostgresExpenseRepository implements ExpenseRepository {
    */
   async listExcelChanges(db: SqlExecutor): Promise<ExcelChanges> {
     const rows = await db.query<ExpenseRow>(
-      `SELECT ${COLUMNS} FROM expenses WHERE excel_snapshot IS NOT NULL ORDER BY seq`,
+      `SELECT ${COLUMNS} FROM expenses WHERE excel_snapshot IS NOT NULL AND ${IN_EXCEL_GROUP} ORDER BY seq`,
     );
     const changes: ExcelChanges = { updates: [], removals: [] };
 
@@ -308,10 +338,15 @@ export class PostgresExpenseRepository implements ExpenseRepository {
     values: Expense,
     by: string,
     clearOriginal: boolean,
+    money?: ExpenseMoney,
   ): Promise<void> {
     await db.query(
       `UPDATE expenses
           SET date = $2, card = $3, category = $4, name = $5, amount = $6,
+              card_currency = COALESCE($9, card_currency),
+              card_amount = COALESCE($10, card_amount),
+              reporting_currency = COALESCE($11, reporting_currency),
+              reporting_amount = COALESCE($12, reporting_amount),
               original_amount = CASE WHEN $8 THEN NULL ELSE original_amount END,
               original_currency = CASE WHEN $8 THEN NULL ELSE original_currency END,
               exchange_rate = CASE WHEN $8 THEN NULL ELSE exchange_rate END,
@@ -326,6 +361,10 @@ export class PostgresExpenseRepository implements ExpenseRepository {
         values.amount,
         by,
         clearOriginal,
+        money?.cardCurrency ?? null,
+        money?.cardAmount ?? null,
+        money?.reportingCurrency ?? null,
+        money?.reportingAmount ?? null,
       ],
     );
   }

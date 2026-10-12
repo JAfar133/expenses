@@ -14,6 +14,18 @@ const MAX_NAME_LENGTH = 60;
 
 export interface GroupView extends GroupOverview {
   invitations: InvitationInfo[];
+  /** Currencies a card or the group may use */
+  currencies: string[];
+}
+
+/** What the group service needs to know about currencies. */
+export interface GroupCurrencies {
+  /** Allowed currencies */
+  currencies: string[];
+  /** The currency of the drams amount: rates are quoted against it */
+  base: string;
+  /** Rate of a currency in drams; undefined if unknown */
+  rateOf: (currency: string) => Promise<number | undefined>;
 }
 
 /** The name of a card, category or group: trimmed, not empty, not too long. */
@@ -37,27 +49,32 @@ export class GroupService {
     private readonly repository: GroupAdminRepository,
     private readonly invitations: InvitationsService,
     private readonly auth: Pick<AuthService, 'setUserRights'>,
+    private readonly money: GroupCurrencies,
   ) {}
 
   async view(owner: AuthUser): Promise<GroupView> {
     const groupId = this.groupOf(owner);
     const overview = await this.repository.overview(groupId);
     if (!overview) throw notFoundError();
-    return { ...overview, invitations: await this.repository.listInvitations(groupId) };
+    return {
+      ...overview,
+      invitations: await this.repository.listInvitations(groupId),
+      currencies: this.money.currencies,
+    };
   }
 
   async rename(owner: AuthUser, name: unknown): Promise<void> {
     await this.repository.renameGroup(this.groupOf(owner), cleanName(name, 'Название группы'));
   }
 
-  async createCard(owner: AuthUser, name: unknown): Promise<string> {
+  async createCard(owner: AuthUser, name: unknown, currency?: unknown): Promise<string> {
     const groupId = this.groupOf(owner);
     const group = await this.repository.getGroup(groupId);
     try {
       return await this.repository.createCard(
         groupId,
         cleanName(name, 'Название карты'),
-        group!.reportingCurrency,
+        currency === undefined ? group!.reportingCurrency : this.checkedCurrency(currency),
       );
     } catch (error) {
       throw error instanceof NameTakenError ? taken('Карта') : error;
@@ -67,12 +84,23 @@ export class GroupService {
   async updateCard(
     owner: AuthUser,
     cardId: string,
-    patch: { name?: unknown; archived?: unknown },
+    patch: { name?: unknown; archived?: unknown; currency?: unknown },
   ): Promise<void> {
     await this.requireCard(owner, cardId);
-    const update: { name?: string; archived?: boolean } = {};
+    const update: { name?: string; archived?: boolean; currency?: string } = {};
     if (patch.name !== undefined) update.name = cleanName(patch.name, 'Название карты');
     if (patch.archived !== undefined) update.archived = patch.archived === true;
+    if (patch.currency !== undefined) {
+      update.currency = this.checkedCurrency(patch.currency);
+      // The amounts of the records were kept in the old currency: it can only change while the card is empty
+      if (await this.repository.cardHasExpenses(cardId)) {
+        throw new AppError(
+          409,
+          'CARD_HAS_EXPENSES',
+          'Валюту карты нельзя изменить: по ней уже есть траты',
+        );
+      }
+    }
     try {
       await this.repository.updateCard(cardId, update);
     } catch (error) {
@@ -138,6 +166,25 @@ export class GroupService {
     }
   }
 
+  /**
+   * Changes the currency the group's totals and charts are in. The reporting amounts of all records are recalculated:
+   * the records of cards in the new currency keep their exact amounts, the others are the drams amount at today's rate.
+   */
+  async setReportingCurrency(owner: AuthUser, currency: unknown): Promise<number> {
+    const groupId = this.groupOf(owner);
+    const code = this.checkedCurrency(currency);
+    const rate = code === this.money.base ? 1 : await this.money.rateOf(code);
+    if (rate === undefined || !(rate > 0)) {
+      throw validationError('RATE_UNAVAILABLE', `Курс валюты ${code} недоступен`);
+    }
+    return this.repository.setReportingCurrency(
+      groupId,
+      code,
+      rate,
+      code === this.money.base ? 0 : 2,
+    );
+  }
+
   invite(owner: AuthUser, role: GroupRole) {
     if (role !== 'owner' && role !== 'member') {
       throw validationError('INVALID_ROLE', 'Роль: owner или member');
@@ -176,6 +223,13 @@ export class GroupService {
       );
     }
     await this.repository.removeMember(this.groupOf(owner), member.userId);
+  }
+
+  private checkedCurrency(value: unknown): string {
+    if (typeof value !== 'string' || !this.money.currencies.includes(value)) {
+      throw validationError('INVALID_CURRENCY', 'Выберите валюту из списка');
+    }
+    return value;
   }
 
   private groupOf(owner: AuthUser): string {

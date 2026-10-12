@@ -5,21 +5,28 @@ import { scopeCondition, type ExpenseScope } from './scope.ts';
 export class GroupsRepository {
   constructor(private readonly database: Database) {}
 
-  /** Cards the user may add expenses to (not archived), in the group's order. Pass `db` inside a transaction. */
-  async editableCardNames(scope: ExpenseScope, db: SqlExecutor = this.database): Promise<string[]> {
+  /** Cards the user may add expenses to (not archived) with their currencies, in the group's order. Pass `db` inside a transaction. */
+  async editableCards(
+    scope: ExpenseScope,
+    db: SqlExecutor = this.database,
+  ): Promise<{ name: string; currency: string }[]> {
     const params: unknown[] = [];
     const param = (value: unknown) => {
       params.push(value);
       return `$${params.length}`;
     };
-    const rows = await db.query<{ name: string }>(
-      `SELECT c.name FROM cards c
+    return db.query<{ name: string; currency: string }>(
+      `SELECT c.name, c.currency FROM cards c
         WHERE c.archived_at IS NULL
           AND ${scopeCondition(scope, param, { level: 'edit', columns: { group: 'c.group_id', card: 'c.id' } })}
         ORDER BY c.position, c.name`,
       params,
     );
-    return rows.map((row) => row.name);
+  }
+
+  /** Names of the cards the user may add expenses to. */
+  async editableCardNames(scope: ExpenseScope, db: SqlExecutor = this.database): Promise<string[]> {
+    return (await this.editableCards(scope, db)).map((card) => card.name);
   }
 
   /** Cards of the group (not archived): a record may be moved to any of them. */
@@ -39,5 +46,31 @@ export class GroupsRepository {
       [groupId],
     );
     return rows.map((row) => row.name);
+  }
+
+  /** Currencies of a card of the group and of the group's reporting; undefined for an unknown card. */
+  async moneyContext(
+    groupId: string | null,
+    cardName: string,
+    db: SqlExecutor = this.database,
+  ): Promise<{ cardCurrency: string; reportingCurrency: string } | undefined> {
+    if (!groupId) return undefined;
+    const [row] = await db.query<{ card_currency: string; reporting_currency: string }>(
+      `SELECT c.currency AS card_currency, g.reporting_currency
+         FROM cards c JOIN groups g ON g.id = c.group_id
+        WHERE c.group_id = $1 AND c.name = $2`,
+      [groupId, cardName],
+    );
+    return row && { cardCurrency: row.card_currency, reportingCurrency: row.reporting_currency };
+  }
+
+  /** The reporting currency of a group; undefined for an unknown group. */
+  async reportingCurrency(groupId: string | null): Promise<string | undefined> {
+    if (!groupId) return undefined;
+    const [row] = await this.database.query<{ reporting_currency: string }>(
+      'SELECT reporting_currency FROM groups WHERE id = $1',
+      [groupId],
+    );
+    return row?.reporting_currency;
   }
 }

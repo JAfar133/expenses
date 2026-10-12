@@ -137,10 +137,19 @@ const app = buildApp({
   rates,
   analytics,
   preferences: new PreferencesRepository(database),
-  editor: new ExpenseEditor({ database, repository: expenses, groups }),
+  editor: new ExpenseEditor({
+    database,
+    repository: expenses,
+    groups,
+    base: env.DEFAULT_CURRENCY,
+  }),
   groups,
   invitations,
-  groupService: new GroupService(new GroupAdminRepository(database), invitations, auth),
+  groupService: new GroupService(new GroupAdminRepository(database), invitations, auth, {
+    currencies: env.CURRENCIES,
+    base: env.DEFAULT_CURRENCY,
+    rateOf: (currency) => rates.rateOf(currency),
+  }),
   platformAdmin: new PlatformAdminService({
     database,
     invitations,

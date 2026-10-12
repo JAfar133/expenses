@@ -52,7 +52,8 @@ export const groupRoutes =
     });
 
     app.post('/group/cards', async (request, reply) => {
-      const id = await service.createCard(ownerOnly(request), bodyOf(request).name);
+      const body = bodyOf(request);
+      const id = await service.createCard(ownerOnly(request), body.name, body.currency);
       return reply.code(201).send({ success: true, data: { id } });
     });
 
@@ -61,6 +62,7 @@ export const groupRoutes =
       await service.updateCard(ownerOnly(request), parseId((request.params as { id: string }).id), {
         name: body.name,
         archived: body.archived,
+        currency: body.currency,
       });
       return { success: true };
     });
@@ -78,6 +80,17 @@ export const groupRoutes =
       );
       return { success: true };
     });
+
+    /** Body: `{ "currency": "USD" }`. Recalculates the reporting amounts of the group's records. */
+    app.put('/group/reporting-currency', async (request) => ({
+      success: true,
+      data: {
+        recalculated: await service.setReportingCurrency(
+          ownerOnly(request),
+          bodyOf(request).currency,
+        ),
+      },
+    }));
 
     app.post('/group/categories', async (request, reply) => {
       const id = await service.createCategory(ownerOnly(request), bodyOf(request).name);

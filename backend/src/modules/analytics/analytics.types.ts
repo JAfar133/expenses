@@ -86,10 +86,13 @@ export interface ExpenseListItem {
   card: string;
   category: string;
   name: string;
-  /** Amount in drams */
+  /** Amount in the currency of the card */
   amount: number;
-  /** Entry currency; for expenses without an original amount (original_currency is empty) it is the base currency */
+  /** Currency of the card (and of `amount`) */
   currency: string;
+  /** The same amount in the group's reporting currency (what the totals add up) */
+  reportingAmount: number;
+  reportingCurrency: string;
   original: { amount: number; currency: string; rate: number } | null;
   createdBy: string;
   source: 'app' | 'excel';

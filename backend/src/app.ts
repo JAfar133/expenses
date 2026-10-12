@@ -34,7 +34,7 @@ export interface AppDependencies {
   /** Editing and deleting records */
   editor: ExpenseEditor;
   /** Cards of a group (for the default card in the profile) */
-  groups: Pick<GroupsRepository, 'cardNames'>;
+  groups: Pick<GroupsRepository, 'cardNames' | 'reportingCurrency'>;
   /** Management of the user's own group (owner) */
   groupService: GroupService;
   /** Groups for the application administrator */
@@ -139,7 +139,15 @@ export function buildApp({
       return reply.code(503).send({ status: 'unavailable' });
     }
   });
-  app.get('/api/config', async () => ({ success: true, data: { currency } }));
+  // `currency`: the reporting currency of the user's group (what totals and charts are in);
+  // `baseCurrency`: the currency of the drams amount (rates are quoted against it)
+  app.get('/api/config', async (request) => ({
+    success: true,
+    data: {
+      currency: (await groups.reportingCurrency(request.user!.groupId)) ?? currency,
+      baseCurrency: currency,
+    },
+  }));
   app.register(expensesRoutes({ expenseService, idempotency, sync, inlineExcelWaitMs }), {
     prefix: '/api',
   });

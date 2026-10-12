@@ -336,7 +336,13 @@ describe('справочники и health', () => {
   it('GET /api/cards', async () => {
     const response = await t.inject({ method: 'GET', url: '/api/cards' });
 
-    expect(response.json()).toEqual({ success: true, data: ['Миша', 'Настя'] });
+    expect(response.json()).toEqual({
+      success: true,
+      data: [
+        { name: 'Миша', currency: 'AMD' },
+        { name: 'Настя', currency: 'AMD' },
+      ],
+    });
   });
 
   it('GET /api/categories объединяет конфигурацию и БД', async () => {
@@ -368,10 +374,13 @@ describe('справочники и health', () => {
     );
   });
 
-  it('GET /api/config возвращает валюту', async () => {
+  it('GET /api/config возвращает валюту отчётности группы и базовую валюту', async () => {
     const response = await t.inject({ method: 'GET', url: '/api/config' });
 
-    expect(response.json()).toEqual({ success: true, data: { currency: 'AMD' } });
+    expect(response.json()).toEqual({
+      success: true,
+      data: { currency: 'AMD', baseCurrency: 'AMD' },
+    });
   });
 
   it('GET /api/health не обращается к Excel', async () => {

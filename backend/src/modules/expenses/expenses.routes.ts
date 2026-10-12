@@ -81,7 +81,7 @@ export const expensesRoutes =
 
     app.get('/cards', async (request) => ({
       success: true,
-      data: await expenseService.getCards(scopeOf(request.user!)),
+      data: await expenseService.getCardsWithCurrency(scopeOf(request.user!)),
     }));
 
     app.get('/name-suggestions', async (request) => ({

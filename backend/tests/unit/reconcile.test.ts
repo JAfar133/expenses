@@ -26,6 +26,7 @@ const stored = (
   deletedReason: deletedAt === null ? null : 'excel',
   excelSnapshot: null,
   original: null,
+  money: null,
 });
 
 const EMPTY = {

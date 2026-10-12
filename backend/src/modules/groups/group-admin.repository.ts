@@ -160,7 +160,10 @@ export class GroupAdminRepository {
    * Renames and/or archives a card. The name shown in the app comes from the `cards` table;
    * the text column of the records is updated too, because the old Excel sync still compares it.
    */
-  async updateCard(cardId: string, patch: { name?: string; archived?: boolean }): Promise<void> {
+  async updateCard(
+    cardId: string,
+    patch: { name?: string; archived?: boolean; currency?: string },
+  ): Promise<void> {
     await this.unique(() =>
       this.database.transaction(async (tx) => {
         if (patch.name !== undefined) {
@@ -170,6 +173,9 @@ export class GroupAdminRepository {
             patch.name,
           ]);
         }
+        if (patch.currency !== undefined) {
+          await tx.query('UPDATE cards SET currency = $2 WHERE id = $1', [cardId, patch.currency]);
+        }
         if (patch.archived !== undefined) {
           await tx.query(
             'UPDATE cards SET archived_at = CASE WHEN $2 THEN COALESCE(archived_at, now()) END WHERE id = $1',
@@ -178,6 +184,43 @@ export class GroupAdminRepository {
         }
       }),
     );
+  }
+
+  /** Whether any record (even a deleted one) was made with the card. */
+  async cardHasExpenses(cardId: string): Promise<boolean> {
+    const rows = await this.database.query('SELECT 1 FROM expenses WHERE card_id = $1 LIMIT 1', [
+      cardId,
+    ]);
+    return rows.length > 0;
+  }
+
+  /**
+   * Changes the reporting currency of the group and recalculates the reporting amount of every record.
+   * A record of a card in that currency keeps its exact amount; the others are the drams amount at the given rate
+   * (drams per unit of the new currency). Returns how many records were recalculated.
+   */
+  async setReportingCurrency(
+    groupId: string,
+    currency: string,
+    rate: number,
+    decimals: number,
+  ): Promise<number> {
+    return this.database.transaction(async (tx) => {
+      const rows = await tx.query<{ id: string }>(
+        `UPDATE expenses
+            SET reporting_currency = $2,
+                reporting_amount = CASE WHEN card_currency = $2 THEN card_amount
+                                        ELSE round(amount::numeric / $3::numeric, $4::int) END
+          WHERE group_id = $1
+          RETURNING id`,
+        [groupId, currency, rate, decimals],
+      );
+      await tx.query(
+        'UPDATE groups SET reporting_currency = $2, updated_at = now() WHERE id = $1',
+        [groupId, currency],
+      );
+      return rows.length;
+    });
   }
 
   /** Replaces access of the group's members to a card: a member missing from `levels` loses it. */

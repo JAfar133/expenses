@@ -1,11 +1,18 @@
 import { AppError, notFoundError, validationError } from '../../errors/app-error.ts';
 import type { Database, SqlExecutor } from '../../infrastructure/database/database.ts';
+import { decimalsOf } from './expense-amount.ts';
 import type { GroupsRepository } from '../groups/groups.repository.ts';
 import type {
   Expense,
+  ExpenseMoney,
   ExpenseRepository,
   StoredExpense,
 } from '../../storage/expense.repository.ts';
+
+const MAX_DRAMS = 2_147_483_647;
+
+const roundTo = (value: number, decimals: number) =>
+  Math.round(value * 10 ** decimals) / 10 ** decimals;
 
 /** Which record fields can be edited. The rest (author, source, original currency) stay as they were. */
 export type ExpensePatch = Partial<Expense>;
@@ -20,7 +27,9 @@ export interface ExpenseEditorOptions {
   database: Database;
   repository: ExpenseRepository;
   /** Cards of the group: a record may be moved to any of them */
-  groups: Pick<GroupsRepository, 'cardNames' | 'categoryNames'>;
+  groups: Pick<GroupsRepository, 'cardNames' | 'categoryNames' | 'moneyContext'>;
+  /** Base currency of the drams amounts (Excel): AMD by default */
+  base?: string;
 }
 
 /** Who edits: the login goes to the log, the group limits which records can be touched. */
@@ -58,11 +67,16 @@ export class ExpenseEditor {
       if (record.deletedAt !== null) {
         throw new AppError(409, 'EXPENSE_DELETED', 'Запись удалена: сначала верните её');
       }
+      // The amount in a patch is in the currency of the card; the drams amount (Excel) follows from it
+      const { amount: newCardAmount, ...rest } = patch;
       const before = valuesOf(record);
-      const after: Expense = { ...before, ...patch };
+      const after: Expense = { ...before, ...rest };
 
       if (patch.card !== undefined && !(await this.groupCards(actor, tx)).includes(after.card)) {
         throw validationError('INVALID_CARD', 'Выберите карту из списка');
+      }
+      if (patch.card !== undefined && patch.card !== record.card) {
+        await this.requireSameCurrency(actor, tx, record, after.card);
       }
       if (
         patch.category !== undefined &&
@@ -70,21 +84,92 @@ export class ExpenseEditor {
       ) {
         throw validationError('INVALID_CATEGORY', 'Выберите категорию из списка');
       }
-      if (JSON.stringify(before) === JSON.stringify(after)) return false;
 
-      // The original currency amount no longer matches the drams if the amount was changed
-      const clearOriginal = record.original !== null && after.amount !== before.amount;
+      const repriced =
+        newCardAmount !== undefined ? this.reprice(record, newCardAmount) : undefined;
+      if (repriced) after.amount = repriced.amount;
+      const moneyChanged =
+        repriced !== undefined &&
+        repriced.money.cardAmount !== (record.money?.cardAmount ?? record.amount);
+      if (JSON.stringify(before) === JSON.stringify(after) && !moneyChanged) return false;
+
+      // The original currency amount no longer matches the new amount
+      const clearOriginal =
+        record.original !== null && (moneyChanged || after.amount !== before.amount);
       const { repository } = this.options;
-      await repository.updateValues(tx, id, after, by, clearOriginal);
+      await repository.updateValues(tx, id, after, by, clearOriginal, repriced?.money);
       await repository.recordChange(tx, {
         expenseId: id,
         by,
         action: 'update',
-        before: { ...before, original: record.original },
-        after: { ...after, original: clearOriginal ? null : record.original },
+        before: { ...before, original: record.original, money: record.money },
+        after: {
+          ...after,
+          original: clearOriginal ? null : record.original,
+          money: repriced?.money ?? record.money,
+        },
       });
       return true;
     });
+  }
+
+  /**
+   * A new amount in the card's currency: the other amounts of the record follow in the same proportion
+   * as when it was entered (so the rates of that day stay).
+   */
+  private reprice(
+    record: StoredExpense,
+    cardAmount: number,
+  ): { amount: number; money: ExpenseMoney } {
+    const base = this.options.base ?? 'AMD';
+    const money = record.money ?? {
+      cardCurrency: base,
+      cardAmount: record.amount,
+      reportingCurrency: base,
+      reportingAmount: record.amount,
+    };
+    const decimals = decimalsOf(money.cardCurrency, base);
+    if (
+      !(cardAmount > 0) ||
+      Math.abs(cardAmount * 10 ** decimals - Math.round(cardAmount * 10 ** decimals)) > 1e-6
+    ) {
+      throw validationError(
+        'INVALID_AMOUNT',
+        decimals === 0
+          ? 'Стоимость должна быть целым числом'
+          : 'Не более двух знаков после запятой',
+      );
+    }
+    const factor = cardAmount / money.cardAmount;
+    const reporting =
+      money.reportingCurrency === money.cardCurrency
+        ? cardAmount
+        : roundTo(money.reportingAmount * factor, decimalsOf(money.reportingCurrency, base));
+    const amount = Math.round(record.amount * factor);
+    if (amount < 1 || amount > MAX_DRAMS || !(reporting > 0)) {
+      throw validationError(
+        'INVALID_AMOUNT',
+        amount < 1 ? 'Сумма слишком мала' : 'Слишком большая сумма',
+      );
+    }
+    return { amount, money: { ...money, cardAmount, reportingAmount: reporting } };
+  }
+
+  /** A record may only move to a card in the same currency: its amounts would not match otherwise. */
+  private async requireSameCurrency(
+    actor: EditActor,
+    tx: SqlExecutor,
+    record: StoredExpense,
+    cardName: string,
+  ): Promise<void> {
+    const target = await this.options.groups.moneyContext(actor.groupId, cardName, tx);
+    const current = record.money?.cardCurrency ?? this.options.base ?? 'AMD';
+    if (target && target.cardCurrency !== current) {
+      throw validationError(
+        'CARD_CURRENCY_MISMATCH',
+        'Нельзя перенести трату на карту в другой валюте',
+      );
+    }
   }
 
   remove(id: string, actor: EditActor): Promise<EditResult> {

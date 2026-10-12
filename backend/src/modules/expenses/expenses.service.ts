@@ -7,7 +7,7 @@ import type {
 } from '../../storage/expense.repository.ts';
 import type { ExpenseScope } from '../groups/scope.ts';
 import type { GroupsRepository } from '../groups/groups.repository.ts';
-import { resolveAmount, type AmountContext } from './expense-amount.ts';
+import { resolveMoney, type AmountContext } from './expense-amount.ts';
 import type { CreateExpenseInput } from './expenses.schema.ts';
 
 /** How many "category + name" pairs we give the form for suggestions. */
@@ -21,7 +21,10 @@ export interface ExpenseAuthor {
 
 export interface ExpenseServiceOptions {
   /** Cards and categories of the user's group */
-  groups: Pick<GroupsRepository, 'editableCardNames' | 'categoryNames'>;
+  groups: Pick<
+    GroupsRepository,
+    'editableCardNames' | 'editableCards' | 'categoryNames' | 'moneyContext'
+  >;
   /** Base currency, available currencies and rates for conversion to drams */
   currency: AmountContext;
   logger?: { warn: (object: object, message: string) => void };
@@ -33,7 +36,12 @@ export class ExpenseService {
     private readonly options: ExpenseServiceOptions,
   ) {}
 
-  /** Cards the user may add expenses to. */
+  /** Cards the user may add expenses to, with their currencies. */
+  getCardsWithCurrency(scope: ExpenseScope) {
+    return this.options.groups.editableCards(scope);
+  }
+
+  /** Names of the cards the user may add expenses to. */
   getCards(scope: ExpenseScope, db?: SqlExecutor): Promise<string[]> {
     return this.options.groups.editableCardNames(scope, db);
   }
@@ -70,20 +78,21 @@ export class ExpenseService {
     ) {
       throw validationError('INVALID_CATEGORY', 'Выберите категорию из списка');
     }
-    const { amount, original } = await resolveAmount(
-      {
-        amount: input.amount,
-        currency: input.currency ?? this.options.currency.base,
-        manualRate: input.rate,
-      },
+    const currencies = await this.options.groups.moneyContext(author.scope.groupId, input.card, db);
+    if (!currencies) throw validationError('INVALID_CARD', 'Выберите карту из списка');
+    const money = await resolveMoney(
+      { amount: input.amount, currency: input.currency, manualRate: input.rate },
+      currencies,
       this.options.currency,
     );
+    const { amount, original, ...kept } = money;
     const { date, card, category, name } = input;
     return this.repository.insertPending(
       db,
       { date, card, category, name, amount },
       author.username,
       original,
+      kept,
     );
   }
 

@@ -17,6 +17,14 @@ export interface ExpenseOriginal {
   rate: number;
 }
 
+/** The expense in the currency of its card and in the group's reporting currency (see migration 0012). */
+export interface ExpenseMoney {
+  cardCurrency: string;
+  cardAmount: number;
+  reportingCurrency: string;
+  reportingAmount: number;
+}
+
 export interface StoredExpense extends Expense {
   /** The group the record belongs to; null for records made before groups existed */
   groupId: string | null;
@@ -31,6 +39,8 @@ export interface StoredExpense extends Expense {
   excelSnapshot: Expense | null;
   /** Original amount in the foreign currency; null for dram expenses and records from Excel */
   original: ExpenseOriginal | null;
+  /** Money in the card's and the reporting currency; null for records that only have the drams amount */
+  money: ExpenseMoney | null;
 }
 
 /** How often a name occurs in a category (case-insensitive, ignoring surrounding whitespace). */
@@ -55,6 +65,7 @@ export interface ExpenseRepository {
     expense: Expense,
     createdBy: string,
     original?: ExpenseOriginal,
+    money?: ExpenseMoney,
   ): Promise<StoredExpense>;
   findById(id: string): Promise<StoredExpense | undefined>;
   /** Categories used by the records the scope allows (all records without a scope: internal use) */
@@ -89,6 +100,8 @@ export interface ExpenseRepository {
     values: Expense,
     by: string,
     clearOriginal: boolean,
+    /** New money of the record when the amount changed */
+    money?: ExpenseMoney,
   ): Promise<void>;
   markDeletedByApp(db: SqlExecutor, id: string, by: string): Promise<void>;
   restoreByApp(db: SqlExecutor, id: string, by: string): Promise<void>;

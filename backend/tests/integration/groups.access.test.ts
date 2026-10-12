@@ -137,7 +137,9 @@ describe('скрытая карта не просачивается в агре�
   it('чужая категория и чужая карта не попадают в справочники', async () => {
     const categories = (await get('/api/categories', 'misha')).json().data;
     expect(categories).not.toContain('чужая-категория');
-    const cards = (await get('/api/cards', 'misha')).json().data;
+    const cards = (await get('/api/cards', 'misha'))
+      .json()
+      .data.map((c: { name: string }) => c.name);
     expect(cards).toEqual(['Миша', 'Настя']);
   });
 });
@@ -155,7 +157,9 @@ describe('добавление трат', () => {
     );
 
   it('участник видит в форме только карты с доступом edit', async () => {
-    expect((await get('/api/cards', 'nastya')).json().data).toEqual(['Миша']);
+    expect(
+      (await get('/api/cards', 'nastya')).json().data.map((c: { name: string }) => c.name),
+    ).toEqual(['Миша']);
   });
 
   it('на карту с доступом можно, на скрытую или чужую нельзя', async () => {
@@ -173,13 +177,17 @@ describe('добавление трат', () => {
 
     expect((await add('Миша', 'nastya')).statusCode).toBe(422);
     expect(await names('nastya')).toEqual(['Кофе миши']);
-    expect((await get('/api/cards', 'nastya')).json().data).toEqual([]);
+    expect(
+      (await get('/api/cards', 'nastya')).json().data.map((c: { name: string }) => c.name),
+    ).toEqual([]);
   });
 
   it('архивная карта не предлагается, а старые траты по ней остаются видны', async () => {
     await database.query('UPDATE cards SET archived_at = now() WHERE id = $1', [cardIds['Миша']]);
 
-    expect((await get('/api/cards', 'misha')).json().data).toEqual(['Настя']);
+    expect(
+      (await get('/api/cards', 'misha')).json().data.map((c: { name: string }) => c.name),
+    ).toEqual(['Настя']);
     expect((await add('Миша', 'misha')).statusCode).toBe(422);
     expect(await names('nastya')).toEqual(['Кофе миши']);
   });
