@@ -10,7 +10,7 @@ import {
   YAxis,
 } from 'recharts';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency.tsx';
-import { formatMoney } from '../../../shared/utils/money.ts';
+import { formatAmount, formatMoney } from '../../../shared/utils/money.ts';
 import { compactNumber } from '../model/chart-data.ts';
 import { averageOfCompleteMonths, type MonthRow } from '../model/compare.ts';
 import { monthLabel, monthYearShortLabel } from '../model/periods.ts';
@@ -38,7 +38,7 @@ export function MonthlyTotalsChart({ rows, currency, loading = false }: MonthlyT
       description={
         average === null
           ? undefined
-          : `Среднее по завершённым месяцам: ${formatMoney(average, digits)} ${currency}`
+          : `Среднее по завершённым месяцам: ${formatAmount(average, digits)} ${currency}`
       }
       table={
         rows &&
@@ -97,7 +97,7 @@ export function MonthlyTotalsChart({ rows, currency, loading = false }: MonthlyT
                         { label: 'Операций', value: String(row.count) },
                         {
                           label: 'В день',
-                          value: `${formatMoney(row.perDay, digits)} ${currency}`,
+                          value: `${formatAmount(row.perDay, digits)} ${currency}`,
                         },
                         ...(row.change === null
                           ? []

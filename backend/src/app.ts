@@ -35,7 +35,7 @@ export interface AppDependencies {
   /** Editing and deleting records */
   editor: ExpenseEditor;
   /** Cards of a group (for the default card in the profile) */
-  groups: Pick<GroupsRepository, 'cardNames' | 'reportingCurrency'>;
+  groups: Pick<GroupsRepository, 'cardNames' | 'reportingCurrency' | 'visibleCards'>;
   /** Management of the user's own group (owner) */
   groupService: GroupService;
   /** Groups for the application administrator */
@@ -157,7 +157,7 @@ export function buildApp({
   });
   app.register(ratesRoutes(rates), { prefix: '/api' });
   app.register(preferencesRoutes(preferences), { prefix: '/api' });
-  app.register(analyticsRoutes(analytics), { prefix: '/api' });
+  app.register(analyticsRoutes(analytics, groups), { prefix: '/api' });
   app.register(
     expenseEditRoutes({
       editor,

@@ -150,7 +150,7 @@ describe('отчётность группы не в драммах', () => {
     reportInDollars();
     renderAnalytics();
 
-    await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('2 100 USD'));
+    await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('2 100,00 USD'));
     await waitFor(() =>
       expect(
         within(screen.getByRole('radiogroup', { name: 'Валюта отображения' }))
@@ -164,7 +164,7 @@ describe('отчётность группы не в драммах', () => {
   it('выбор драммов умножает суммы на курс доллара и округляет до целых', async () => {
     reportInDollars();
     const user = renderAnalytics();
-    await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('2 100 USD'));
+    await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('2 100,00 USD'));
     await waitFor(() => expect(screen.getByRole('radio', { name: '🇦🇲 AMD' })).toBeInTheDocument());
 
     await pick(user, 'AMD');

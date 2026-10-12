@@ -4,6 +4,7 @@ import { currencyLabel } from '../../../shared/utils/currency-flags.ts';
 import {
   formatAmountInput,
   formatDecimalInput,
+  formatAmount,
   formatMoney,
   parseDecimal,
 } from '../../../shared/utils/money.ts';
@@ -123,7 +124,7 @@ export function AmountFields({ form, base, cards, rates }: AmountFieldsProps) {
         </div>
         {converted !== null && (
           <p className="text-sm text-zinc-500" aria-live="polite">
-            ≈ {formatMoney(converted, currencyDigits(cardCurrency, base))} {cardCurrency}
+            ≈ {formatAmount(converted, currencyDigits(cardCurrency, base))} {cardCurrency}
           </p>
         )}
       </Field>

@@ -1,6 +1,6 @@
 import { useSearchParams } from 'react-router';
 import { Notice } from '../../../shared/ui/Notice.tsx';
-import { formatMoney } from '../../../shared/utils/money.ts';
+import { formatAmount, formatMoney } from '../../../shared/utils/money.ts';
 import { CategoryChart } from '../components/CategoryChart.tsx';
 import { CategoryNames } from '../components/CategoryNames.tsx';
 import { DailyChart } from '../components/DailyChart.tsx';
@@ -47,7 +47,7 @@ export default function OverviewPage() {
   const current = scaled?.current;
   const previous = scaled?.previous ?? undefined;
   const money = (value: number | undefined) =>
-    value === undefined ? '…' : `${formatMoney(value, digits)} ${currency}`;
+    value === undefined ? '…' : `${formatAmount(value, digits)} ${currency}`;
   const note = current ? `к предыдущим ${current.days} дн.` : undefined;
 
   return (

@@ -9,6 +9,7 @@ import { todayIso } from '../../../shared/utils/date.ts';
 import { currencyDigits } from '../../../shared/utils/conversion.ts';
 import {
   formatAmountInput,
+  formatAmount,
   formatMoney,
   parseAmount,
   parseDecimal,
@@ -65,7 +66,7 @@ function successMessage(
   base: string,
 ): string {
   if (!original) return 'Расход успешно добавлен';
-  return `Расход добавлен: ${formatMoney(reportingAmount, currencyDigits(reportingCurrency ?? reporting, base))} ${reportingCurrency ?? reporting} (${formatMoney(original.amount)} ${original.currency} по курсу ${formatMoney(original.rate, 6)})`;
+  return `Расход добавлен: ${formatAmount(reportingAmount, currencyDigits(reportingCurrency ?? reporting, base))} ${reportingCurrency ?? reporting} (${formatMoney(original.amount)} ${original.currency} по курсу ${formatMoney(original.rate, 6)})`;
 }
 
 export function ExpenseForm({ cards, categories, currency, baseCurrency, user }: ExpenseFormProps) {

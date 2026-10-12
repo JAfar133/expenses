@@ -406,3 +406,42 @@ describe('ответ на создание траты', () => {
     });
   });
 });
+
+describe('фильтр и разбивка по валюте ввода', () => {
+  const total = async (query: string) =>
+    (await call('GET', `/api/analytics/summary?${query}`, 'misha')).json().data.current.total;
+
+  it('валюта ввода это то, в чём вводили: рубли на драмовой карте находятся по RUB', async () => {
+    await createCard('Доллары', 'USD');
+    await spend('Миша', 100, { currency: 'RUB' });
+    await spend('Миша', 500);
+    await spend('Доллары', 10);
+    await spend('Доллары', 38000, { currency: 'AMD' });
+
+    expect(await total('currencies=RUB')).toBe(450);
+    expect(await total('currencies=USD')).toBe(3800);
+    expect(await total('currencies=AMD')).toBe(38500);
+    const byCurrency = (await call('GET', '/api/analytics/breakdown?by=currency', 'misha')).json()
+      .data;
+    expect(byCurrency.map((r: { key: string }) => r.key).sort()).toEqual(['AMD', 'RUB', 'USD']);
+  });
+});
+
+describe('карты для фильтра', () => {
+  it('владелец видит все карты, в том числе без трат и архивные; участник только доступные', async () => {
+    await createCard('Пустая', 'EUR');
+    const old = await createCard('Старая');
+    await call('PATCH', `/api/group/cards/${old.id}`, 'misha', { archived: true });
+
+    const owner = (await call('GET', '/api/analytics/cards', 'misha')).json().data;
+    const member = (await call('GET', '/api/analytics/cards', 'nastya')).json().data;
+
+    expect(owner).toEqual([
+      { name: 'Миша', currency: 'AMD', archived: false },
+      { name: 'Настя', currency: 'AMD', archived: false },
+      { name: 'Пустая', currency: 'EUR', archived: false },
+      { name: 'Старая', currency: 'AMD', archived: true },
+    ]);
+    expect(member.map((c: { name: string }) => c.name)).toEqual(['Миша', 'Настя']);
+  });
+});

@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { AuthUser } from '../auth/auth.types.ts';
+import type { GroupsRepository } from '../groups/groups.repository.ts';
 import { scopeOf } from '../groups/scope.ts';
 import { parseQuery } from './analytics.filters.ts';
 import type { AnalyticsService } from './analytics.service.ts';
@@ -24,7 +25,10 @@ function filtersOf(query: AnalyticsFilters, user: AuthUser): AnalyticsFilters {
 }
 
 export const analyticsRoutes =
-  (analytics: AnalyticsService): FastifyPluginAsync =>
+  (
+    analytics: AnalyticsService,
+    groups: Pick<GroupsRepository, 'visibleCards'>,
+  ): FastifyPluginAsync =>
   async (app) => {
     app.get('/analytics/summary', async (request) => {
       const query = parseQuery('filters', request.query);
@@ -54,6 +58,12 @@ export const analyticsRoutes =
         ),
       };
     });
+
+    /** The cards for the filter: every card the user can see, not only those with expenses. */
+    app.get('/analytics/cards', async (request) => ({
+      success: true,
+      data: await groups.visibleCards(scopeOf(request.user!)),
+    }));
 
     /** Expense authors for the "кто добавил" (who added) filter. */
     app.get('/analytics/authors', async (request) => ({

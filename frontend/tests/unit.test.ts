@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { setAppTimezone, todayIso } from '../src/shared/utils/date.ts';
 import { offsetLabel, timezoneOptions } from '../src/features/settings/model/timezones.ts';
 import {
+  formatAmount,
   formatAmountInput,
   formatDecimalInput,
   formatMoney,
@@ -95,8 +96,19 @@ describe('parseDecimal', () => {
 describe('formatMoney', () => {
   it('группирует тысячи обычными пробелами и использует запятую', () => {
     expect(formatMoney(3990)).toBe('3 990');
-    expect(formatMoney(10.5)).toBe('10,5');
+    // A fractional amount always has two decimals: 1 000,30 and not 1 000,3
+    expect(formatMoney(10.5)).toBe('10,50');
+    expect(formatMoney(1000.3)).toBe('1 000,30');
+    expect(formatMoney(12.5, 1)).toBe('12,5');
     expect(formatMoney(380.123456, 6)).toBe('380,123456');
+  });
+});
+
+describe('formatAmount', () => {
+  it('ровно столько знаков, сколько у валюты: драммы без копеек, остальные с двумя', () => {
+    expect(formatAmount(1000.3, 2)).toBe('1 000,30');
+    expect(formatAmount(1000, 2)).toBe('1 000,00');
+    expect(formatAmount(3990, 0)).toBe('3 990');
   });
 });
 

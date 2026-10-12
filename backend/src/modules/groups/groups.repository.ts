@@ -73,4 +73,21 @@ export class GroupsRepository {
     );
     return row?.reporting_currency;
   }
+
+  /** All cards the user can see (any access level, archived ones too: their history stays), for filters. */
+  async visibleCards(
+    scope: ExpenseScope,
+  ): Promise<{ name: string; currency: string; archived: boolean }[]> {
+    const params: unknown[] = [];
+    const param = (value: unknown) => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+    return this.database.query<{ name: string; currency: string; archived: boolean }>(
+      `SELECT c.name, c.currency, (c.archived_at IS NOT NULL) AS archived FROM cards c
+        WHERE ${scopeCondition(scope, param, { columns: { group: 'c.group_id', card: 'c.id' } })}
+        ORDER BY (c.archived_at IS NOT NULL), c.position, c.name`,
+      params,
+    );
+  }
 }

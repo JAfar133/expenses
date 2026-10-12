@@ -11,6 +11,14 @@ interface StatTileProps {
   className?: string;
 }
 
+/** A long amount ("103 404,89 RUB") gets a smaller font so that it stays inside the tile. */
+const valueSize = (value: string) =>
+  value.length > 13
+    ? 'text-base sm:text-lg'
+    : value.length > 10
+      ? 'text-lg sm:text-xl'
+      : 'text-xl sm:text-2xl';
+
 /**
  * Metric tile: label, value and (optionally) change versus the previous period.
  * For expenses growth is bad and a decrease is good; direction is always duplicated by an arrow and text, not only color.
@@ -26,9 +34,13 @@ export function StatTile({
   const direction = rounded === null || rounded === 0 ? 'flat' : rounded > 0 ? 'up' : 'down';
 
   return (
-    <div className={`rounded-2xl bg-white p-4 shadow-sm dark:bg-zinc-900 ${className}`}>
+    <div
+      className={`min-w-0 overflow-hidden rounded-2xl bg-white p-4 shadow-sm dark:bg-zinc-900 ${className}`}
+    >
       <div className="text-sm text-zinc-500 dark:text-zinc-400">{label}</div>
-      <div className="mt-1 whitespace-nowrap text-xl font-semibold tracking-tight sm:text-2xl">
+      <div
+        className={`mt-1 whitespace-nowrap font-semibold tracking-tight tabular-nums ${valueSize(value)}`}
+      >
         {value}
       </div>
       {rounded !== null && (

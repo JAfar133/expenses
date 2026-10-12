@@ -62,11 +62,25 @@ export function parseDecimal(value: string): number | null {
   return /^\d+([.,]\d+)?$/.test(compact) ? Number(compact.replace(',', '.')) : null;
 }
 
-/** Number for display: `3990` → `3 990`, `10.5` → `10,5`. */
-export function formatMoney(value: number, maxFractionDigits = 2, minFractionDigits = 0): string {
+/**
+ * Number for display: `3990` → `3 990`, `10.5` → `10,50`. A fractional amount always has two decimals
+ * (`1 000,30`, not `1 000,3`); a whole one has none. Other precisions (percentages, rates) pass `maxFractionDigits`.
+ */
+export function formatMoney(value: number, maxFractionDigits = 2): string {
+  const minimumFractionDigits = maxFractionDigits === 2 && !Number.isInteger(value) ? 2 : 0;
   return new Intl.NumberFormat('ru-RU', {
+    minimumFractionDigits,
     maximumFractionDigits: maxFractionDigits,
-    minimumFractionDigits: minFractionDigits,
+  })
+    .format(value)
+    .replace(/[\s ]/g, ' ');
+}
+
+/** An amount of money with exactly `digits` decimals (the precision of its currency: 0 for drams, 2 for the rest). */
+export function formatAmount(value: number, digits: number): string {
+  return new Intl.NumberFormat('ru-RU', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
   })
     .format(value)
     .replace(/[\s ]/g, ' ');

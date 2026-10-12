@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   fetchAuthors,
+  fetchFilterCards,
   fetchBreakdown,
   fetchSummary,
   fetchTimeseries,
@@ -49,6 +50,14 @@ export const useTimeseries = (
   });
 
 /** List of authors for the filter; changes rarely. */
+/** All cards the user can see: new and empty ones are in the filter too. */
+export const useFilterCards = () =>
+  useQuery({
+    queryKey: [...ANALYTICS_KEY, 'cards'],
+    queryFn: fetchFilterCards,
+    staleTime: 60_000,
+  });
+
 export const useAuthors = () =>
   useQuery({
     queryKey: [...ANALYTICS_KEY, 'authors'],

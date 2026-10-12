@@ -14,8 +14,13 @@ export const EXPENSES_SOURCE =
  */
 export const AMOUNT_SQL = 'COALESCE(reporting_amount, amount)';
 
-/** The currency of a record: the currency of its card (drams for records without it). */
-export const CURRENCY_SQL = (baseParam: string) => `COALESCE(card_currency, ${baseParam})`;
+/**
+ * The currency a record was entered in: what the user typed when it differs from the card (original_currency),
+ * otherwise the currency of its card (drams for records without it). This is what the currency filter and the
+ * breakdown by currency use.
+ */
+export const CURRENCY_SQL = (baseParam: string) =>
+  `COALESCE(original_currency, card_currency, ${baseParam})`;
 
 /** The card name in queries over `EXPENSES_SOURCE`. */
 export const CARD_NAME_SQL = 'COALESCE(card_label, card)';

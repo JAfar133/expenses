@@ -90,6 +90,11 @@ export function setupAnalyticsHarness() {
           return ok(namesByCategory[url.searchParams.get('categories') ?? ''] ?? []);
         return ok(categories);
       },
+      '/api/analytics/cards': () =>
+        ok([
+          { name: 'Миша', currency: 'AMD', archived: false },
+          { name: 'Настя', currency: 'AMD', archived: false },
+        ]),
       '/api/analytics/authors': () =>
         ok([
           { value: 'misha', label: 'Миша', count: 4 },

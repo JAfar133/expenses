@@ -98,4 +98,14 @@ export interface Author {
   count: number;
 }
 
+/** A card for the filter: every card the user can see, also an empty or an archived one. */
+export interface FilterCard {
+  name: string;
+  currency: string;
+  archived: boolean;
+}
+
+export const fetchFilterCards = async () =>
+  (await apiRequest<FilterCard[]>('/analytics/cards')).data;
+
 export const fetchAuthors = async () => (await apiRequest<Author[]>('/analytics/authors')).data;

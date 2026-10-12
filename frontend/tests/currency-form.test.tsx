@@ -137,7 +137,7 @@ describe('валюта по карте', () => {
     expect(screen.getByLabelText('Курс: AMD за 1 EUR')).toHaveValue('500');
     await person.type(screen.getByLabelText('Стоимость'), '8');
     // 8 EUR * 500 / 400 = 10 USD
-    expect(screen.getByText('≈ 10 USD')).toBeInTheDocument();
+    expect(screen.getByText('≈ 10,00 USD')).toBeInTheDocument();
 
     await fill(person, '');
     await submit(person);
@@ -152,7 +152,7 @@ describe('валюта по карте', () => {
 
     expect(screen.queryByLabelText(/Курс/)).toBeNull();
     await person.type(screen.getByLabelText('Стоимость'), '4000');
-    expect(screen.getByText('≈ 10 USD')).toBeInTheDocument();
+    expect(screen.getByText('≈ 10,00 USD')).toBeInTheDocument();
 
     await fill(person, '');
     await submit(person);

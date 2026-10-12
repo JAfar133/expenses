@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   harness,
   json,
+  ok,
   renderAnalytics,
   setupAnalyticsHarness,
 } from './helpers/analytics-harness.tsx';
@@ -226,6 +227,25 @@ describe('панель фильтров', () => {
     expect(names('Кто добавил')).toEqual(['Миша', 'Настя']);
     expect(names('Валюта ввода')).toEqual(['AMD', 'USD']);
     expect(names('Категории')).toEqual(['кафе', 'продукты']);
+  });
+
+  it('в фильтре все карты группы, в том числе новая без трат и архивная', async () => {
+    harness.handlers['/api/analytics/cards'] = () =>
+      ok([
+        { name: 'Миша', currency: 'AMD', archived: false },
+        { name: 'Новая', currency: 'USD', archived: false },
+        { name: 'Старая', currency: 'AMD', archived: true },
+      ]);
+    const user = renderAnalytics();
+    await openPanel(user);
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('group', { name: 'Карты' }))
+          .getAllByRole('button')
+          .map((b) => b.textContent),
+      ).toEqual(['Миша', 'Новая', 'Старая (архив)']),
+    );
   });
 
   it('карта: выбор попадает в адрес и в запросы, повторное нажатие снимает', async () => {

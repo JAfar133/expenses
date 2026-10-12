@@ -308,7 +308,7 @@ describe('валюта', () => {
       expect.objectContaining({}),
     );
     expect(
-      await screen.findByText('Расход добавлен: 3 990 AMD (10,5 USD по курсу 380)'),
+      await screen.findByText('Расход добавлен: 3 990 AMD (10,50 USD по курсу 380)'),
     ).toBeInTheDocument();
   });
 

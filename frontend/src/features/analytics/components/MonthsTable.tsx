@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency.tsx';
-import { formatMoney } from '../../../shared/utils/money.ts';
+import { formatAmount, formatMoney } from '../../../shared/utils/money.ts';
 import { sortRows, type MonthRow, type SortDirection } from '../model/compare.ts';
 import { monthLabel } from '../model/periods.ts';
 import { ChartCard, ChartMessage } from './ChartCard.tsx';
@@ -94,7 +94,7 @@ export function MonthsTable({ rows, currency }: MonthsTableProps) {
                   </td>
                   <td className="py-2 text-right tabular-nums">{row.count}</td>
                   <td className="py-2 text-right tabular-nums">
-                    {formatMoney(row.perDay, digits)}
+                    {formatAmount(row.perDay, digits)}
                   </td>
                   <td className="py-2 text-right tabular-nums">
                     <Change value={row.change} />

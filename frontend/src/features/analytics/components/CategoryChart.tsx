@@ -12,7 +12,7 @@ import {
   YAxis,
 } from 'recharts';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency.tsx';
-import { formatMoney } from '../../../shared/utils/money.ts';
+import { formatAmount, formatMoney } from '../../../shared/utils/money.ts';
 import type { BreakdownRow } from '../api/analytics.api.ts';
 import { usePreference } from '../../preferences/hooks/usePreferences.ts';
 import { PREFERENCES } from '../../preferences/model/preferences.ts';
@@ -139,7 +139,7 @@ function BarsChart({
                 color: SERIES_COLOR,
               },
               { label: 'Операций', value: String(row.count) },
-              { label: 'Средний чек', value: `${formatMoney(row.average, digits)} ${currency}` },
+              { label: 'Средний чек', value: `${formatAmount(row.average, digits)} ${currency}` },
             ]}
           />
         );

@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router';
 import { ApiError } from '../../../shared/api/http.ts';
 import { Notice } from '../../../shared/ui/Notice.tsx';
 import { currencyDigits } from '../../../shared/utils/conversion.ts';
-import { formatMoney } from '../../../shared/utils/money.ts';
+import { formatAmount, formatMoney } from '../../../shared/utils/money.ts';
 import { useCurrentUser } from '../../auth/hooks/useAuth.ts';
 import { fetchCards } from '../../expenses/api/expenses.api.ts';
 import { toSaveErrorMessage } from '../../expenses/api/save-error-message.ts';
@@ -134,7 +134,7 @@ export default function OperationsPage() {
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             Записей: <strong className="font-semibold">{list.data.total}</strong> на{' '}
             <strong className="font-semibold">
-              {formatMoney(list.data.totalAmount, currencyDigits(currency, baseCurrency))}{' '}
+              {formatAmount(list.data.totalAmount, currencyDigits(currency, baseCurrency))}{' '}
               {currency}
             </strong>
           </p>
@@ -250,7 +250,7 @@ export default function OperationsPage() {
       {deleting && (
         <ConfirmDialog
           title="Удалить запись?"
-          message={`«${deleting.name}», ${formatMoney(deleting.amount, currencyDigits(deleting.currency || currency, baseCurrency))} ${deleting.currency || currency}. Запись можно будет вернуть: включите «Показывать удалённые» в фильтрах. Из Excel строка будет убрана.`}
+          message={`«${deleting.name}», ${formatAmount(deleting.amount, currencyDigits(deleting.currency || currency, baseCurrency))} ${deleting.currency || currency}. Запись можно будет вернуть: включите «Показывать удалённые» в фильтрах. Из Excel строка будет убрана.`}
           confirmLabel="Удалить"
           busy={remove.isPending}
           onCancel={() => setDeleting(undefined)}

@@ -1,5 +1,5 @@
 import { currencyDigits } from '../../../shared/utils/conversion.ts';
-import { formatMoney } from '../../../shared/utils/money.ts';
+import { formatAmount, formatMoney } from '../../../shared/utils/money.ts';
 import type { OperationItem, SortColumn, SortDirection } from '../api/operations.api.ts';
 import { ExcelStateBadge } from './ExcelStateBadge.tsx';
 
@@ -56,12 +56,7 @@ function Amount({
   return (
     <span className="inline-flex flex-col items-end">
       <span className="font-medium tabular-nums whitespace-nowrap">
-        {formatMoney(
-          item.amount,
-          currencyDigits(own, baseCurrency),
-          currencyDigits(own, baseCurrency),
-        )}{' '}
-        {own}
+        {formatAmount(item.amount, currencyDigits(own, baseCurrency))} {own}
       </span>
       {item.original && (
         <span className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -73,9 +68,8 @@ function Amount({
       {showReporting && (
         <span className="text-xs text-zinc-500 dark:text-zinc-400">
           ≈{' '}
-          {formatMoney(
+          {formatAmount(
             item.reportingAmount!,
-            currencyDigits(item.reportingCurrency!, baseCurrency),
             currencyDigits(item.reportingCurrency!, baseCurrency),
           )}{' '}
           {item.reportingCurrency}
