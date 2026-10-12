@@ -69,6 +69,7 @@ describe('драйвер pg', () => {
       '0011_category_sync.sql',
       '0012_money.sql',
       '0013_rate_history.sql',
+      '0014_app_settings.sql',
     ]);
   });
 

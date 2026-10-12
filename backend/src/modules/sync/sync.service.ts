@@ -68,6 +68,7 @@ export class SyncService {
   /** Parameters of the next cycle: requests that joined it are merged */
   private nextOptions: CycleOptions = {};
   private lastResult?: SyncResult;
+  private switchedOff = false;
 
   constructor(private readonly deps: SyncServiceDeps) {}
 
@@ -75,9 +76,19 @@ export class SyncService {
     return this.running !== undefined;
   }
 
-  /** Excel is enabled if an OneDrive file is set. */
-  get enabled(): boolean {
+  /** An OneDrive file is set in the server configuration (Excel can be used at all). */
+  get configured(): boolean {
     return this.deps.oneDrive !== undefined;
+  }
+
+  /** Excel is used: a file is set and the administrator has not switched the sync off. While off, OneDrive is not touched. */
+  get enabled(): boolean {
+    return this.configured && !this.switchedOff;
+  }
+
+  /** The administrator's switch (see SyncSwitch). A cycle that is already running finishes. */
+  setEnabled(enabled: boolean): void {
+    this.switchedOff = !enabled;
   }
 
   /** Starts a cycle (or joins the pending one). Never throws: the outcome is in the result. */

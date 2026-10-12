@@ -20,6 +20,7 @@ import { ExpenseEditor } from './modules/expenses/expense-editor.ts';
 import { expenseEditRoutes } from './modules/expenses/expense-edit.routes.ts';
 import { expensesRoutes } from './modules/expenses/expenses.routes.ts';
 import type { ExpenseService } from './modules/expenses/expenses.service.ts';
+import type { SyncSwitch } from './modules/sync/sync-switch.ts';
 import type { SyncScheduler } from './modules/sync/sync.scheduler.ts';
 import { syncRoutes } from './modules/sync/sync.routes.ts';
 import type { SyncService } from './modules/sync/sync.service.ts';
@@ -46,6 +47,8 @@ export interface AppDependencies {
   idempotency: IdempotencyService;
   sync: SyncService;
   scheduler: SyncScheduler;
+  /** The administrator's switch of the Excel sync */
+  syncSwitch?: SyncSwitch;
   /** Database check for `/api/ready`; without it the endpoint always reports ready */
   checkDatabase?: () => Promise<unknown>;
   /** How long to wait for the Excel write before responding to expense creation */
@@ -72,6 +75,7 @@ export function buildApp({
   idempotency,
   sync,
   scheduler,
+  syncSwitch,
   checkDatabase,
   inlineExcelWaitMs = 15_000,
   currency = 'AMD',
@@ -166,7 +170,7 @@ export function buildApp({
   app.register(groupRoutes(groupService), { prefix: '/api' });
   app.register(adminRoutes(platformAdmin), { prefix: '/api' });
   app.register(invitationRoutes(invitations, auth), { prefix: '/api' });
-  app.register(syncRoutes({ sync, scheduler }), { prefix: '/api' });
+  app.register(syncRoutes({ sync, scheduler, syncSwitch }), { prefix: '/api' });
   app.register(
     authRoutes(auth, (user) =>
       user.groupId ? groups.cardNames(user.groupId) : Promise.resolve([]),

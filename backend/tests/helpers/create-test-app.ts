@@ -18,6 +18,7 @@ import { PlatformAdminService } from '../../src/modules/groups/platform-admin.se
 import { GroupsRepository } from '../../src/modules/groups/groups.repository.ts';
 import { ExpenseEditor } from '../../src/modules/expenses/expense-editor.ts';
 import { ExpenseService } from '../../src/modules/expenses/expenses.service.ts';
+import { SyncSwitch } from '../../src/modules/sync/sync-switch.ts';
 import { SyncScheduler } from '../../src/modules/sync/sync.scheduler.ts';
 import type { SyncService } from '../../src/modules/sync/sync.service.ts';
 import type { SyncResult, SyncStatusView } from '../../src/modules/sync/sync.types.ts';
@@ -57,6 +58,13 @@ export class FakeSync {
 
   /** false: simulates a missing ONEDRIVE_FILE_PATH */
   enabled = true;
+  /** The part the administrator's switch uses */
+  get configured() {
+    return true;
+  }
+  setEnabled(enabled: boolean) {
+    this.enabled = enabled;
+  }
 
   async requestCycle(options: { applyDeletions?: boolean } = {}): Promise<SyncResult> {
     this.cycles++;
@@ -203,7 +211,10 @@ export async function createTestApp(
     now: options.now,
   });
 
+  const syncSwitch = new SyncSwitch(database, sync, scheduler);
+
   const app = buildApp({
+    syncSwitch,
     expenseService: new ExpenseService(repository, { groups, currency: rates }),
     groups,
     invitations,

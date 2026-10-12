@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { forbiddenError, validationError } from '../../errors/app-error.ts';
+import type { SyncSwitch } from './sync-switch.ts';
 import type { SyncScheduler } from './sync.scheduler.ts';
 import type { SyncService } from './sync.service.ts';
 
@@ -10,10 +11,12 @@ const runSyncBodySchema = z.object({ applyDeletions: z.boolean().optional() }).o
 export interface SyncRoutesDeps {
   sync: SyncService;
   scheduler: SyncScheduler;
+  /** The administrator's on/off switch */
+  syncSwitch?: Pick<SyncSwitch, 'view' | 'set'>;
 }
 
 export const syncRoutes =
-  ({ sync, scheduler }: SyncRoutesDeps): FastifyPluginAsync =>
+  ({ sync, scheduler, syncSwitch }: SyncRoutesDeps): FastifyPluginAsync =>
   async (app) => {
     /** State for the UI: the queue, the last result and the next run time. */
     const view = async () => {
@@ -42,4 +45,25 @@ export const syncRoutes =
       await scheduler.syncNow({ applyDeletions });
       return view();
     });
+
+    /** Excel sync switch (application administrator only). */
+    if (syncSwitch) {
+      app.get('/admin/sync', async (request) => {
+        if (!request.user?.isAdmin) throw forbiddenError();
+        return { success: true, data: await syncSwitch.view() };
+      });
+
+      app.put('/admin/sync', async (request) => {
+        if (!request.user?.isAdmin) throw forbiddenError();
+        const enabled = (request.body as { enabled?: unknown } | undefined)?.enabled;
+        if (typeof enabled !== 'boolean') {
+          throw validationError('INVALID_REQUEST', 'Укажите enabled: true или false');
+        }
+        request.log.info(
+          { operation: 'admin.sync', userId: request.user.username, enabled },
+          'Excel sync switched',
+        );
+        return { success: true, data: await syncSwitch.set(enabled) };
+      });
+    }
   };

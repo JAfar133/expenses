@@ -23,6 +23,7 @@ import { PreferencesRepository } from './modules/preferences/preferences.reposit
 import { RatesRepository } from './modules/rates/rates.repository.ts';
 import { RatesService } from './modules/rates/rates.service.ts';
 import { SyncScheduler } from './modules/sync/sync.scheduler.ts';
+import { SyncSwitch } from './modules/sync/sync-switch.ts';
 import { SyncService } from './modules/sync/sync.service.ts';
 import { SyncStateRepository } from './modules/sync/sync-state.repository.ts';
 import { RcloneOneDriveService } from './services/onedrive.service.ts';
@@ -127,6 +128,7 @@ const scheduler = new SyncScheduler({
   intervalMs: env.SYNC_INTERVAL_MINUTES * 60_000,
   retryMs: env.SYNC_RETRY_SECONDS * 1000,
 });
+const syncSwitch = new SyncSwitch(database, sync, scheduler);
 
 const app = buildApp({
   currency: env.DEFAULT_CURRENCY,
@@ -165,6 +167,7 @@ const app = buildApp({
   idempotency,
   sync,
   scheduler,
+  syncSwitch,
   inlineExcelWaitMs: env.SYNC_INLINE_WAIT_SECONDS * 1000,
   expenseService: new ExpenseService(expenses, {
     groups,
@@ -228,12 +231,13 @@ if (unknownCards.length > 0) {
 
 await app.listen({ host: env.HOST, port: env.PORT });
 
-// The first sync starts immediately: it pulls in the Excel rows and appends the queue
-if (sync.enabled) {
-  scheduler.start();
-} else {
+// The first sync starts immediately (if it is on): it pulls in the Excel rows and appends the queue
+const syncState = await syncSwitch.load();
+if (!syncState.enabled) {
   app.log.info(
-    'ONEDRIVE_FILE_PATH is not set: Excel sync is disabled, expenses are stored in the database only',
+    syncState.configured
+      ? 'Excel sync is switched off by the administrator: OneDrive is not used'
+      : 'ONEDRIVE_FILE_PATH is not set: Excel sync is disabled, expenses are stored in the database only',
   );
 }
 
