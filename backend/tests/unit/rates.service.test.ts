@@ -121,4 +121,20 @@ describe('createCbaClient', () => {
 
     await expect(client(['USD'])).rejects.toThrow('HTTP 500');
   });
+
+  it('курсы дня пишутся в историю с датой «сегодня»', async () => {
+    const days: (string | undefined)[] = [];
+    const service = new RatesService({
+      repository: { list: async () => [], save: async (_rates, day) => void days.push(day) },
+      fetchRates: source({ USD: 380 }),
+      base: 'AMD',
+      currencies: ['AMD', 'USD'],
+      refreshMs: 6 * HOUR,
+      today: () => '2026-10-12',
+    });
+
+    await service.rateOf('USD');
+
+    expect(days).toEqual(['2026-10-12']);
+  });
 });

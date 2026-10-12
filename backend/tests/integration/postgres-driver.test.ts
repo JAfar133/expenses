@@ -68,6 +68,7 @@ describe('драйвер pg', () => {
       '0010_invitations.sql',
       '0011_category_sync.sql',
       '0012_money.sql',
+      '0013_rate_history.sql',
     ]);
   });
 

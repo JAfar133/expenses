@@ -23,6 +23,7 @@ describe('миграции', () => {
       'card_access',
       'cards',
       'categories',
+      'exchange_rate_history',
       'exchange_rates',
       'expense_changes',
       'expenses',

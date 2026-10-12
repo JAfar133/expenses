@@ -196,8 +196,9 @@ export class GroupAdminRepository {
 
   /**
    * Changes the reporting currency of the group and recalculates the reporting amount of every record.
-   * A record of a card in that currency keeps its exact amount; the others are the drams amount at the given rate
-   * (drams per unit of the new currency). Returns how many records were recalculated.
+   * A record of a card in that currency keeps its exact amount; the others are the drams amount at the rate of the
+   * day of the expense (the nearest day in the history of rates), or at the given current rate (drams per unit of
+   * the new currency) when there is no history. Returns how many records were recalculated.
    */
   async setReportingCurrency(
     groupId: string,
@@ -210,7 +211,12 @@ export class GroupAdminRepository {
         `UPDATE expenses
             SET reporting_currency = $2,
                 reporting_amount = CASE WHEN card_currency = $2 THEN card_amount
-                                        ELSE round(amount::numeric / $3::numeric, $4::int) END
+                  ELSE round(amount::numeric / COALESCE(
+                    (SELECT h.rate FROM exchange_rate_history h
+                      WHERE h.currency = $2 AND h.date <= expenses.date ORDER BY h.date DESC LIMIT 1),
+                    (SELECT h.rate FROM exchange_rate_history h
+                      WHERE h.currency = $2 AND h.date > expenses.date ORDER BY h.date LIMIT 1),
+                    $3::numeric), $4::int) END
           WHERE group_id = $1
           RETURNING id`,
         [groupId, currency, rate, decimals],

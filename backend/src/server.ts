@@ -88,6 +88,7 @@ const rates = new RatesService({
   base: env.DEFAULT_CURRENCY,
   currencies: env.CURRENCIES,
   refreshMs: env.EXCHANGE_RATES_REFRESH_HOURS * HOUR_MS,
+  today: () => todayIn(env.APP_TIMEZONE),
   logger: { warn: (fields, message) => app.log.warn(fields, message) },
 });
 const auth = new AuthService({

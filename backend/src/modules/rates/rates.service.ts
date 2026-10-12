@@ -6,6 +6,8 @@ const RETRY_MS = 5 * 60_000;
 
 export interface RatesServiceOptions {
   repository: Pick<RatesRepository, 'list' | 'save'>;
+  /** Today's date (YYYY-MM-DD) for the history of rates; UTC by default */
+  today?: () => string;
   fetchRates: RateFetcher;
   /** Base currency (drams) and the currencies in which expenses can be entered */
   base: string;
@@ -94,7 +96,7 @@ export class RatesService {
 
       for (const item of fresh) this.cache.set(item.currency, item);
       await this.options.repository
-        .save(fresh)
+        .save(fresh, this.options.today?.() ?? new Date(this.now()).toISOString().slice(0, 10))
         .catch((error) =>
           this.options.logger?.warn({ err: error }, 'Failed to save exchange rates'),
         );

@@ -59,7 +59,7 @@ afterAll(() => database.close());
 
 beforeEach(async () => {
   await database.exec(
-    'DELETE FROM expenses; DELETE FROM invitations; DELETE FROM auth_sessions; DELETE FROM card_access; DELETE FROM memberships; DELETE FROM cards; DELETE FROM categories; DELETE FROM groups; DELETE FROM users',
+    'DELETE FROM expenses; DELETE FROM exchange_rate_history; DELETE FROM invitations; DELETE FROM auth_sessions; DELETE FROM card_access; DELETE FROM memberships; DELETE FROM cards; DELETE FROM categories; DELETE FROM groups; DELETE FROM users',
   );
   t = await createTestApp(database);
   t.rates.rates.set('USD', 380);
@@ -298,6 +298,61 @@ describe('смена валюты отчётности группы', () => {
       reporting_currency: 'AMD',
     });
     expect((await lastRow()).reporting_amount).toBe('3800.00');
+  });
+});
+
+describe('пересчёт по курсу на дату траты', () => {
+  const dated = (card: string, amount: number, date: string) => spend(card, amount, { date });
+  const setHistory = (currency: string, date: string, rate: number) =>
+    database.query(
+      'INSERT INTO exchange_rate_history (currency, date, rate, fetched_at) VALUES ($1, $2, $3, now())',
+      [currency, date, rate],
+    );
+
+  it('каждая трата пересчитывается по курсу своего дня, а не по сегодняшнему', async () => {
+    await dated('Миша', 3800, '2026-10-01');
+    await dated('Миша', 4000, '2026-10-05');
+    await setHistory('USD', '2026-10-01', 380);
+    await setHistory('USD', '2026-10-04', 400);
+    t.rates.rates.set('USD', 500);
+
+    await call('PUT', '/api/group/reporting-currency', 'misha', { currency: 'USD' });
+
+    const items = (await list()).map((i: { date: string; reportingAmount: number }) => [
+      i.date,
+      i.reportingAmount,
+    ]);
+    // 1 October: rate of 1 October (380); 5 October: the last known rate before it (400); not today's 500
+    expect(items).toEqual([
+      ['2026-10-01', 10],
+      ['2026-10-05', 10],
+    ]);
+  });
+
+  it('трата раньше всей истории берёт самый ранний известный курс, без истории курс сегодняшний', async () => {
+    await dated('Миша', 3800, '2026-09-01');
+    await setHistory('USD', '2026-10-01', 380);
+    t.rates.rates.set('USD', 500);
+
+    await call('PUT', '/api/group/reporting-currency', 'misha', { currency: 'USD' });
+    expect((await list())[0].reportingAmount).toBe(10);
+
+    await database.exec('DELETE FROM exchange_rate_history');
+    await call('PUT', '/api/group/reporting-currency', 'misha', { currency: 'AMD' });
+    await call('PUT', '/api/group/reporting-currency', 'misha', { currency: 'USD' });
+    expect((await list())[0].reportingAmount).toBe(7.6);
+  });
+
+  it('смена туда и обратно на ту же валюту возвращает точные суммы карты', async () => {
+    await createCard('Доллары', 'USD');
+    await dated('Доллары', 12.34, '2026-10-02');
+    await setHistory('USD', '2026-10-02', 380);
+
+    await call('PUT', '/api/group/reporting-currency', 'misha', { currency: 'EUR' });
+    await setHistory('EUR', '2026-10-02', 410);
+    await call('PUT', '/api/group/reporting-currency', 'misha', { currency: 'USD' });
+
+    expect((await list())[0].reportingAmount).toBe(12.34);
   });
 });
 
