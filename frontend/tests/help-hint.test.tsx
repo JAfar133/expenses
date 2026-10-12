@@ -53,4 +53,27 @@ describe('HelpHint', () => {
 
     expect(screen.getByText('Текст подсказки')).toBeInTheDocument();
   });
+
+  it('мышь: открывается при наведении и закрывается, когда курсор уходит', async () => {
+    const user = userEvent.setup();
+    render(<HelpHint>Текст подсказки</HelpHint>);
+    const button = screen.getByRole('button', { name: 'Подсказка' });
+
+    await user.hover(button);
+    expect(screen.getByRole('note')).toHaveTextContent('Текст подсказки');
+    await user.unhover(button);
+
+    expect(screen.queryByRole('note')).toBeNull();
+  });
+
+  it('нажатие закрепляет подсказку: курсор уходит, а она остаётся', async () => {
+    const user = userEvent.setup();
+    render(<HelpHint>Текст подсказки</HelpHint>);
+    const button = screen.getByRole('button', { name: 'Подсказка' });
+
+    await user.click(button);
+    await user.unhover(button);
+
+    expect(screen.getByRole('note')).toBeInTheDocument();
+  });
 });

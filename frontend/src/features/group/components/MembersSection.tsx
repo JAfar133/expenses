@@ -13,7 +13,7 @@ import {
 import { useGroupMutation } from '../hooks/useGroup.ts';
 import { ErrorNotice } from './ErrorNotice.tsx';
 import { LinkPanel } from './LinkPanel.tsx';
-import { compactSelectClass, dangerButtonClass, smallButtonClass } from './styles.ts';
+import { ActionButton, ListRow, RowActions, actionSelectClass } from './ListRow.tsx';
 
 const ROLE_LABELS: Record<MemberRole, string> = { owner: 'Владелец', member: 'Участник' };
 
@@ -68,23 +68,41 @@ export function MembersSection({ members, currentUsername }: MembersSectionProps
     >
       <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
         {members.map((member) => (
-          <li key={member.userId} className="space-y-2 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
+          <ListRow
+            key={member.userId}
+            main={
+              <>
                 <div className="truncate font-medium">{member.displayName}</div>
-                <div className="text-xs text-zinc-500 dark:text-zinc-400">{member.username}</div>
-              </div>
+                <div className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                  {member.username}
+                </div>
+              </>
+            }
+            badge={
               <span className="shrink-0 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium dark:bg-zinc-800">
                 {ROLE_LABELS[member.role]}
               </span>
-            </div>
+            }
+            below={
+              link?.username === member.username && (
+                <div className="mt-2">
+                  <LinkPanel
+                    title={`Ссылка для нового пароля: ${member.displayName}`}
+                    token={link.issued.token}
+                    expiresAt={link.issued.expiresAt}
+                    onClose={() => setLink(null)}
+                  />
+                </div>
+              )
+            }
+          >
             {member.username !== currentUsername && (
-              <div className="flex flex-wrap items-center gap-x-1">
+              <RowActions>
                 <select
                   aria-label={`Роль: ${member.displayName}`}
                   value={member.role}
                   disabled={changeRole.isPending}
-                  className={compactSelectClass}
+                  className={actionSelectClass}
                   onChange={(event) =>
                     changeRole.mutate({
                       username: member.username,
@@ -95,36 +113,25 @@ export function MembersSection({ members, currentUsername }: MembersSectionProps
                   <option value="member">Участник</option>
                   <option value="owner">Владелец</option>
                 </select>
-                <button
-                  type="button"
+                <ActionButton
                   aria-label={`Ссылка для сброса пароля: ${member.displayName}`}
-                  className={smallButtonClass}
                   disabled={resetLink.isPending}
                   onClick={() => resetLink.mutate(member.username)}
                 >
                   Ссылка для сброса пароля
-                </button>
+                </ActionButton>
                 {!member.fromEnv && (
-                  <button
-                    type="button"
+                  <ActionButton
+                    tone="danger"
                     aria-label={`Убрать: ${member.displayName}`}
-                    className={dangerButtonClass}
                     onClick={() => setRemoving(member)}
                   >
                     Убрать
-                  </button>
+                  </ActionButton>
                 )}
-              </div>
+              </RowActions>
             )}
-            {link?.username === member.username && (
-              <LinkPanel
-                title={`Ссылка для нового пароля: ${member.displayName}`}
-                token={link.issued.token}
-                expiresAt={link.issued.expiresAt}
-                onClose={() => setLink(null)}
-              />
-            )}
-          </li>
+          </ListRow>
         ))}
       </ul>
       <ErrorNotice mutations={[changeRole, resetLink, remove]} />

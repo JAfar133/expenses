@@ -12,9 +12,9 @@ import {
 import { useGroupMutation } from '../hooks/useGroup.ts';
 import { AddNameForm } from './AddNameForm.tsx';
 import { CardAccess } from './CardAccess.tsx';
-import { EditableName } from './EditableName.tsx';
+import { EditableRow } from './EditableRow.tsx';
 import { ErrorNotice } from './ErrorNotice.tsx';
-import { smallButtonClass } from './styles.ts';
+import { ActionButton, ListRow, RowActions } from './ListRow.tsx';
 
 type CardPatch = { id: number; patch: { name?: string; archived?: boolean } };
 type AccessChange = { id: number; access: Record<string, AccessLevel> };
@@ -56,43 +56,38 @@ export function CardsSection({ cards, members }: CardsSectionProps) {
     >
       <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
         {active.map((card) => (
-          <li key={card.id} className="py-1">
-            <div className="flex flex-wrap items-center justify-between gap-x-2">
-              <EditableName
-                name={card.name}
-                onRename={(name) => update.mutateAsync({ id: card.id, patch: { name } })}
-              />
-              <div className="flex items-center">
-                {hasOthers && (
-                  <button
-                    type="button"
-                    aria-label={`Доступ: ${card.name}`}
-                    aria-expanded={openAccess === card.id}
-                    className={smallButtonClass}
-                    onClick={() => setOpenAccess(openAccess === card.id ? null : card.id)}
-                  >
-                    Доступ
-                  </button>
-                )}
-                <button
-                  type="button"
-                  aria-label={`В архив: ${card.name}`}
-                  className={smallButtonClass}
-                  onClick={() => update.mutate({ id: card.id, patch: { archived: true } })}
-                >
-                  В архив
-                </button>
-              </div>
-            </div>
-            {openAccess === card.id && (
-              <CardAccess
-                card={card}
-                members={members}
-                disabled={access.isPending}
-                onChange={(map) => access.mutate({ id: card.id, access: map })}
-              />
+          <EditableRow
+            key={card.id}
+            name={card.name}
+            onRename={(name) => update.mutateAsync({ id: card.id, patch: { name } })}
+            below={
+              openAccess === card.id && (
+                <CardAccess
+                  card={card}
+                  members={members}
+                  disabled={access.isPending}
+                  onChange={(map) => access.mutate({ id: card.id, access: map })}
+                />
+              )
+            }
+          >
+            {hasOthers && (
+              <ActionButton
+                aria-label={`Доступ: ${card.name}`}
+                aria-expanded={openAccess === card.id}
+                onClick={() => setOpenAccess(openAccess === card.id ? null : card.id)}
+              >
+                Доступ
+              </ActionButton>
             )}
-          </li>
+            <ActionButton
+              tone="danger"
+              aria-label={`В архив: ${card.name}`}
+              onClick={() => update.mutate({ id: card.id, patch: { archived: true } })}
+            >
+              В архив
+            </ActionButton>
+          </EditableRow>
         ))}
       </ul>
       <AddNameForm
@@ -111,17 +106,19 @@ export function CardsSection({ cards, members }: CardsSectionProps) {
           </summary>
           <ul className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
             {archived.map((card) => (
-              <li key={card.id} className="flex items-center justify-between gap-2 py-1">
-                <span className="truncate text-zinc-500">{card.name}</span>
-                <button
-                  type="button"
-                  aria-label={`Вернуть: ${card.name}`}
-                  className={smallButtonClass}
-                  onClick={() => update.mutate({ id: card.id, patch: { archived: false } })}
-                >
-                  Вернуть
-                </button>
-              </li>
+              <ListRow
+                key={card.id}
+                main={<span className="block truncate text-zinc-500">{card.name}</span>}
+              >
+                <RowActions>
+                  <ActionButton
+                    aria-label={`Вернуть: ${card.name}`}
+                    onClick={() => update.mutate({ id: card.id, patch: { archived: false } })}
+                  >
+                    Вернуть
+                  </ActionButton>
+                </RowActions>
+              </ListRow>
             ))}
           </ul>
         </details>

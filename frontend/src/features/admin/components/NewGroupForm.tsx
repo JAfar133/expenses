@@ -34,7 +34,7 @@ export function NewGroupForm() {
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold">Новая группа</h3>
-      <form onSubmit={submit} className="flex flex-wrap gap-2">
+      <form onSubmit={submit} className="grid gap-2 sm:flex sm:flex-wrap">
         <input
           aria-label="Название новой группы"
           placeholder="Название группы"

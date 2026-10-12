@@ -5,7 +5,7 @@ import { Notice } from '../../../shared/ui/Notice.tsx';
 import { ConfirmDialog } from '../../analytics/components/ConfirmDialog.tsx';
 import { ErrorNotice } from '../../group/components/ErrorNotice.tsx';
 import { LinkPanel } from '../../group/components/LinkPanel.tsx';
-import { dangerButtonClass, smallButtonClass } from '../../group/components/styles.ts';
+import { ActionButton, ListRow, RowActions } from '../../group/components/ListRow.tsx';
 import { toErrorMessage } from '../../group/model/error-message.ts';
 import { SettingsSection } from '../../settings/components/SettingsSection.tsx';
 import { createOwnerInvitation, setGroupDisabled, type AdminGroup } from '../api/admin.api.ts';
@@ -65,57 +65,63 @@ export function GroupsSection() {
       {groups.isError && <Notice variant="error">{toErrorMessage(groups.error)}</Notice>}
       <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
         {groups.data?.map((group) => (
-          <li key={group.id} className="space-y-1 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="truncate font-medium">{group.name}</span>
-              {group.disabled && (
+          <ListRow
+            key={group.id}
+            main={
+              <>
+                <div className="truncate font-medium">{group.name}</div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {group.reportingCurrency} · владельцев: {group.owners} · участников:{' '}
+                  {group.members}
+                </div>
+              </>
+            }
+            badge={
+              group.disabled && (
                 <span className="shrink-0 rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-950 dark:text-red-200">
                   отключена
                 </span>
-              )}
-            </div>
-            <div className="text-xs text-zinc-500 dark:text-zinc-400">
-              {group.reportingCurrency} · владельцев: {group.owners} · участников: {group.members}
-            </div>
-            <div className="flex flex-wrap items-center">
-              <button
-                type="button"
+              )
+            }
+            below={
+              link?.groupId === group.id && (
+                <div className="mt-2">
+                  <LinkPanel
+                    title={`Ссылка для владельца группы «${group.name}»`}
+                    token={link.token}
+                    expiresAt={link.expiresAt}
+                    onClose={() => setLink(null)}
+                  />
+                </div>
+              )
+            }
+          >
+            <RowActions>
+              <ActionButton
                 aria-label={`Ссылка для владельца: ${group.name}`}
-                className={smallButtonClass}
                 disabled={ownerLink.isPending}
                 onClick={() => ownerLink.mutate(group.id)}
               >
                 Ссылка для владельца
-              </button>
+              </ActionButton>
               {group.disabled ? (
-                <button
-                  type="button"
+                <ActionButton
                   aria-label={`Включить: ${group.name}`}
-                  className={smallButtonClass}
                   onClick={() => toggle.mutate({ id: group.id, disabled: false })}
                 >
                   Включить
-                </button>
+                </ActionButton>
               ) : (
-                <button
-                  type="button"
+                <ActionButton
+                  tone="danger"
                   aria-label={`Отключить: ${group.name}`}
-                  className={dangerButtonClass}
                   onClick={() => setDisabling(group)}
                 >
                   Отключить
-                </button>
+                </ActionButton>
               )}
-            </div>
-            {link?.groupId === group.id && (
-              <LinkPanel
-                title={`Ссылка для владельца группы «${group.name}»`}
-                token={link.token}
-                expiresAt={link.expiresAt}
-                onClose={() => setLink(null)}
-              />
-            )}
-          </li>
+            </RowActions>
+          </ListRow>
         ))}
       </ul>
       <ErrorNotice mutations={[toggle, ownerLink]} />

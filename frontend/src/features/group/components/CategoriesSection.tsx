@@ -5,9 +5,9 @@ import { createCategory, updateCategory, type GroupCategory } from '../api/group
 import { MergeCategoryDialog } from './MergeCategoryDialog.tsx';
 import { useGroupMutation } from '../hooks/useGroup.ts';
 import { AddNameForm } from './AddNameForm.tsx';
-import { EditableName } from './EditableName.tsx';
+import { EditableRow } from './EditableRow.tsx';
 import { ErrorNotice } from './ErrorNotice.tsx';
-import { smallButtonClass } from './styles.ts';
+import { ActionButton, ListRow, RowActions } from './ListRow.tsx';
 
 type CategoryPatch = {
   id: number;
@@ -44,32 +44,27 @@ export function CategoriesSection({ categories }: { categories: GroupCategory[] 
     >
       <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
         {active.map((category) => (
-          <li key={category.id} className="flex flex-wrap items-center justify-between gap-2 py-1">
-            <EditableName
-              name={category.name}
-              onRename={(name) => update.mutateAsync({ id: category.id, patch: { name } })}
-            />
-            <button
-              type="button"
+          <EditableRow
+            key={category.id}
+            name={category.name}
+            onRename={(name) => update.mutateAsync({ id: category.id, patch: { name } })}
+          >
+            {active.length > 1 && (
+              <ActionButton
+                aria-label={`Объединить: ${category.name}`}
+                onClick={() => setMerging(category)}
+              >
+                Объединить
+              </ActionButton>
+            )}
+            <ActionButton
+              tone="danger"
               aria-label={`В архив: ${category.name}`}
-              className={smallButtonClass}
               onClick={() => update.mutate({ id: category.id, patch: { archived: true } })}
             >
               В архив
-            </button>
-            {active.length > 1 && (
-              <>
-                <button
-                  type="button"
-                  aria-label={`Объединить: ${category.name}`}
-                  className={smallButtonClass}
-                  onClick={() => setMerging(category)}
-                >
-                  Объединить
-                </button>
-              </>
-            )}
-          </li>
+            </ActionButton>
+          </EditableRow>
         ))}
       </ul>
       <AddNameForm
@@ -85,17 +80,19 @@ export function CategoriesSection({ categories }: { categories: GroupCategory[] 
           </summary>
           <ul className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
             {archived.map((category) => (
-              <li key={category.id} className="flex items-center justify-between gap-2 py-1">
-                <span className="truncate text-zinc-500">{category.name}</span>
-                <button
-                  type="button"
-                  aria-label={`Вернуть: ${category.name}`}
-                  className={smallButtonClass}
-                  onClick={() => update.mutate({ id: category.id, patch: { archived: false } })}
-                >
-                  Вернуть
-                </button>
-              </li>
+              <ListRow
+                key={category.id}
+                main={<span className="block truncate text-zinc-500">{category.name}</span>}
+              >
+                <RowActions>
+                  <ActionButton
+                    aria-label={`Вернуть: ${category.name}`}
+                    onClick={() => update.mutate({ id: category.id, patch: { archived: false } })}
+                  >
+                    Вернуть
+                  </ActionButton>
+                </RowActions>
+              </ListRow>
             ))}
           </ul>
         </details>

@@ -12,7 +12,7 @@ import { useGroupMutation } from '../hooks/useGroup.ts';
 import { formatDateTime } from '../model/format.ts';
 import { ErrorNotice } from './ErrorNotice.tsx';
 import { LinkPanel } from './LinkPanel.tsx';
-import { compactSelectClass, dangerButtonClass } from './styles.ts';
+import { ActionButton, ListRow, RowActions, actionSelectClass } from './ListRow.tsx';
 
 const ROLE_LABELS: Record<MemberRole, string> = { owner: 'Владелец', member: 'Участник' };
 
@@ -48,11 +48,11 @@ export function InvitationsSection({ invitations }: { invitations: GroupInvitati
         />
       }
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
         <select
           aria-label="Роль приглашённого"
           value={role}
-          className={compactSelectClass}
+          className={`${actionSelectClass} !min-h-11 sm:!min-h-10`}
           onChange={(event) => setRole(event.target.value as MemberRole)}
         >
           <option value="member">Участник</option>
@@ -62,7 +62,7 @@ export function InvitationsSection({ invitations }: { invitations: GroupInvitati
           type="button"
           disabled={create.isPending}
           onClick={() => create.mutate(role)}
-          className="h-10 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-60"
+          className="min-h-11 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-60 sm:min-h-10"
         >
           Пригласить
         </button>
@@ -78,23 +78,28 @@ export function InvitationsSection({ invitations }: { invitations: GroupInvitati
       {invitations.length > 0 && (
         <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {invitations.map((invitation) => (
-            <li key={invitation.id} className="flex items-center justify-between gap-2 py-2">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium">{describe(invitation)}</div>
-                <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                  действует до {formatDateTime(invitation.expiresAt)}
-                </div>
-              </div>
-              <button
-                type="button"
-                aria-label={`Отозвать: ${describe(invitation)}`}
-                disabled={revoke.isPending}
-                className={dangerButtonClass}
-                onClick={() => revoke.mutate(invitation.id)}
-              >
-                Отозвать
-              </button>
-            </li>
+            <ListRow
+              key={invitation.id}
+              main={
+                <>
+                  <div className="truncate text-sm font-medium">{describe(invitation)}</div>
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                    действует до {formatDateTime(invitation.expiresAt)}
+                  </div>
+                </>
+              }
+            >
+              <RowActions>
+                <ActionButton
+                  tone="danger"
+                  aria-label={`Отозвать: ${describe(invitation)}`}
+                  disabled={revoke.isPending}
+                  onClick={() => revoke.mutate(invitation.id)}
+                >
+                  Отозвать
+                </ActionButton>
+              </RowActions>
+            </ListRow>
           ))}
         </ul>
       )}

@@ -33,7 +33,7 @@ export function PasswordResetSection() {
       title="Сброс пароля"
       hint="Одноразовая ссылка для любого пользователя, который забыл пароль и которому не может помочь владелец группы."
     >
-      <form onSubmit={submit} className="flex flex-wrap gap-2">
+      <form onSubmit={submit} className="grid gap-2 sm:flex sm:flex-wrap">
         <input
           aria-label="Логин пользователя"
           placeholder="Логин"

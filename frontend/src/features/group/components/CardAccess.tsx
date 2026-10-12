@@ -32,11 +32,11 @@ export function CardAccess({ card, members, disabled, onChange }: CardAccessProp
   if (others.length === 0) return null;
 
   return (
-    <ul className="space-y-2 pb-2 pl-1">
+    <ul className="mt-2 space-y-2 rounded-xl bg-zinc-50 p-3 dark:bg-zinc-800/50">
       {others.map((member) => {
         const level = card.access.find((entry) => entry.userId === member.userId)?.level;
         return (
-          <li key={member.userId} className="flex items-center justify-between gap-3 text-sm">
+          <li key={member.userId} className="grid grid-cols-2 items-center gap-3 text-sm">
             <label htmlFor={`access-${card.id}-${member.userId}`} className="min-w-0 truncate">
               {member.displayName}
             </label>
@@ -45,7 +45,7 @@ export function CardAccess({ card, members, disabled, onChange }: CardAccessProp
               aria-label={`Доступ к карте «${card.name}»: ${member.displayName}`}
               value={level ?? 'none'}
               disabled={disabled}
-              className={compactSelectClass}
+              className={`${compactSelectClass} w-full min-w-0`}
               onChange={(event) =>
                 onChange(
                   buildAccessMap(card, members, {
