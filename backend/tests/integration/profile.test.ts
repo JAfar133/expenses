@@ -20,7 +20,7 @@ beforeEach(async () => {
   await database.query('DELETE FROM auth_sessions');
   t = await createTestApp(database);
   await database.query(
-    'UPDATE users SET custom_display_name = NULL, custom_card = NULL, custom_timezone = NULL, can_edit_override = NULL',
+    'UPDATE users SET custom_display_name = NULL, custom_card = NULL, custom_timezone = NULL',
   );
   // Roles live in the group membership: back to the initial state (misha owner, nastya member)
   await database.query(

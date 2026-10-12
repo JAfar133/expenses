@@ -77,11 +77,8 @@ const toUser = (row: UserRow): StoredUser => ({
 const EFFECTIVE_USER_COLUMNS = `
   COALESCE(u.custom_display_name, u.display_name) AS display_name,
   COALESCE(u.custom_card, u.card) AS card,
-  COALESCE(
-    (SELECT m.role = 'owner' FROM memberships m WHERE m.user_id = u.id),
-    u.can_edit_override,
-    u.can_edit_default
-  ) AS can_edit,
+  -- The right to edit and delete is the owner role in the group
+  COALESCE((SELECT m.role = 'owner' FROM memberships m WHERE m.user_id = u.id), false) AS can_edit,
   COALESCE(u.custom_timezone, u.timezone_default) AS timezone,
   (SELECT m.group_id FROM memberships m JOIN groups g ON g.id = m.group_id AND g.disabled_at IS NULL
     WHERE m.user_id = u.id) AS group_id,

@@ -542,7 +542,7 @@ UI settings (`users.preferences`) are stored on the server, so the choice is the
 ## Personal account settings
 
 The name, default card, time zone and editing right can be changed in the app (the username cannot). The values from the configuration (`AUTH_USERS`, `APP_TIMEZONE`, `EDITOR_USERS`)
-remain **defaults** and are updated on every start, while a user's personal choice is stored separately (`custom_*`, `can_edit_override`) and overrides them.
+remain **defaults** and are updated on every start, while a user's personal choice is stored separately (`custom_*`; the editing right is the owner role in the group) and overrides them.
 If the personal choice is reset (`null`), the value from the configuration applies again.
 
 - **Time zone** is personal: it determines "today" in the analysis (spend per day, charts by day) and in the expense form. `APP_TIMEZONE` sets the default zone.

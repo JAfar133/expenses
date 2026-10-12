@@ -46,7 +46,7 @@ async function createGroupIfMissing(tx: SqlExecutor, config: DefaultGroupConfig)
   if (groups > 0) return false;
 
   const users = await tx.query<{ id: string; is_editor: boolean }>(
-    `SELECT id, COALESCE(can_edit_override, can_edit_default) AS is_editor
+    `SELECT id, can_edit_default AS is_editor
        FROM users WHERE disabled_at IS NULL ORDER BY username`,
   );
   if (users.length === 0) return false;
