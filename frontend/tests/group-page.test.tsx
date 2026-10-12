@@ -392,14 +392,19 @@ describe('участники', () => {
 
     const mishaRow = members().getByText('Миша').closest('li')!;
     expect(within(mishaRow).getByText('Владелец')).toBeInTheDocument();
-    expect(members().queryByLabelText('Роль: Миша')).toBeNull();
+    expect(within(mishaRow).queryByRole('button')).toBeNull();
   });
 
   it('меняет роль', async () => {
     const person = await renderGroup();
     await screen.findByRole('heading', { name: 'Участники' });
 
-    await person.selectOptions(members().getByLabelText('Роль: Настя'), 'owner');
+    await person.click(members().getByRole('button', { name: 'Сделать владельцем: Настя' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Роль «Владелец» для: Настя');
+    expect(requests.some((r) => r.method === 'PUT')).toBe(false);
+    await person.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Сделать владельцем' }),
+    );
 
     expect(sent('PUT', '/api/group/members/nastya/role')).toEqual({ role: 'owner' });
   });
@@ -412,7 +417,10 @@ describe('участники', () => {
     const person = await renderGroup();
     await screen.findByRole('heading', { name: 'Участники' });
 
-    await person.selectOptions(members().getByLabelText('Роль: Настя'), 'owner');
+    await person.click(members().getByRole('button', { name: 'Сделать владельцем: Настя' }));
+    await person.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Сделать владельцем' }),
+    );
 
     expect(await members().findByRole('alert')).toHaveTextContent('последнего владельца');
   });
@@ -442,6 +450,32 @@ describe('участники', () => {
     expect(
       requests.some((r) => r.method === 'DELETE' && r.url === '/api/group/members/nastya'),
     ).toBe(true);
+  });
+});
+
+describe('роль владельца', () => {
+  it('владельца можно сделать участником (подтверждение, PUT member)', async () => {
+    override = (method, url) =>
+      method === 'GET' && url === '/api/group'
+        ? ok({
+            ...overview(),
+            members: overview().members.map((m) =>
+              m.username === 'nastya' ? { ...m, role: 'owner' } : m,
+            ),
+          })
+        : undefined;
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: 'Участники' });
+
+    await person.click(
+      within(section('Участники')).getByRole('button', { name: 'Сделать участником: Настя' }),
+    );
+    expect(screen.getByRole('dialog')).toHaveTextContent('не сможет править траты');
+    await person.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Сделать участником' }),
+    );
+
+    expect(sent('PUT', '/api/group/members/nastya/role')).toEqual({ role: 'member' });
   });
 });
 

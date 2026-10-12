@@ -69,7 +69,7 @@ export function ActionButton({ label, icon, tone = 'default', ...props }: Action
   );
 }
 
-/** A compact role control shaped like a badge, for a select under the member's name. */
-export const roleSelectClass =
-  'h-9 rounded-full border border-zinc-300 bg-zinc-100 px-3 text-base font-medium ' +
-  'dark:border-zinc-700 dark:bg-zinc-800';
+/** An empty place in the actions line: keeps the icons of all rows in the same columns. */
+export function EmptySlot() {
+  return <span aria-hidden="true" className="size-10 shrink-0 sm:size-9" />;
+}

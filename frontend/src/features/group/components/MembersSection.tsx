@@ -1,4 +1,4 @@
-import { KeyIcon, UserMinusIcon } from '../../../shared/ui/icons.tsx';
+import { CrownIcon, CrownOffIcon, KeyIcon, UserMinusIcon } from '../../../shared/ui/icons.tsx';
 import { useState } from 'react';
 import { HintList } from '../../../shared/ui/HelpHint.tsx';
 import { SettingsSection } from '../../settings/components/SettingsSection.tsx';
@@ -14,7 +14,7 @@ import {
 import { useGroupMutation } from '../hooks/useGroup.ts';
 import { ErrorNotice } from './ErrorNotice.tsx';
 import { LinkPanel } from './LinkPanel.tsx';
-import { ActionButton, ListRow, RowActions, roleSelectClass } from './ListRow.tsx';
+import { ActionButton, EmptySlot, ListRow, RowActions } from './ListRow.tsx';
 
 const ROLE_LABELS: Record<MemberRole, string> = { owner: 'Владелец', member: 'Участник' };
 
@@ -27,6 +27,7 @@ interface MembersSectionProps {
 export function MembersSection({ members, currentUsername }: MembersSectionProps) {
   const [link, setLink] = useState<{ username: string; issued: IssuedLink } | null>(null);
   const [removing, setRemoving] = useState<GroupMember | null>(null);
+  const [switching, setSwitching] = useState<GroupMember | null>(null);
 
   const changeRole = useGroupMutation(
     ({ username, role }: { username: string; role: MemberRole }) => setMemberRole(username, role),
@@ -35,6 +36,15 @@ export function MembersSection({ members, currentUsername }: MembersSectionProps
     setLink({ username, issued: await createMemberResetLink(username) });
   });
   const remove = useGroupMutation(removeMember);
+
+  async function confirmRoleChange(member: GroupMember, role: MemberRole) {
+    try {
+      await changeRole.mutateAsync({ username: member.username, role });
+    } catch {
+      // The error is shown below
+    }
+    setSwitching(null);
+  }
 
   async function confirmRemove(member: GroupMember) {
     try {
@@ -52,8 +62,9 @@ export function MembersSection({ members, currentUsername }: MembersSectionProps
         <HintList
           items={[
             [
-              'Роль',
+              'Сменить роль',
               'владелец видит все карты, правит траты и управляет группой; участник видит только карты с доступом и добавляет траты на карты с доступом «добавлять».',
+              <CrownIcon />,
             ],
             [
               'Ссылка для сброса пароля',
@@ -76,31 +87,15 @@ export function MembersSection({ members, currentUsername }: MembersSectionProps
             main={
               <>
                 <div className="font-medium">{member.displayName}</div>
-                <div className="text-xs text-zinc-500 dark:text-zinc-400">{member.username}</div>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {member.username}
+                  </span>
+                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium dark:bg-zinc-800">
+                    {ROLE_LABELS[member.role]}
+                  </span>
+                </div>
               </>
-            }
-            badge={
-              member.username === currentUsername ? (
-                <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium dark:bg-zinc-800">
-                  {ROLE_LABELS[member.role]}
-                </span>
-              ) : (
-                <select
-                  aria-label={`Роль: ${member.displayName}`}
-                  value={member.role}
-                  disabled={changeRole.isPending}
-                  className={roleSelectClass}
-                  onChange={(event) =>
-                    changeRole.mutate({
-                      username: member.username,
-                      role: event.target.value as MemberRole,
-                    })
-                  }
-                >
-                  <option value="member">Участник</option>
-                  <option value="owner">Владелец</option>
-                </select>
-              )
             }
             below={
               link?.username === member.username && (
@@ -115,28 +110,64 @@ export function MembersSection({ members, currentUsername }: MembersSectionProps
               )
             }
           >
-            {member.username !== currentUsername && (
-              <RowActions>
-                <ActionButton
-                  label={`Ссылка для сброса пароля: ${member.displayName}`}
-                  disabled={resetLink.isPending}
-                  onClick={() => resetLink.mutate(member.username)}
-                  icon={<KeyIcon />}
-                />
-                {!member.fromEnv && (
+            <RowActions>
+              {member.username === currentUsername ? (
+                <>
+                  <EmptySlot />
+                  <EmptySlot />
+                  <EmptySlot />
+                </>
+              ) : (
+                <>
                   <ActionButton
-                    label={`Убрать: ${member.displayName}`}
-                    onClick={() => setRemoving(member)}
-                    tone="danger"
-                    icon={<UserMinusIcon />}
+                    label={
+                      member.role === 'owner'
+                        ? `Сделать участником: ${member.displayName}`
+                        : `Сделать владельцем: ${member.displayName}`
+                    }
+                    disabled={changeRole.isPending}
+                    onClick={() => setSwitching(member)}
+                    icon={member.role === 'owner' ? <CrownOffIcon /> : <CrownIcon />}
                   />
-                )}
-              </RowActions>
-            )}
+                  <ActionButton
+                    label={`Ссылка для сброса пароля: ${member.displayName}`}
+                    disabled={resetLink.isPending}
+                    onClick={() => resetLink.mutate(member.username)}
+                    icon={<KeyIcon />}
+                  />
+                  {member.fromEnv ? (
+                    <EmptySlot />
+                  ) : (
+                    <ActionButton
+                      label={`Убрать: ${member.displayName}`}
+                      onClick={() => setRemoving(member)}
+                      tone="danger"
+                      icon={<UserMinusIcon />}
+                    />
+                  )}
+                </>
+              )}
+            </RowActions>
           </ListRow>
         ))}
       </ul>
       <ErrorNotice mutations={[changeRole, resetLink, remove]} />
+      {switching && (
+        <ConfirmDialog
+          title="Сменить роль?"
+          message={
+            switching.role === 'owner'
+              ? `Роль «Участник» для: ${switching.displayName}. Видит только карты, к которым дан доступ, и не может править и удалять траты.`
+              : `Роль «Владелец» для: ${switching.displayName}. Видит все карты, правит и удаляет траты, управляет группой.`
+          }
+          confirmLabel={switching.role === 'owner' ? 'Сделать участником' : 'Сделать владельцем'}
+          busy={changeRole.isPending}
+          onConfirm={() =>
+            void confirmRoleChange(switching, switching.role === 'owner' ? 'member' : 'owner')
+          }
+          onCancel={() => setSwitching(null)}
+        />
+      )}
       {removing && (
         <ConfirmDialog
           title="Убрать участника?"

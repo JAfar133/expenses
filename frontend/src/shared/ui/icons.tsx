@@ -110,3 +110,18 @@ export const PlayIcon = () => (
     <path d="M7 4.5l12 7.5-12 7.5z" />
   </Icon>
 );
+
+/** Make an owner */
+export const CrownIcon = () => (
+  <Icon>
+    <path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z" />
+  </Icon>
+);
+
+/** Make a plain member (a crossed-out crown) */
+export const CrownOffIcon = () => (
+  <Icon>
+    <path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z" />
+    <path d="M4 3l16 18" />
+  </Icon>
+);
