@@ -115,11 +115,11 @@ describe('раздел «Бэкап базы»', () => {
     expect(headings[1]).toBe('Бэкап базы');
   });
 
-  it('ok: одна строка — дата, размер, OneDrive ✓; без инструкции и лишних строк', async () => {
+  it('ok: одна строка — дата, размер, OneDrive; без инструкции и лишних строк', async () => {
     await renderAdmin();
     const box = within(section());
 
-    expect(await box.findByText(`${AT} · 2,5 МБ · OneDrive ✓`)).toBeInTheDocument();
+    expect(await box.findByText(`${AT} · 2,5 МБ · OneDrive`)).toBeInTheDocument();
     expect(box.queryByText(INSTRUCTION)).toBeNull();
     expect(box.queryByRole('alert')).toBeNull();
     expect(box.queryByText(/expenses-2026/)).toBeNull();
@@ -211,7 +211,7 @@ describe('раздел «Бэкап базы»', () => {
 
   it('«Обновить» запрашивает состояние заново', async () => {
     const person = await renderAdmin();
-    await within(section()).findByText(`${AT} · 2,5 МБ · OneDrive ✓`);
+    await within(section()).findByText(`${AT} · 2,5 МБ · OneDrive`);
     const before = requests.filter((r) => r === '/api/admin/backup').length;
 
     current = backup({ state: 'stale', ageHours: 60 });
@@ -223,7 +223,7 @@ describe('раздел «Бэкап базы»', () => {
 
   it('подсказка короткая и называет предел в часах', async () => {
     const person = await renderAdmin();
-    await within(section()).findByText(`${AT} · 2,5 МБ · OneDrive ✓`);
+    await within(section()).findByText(`${AT} · 2,5 МБ · OneDrive`);
 
     await person.click(within(section()).getByRole('button', { name: 'Подсказка' }));
 
