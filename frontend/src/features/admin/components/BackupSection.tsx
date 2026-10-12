@@ -13,11 +13,21 @@ const GREY = 'text-zinc-500 dark:text-zinc-400';
 
 interface Line {
   icon: ReactNode;
+  /** Color of the icon (and of the text for a problem) */
   tone: string;
   text: ReactNode;
+  /** Small grey labels after the text (size, OneDrive) */
+  chips?: ReactNode;
+  /** A muted second line (the file name) */
+  sub?: string;
 }
 
-/** The whole state in one short line. */
+const CHIP =
+  'rounded-md bg-zinc-100 px-1.5 py-0.5 text-xs font-normal text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300';
+const CHIP_RED =
+  'rounded-md bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-600 dark:bg-red-950/50 dark:text-red-400';
+
+/** The state: only the check mark is green, the date is plain text, size and OneDrive are small labels. */
 function toLine(backup: AdminBackup): Line {
   const { state, lastSuccess, lastRun } = backup;
 
@@ -25,14 +35,15 @@ function toLine(backup: AdminBackup): Line {
     return {
       icon: <CheckIcon />,
       tone: GREEN,
-      text: (
+      text: <span className="font-medium">{formatShortDateTime(lastSuccess.at)}</span>,
+      chips: (
         <>
-          {formatShortDateTime(lastSuccess.at)} · {lastSuccess.file} ·{' '}
-          {formatSize(lastSuccess.sizeBytes)}
-          {lastSuccess.remote === 'ok' && ' · OneDrive'}
-          {lastSuccess.remote === 'failed' && <span className={RED}> · OneDrive ✗</span>}
+          <span className={CHIP}>{formatSize(lastSuccess.sizeBytes)}</span>
+          {lastSuccess.remote === 'ok' && <span className={CHIP}>OneDrive</span>}
+          {lastSuccess.remote === 'failed' && <span className={CHIP_RED}>OneDrive ✗</span>}
         </>
       ),
+      sub: lastSuccess.file,
     };
   }
   if (state === 'stale') {
@@ -74,10 +85,18 @@ export function BackupSection() {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           {line && (
-            <p className={`flex items-start gap-2 text-sm font-medium ${line.tone}`}>
-              <span className="mt-0.5 shrink-0">{line.icon}</span>
-              <span className="min-w-0">{line.text}</span>
-            </p>
+            <div className="flex items-start gap-2 text-sm">
+              <span className={`mt-0.5 shrink-0 ${line.tone}`}>{line.icon}</span>
+              <div className="min-w-0">
+                <p
+                  className={`flex flex-wrap items-center gap-x-2 gap-y-1 ${line.chips ? '' : `font-medium ${line.tone}`}`}
+                >
+                  {line.text}
+                  {line.chips}
+                </p>
+                {line.sub && <p className={`mt-0.5 break-all text-xs ${GREY}`}>{line.sub}</p>}
+              </div>
+            </div>
           )}
           {backup && hasBackupProblem(backup.state) && (
             <p className={`mt-1 pl-7 text-xs ${GREY}`}>

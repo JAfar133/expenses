@@ -119,9 +119,10 @@ describe('раздел «Бэкап базы»', () => {
     await renderAdmin();
     const box = within(section());
 
-    expect(
-      await box.findByText(`${AT} · expenses-2026-10-12.dump · 2,5 МБ · OneDrive`),
-    ).toBeInTheDocument();
+    expect(await box.findByText(AT)).toBeInTheDocument();
+    expect(box.getByText('expenses-2026-10-12.dump')).toBeInTheDocument();
+    expect(box.getByText('2,5 МБ')).toBeInTheDocument();
+    expect(box.getByText('OneDrive')).toBeInTheDocument();
     expect(box.queryByText(INSTRUCTION)).toBeNull();
     expect(box.queryByRole('alert')).toBeNull();
     expect(box.queryByText(/Последний запуск/)).toBeNull();
@@ -138,7 +139,7 @@ describe('раздел «Бэкап базы»', () => {
       },
     });
     await renderAdmin();
-    expect(await within(section()).findByText('· OneDrive ✗')).toBeInTheDocument();
+    expect(await within(section()).findByText('OneDrive ✗')).toBeInTheDocument();
   });
 
   it('OneDrive не используется: части про него нет', async () => {
@@ -146,7 +147,8 @@ describe('раздел «Бэкап базы»', () => {
       lastSuccess: { at: '2026-10-12T03:00:00.000Z', file: 'a.dump', sizeBytes: 10, remote: 'off' },
     });
     await renderAdmin();
-    expect(await within(section()).findByText(`${AT} · a.dump · 10 Б`)).toBeInTheDocument();
+    expect(await within(section()).findByText('10 Б')).toBeInTheDocument();
+    expect(within(section()).queryByText('OneDrive')).toBeNull();
   });
 
   it('stale: «Нет свежей копии · последняя … (2 дн. назад)» и строка-инструкция', async () => {
@@ -212,7 +214,7 @@ describe('раздел «Бэкап базы»', () => {
 
   it('«Обновить» запрашивает состояние заново', async () => {
     const person = await renderAdmin();
-    await within(section()).findByText(`${AT} · expenses-2026-10-12.dump · 2,5 МБ · OneDrive`);
+    await within(section()).findByText(AT);
     const before = requests.filter((r) => r === '/api/admin/backup').length;
 
     current = backup({ state: 'stale', ageHours: 60 });
@@ -224,7 +226,7 @@ describe('раздел «Бэкап базы»', () => {
 
   it('подсказка короткая и называет предел в часах', async () => {
     const person = await renderAdmin();
-    await within(section()).findByText(`${AT} · expenses-2026-10-12.dump · 2,5 МБ · OneDrive`);
+    await within(section()).findByText(AT);
 
     await person.click(within(section()).getByRole('button', { name: 'Подсказка' }));
 
