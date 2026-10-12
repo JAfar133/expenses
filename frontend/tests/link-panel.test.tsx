@@ -26,7 +26,7 @@ describe('копирование ссылки', () => {
 
     fireEvent.click(copyButton());
 
-    await waitFor(() => expect(copyButton()).toHaveTextContent('Скопировано'));
+    await waitFor(() => expect(copyButton()).toHaveAccessibleName('Скопировано'));
     expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/invite/tok123`);
   });
 
@@ -37,7 +37,7 @@ describe('копирование ссылки', () => {
 
     fireEvent.click(copyButton());
 
-    await waitFor(() => expect(copyButton()).toHaveTextContent('Скопировано'));
+    await waitFor(() => expect(copyButton()).toHaveAccessibleName('Скопировано'));
     expect(document.execCommand).toHaveBeenCalledWith('copy');
   });
 
@@ -48,7 +48,7 @@ describe('копирование ссылки', () => {
 
     fireEvent.click(copyButton());
 
-    await waitFor(() => expect(copyButton()).toHaveTextContent('Скопировано'));
+    await waitFor(() => expect(copyButton()).toHaveAccessibleName('Скопировано'));
   });
 
   it('если не вышло совсем, объясняет, как скопировать вручную', async () => {
@@ -59,7 +59,7 @@ describe('копирование ссылки', () => {
     fireEvent.click(copyButton());
 
     expect(await screen.findByRole('status')).toHaveTextContent('Не удалось скопировать');
-    expect(copyButton()).toHaveTextContent('Скопировать');
+    expect(copyButton()).toHaveAccessibleName('Скопировать');
   });
 
   it('надпись «Скопировано» возвращается к «Скопировать»', async () => {
@@ -70,12 +70,12 @@ describe('копирование ссылки', () => {
     await act(async () => {
       fireEvent.click(copyButton());
     });
-    expect(copyButton()).toHaveTextContent('Скопировано');
+    expect(copyButton()).toHaveAccessibleName('Скопировано');
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2600);
     });
 
-    expect(copyButton()).toHaveTextContent('Скопировать');
+    expect(copyButton()).toHaveAccessibleName('Скопировать');
     vi.useRealTimers();
   });
 });

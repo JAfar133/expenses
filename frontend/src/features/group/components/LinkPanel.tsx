@@ -41,9 +41,14 @@ export function LinkPanel({ title, token, expiresAt, onClose }: LinkPanelProps) 
         <button
           type="button"
           onClick={() => void copy()}
-          className="h-11 shrink-0 rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-500"
+          aria-label={state === 'copied' ? 'Скопировано' : 'Скопировать'}
+          title={state === 'copied' ? 'Скопировано' : 'Скопировать'}
+          className={
+            'flex size-11 shrink-0 items-center justify-center rounded-lg text-white transition ' +
+            (state === 'copied' ? 'bg-green-600' : 'bg-indigo-600 hover:bg-indigo-500')
+          }
         >
-          {state === 'copied' ? '✓ Скопировано' : 'Скопировать'}
+          {state === 'copied' ? <CheckIcon /> : <CopyIcon />}
         </button>
       </div>
       {state === 'failed' && (
@@ -60,5 +65,34 @@ export function LinkPanel({ title, token, expiresAt, onClose }: LinkPanelProps) 
         )}
       </div>
     </div>
+  );
+}
+
+const iconProps = {
+  width: 20,
+  height: 20,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 2,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  'aria-hidden': true,
+} as const;
+
+function CopyIcon() {
+  return (
+    <svg {...iconProps}>
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15V6a2 2 0 0 1 2-2h9" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M5 12.5l4.5 4.5L19 7" />
+    </svg>
   );
 }
