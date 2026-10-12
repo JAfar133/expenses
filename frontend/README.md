@@ -100,6 +100,8 @@ chunk, so the expense form stays light. To run the development mode against a di
 
 - The "Операции" tab has a "Скачать Excel" icon button: it downloads `/api/expenses/export.xlsx` for exactly the current filters, period and display currency (`downloadFile` in `shared/api/http.ts`: cookie auth, refresh on 401, file name from `Content-Disposition`).
 
+- `/admin` starts with the "Бэкап базы" block (`GET /api/admin/backup`, read-only status of the nightly dump); the "Админ" link in the header gets a small red dot when the backup is `stale` or `failed` (requested only for application admins, no polling).
+
 ## Structure
 
 ```

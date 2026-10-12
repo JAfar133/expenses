@@ -133,3 +133,10 @@ export const DownloadIcon = () => (
     <path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2" />
   </Icon>
 );
+
+export const RefreshIcon = () => (
+  <Icon>
+    <path d="M20 5v5h-5" />
+    <path d="M19.5 10A8 8 0 1 0 20 14" />
+  </Icon>
+);

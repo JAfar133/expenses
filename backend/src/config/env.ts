@@ -85,6 +85,10 @@ const envSchema = z.object({
   ALLOWED_ORIGINS: z.string().default('').transform(list),
 
   // Logins allowed to edit and delete records (comma-separated)
+  // Folder with the status files of the database backup script (mounted read-only); empty: not shown
+  DB_BACKUP_STATUS_DIR: z.string().default(''),
+  // After how many hours without a good backup the administrator is warned
+  DB_BACKUP_MAX_AGE_HOURS: z.coerce.number().int().min(1).default(26),
   EDITOR_USERS: z.string().default('misha').transform(list),
   // Logins of application administrators (manage groups; none by default)
   ADMIN_USERS: z.string().default('').transform(list),

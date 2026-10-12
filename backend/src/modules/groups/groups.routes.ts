@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { forbiddenError, validationError } from '../../errors/app-error.ts';
 import { setAuthCookies } from '../auth/auth.plugin.ts';
 import type { AuthService } from '../auth/auth.service.ts';
+import type { BackupStatusService } from '../admin/backup-status.service.ts';
 import type { GroupService } from './group.service.ts';
 import type { InvitationsService } from './invitations.service.ts';
 import type { PlatformAdminService } from './platform-admin.service.ts';
@@ -153,8 +154,19 @@ export const groupRoutes =
 
 /** Groups for the application administrator. */
 export const adminRoutes =
-  (service: PlatformAdminService): FastifyPluginAsync =>
+  (
+    service: PlatformAdminService,
+    backupStatus?: Pick<BackupStatusService, 'view'>,
+  ): FastifyPluginAsync =>
   async (app) => {
+    /** The state of the database backup (administrator only): the last good copy and the last run. */
+    if (backupStatus) {
+      app.get('/admin/backup', async (request) => {
+        adminOnly(request);
+        return { success: true, data: await backupStatus.view() };
+      });
+    }
+
     app.get('/admin/groups', async (request) => {
       adminOnly(request);
       return { success: true, data: await service.listGroups() };

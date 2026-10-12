@@ -12,6 +12,7 @@ import { preferencesRoutes } from './modules/preferences/preferences.routes.ts';
 import type { PreferencesRepository } from './modules/preferences/preferences.repository.ts';
 import { ratesRoutes } from './modules/rates/rates.routes.ts';
 import type { RatesService } from './modules/rates/rates.service.ts';
+import type { BackupStatusService } from './modules/admin/backup-status.service.ts';
 import type { GroupService } from './modules/groups/group.service.ts';
 import type { GroupsRepository } from './modules/groups/groups.repository.ts';
 import { adminRoutes, groupRoutes, invitationRoutes } from './modules/groups/groups.routes.ts';
@@ -50,6 +51,8 @@ export interface AppDependencies {
   idempotency: IdempotencyService;
   sync: SyncService;
   scheduler: SyncScheduler;
+  /** State of the database backup for the administrator */
+  backupStatus?: BackupStatusService;
   /** The administrator's switch of the Excel sync */
   syncSwitch?: SyncSwitch;
   /** Database check for `/api/ready`; without it the endpoint always reports ready */
@@ -80,6 +83,7 @@ export function buildApp({
   sync,
   scheduler,
   syncSwitch,
+  backupStatus,
   checkDatabase,
   inlineExcelWaitMs = 15_000,
   currency = 'AMD',
@@ -172,7 +176,7 @@ export function buildApp({
     { prefix: '/api' },
   );
   app.register(groupRoutes(groupService), { prefix: '/api' });
-  app.register(adminRoutes(platformAdmin), { prefix: '/api' });
+  app.register(adminRoutes(platformAdmin, backupStatus), { prefix: '/api' });
   app.register(invitationRoutes(invitations, auth), { prefix: '/api' });
   app.register(syncRoutes({ sync, scheduler, syncSwitch }), { prefix: '/api' });
   app.register(

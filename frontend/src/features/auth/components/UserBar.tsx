@@ -1,10 +1,13 @@
 import { Link } from 'react-router';
+import { hasBackupProblem, useAdminBackup } from '../../admin/hooks/useAdminBackup.ts';
 import type { AuthUser } from '../api/auth.api.ts';
 import { useLogout } from '../hooks/useAuth.ts';
 
 /** Who is signed in, and the sign-out button. */
 export function UserBar({ user }: { user: AuthUser }) {
   const logout = useLogout();
+  // Only an application admin asks about the backup: nobody else ever requests the endpoint
+  const backup = useAdminBackup(user.isAdmin);
 
   return (
     <div className="mb-4 flex items-center justify-between text-sm text-zinc-500 dark:text-zinc-400">
@@ -21,7 +24,9 @@ export function UserBar({ user }: { user: AuthUser }) {
           </span>
         )}
         {user.role === 'owner' && <BarLink to="/group" label="Группа" />}
-        {user.isAdmin && <BarLink to="/admin" label="Админ" />}
+        {user.isAdmin && (
+          <BarLink to="/admin" label="Админ" alert={hasBackupProblem(backup.data?.state)} />
+        )}
         <Link
           to="/settings"
           aria-label="Настройки"
@@ -44,13 +49,22 @@ export function UserBar({ user }: { user: AuthUser }) {
 }
 
 /** A small text link for owner/admin pages: members never see these. */
-function BarLink({ to, label }: { to: string; label: string }) {
+function BarLink({ to, label, alert = false }: { to: string; label: string; alert?: boolean }) {
   return (
     <Link
       to={to}
-      className="rounded-lg px-2 py-1.5 font-medium text-zinc-600 hover:bg-zinc-200/60 hover:text-indigo-600 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-indigo-400"
+      className="relative rounded-lg px-2 py-1.5 font-medium text-zinc-600 hover:bg-zinc-200/60 hover:text-indigo-600 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-indigo-400"
     >
       {label}
+      {alert && (
+        <>
+          <span
+            aria-hidden="true"
+            className="absolute right-0.5 top-0.5 size-2 rounded-full bg-red-500"
+          />
+          <span className="sr-only">есть проблема с бэкапом</span>
+        </>
+      )}
     </Link>
   );
 }

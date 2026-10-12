@@ -50,3 +50,25 @@ export const setAdminSync = async (enabled: boolean) =>
       body: JSON.stringify({ enabled }),
     })
   ).data;
+
+/** State of the nightly database backup, as the server sees it (read-only). */
+export interface AdminBackup {
+  configured: boolean;
+  /** ok: a fresh good copy; stale: no good copy for too long; failed: the last run failed; unknown: no data */
+  state: 'ok' | 'stale' | 'failed' | 'unknown';
+  lastSuccess: {
+    at: string;
+    file: string;
+    sizeBytes: number;
+    remote: 'ok' | 'failed' | 'off';
+  } | null;
+  lastRun: {
+    at: string;
+    ok: boolean;
+    error: '' | 'dump_failed' | 'verify_failed' | 'upload_failed' | 'unexpected';
+  } | null;
+  ageHours: number | null;
+  maxAgeHours: number;
+}
+
+export const fetchAdminBackup = async () => (await apiRequest<AdminBackup>('/admin/backup')).data;

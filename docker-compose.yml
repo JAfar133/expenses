@@ -84,6 +84,7 @@ services:
       # Who can edit and delete records (everyone else is read-only)
       EDITOR_USERS: ${EDITOR_USERS:-misha}
       ADMIN_USERS: ${ADMIN_USERS:-}
+      DB_BACKUP_STATUS_DIR: /db-backups
       DEFAULT_GROUP_NAME: ${DEFAULT_GROUP_NAME:-Семья}
       AUTH_PASSWORD_MISHA: ${AUTH_PASSWORD_MISHA:-}
       AUTH_PASSWORD_NASTYA: ${AUTH_PASSWORD_NASTYA:-}
@@ -99,6 +100,9 @@ services:
     volumes:
       # rclone config (with refreshed tokens) and Excel backups
       - backend-data:/data
+      # Status files of the database backup script (read-only): the administrator sees them in the app.
+      # On the server set DB_BACKUP_DIR to the folder of the backups (default: ~/backups of scripts/backup-db.sh)
+      - ${DB_BACKUP_DIR:-./.db-backups}:/db-backups:ro
     secrets:
       - rclone.conf
     # Not published: reachable only by the web service

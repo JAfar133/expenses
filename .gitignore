@@ -2,3 +2,6 @@
 dist/
 node_modules/
 secrets/
+
+# Status files of the database backup, mounted into the backend (local compose)
+.db-backups/

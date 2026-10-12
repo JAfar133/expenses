@@ -24,6 +24,7 @@ import { PreferencesRepository } from './modules/preferences/preferences.reposit
 import { RatesRepository } from './modules/rates/rates.repository.ts';
 import { RatesService } from './modules/rates/rates.service.ts';
 import { SyncScheduler } from './modules/sync/sync.scheduler.ts';
+import { BackupStatusService } from './modules/admin/backup-status.service.ts';
 import { SyncSwitch } from './modules/sync/sync-switch.ts';
 import { SyncService } from './modules/sync/sync.service.ts';
 import { SyncStateRepository } from './modules/sync/sync-state.repository.ts';
@@ -131,6 +132,10 @@ const scheduler = new SyncScheduler({
   retryMs: env.SYNC_RETRY_SECONDS * 1000,
 });
 const syncSwitch = new SyncSwitch(database, sync, scheduler);
+const backupStatus = new BackupStatusService({
+  dir: env.DB_BACKUP_STATUS_DIR,
+  maxAgeHours: env.DB_BACKUP_MAX_AGE_HOURS,
+});
 
 const app = buildApp({
   currency: env.DEFAULT_CURRENCY,
@@ -171,6 +176,7 @@ const app = buildApp({
   sync,
   scheduler,
   syncSwitch,
+  backupStatus,
   inlineExcelWaitMs: env.SYNC_INLINE_WAIT_SECONDS * 1000,
   expenseService: new ExpenseService(expenses, {
     groups,

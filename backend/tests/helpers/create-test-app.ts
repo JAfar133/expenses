@@ -18,6 +18,7 @@ import { PlatformAdminService } from '../../src/modules/groups/platform-admin.se
 import { GroupsRepository } from '../../src/modules/groups/groups.repository.ts';
 import { ExpenseEditor } from '../../src/modules/expenses/expense-editor.ts';
 import { ExpenseService } from '../../src/modules/expenses/expenses.service.ts';
+import type { BackupStatusService } from '../../src/modules/admin/backup-status.service.ts';
 import { ReportService } from '../../src/modules/reports/report.service.ts';
 import { SyncSwitch } from '../../src/modules/sync/sync-switch.ts';
 import { SyncScheduler } from '../../src/modules/sync/sync.scheduler.ts';
@@ -153,6 +154,8 @@ export interface TestAppOptions {
   allowedOrigins?: string[];
   throttle?: LoginThrottle;
   checkDatabase?: () => Promise<unknown>;
+  /** The backup status for the administrator */
+  backupStatus?: BackupStatusService;
   /** Row limit of the Excel report */
   maxReportRows?: number;
   /** Clock of the invitations service */
@@ -222,6 +225,7 @@ export async function createTestApp(
 
   const app = buildApp({
     syncSwitch,
+    backupStatus: options.backupStatus,
     expenseService: new ExpenseService(repository, { groups, currency: rates }),
     groups,
     invitations,
