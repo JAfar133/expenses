@@ -267,8 +267,9 @@ export class AuthService {
     return publicUser(stored!);
   }
 
-  listUsers(): Promise<AuthUser[]> {
-    return this.repository.listUsers();
+  /** Members of the actor's group: the others are not visible to them. */
+  listUsers(actor: AuthUser): Promise<AuthUser[]> {
+    return actor.groupId ? this.repository.listGroupUsers(actor.groupId) : Promise.resolve([]);
   }
 
   /**
@@ -279,9 +280,11 @@ export class AuthService {
     if (!actor.canEdit) throw forbiddenError();
 
     const target = await this.repository.findUser(username);
-    if (!target || target.disabled) throw notFoundError();
+    if (!target || target.disabled || !actor.groupId || target.groupId !== actor.groupId) {
+      throw notFoundError();
+    }
 
-    const done = await this.repository.setCanEditKeepingEditor(target.id, canEdit);
+    const done = await this.repository.setRoleKeepingOwner(target.id, canEdit ? 'owner' : 'member');
     if (!done) {
       throw new AppError(
         409,
@@ -337,4 +340,7 @@ const publicUser = (user: AuthUser): AuthUser => ({
   card: user.card,
   canEdit: user.canEdit,
   timezone: user.timezone,
+  groupId: user.groupId,
+  role: user.role,
+  isAdmin: user.isAdmin,
 });

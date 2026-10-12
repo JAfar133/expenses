@@ -1,3 +1,4 @@
+import type { ExpenseScope } from '../groups/scope.ts';
 import { addDays, daysInclusive, nextPeriod, periodStart } from './date-math.ts';
 import type { AnalyticsRepository } from './analytics.repository.ts';
 import type {
@@ -84,8 +85,8 @@ export class AnalyticsService {
     return fillGaps(points, periodStart(first, granularity), last, granularity);
   }
 
-  authors(): Promise<Author[]> {
-    return this.options.repository.authors();
+  authors(scope?: ExpenseScope): Promise<Author[]> {
+    return this.options.repository.authors(scope);
   }
 
   list(filters: AnalyticsFilters, options: ListOptions): Promise<ExpenseListPage> {

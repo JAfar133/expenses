@@ -22,6 +22,11 @@ beforeEach(async () => {
   await database.query(
     'UPDATE users SET custom_display_name = NULL, custom_card = NULL, custom_timezone = NULL, can_edit_override = NULL',
   );
+  // Roles live in the group membership: back to the initial state (misha owner, nastya member)
+  await database.query(
+    `UPDATE memberships SET role = CASE
+       WHEN user_id = (SELECT id FROM users WHERE username = 'misha') THEN 'owner' ELSE 'member' END`,
+  );
 });
 
 type Who = 'misha' | 'nastya';
@@ -44,6 +49,8 @@ describe('профиль: имя, карта, часовой пояс', () => {
       card: 'Миша',
       canEdit: true,
       timezone: 'Asia/Yerevan',
+      role: 'owner',
+      isAdmin: true,
     });
   });
 

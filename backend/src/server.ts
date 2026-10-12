@@ -3,6 +3,7 @@ import { buildApp } from './app.ts';
 import { loadEnv, readUserPasswords } from './config/env.ts';
 import { BackupService } from './infrastructure/backup/backup.service.ts';
 import { createPostgresDatabase, waitForDatabase } from './infrastructure/database/database.ts';
+import { GroupsRepository } from './modules/groups/groups.repository.ts';
 import { ensureDefaultGroup } from './modules/groups/default-group.ts';
 import { migrate } from './infrastructure/database/migrate.ts';
 import { IdempotencyService } from './infrastructure/idempotency/idempotency.service.ts';
@@ -69,6 +70,7 @@ const database = createPostgresDatabase(env.DATABASE_URL, (error) =>
   app.log.error({ err: error }, 'PostgreSQL connection error'),
 );
 const expenses = new PostgresExpenseRepository(database);
+const groups = new GroupsRepository(database);
 const idempotency = new IdempotencyService(database);
 
 const HOUR_MS = 3_600_000;
@@ -127,7 +129,8 @@ const app = buildApp({
   rates,
   analytics,
   preferences: new PreferencesRepository(database),
-  editor: new ExpenseEditor({ database, repository: expenses, cards: env.CARDS }),
+  editor: new ExpenseEditor({ database, repository: expenses, groups }),
+  groups,
   checkDatabase: () => database.query('SELECT 1'),
   trustProxy: env.TRUST_PROXY,
   allowedOrigins: env.ALLOWED_ORIGINS,
@@ -136,7 +139,7 @@ const app = buildApp({
   scheduler,
   inlineExcelWaitMs: env.SYNC_INLINE_WAIT_SECONDS * 1000,
   expenseService: new ExpenseService(expenses, {
-    reference: { cards: env.CARDS, categories: env.CATEGORIES },
+    groups,
     currency: {
       base: env.DEFAULT_CURRENCY,
       currencies: env.CURRENCIES,

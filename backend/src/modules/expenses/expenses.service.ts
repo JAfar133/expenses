@@ -5,19 +5,23 @@ import type {
   NameSuggestion,
   StoredExpense,
 } from '../../storage/expense.repository.ts';
+import type { ExpenseScope } from '../groups/scope.ts';
+import type { GroupsRepository } from '../groups/groups.repository.ts';
 import { resolveAmount, type AmountContext } from './expense-amount.ts';
 import type { CreateExpenseInput } from './expenses.schema.ts';
 
 /** How many "category + name" pairs we give the form for suggestions. */
 const NAME_SUGGESTIONS_LIMIT = 500;
 
-export interface ReferenceData {
-  cards: string[];
-  categories: string[];
+/** Who adds an expense: the login goes into the record, the scope decides which cards are allowed. */
+export interface ExpenseAuthor {
+  username: string;
+  scope: ExpenseScope;
 }
 
 export interface ExpenseServiceOptions {
-  reference: ReferenceData;
+  /** Cards and categories of the user's group */
+  groups: Pick<GroupsRepository, 'editableCardNames' | 'categoryNames'>;
   /** Base currency, available currencies and rates for conversion to drams */
   currency: AmountContext;
   logger?: { warn: (object: object, message: string) => void };
@@ -29,21 +33,25 @@ export class ExpenseService {
     private readonly options: ExpenseServiceOptions,
   ) {}
 
-  getCards(): string[] {
-    return this.options.reference.cards;
+  /** Cards the user may add expenses to. */
+  getCards(scope: ExpenseScope, db?: SqlExecutor): Promise<string[]> {
+    return this.options.groups.editableCardNames(scope, db);
   }
 
-  /** Categories from the configuration + unique values from the DB (including those from Excel). */
-  async getCategories(): Promise<string[]> {
-    const configured = this.options.reference.categories;
-    const stored = await this.readStoredCategories();
+  /** Categories of the group + the ones already used by records the user can see (including those from Excel). */
+  async getCategories(scope: ExpenseScope): Promise<string[]> {
+    const configured = await this.options.groups.categoryNames(scope.groupId);
+    const stored = await this.readStoredCategories(scope);
     return [...new Set([...configured, ...stored])];
   }
 
   /** Name suggestions: from most to least frequent. An unavailable DB does not break the form. */
-  async getNameSuggestions(limit = NAME_SUGGESTIONS_LIMIT): Promise<NameSuggestion[]> {
+  async getNameSuggestions(
+    scope: ExpenseScope,
+    limit = NAME_SUGGESTIONS_LIMIT,
+  ): Promise<NameSuggestion[]> {
     try {
-      return await this.repository.listNameSuggestions(limit);
+      return await this.repository.listNameSuggestions(limit, scope);
     } catch (error) {
       this.options.logger?.warn({ err: error }, 'Failed to read name suggestions from database');
       return [];
@@ -51,8 +59,12 @@ export class ExpenseService {
   }
 
   /** Saves the expense to the DB. It reaches Excel through the sync queue. */
-  async create(db: SqlExecutor, input: CreateExpenseInput, userId: string): Promise<StoredExpense> {
-    if (!this.getCards().includes(input.card)) {
+  async create(
+    db: SqlExecutor,
+    input: CreateExpenseInput,
+    author: ExpenseAuthor,
+  ): Promise<StoredExpense> {
+    if (!(await this.getCards(author.scope, db)).includes(input.card)) {
       throw validationError('INVALID_CARD', 'Выберите карту из списка');
     }
     const { amount, original } = await resolveAmount(
@@ -67,7 +79,7 @@ export class ExpenseService {
     return this.repository.insertPending(
       db,
       { date, card, category, name, amount },
-      userId,
+      author.username,
       original,
     );
   }
@@ -77,9 +89,9 @@ export class ExpenseService {
   }
 
   /** DB unavailability must not break the form: return the categories from the configuration. */
-  private async readStoredCategories(): Promise<string[]> {
+  private async readStoredCategories(scope: ExpenseScope): Promise<string[]> {
     try {
-      return await this.repository.listCategories();
+      return await this.repository.listCategories(scope);
     } catch (error) {
       this.options.logger?.warn({ err: error }, 'Failed to read categories from database');
       return [];

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Database } from '../../infrastructure/database/database.ts';
 import { timestampText } from '../../infrastructure/database/sql.ts';
-import type { AuthUser, ClientContext } from './auth.types.ts';
+import type { AuthUser, ClientContext, GroupRole } from './auth.types.ts';
 
 export interface StoredUser extends AuthUser {
   passwordHash: string | null;
@@ -28,6 +28,9 @@ interface UserRow {
   card: string;
   can_edit: boolean;
   timezone: string;
+  group_id: string | null;
+  group_role: GroupRole | null;
+  is_admin: boolean;
   password_hash: string | null;
   env_password_hash: string | null;
   disabled: boolean;
@@ -41,6 +44,9 @@ interface SessionRow {
   card: string;
   can_edit: boolean;
   timezone: string;
+  group_id: string | null;
+  group_role: GroupRole | null;
+  is_admin: boolean;
   access_expires_at: string;
   refresh_expires_at: string;
   created_at: string;
@@ -48,13 +54,20 @@ interface SessionRow {
   matched: 'current' | 'previous';
 }
 
-const toUser = (row: UserRow): StoredUser => ({
+const toAuthUser = (row: UserRow): AuthUser => ({
   id: row.id,
   username: row.username,
   displayName: row.display_name,
   card: row.card,
   canEdit: row.can_edit,
   timezone: row.timezone,
+  groupId: row.group_id,
+  role: row.group_role,
+  isAdmin: row.is_admin,
+});
+
+const toUser = (row: UserRow): StoredUser => ({
+  ...toAuthUser(row),
   passwordHash: row.password_hash,
   envPasswordHash: row.env_password_hash,
   disabled: row.disabled,
@@ -64,8 +77,15 @@ const toUser = (row: UserRow): StoredUser => ({
 const EFFECTIVE_USER_COLUMNS = `
   COALESCE(u.custom_display_name, u.display_name) AS display_name,
   COALESCE(u.custom_card, u.card) AS card,
-  COALESCE(u.can_edit_override, u.can_edit_default) AS can_edit,
-  COALESCE(u.custom_timezone, u.timezone_default) AS timezone`;
+  COALESCE(
+    (SELECT m.role = 'owner' FROM memberships m WHERE m.user_id = u.id),
+    u.can_edit_override,
+    u.can_edit_default
+  ) AS can_edit,
+  COALESCE(u.custom_timezone, u.timezone_default) AS timezone,
+  (SELECT m.group_id FROM memberships m WHERE m.user_id = u.id) AS group_id,
+  (SELECT m.role FROM memberships m WHERE m.user_id = u.id) AS group_role,
+  u.is_admin AS is_admin`;
 
 const SESSION_COLUMNS = `
   s.id, s.user_id, u.username, ${EFFECTIVE_USER_COLUMNS},
@@ -83,6 +103,9 @@ const toSession = (row: SessionRow): StoredSession => ({
     card: row.card,
     canEdit: row.can_edit,
     timezone: row.timezone,
+    groupId: row.group_id,
+    role: row.group_role,
+    isAdmin: row.is_admin,
   },
   accessExpiresAt: new Date(row.access_expires_at),
   refreshExpiresAt: new Date(row.refresh_expires_at),
@@ -154,44 +177,43 @@ export class AuthRepository {
   }
 
   /**
-   * Sets the editing right. Taking it away is refused (returns false) if it would leave no editor.
-   * The users are locked for the check and the update, so two concurrent revocations cannot both pass.
+   * Changes the member's role in the group: the owner role gives the right to edit and sees every card.
+   * Taking the owner role away is refused (returns false) if it would leave the group without an owner.
+   * The group's members are locked for the check and the update, so two concurrent revocations cannot both pass.
    */
-  async setCanEditKeepingEditor(userId: string, canEdit: boolean): Promise<boolean> {
+  async setRoleKeepingOwner(userId: string, role: GroupRole): Promise<boolean> {
     return this.database.transaction(async (tx) => {
-      await tx.query('SELECT id FROM users WHERE disabled_at IS NULL ORDER BY id FOR UPDATE');
-      if (!canEdit) {
-        const [others] = await tx.query<{ editors: string }>(
-          `SELECT count(*) AS editors FROM users u
-            WHERE u.disabled_at IS NULL AND u.id <> $1
-              AND COALESCE(u.can_edit_override, u.can_edit_default)`,
-          [userId],
-        );
-        if (Number(others?.editors ?? 0) === 0) return false;
-      }
-      await tx.query('UPDATE users SET can_edit_override = $2, updated_at = now() WHERE id = $1', [
-        userId,
-        canEdit,
+      const [membership] = await tx.query<{ group_id: string }>(
+        'SELECT group_id FROM memberships WHERE user_id = $1',
+        [userId],
+      );
+      if (!membership) return false;
+      await tx.query('SELECT 1 FROM memberships WHERE group_id = $1 ORDER BY user_id FOR UPDATE', [
+        membership.group_id,
       ]);
+      if (role === 'member') {
+        const [others] = await tx.query<{ owners: string }>(
+          `SELECT count(*) AS owners FROM memberships m JOIN users u ON u.id = m.user_id
+            WHERE m.group_id = $1 AND m.role = 'owner' AND m.user_id <> $2 AND u.disabled_at IS NULL`,
+          [membership.group_id, userId],
+        );
+        if (Number(others?.owners ?? 0) === 0) return false;
+      }
+      await tx.query('UPDATE memberships SET role = $2 WHERE user_id = $1', [userId, role]);
       return true;
     });
   }
 
-  /** All enabled users with their effective values. */
-  async listUsers(): Promise<AuthUser[]> {
+  /** Enabled members of a group with their effective values. */
+  async listGroupUsers(groupId: string): Promise<AuthUser[]> {
     const rows = await this.database.query<UserRow>(
       `SELECT u.id, u.username, ${EFFECTIVE_USER_COLUMNS}, u.password_hash, u.env_password_hash,
               false AS disabled
-         FROM users u WHERE u.disabled_at IS NULL ORDER BY u.username`,
+         FROM users u JOIN memberships gm ON gm.user_id = u.id
+        WHERE u.disabled_at IS NULL AND gm.group_id = $1 ORDER BY u.username`,
+      [groupId],
     );
-    return rows.map(({ id, username, display_name, card, can_edit, timezone }) => ({
-      id,
-      username,
-      displayName: display_name,
-      card,
-      canEdit: can_edit,
-      timezone,
-    }));
+    return rows.map(toAuthUser);
   }
 
   /** Users no longer in the settings are disabled: they will not be able to log in. */

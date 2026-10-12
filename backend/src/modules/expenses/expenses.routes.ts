@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { AppError, validationError } from '../../errors/app-error.ts';
 import type { IdempotencyService } from '../../infrastructure/idempotency/idempotency.service.ts';
+import { scopeOf } from '../groups/scope.ts';
 import { waitForExcelWrite } from '../sync/inline-wait.ts';
 import type { SyncService } from '../sync/sync.service.ts';
 import { createExpenseSchema, FIELD_ERROR_CODES } from './expenses.schema.ts';
@@ -28,6 +29,7 @@ export const expensesRoutes =
       const startedAt = performance.now();
       // Idempotency keys are bound to the user id, while the expense and the log get a readable login
       const { id: userId, username } = request.user!;
+      const scope = scopeOf(request.user!);
 
       try {
         const key = readIdempotencyKey(request);
@@ -36,7 +38,7 @@ export const expensesRoutes =
         // The expense is reliably saved to the DB together with the idempotency key
         const { value: saved, replayed } = await idempotency.run(
           { userId, key, payload: input },
-          (tx) => expenseService.create(tx, input, username),
+          (tx) => expenseService.create(tx, input, { username, scope }),
         );
 
         // Then we try to write it to Excel. If the file is busy, the expense waits in the queue.
@@ -77,16 +79,19 @@ export const expensesRoutes =
       }
     });
 
-    app.get('/cards', async () => ({ success: true, data: expenseService.getCards() }));
-
-    app.get('/name-suggestions', async () => ({
+    app.get('/cards', async (request) => ({
       success: true,
-      data: await expenseService.getNameSuggestions(),
+      data: await expenseService.getCards(scopeOf(request.user!)),
     }));
 
-    app.get('/categories', async () => ({
+    app.get('/name-suggestions', async (request) => ({
       success: true,
-      data: await expenseService.getCategories(),
+      data: await expenseService.getNameSuggestions(scopeOf(request.user!)),
+    }));
+
+    app.get('/categories', async (request) => ({
+      success: true,
+      data: await expenseService.getCategories(scopeOf(request.user!)),
     }));
   };
 

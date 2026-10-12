@@ -1,4 +1,5 @@
 import type { SqlExecutor } from '../infrastructure/database/database.ts';
+import type { ExpenseScope } from '../modules/groups/scope.ts';
 import type { Expense } from '../services/excel/types.ts';
 
 export type { Expense };
@@ -17,6 +18,8 @@ export interface ExpenseOriginal {
 }
 
 export interface StoredExpense extends Expense {
+  /** The group the record belongs to; null for records made before groups existed */
+  groupId: string | null;
   id: string;
   source: 'app' | 'excel';
   excelStatus: ExcelStatus;
@@ -54,9 +57,10 @@ export interface ExpenseRepository {
     original?: ExpenseOriginal,
   ): Promise<StoredExpense>;
   findById(id: string): Promise<StoredExpense | undefined>;
-  listCategories(): Promise<string[]>;
+  /** Categories used by the records the scope allows (all records without a scope: internal use) */
+  listCategories(scope?: ExpenseScope): Promise<string[]>;
   /** Names per category from most to least frequent (at most limit). */
-  listNameSuggestions(limit: number): Promise<NameSuggestion[]>;
+  listNameSuggestions(limit: number, scope?: ExpenseScope): Promise<NameSuggestion[]>;
 
   /** All records for reconciliation with Excel, including those marked deleted. */
   listForReconcile(db: SqlExecutor): Promise<StoredExpense[]>;

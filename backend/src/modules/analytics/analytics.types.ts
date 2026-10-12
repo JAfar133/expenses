@@ -1,4 +1,5 @@
 import type { ExcelState } from '../../storage/excel-state.ts';
+import type { ExpenseScope } from '../groups/scope.ts';
 
 /** Common filters of the analytics page. An empty list means "no restriction". */
 export interface AnalyticsFilters {
@@ -16,6 +17,11 @@ export interface AnalyticsFilters {
   minAmount?: number;
   maxAmount?: number;
   includeDeleted: boolean;
+  /**
+   * What the user may see (group and cards). Set by the routes from the logged-in user, never from the query;
+   * without it the query is not limited (internal use and tests).
+   */
+  scope?: ExpenseScope;
 }
 
 export interface SummaryStats {

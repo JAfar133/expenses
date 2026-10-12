@@ -11,6 +11,7 @@ import { preferencesRoutes } from './modules/preferences/preferences.routes.ts';
 import type { PreferencesRepository } from './modules/preferences/preferences.repository.ts';
 import { ratesRoutes } from './modules/rates/rates.routes.ts';
 import type { RatesService } from './modules/rates/rates.service.ts';
+import type { GroupsRepository } from './modules/groups/groups.repository.ts';
 import { ExpenseEditor } from './modules/expenses/expense-editor.ts';
 import { expenseEditRoutes } from './modules/expenses/expense-edit.routes.ts';
 import { expensesRoutes } from './modules/expenses/expenses.routes.ts';
@@ -28,6 +29,8 @@ export interface AppDependencies {
   preferences: Pick<PreferencesRepository, 'get' | 'merge'>;
   /** Editing and deleting records */
   editor: ExpenseEditor;
+  /** Cards of a group (for the default card in the profile) */
+  groups: Pick<GroupsRepository, 'cardNames'>;
   /** Logins allowed to edit and delete */
   editors?: string[];
   idempotency: IdempotencyService;
@@ -52,6 +55,7 @@ export function buildApp({
   analytics,
   preferences,
   editor,
+  groups,
   idempotency,
   sync,
   scheduler,
@@ -139,7 +143,12 @@ export function buildApp({
     { prefix: '/api' },
   );
   app.register(syncRoutes({ sync, scheduler }), { prefix: '/api' });
-  app.register(authRoutes(auth, expenseService.getCards()), { prefix: '/api' });
+  app.register(
+    authRoutes(auth, (user) =>
+      user.groupId ? groups.cardNames(user.groupId) : Promise.resolve([]),
+    ),
+    { prefix: '/api' },
+  );
 
   return app;
 }

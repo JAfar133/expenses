@@ -19,13 +19,23 @@ const passwordSchema = z.object({
 const loginSchema = z.object({ username: z.string().max(64), password: z.string().max(2048) });
 
 /** User for the client response: without the internal identifier. */
-const publicUser = ({ username, displayName, card, canEdit, timezone }: AuthUser) => ({
+const publicUser = ({
+  username,
+  displayName,
+  card,
+  canEdit,
+  timezone,
+  role,
+  isAdmin,
+}: AuthUser) => ({
   username,
   displayName,
   card,
   /** Whether the user can edit and delete records */
   canEdit,
   timezone,
+  role,
+  isAdmin,
 });
 
 /** The time zone must exist: checked the same way Node itself will parse it. */
@@ -60,7 +70,11 @@ const profileSchema = (cards: string[]) =>
 const rightsSchema = z.object({ canEdit: z.boolean() }).strict();
 
 export const authRoutes =
-  (auth: AuthService, cards: string[] = []): FastifyPluginAsync =>
+  (
+    auth: AuthService,
+    /** Cards the user may choose as the default one (the cards of their group) */
+    cardsOf: (user: AuthUser) => Promise<string[]> = async () => [],
+  ): FastifyPluginAsync =>
   async (app) => {
     const isSecure = (request: { protocol: string }) => request.protocol === 'https';
 
@@ -130,7 +144,7 @@ export const authRoutes =
 
     /** Personal account settings: name, default card, time zone. */
     app.patch('/auth/profile', async (request) => {
-      const parsed = profileSchema(cards).safeParse(request.body);
+      const parsed = profileSchema(await cardsOf(request.user!)).safeParse(request.body);
       if (!parsed.success) {
         const issue = parsed.error.issues[0]!;
         throw validationError('INVALID_PROFILE', issue.message);
@@ -152,7 +166,7 @@ export const authRoutes =
       if (!request.user!.canEdit) throw forbiddenError();
       return {
         success: true,
-        data: (await auth.listUsers()).map(({ username, displayName, canEdit }) => ({
+        data: (await auth.listUsers(request.user!)).map(({ username, displayName, canEdit }) => ({
           username,
           displayName,
           canEdit,

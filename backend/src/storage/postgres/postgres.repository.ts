@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Database, SqlExecutor } from '../../infrastructure/database/database.ts';
 import { dateText, timestampText } from '../../infrastructure/database/sql.ts';
+import { scopeCondition, type ExpenseScope } from '../../modules/groups/scope.ts';
 import type {
   Expense,
   ExpenseRepository,
@@ -14,6 +15,7 @@ import type {
 
 interface ExpenseRow {
   id: string;
+  group_id: string | null;
   date: string;
   card: string;
   category: string;
@@ -29,7 +31,7 @@ interface ExpenseRow {
   exchange_rate: number | null;
 }
 
-const COLUMNS = `id, ${dateText('date')} AS date, card, category, name, amount, source, excel_status, ${timestampText('deleted_at')} AS deleted_at, deleted_reason, excel_snapshot, original_amount::float8 AS original_amount, original_currency, exchange_rate::float8 AS exchange_rate`;
+const COLUMNS = `id, group_id, ${dateText('date')} AS date, COALESCE((SELECT c.name FROM cards c WHERE c.id = card_id), card) AS card, category, name, amount, source, excel_status, ${timestampText('deleted_at')} AS deleted_at, deleted_reason, excel_snapshot, original_amount::float8 AS original_amount, original_currency, exchange_rate::float8 AS exchange_rate`;
 
 /** Current record values as an Excel row snapshot (what was written to Excel after sync). */
 const SNAPSHOT_OF_VALUES = `jsonb_build_object(
@@ -37,6 +39,7 @@ const SNAPSHOT_OF_VALUES = `jsonb_build_object(
 
 const toStored = (row: ExpenseRow): StoredExpense => ({
   id: row.id,
+  groupId: row.group_id,
   date: row.date,
   card: row.card,
   category: row.category,
@@ -104,23 +107,38 @@ export class PostgresExpenseRepository implements ExpenseRepository {
     return row && toStored(row);
   }
 
-  async listCategories(): Promise<string[]> {
+  async listCategories(scope?: ExpenseScope): Promise<string[]> {
+    const params: unknown[] = [];
+    const param = (value: unknown) => {
+      params.push(value);
+      return `$${params.length}`;
+    };
     const rows = await this.database.query<{ category: string }>(
-      'SELECT category FROM expenses WHERE deleted_at IS NULL GROUP BY category ORDER BY min(seq), category',
+      `SELECT category FROM expenses
+        WHERE deleted_at IS NULL AND ${scope ? scopeCondition(scope, param) : 'true'}
+        GROUP BY category ORDER BY min(seq), category`,
+      params,
     );
     return rows.map((row) => row.category);
   }
 
-  async listNameSuggestions(limit: number): Promise<NameSuggestion[]> {
+  async listNameSuggestions(limit: number, scope?: ExpenseScope): Promise<NameSuggestion[]> {
+    const params: unknown[] = [];
+    const param = (value: unknown) => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+    const visible = scope ? scopeCondition(scope, param) : 'true';
+    params.push(limit);
     return this.database.query<NameSuggestion>(
       // Show the spelling from the most recent record, but count case-insensitively
       `SELECT (array_agg(name ORDER BY seq DESC))[1] AS name, category, count(*)::int AS count
          FROM expenses
-        WHERE deleted_at IS NULL
+        WHERE deleted_at IS NULL AND ${visible}
         GROUP BY category, lower(btrim(name))
         ORDER BY count(*) DESC, max(seq) DESC
-        LIMIT $1`,
-      [limit],
+        LIMIT $${params.length}`,
+      params,
     );
   }
 

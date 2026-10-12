@@ -28,6 +28,7 @@ CREATE TABLE cards (
   group_id    uuid        NOT NULL REFERENCES groups (id) ON DELETE CASCADE,
   name        text        NOT NULL,
   currency    text        NOT NULL,
+  position    integer     NOT NULL DEFAULT 0,
   archived_at timestamptz,
   created_at  timestamptz NOT NULL DEFAULT now(),
   UNIQUE (group_id, name)
@@ -75,8 +76,10 @@ BEGIN
      AND (NEW.card_id IS NULL OR (TG_OP = 'UPDATE' AND NEW.card IS DISTINCT FROM OLD.card)) THEN
     SELECT c.id INTO NEW.card_id FROM cards c WHERE c.group_id = NEW.group_id AND c.name = NEW.card;
     IF NEW.card_id IS NULL THEN
-      INSERT INTO cards (group_id, name, currency)
-      SELECT g.id, NEW.card, g.reporting_currency FROM groups g WHERE g.id = NEW.group_id
+      INSERT INTO cards (group_id, name, currency, position)
+      SELECT g.id, NEW.card, g.reporting_currency,
+             COALESCE((SELECT max(c.position) + 1 FROM cards c WHERE c.group_id = g.id), 0)
+        FROM groups g WHERE g.id = NEW.group_id
       RETURNING id INTO NEW.card_id;
     END IF;
   END IF;

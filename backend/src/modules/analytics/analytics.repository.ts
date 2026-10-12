@@ -2,7 +2,8 @@ import { describeExcelState } from '../../storage/excel-state.ts';
 import type { Expense } from '../../storage/expense.repository.ts';
 import type { Database } from '../../infrastructure/database/database.ts';
 import { dateText, timestampText } from '../../infrastructure/database/sql.ts';
-import { buildWhere } from './analytics.query.ts';
+import { scopeCondition, type ExpenseScope } from '../groups/scope.ts';
+import { buildWhere, CARD_NAME_SQL, EXPENSES_SOURCE } from './analytics.query.ts';
 import type {
   AnalyticsFilters,
   Author,
@@ -21,7 +22,7 @@ import type {
 /** Sort columns: only from this list, ready-made fragments go into the query, not user input. */
 const SORT_SQL: Record<SortColumn, string> = {
   date: 'date',
-  card: 'card',
+  card: CARD_NAME_SQL,
   category: 'category',
   name: 'lower(name)',
   amount: 'amount',
@@ -31,14 +32,14 @@ const SORT_SQL: Record<SortColumn, string> = {
 /** Grouping expression for each dimension. The currency of a dram expense is the base currency. */
 const GROUP_SQL: Record<Exclude<BreakdownBy, 'currency'>, string> = {
   category: 'category',
-  card: 'card',
+  card: CARD_NAME_SQL,
   // Case and surrounding whitespace are not distinguished; we show the spelling from the most recent record
   name: 'lower(btrim(name))',
   weekday: 'EXTRACT(ISODOW FROM date)::int',
   createdBy: 'created_by',
 };
 
-const SPLIT_SQL: Record<SeriesSplit, string> = { category: 'category', card: 'card' };
+const SPLIT_SQL: Record<SeriesSplit, string> = { category: 'category', card: CARD_NAME_SQL };
 
 const GRANULARITY_SQL: Record<Granularity, string> = {
   day: 'date',
@@ -76,7 +77,7 @@ export class AnalyticsRepository {
               count(DISTINCT date)::int AS active_days,
               ${dateText('min(date)')} AS first_date,
               ${dateText('max(date)')} AS last_date
-         FROM expenses ${where.sql}`,
+         FROM ${EXPENSES_SOURCE} ${where.sql}`,
       where.params,
     );
     return {
@@ -122,7 +123,7 @@ export class AnalyticsRepository {
               sum(amount)::float8 AS total,
               count(*)::int AS count,
               avg(amount)::float8 AS average
-         FROM expenses ${where.sql}
+         FROM ${EXPENSES_SOURCE} ${where.sql}
         GROUP BY ${groupExpression}
         ORDER BY sum(amount) DESC, 1
         LIMIT $${params.length}`,
@@ -150,7 +151,7 @@ export class AnalyticsRepository {
       `SELECT ${dateText(period)} AS period${split},
               sum(amount)::float8 AS total,
               count(*)::int AS count
-         FROM expenses ${where.sql}
+         FROM ${EXPENSES_SOURCE} ${where.sql}
         GROUP BY ${period}${groupSplit}
         ORDER BY ${period}${groupSplit}`,
       where.params,
@@ -163,16 +164,25 @@ export class AnalyticsRepository {
   }
 
   /** Expense authors (excluding deleted ones) from most active; records that came from Excel are labeled «Из Excel» ("From Excel"). */
-  async authors(): Promise<Author[]> {
+  async authors(scope?: ExpenseScope): Promise<Author[]> {
+    const params: unknown[] = [];
+    const param = (value: unknown) => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+    const visible = scope
+      ? scopeCondition(scope, param, { columns: { group: 'e.group_id', card: 'e.card_id' } })
+      : 'true';
     return this.database.query<Author>(
       `SELECT e.created_by AS value,
               COALESCE(u.display_name, CASE WHEN e.created_by = 'excel' THEN 'Из Excel' ELSE e.created_by END) AS label,
               count(*)::int AS count
          FROM expenses e
          LEFT JOIN users u ON u.username = e.created_by
-        WHERE e.deleted_at IS NULL
+        WHERE e.deleted_at IS NULL AND ${visible}
         GROUP BY e.created_by, u.display_name
         ORDER BY count(*) DESC, e.created_by`,
+      params,
     );
   }
 
@@ -183,19 +193,19 @@ export class AnalyticsRepository {
 
     const [items, [totals]] = await Promise.all([
       this.database.query<ListRow>(
-        `SELECT id, ${dateText('date')} AS date, card, category, name, amount, source,
+        `SELECT id, ${dateText('date')} AS date, ${CARD_NAME_SQL} AS card, category, name, amount, source,
                 excel_status, created_by, updated_by, excel_last_error, deleted_reason, excel_snapshot,
                 ${timestampText('deleted_at')} AS deleted_at,
                 original_amount::float8 AS original_amount, original_currency,
                 exchange_rate::float8 AS exchange_rate
-           FROM expenses ${where.sql}
+           FROM ${EXPENSES_SOURCE} ${where.sql}
           ORDER BY ${SORT_SQL[options.sort]} ${direction}, seq ${direction}
           LIMIT $${params.length - 1} OFFSET $${params.length}`,
         params,
       ),
       this.database.query<{ total: number; total_amount: number }>(
         `SELECT count(*)::int AS total, COALESCE(sum(amount), 0)::float8 AS total_amount
-           FROM expenses ${where.sql}`,
+           FROM ${EXPENSES_SOURCE} ${where.sql}`,
         where.params,
       ),
     ]);

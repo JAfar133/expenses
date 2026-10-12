@@ -9,7 +9,15 @@ export interface AuthUser {
   canEdit: boolean;
   /** User's time zone (IANA): it determines what "today" is */
   timezone: string;
+  /** The group the user belongs to; null while the user is in no group (sees nothing) */
+  groupId: string | null;
+  /** Role in the group: the owner sees every card and edits records */
+  role: GroupRole | null;
+  /** Application administrator (manages groups) */
+  isAdmin: boolean;
 }
+
+export type GroupRole = 'owner' | 'member';
 
 export interface TokenPair {
   accessToken: string;

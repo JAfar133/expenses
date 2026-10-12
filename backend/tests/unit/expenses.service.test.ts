@@ -1,4 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { AuthRepository } from '../../src/modules/auth/auth.repository.ts';
+import { ensureDefaultGroup } from '../../src/modules/groups/default-group.ts';
+import { GroupsRepository } from '../../src/modules/groups/groups.repository.ts';
+import type { ExpenseScope } from '../../src/modules/groups/scope.ts';
 import type { Database } from '../../src/infrastructure/database/database.ts';
 import { ExpenseService } from '../../src/modules/expenses/expenses.service.ts';
 import type { ExpenseRepository } from '../../src/storage/expense.repository.ts';
@@ -15,10 +19,12 @@ const input = {
 
 let database: Database;
 let repository: PostgresExpenseRepository;
+let scope: ExpenseScope;
+const author = () => ({ username: 'misha', scope });
 
 const createService = (repo: ExpenseRepository = repository) =>
   new ExpenseService(repo, {
-    reference: { cards: ['Миша', 'Настя'], categories: ['кафе', 'продукты'] },
+    groups: new GroupsRepository(database),
     currency: {
       base: 'AMD',
       currencies: ['AMD', 'USD'],
@@ -29,6 +35,19 @@ const createService = (repo: ExpenseRepository = repository) =>
 beforeAll(async () => {
   database = await createTestDatabase();
   repository = new PostgresExpenseRepository(database);
+  const auth = new AuthRepository(database);
+  await auth.upsertUser('misha', 'Миша', { canEdit: true });
+  await auth.upsertUser('nastya', 'Настя', { canEdit: false });
+  await ensureDefaultGroup(database, {
+    name: 'Семья',
+    currency: 'AMD',
+    timezone: 'UTC',
+    cards: ['Миша', 'Настя'],
+    categories: ['кафе', 'продукты'],
+    admins: [],
+  });
+  const misha = (await auth.findUser('misha'))!;
+  scope = { userId: misha.id, groupId: misha.groupId, role: misha.role };
 });
 
 afterAll(() => database.close());
@@ -37,7 +56,7 @@ beforeEach(() => database.query('DELETE FROM expenses'));
 
 describe('create', () => {
   it('сохраняет расход в БД в очередь Excel', async () => {
-    const created = await createService().create(database, input, 'misha');
+    const created = await createService().create(database, input, author());
 
     expect(created).toMatchObject({ ...input, source: 'app', excelStatus: 'pending' });
     expect(await repository.findById(created.id)).toEqual(created);
@@ -45,7 +64,7 @@ describe('create', () => {
 
   it('отклоняет карту, которой нет в справочнике', async () => {
     await expect(
-      createService().create(database, { ...input, card: 'Вася' }, 'misha'),
+      createService().create(database, { ...input, card: 'Вася' }, author()),
     ).rejects.toMatchObject({
       statusCode: 422,
       code: 'INVALID_CARD',
@@ -57,7 +76,7 @@ describe('create', () => {
     const created = await createService().create(
       database,
       { ...input, category: 'путешествия' },
-      'misha',
+      author(),
     );
 
     expect(created.category).toBe('путешествия');
@@ -68,7 +87,7 @@ describe('getNameSuggestions', () => {
   it('отдаёт подсказки из БД', async () => {
     await repository.importFromExcel(database, [{ ...input, name: 'Латте' }]);
 
-    expect(await createService().getNameSuggestions()).toEqual([
+    expect(await createService().getNameSuggestions(scope)).toEqual([
       { name: 'Латте', category: input.category, count: 1 },
     ]);
   });
@@ -81,7 +100,7 @@ describe('getNameSuggestions', () => {
       },
     } as unknown as ExpenseRepository;
 
-    expect(await createService(broken).getNameSuggestions()).toEqual([]);
+    expect(await createService(broken).getNameSuggestions(scope)).toEqual([]);
   });
 });
 
@@ -92,7 +111,7 @@ describe('getCategories', () => {
       { ...input, category: 'продукты' },
     ]);
 
-    expect(await createService().getCategories()).toEqual(['кафе', 'продукты', 'транспорт']);
+    expect(await createService().getCategories(scope)).toEqual(['кафе', 'продукты', 'транспорт']);
   });
 
   it('отдаёт категории из конфигурации, если БД недоступна', async () => {
@@ -103,6 +122,6 @@ describe('getCategories', () => {
       },
     } as unknown as ExpenseRepository;
 
-    expect(await createService(broken).getCategories()).toEqual(['кафе', 'продукты']);
+    expect(await createService(broken).getCategories(scope)).toEqual(['кафе', 'продукты']);
   });
 });

@@ -17,7 +17,7 @@ Before finishing work: `typecheck`, `test`, `format`.
 
 ## Structure
 
-- `src/modules/<name>/` modules by task: `auth`, `expenses`, `sync`, `rates`, `analytics` (aggregates and lists for the analytics page are computed by SQL; values only as parameters, sorting from an allowlist). Inside a module, routes, service, repository and types are separate.
+- `src/modules/<name>/` modules by task: `auth`, `groups` (groups, cards, access scope), `expenses`, `sync`, `rates`, `analytics` (aggregates and lists for the analytics page are computed by SQL; values only as parameters, sorting from an allowlist). Inside a module, routes, service, repository and types are separate.
 - `src/storage/` the expense repository (PostgreSQL), `src/infrastructure/` the database and migrations, backups, idempotency.
 - `src/services/` Excel (reading via ExcelJS, writing by targeted XML editing) and OneDrive (rclone).
 - `src/config/env.ts` all environment variables (zod). A new setting goes there, in both `.env.example` files, `docker-compose.yml` and the README.
@@ -34,6 +34,14 @@ Before finishing work: `typecheck`, `test`, `format`.
 - Deleting entries from Excel is a **soft delete** (`deleted_at`), with protection against mass loss. We never erase anything physically.
 - All routes except `/api/auth/*` and `/api/health` require login (a hook in `auth.plugin.ts`); a public route is marked with `config: { public: true }`.
 - A user's UI settings: `modules/preferences` (the list of keys and allowed values is in `preferences.schema.ts`, and it must match `frontend/src/features/preferences/model/preferences.ts`).
+- **Groups (v2).** Every user belongs to one group (`memberships`); an owner sees all cards of the group and edits/deletes records,
+  a member sees only cards with a `card_access` row and adds records to cards with level `edit`. **Every query that reads or writes
+  expenses on behalf of a user must be limited by `ExpenseScope`** (`modules/groups/scope.ts`, built from `request.user` with `scopeOf`,
+  never from request data); a record of another group looks like a missing one (404). Cards are a table (`cards`): the name shown
+  in the UI comes from there (`card_id`); the text column `expenses.card` is legacy and is kept for Excel. Inside a transaction pass the
+  transaction executor to repository helpers (PGlite has a single connection: a query outside the transaction would wait forever).
+  `canEdit` means "owner"; the settings page toggles the role in `memberships`. `ensureDefaultGroup` (start-up) fills the model for an
+  installation that predates groups; a transitional DB trigger fills `group_id`/`card_id` on writes.
 - Account: the name, card, time zone and editing right have defaults from `.env` and a personal choice on top of them (`custom_*`, `can_edit_override`); the effective values are assembled by `EFFECTIVE_USER_COLUMNS` in `auth.repository.ts`. Check rights by `request.user.canEdit`, not by the list from `.env`. Compute "today" by `request.user.timezone`.
 - The password from `.env` is applied only if the value in `.env` changed (`users.env_password_hash`); a password set by the user is not overwritten.
 - Do not log passwords and tokens or return them in responses; only hashes in the DB. Users' passwords are taken from `AUTH_PASSWORD_<USERNAME>`.

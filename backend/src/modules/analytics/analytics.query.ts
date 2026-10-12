@@ -1,4 +1,15 @@
+import { scopeCondition } from '../groups/scope.ts';
 import type { AnalyticsFilters } from './analytics.types.ts';
+
+/**
+ * The expenses table with the card's current name (`card_label`): renaming a card in the `cards` table shows up
+ * everywhere. The text column `card` is kept only for old records and for Excel.
+ */
+export const EXPENSES_SOURCE =
+  '(SELECT e.*, c.name AS card_label FROM expenses e LEFT JOIN cards c ON c.id = e.card_id) expenses';
+
+/** The card name in queries over `EXPENSES_SOURCE`. */
+export const CARD_NAME_SQL = 'COALESCE(card_label, card)';
 
 export interface WhereClause {
   /** `WHERE …` or an empty string */
@@ -25,10 +36,12 @@ export function buildWhere(
     return `$${firstParam + params.length - 1}`;
   };
 
+  if (filters.scope) conditions.push(scopeCondition(filters.scope, param));
   if (!filters.includeDeleted) conditions.push('deleted_at IS NULL');
   if (filters.from) conditions.push(`date >= ${param(filters.from)}`);
   if (filters.to) conditions.push(`date <= ${param(filters.to)}`);
-  if (filters.cards.length) conditions.push(`card = ANY(${param(filters.cards)}::text[])`);
+  if (filters.cards.length)
+    conditions.push(`${CARD_NAME_SQL} = ANY(${param(filters.cards)}::text[])`);
   if (filters.categories.length) {
     conditions.push(`category = ANY(${param(filters.categories)}::text[])`);
   }

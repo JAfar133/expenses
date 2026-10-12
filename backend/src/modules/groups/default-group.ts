@@ -33,6 +33,7 @@ export async function ensureDefaultGroup(
 ): Promise<DefaultGroupResult> {
   return database.transaction(async (tx) => {
     const created = await createGroupIfMissing(tx, config);
+    await attachOrphanUsers(tx);
     await markAdmins(tx, config.admins);
     return { created, assigned: await assignExpenses(tx) };
   });
@@ -68,12 +69,11 @@ async function createGroupIfMissing(tx: SqlExecutor, config: DefaultGroupConfig)
     ]);
   }
 
-  for (const card of config.cards) {
-    await tx.query('INSERT INTO cards (group_id, name, currency) VALUES ($1, $2, $3)', [
-      groupId,
-      card,
-      config.currency,
-    ]);
+  for (const [position, card] of config.cards.entries()) {
+    await tx.query(
+      'INSERT INTO cards (group_id, name, currency, position) VALUES ($1, $2, $3, $4)',
+      [groupId, card, config.currency, position],
+    );
   }
   for (const [position, name] of config.categories.entries()) {
     await tx.query('INSERT INTO categories (group_id, name, position) VALUES ($1, $2, $3)', [
@@ -94,6 +94,30 @@ async function createGroupIfMissing(tx: SqlExecutor, config: DefaultGroupConfig)
   return true;
 }
 
+/**
+ * Users added to the settings after the group was created join it as members with access to every card.
+ * Only while there is a single group: with several, membership is decided by invitations.
+ */
+async function attachOrphanUsers(tx: SqlExecutor): Promise<void> {
+  const groups = await tx.query<{ id: string }>('SELECT id FROM groups LIMIT 2');
+  if (groups.length !== 1) return;
+  const groupId = groups[0]!.id;
+
+  const orphans = await tx.query<{ id: string }>(
+    `INSERT INTO memberships (user_id, group_id, role)
+     SELECT u.id, $1, 'member' FROM users u
+      WHERE u.disabled_at IS NULL AND NOT EXISTS (SELECT 1 FROM memberships m WHERE m.user_id = u.id)
+     RETURNING user_id AS id`,
+    [groupId],
+  );
+  if (orphans.length === 0) return;
+  await tx.query(
+    `INSERT INTO card_access (card_id, user_id, level)
+     SELECT c.id, o.id, 'edit' FROM cards c, unnest($2::uuid[]) AS o(id) WHERE c.group_id = $1`,
+    [groupId, orphans.map((user) => user.id)],
+  );
+}
+
 async function markAdmins(tx: SqlExecutor, admins: string[]): Promise<void> {
   if (admins.length === 0) return;
   await tx.query('UPDATE users SET is_admin = true WHERE username = ANY($1::text[])', [admins]);
@@ -107,8 +131,10 @@ async function assignExpenses(tx: SqlExecutor): Promise<number> {
   if (!group) return 0;
 
   await tx.query(
-    `INSERT INTO cards (group_id, name, currency)
-     SELECT g.id, e.card, g.reporting_currency
+    `INSERT INTO cards (group_id, name, currency, position)
+     SELECT g.id, e.card, g.reporting_currency,
+            COALESCE((SELECT max(c.position) + 1 FROM cards c WHERE c.group_id = g.id), 0)
+              + row_number() OVER (ORDER BY e.card) - 1
        FROM groups g, (SELECT DISTINCT card FROM expenses WHERE card_id IS NULL) e
       WHERE g.id = $1
      ON CONFLICT (group_id, name) DO NOTHING`,

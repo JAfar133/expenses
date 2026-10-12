@@ -10,6 +10,8 @@ import { IdempotencyService } from '../../src/infrastructure/idempotency/idempot
 import { AnalyticsRepository } from '../../src/modules/analytics/analytics.repository.ts';
 import { AnalyticsService } from '../../src/modules/analytics/analytics.service.ts';
 import { PreferencesRepository } from '../../src/modules/preferences/preferences.repository.ts';
+import { ensureDefaultGroup } from '../../src/modules/groups/default-group.ts';
+import { GroupsRepository } from '../../src/modules/groups/groups.repository.ts';
 import { ExpenseEditor } from '../../src/modules/expenses/expense-editor.ts';
 import { ExpenseService } from '../../src/modules/expenses/expenses.service.ts';
 import { SyncScheduler } from '../../src/modules/sync/sync.scheduler.ts';
@@ -109,7 +111,8 @@ export class FakeRates {
 /** Password of both test users. */
 export const TEST_PASSWORD = 'shared-test-password-1';
 
-export type TestUsername = 'misha' | 'nastya';
+/** misha and nastya exist in every test app; a test can create other logins (see groups.access.test.ts) */
+export type TestUsername = 'misha' | 'nastya' | (string & {});
 
 /** The hash is computed once per run: scrypt is deliberately slow. */
 let sharedPasswordHash: Promise<string> | undefined;
@@ -177,11 +180,20 @@ export async function createTestApp(
     await authRepository.setPasswordHash(user!.id, await passwordHash());
   }
 
+  // Like the first start of the app: one group, misha is the owner, nastya a member with access to every card
+  await ensureDefaultGroup(database, {
+    name: 'Семья',
+    currency: 'AMD',
+    timezone: 'Asia/Yerevan',
+    cards: ['Миша', 'Настя'],
+    categories: ['кафе', 'продукты'],
+    admins: ['misha'],
+  });
+  const groups = new GroupsRepository(database);
+
   const app = buildApp({
-    expenseService: new ExpenseService(repository, {
-      reference: { cards: ['Миша', 'Настя'], categories: ['кафе', 'продукты'] },
-      currency: rates,
-    }),
+    expenseService: new ExpenseService(repository, { groups, currency: rates }),
+    groups,
     auth,
     rates,
     analytics: new AnalyticsService({
@@ -189,7 +201,7 @@ export async function createTestApp(
       today: () => TEST_TODAY,
     }),
     preferences: new PreferencesRepository(database),
-    editor: new ExpenseEditor({ database, repository, cards: ['Миша', 'Настя'] }),
+    editor: new ExpenseEditor({ database, repository, groups }),
     idempotency: new IdempotencyService(database),
     sync: sync as unknown as SyncService,
     scheduler,

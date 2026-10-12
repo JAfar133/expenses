@@ -19,6 +19,7 @@ const stored = (
 ): StoredExpense => ({
   ...expense,
   id: `id-${++nextId}`,
+  groupId: null,
   source: 'app',
   excelStatus,
   deletedAt,

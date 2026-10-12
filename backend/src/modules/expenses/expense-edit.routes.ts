@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { forbiddenError, validationError } from '../../errors/app-error.ts';
+import type { AuthUser } from '../auth/auth.types.ts';
 import type { ExpenseRepository } from '../../storage/expense.repository.ts';
 import { describeExcelState } from '../../storage/excel-state.ts';
 import { waitForExcelWrite } from '../sync/inline-wait.ts';
@@ -21,6 +22,8 @@ const patchSchema = z
 
 const idSchema = z.uuid();
 
+const actorOf = ({ username, groupId }: AuthUser) => ({ username, groupId });
+
 export interface ExpenseEditRoutesDeps {
   editor: ExpenseEditor;
   repository: Pick<ExpenseRepository, 'findById'>;
@@ -31,7 +34,7 @@ export interface ExpenseEditRoutesDeps {
 export const expenseEditRoutes =
   ({ editor, repository, sync, inlineExcelWaitMs }: ExpenseEditRoutesDeps): FastifyPluginAsync =>
   async (app) => {
-    /** Editing and deleting are available to editors only; other users can only view. */
+    /** Editing and deleting are available to the group owner only; members can add records and view. */
     const requireEditor = (request: { user?: { canEdit: boolean } }) => {
       if (!request.user?.canEdit) throw forbiddenError();
     };
@@ -76,7 +79,7 @@ export const expenseEditRoutes =
         throw validationError('NOTHING_TO_UPDATE', 'Не указано, что изменить');
       }
 
-      const { changed } = await editor.update(id, parsed.data, request.user!.username);
+      const { changed } = await editor.update(id, parsed.data, actorOf(request.user!));
       request.log.info(
         { operation: 'expense.update', expenseId: id, userId: request.user!.username, changed },
         'Operation completed',
@@ -88,7 +91,7 @@ export const expenseEditRoutes =
       requireEditor(request);
       const id = parseId(request.params);
 
-      const { changed } = await editor.remove(id, request.user!.username);
+      const { changed } = await editor.remove(id, actorOf(request.user!));
       request.log.info(
         { operation: 'expense.delete', expenseId: id, userId: request.user!.username, changed },
         'Operation completed',
@@ -100,7 +103,7 @@ export const expenseEditRoutes =
       requireEditor(request);
       const id = parseId(request.params);
 
-      const { changed } = await editor.restore(id, request.user!.username);
+      const { changed } = await editor.restore(id, actorOf(request.user!));
       request.log.info(
         { operation: 'expense.restore', expenseId: id, userId: request.user!.username, changed },
         'Operation completed',
