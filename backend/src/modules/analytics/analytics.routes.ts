@@ -4,6 +4,8 @@ import type { AuthUser } from '../auth/auth.types.ts';
 import type { GroupsRepository } from '../groups/groups.repository.ts';
 import { scopeOf } from '../groups/scope.ts';
 import { parseQuery } from './analytics.filters.ts';
+import type { ReportService } from '../reports/report.service.ts';
+import { todayIn } from './date-math.ts';
 import type { RatesService } from '../rates/rates.service.ts';
 import type { AnalyticsService } from './analytics.service.ts';
 import type { AnalyticsFilters } from './analytics.types.ts';
@@ -34,7 +36,8 @@ function filtersOf(
 export const analyticsRoutes =
   (
     analytics: AnalyticsService,
-    groups: Pick<GroupsRepository, 'visibleCards'>,
+    groups: Pick<GroupsRepository, 'visibleCards' | 'reportingCurrency'>,
+    report: ReportService,
     rates: Pick<RatesService, 'rateOf' | 'currencies'>,
   ): FastifyPluginAsync =>
   async (app) => {
@@ -101,6 +104,30 @@ export const analyticsRoutes =
       success: true,
       data: await analytics.authors(scopeOf(request.user!)),
     }));
+
+    /**
+     * The Excel report of the filtered operations (the same filters, rights and currency as the lists).
+     * The file is built per request and sent as a download.
+     */
+    app.get('/expenses/export.xlsx', async (request, reply) => {
+      const query = parseQuery('filters', request.query);
+      const filters = await filtersFor(query, request.user!);
+      const currency =
+        filters.display?.currency ??
+        (await groups.reportingCurrency(request.user!.groupId)) ??
+        'AMD';
+      const today = todayIn(request.user!.timezone);
+
+      const file = await report.build(filters, { currency, today });
+      return reply
+        .header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        .header(
+          'Content-Disposition',
+          `attachment; filename="expenses-${today}.xlsx"; filename*=UTF-8''${encodeURIComponent(`расходы-${today}.xlsx`)}`,
+        )
+        .header('Cache-Control', 'no-store')
+        .send(file);
+    });
 
     /** List of operations: sorting and paging are done by the database. */
     app.get('/expenses', async (request) => {

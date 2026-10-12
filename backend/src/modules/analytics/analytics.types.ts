@@ -95,6 +95,8 @@ export interface ExpenseListItem {
   amount: number;
   /** Currency of the card (and of `amount`) */
   currency: string;
+  /** The amount in whole drams: the first five columns of the old Excel table */
+  dramsAmount: number;
   /** The same amount in the currency of the request (`?currency=`; the reporting currency without it) */
   displayAmount: number;
   /** The same amount in the group's reporting currency */

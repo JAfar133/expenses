@@ -255,6 +255,7 @@ const toListItem = (row: ListRow, baseCurrency: string): ExpenseListItem => ({
   // The amount in the currency of the card (drams for old records); the drams amount stays for the Excel state
   amount: row.card_amount ?? row.amount,
   currency: row.card_currency ?? baseCurrency,
+  dramsAmount: row.amount,
   displayAmount: row.display_amount,
   reportingAmount: row.reporting_amount ?? row.amount,
   reportingCurrency: row.reporting_currency ?? baseCurrency,

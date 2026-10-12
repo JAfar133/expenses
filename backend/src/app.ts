@@ -3,6 +3,7 @@ import Fastify, { LogController, type FastifyInstance, type FastifyServerOptions
 import { AppError, databaseUnavailableError } from './errors/app-error.ts';
 import type { IdempotencyService } from './infrastructure/idempotency/idempotency.service.ts';
 import { analyticsRoutes } from './modules/analytics/analytics.routes.ts';
+import type { ReportService } from './modules/reports/report.service.ts';
 import type { AnalyticsService } from './modules/analytics/analytics.service.ts';
 import { authPlugin } from './modules/auth/auth.plugin.ts';
 import { authRoutes } from './modules/auth/auth.routes.ts';
@@ -30,6 +31,8 @@ export interface AppDependencies {
   auth: AuthService;
   rates: Pick<RatesService, 'snapshot' | 'currencies' | 'rateOf'>;
   analytics: AnalyticsService;
+  /** The Excel report */
+  report: ReportService;
   /** User interface settings */
   preferences: Pick<PreferencesRepository, 'get' | 'merge'>;
   /** Editing and deleting records */
@@ -66,6 +69,7 @@ export function buildApp({
   auth,
   rates,
   analytics,
+  report,
   preferences,
   editor,
   groups,
@@ -157,7 +161,7 @@ export function buildApp({
   });
   app.register(ratesRoutes(rates), { prefix: '/api' });
   app.register(preferencesRoutes(preferences), { prefix: '/api' });
-  app.register(analyticsRoutes(analytics, groups, rates), { prefix: '/api' });
+  app.register(analyticsRoutes(analytics, groups, report, rates), { prefix: '/api' });
   app.register(
     expenseEditRoutes({
       editor,

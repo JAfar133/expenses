@@ -12,6 +12,7 @@ import { ensureDefaultGroup } from './modules/groups/default-group.ts';
 import { migrate } from './infrastructure/database/migrate.ts';
 import { IdempotencyService } from './infrastructure/idempotency/idempotency.service.ts';
 import { AnalyticsRepository } from './modules/analytics/analytics.repository.ts';
+import { ReportService } from './modules/reports/report.service.ts';
 import { AnalyticsService } from './modules/analytics/analytics.service.ts';
 import { todayIn } from './modules/analytics/date-math.ts';
 import { AuthRepository } from './modules/auth/auth.repository.ts';
@@ -108,6 +109,7 @@ const analytics = new AnalyticsService({
   repository: new AnalyticsRepository(database, env.DEFAULT_CURRENCY),
   today: (timezone) => todayIn(timezone),
 });
+const report = new ReportService(analytics, { base: env.DEFAULT_CURRENCY });
 
 const sync = new SyncService({
   database,
@@ -139,6 +141,7 @@ const app = buildApp({
   auth,
   rates,
   analytics,
+  report,
   preferences: new PreferencesRepository(database),
   editor: new ExpenseEditor({
     database,

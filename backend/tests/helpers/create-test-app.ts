@@ -18,6 +18,7 @@ import { PlatformAdminService } from '../../src/modules/groups/platform-admin.se
 import { GroupsRepository } from '../../src/modules/groups/groups.repository.ts';
 import { ExpenseEditor } from '../../src/modules/expenses/expense-editor.ts';
 import { ExpenseService } from '../../src/modules/expenses/expenses.service.ts';
+import { ReportService } from '../../src/modules/reports/report.service.ts';
 import { SyncSwitch } from '../../src/modules/sync/sync-switch.ts';
 import { SyncScheduler } from '../../src/modules/sync/sync.scheduler.ts';
 import type { SyncService } from '../../src/modules/sync/sync.service.ts';
@@ -152,6 +153,8 @@ export interface TestAppOptions {
   allowedOrigins?: string[];
   throttle?: LoginThrottle;
   checkDatabase?: () => Promise<unknown>;
+  /** Row limit of the Excel report */
+  maxReportRows?: number;
   /** Clock of the invitations service */
   now?: () => Date;
 }
@@ -211,6 +214,10 @@ export async function createTestApp(
     now: options.now,
   });
 
+  const analytics = new AnalyticsService({
+    repository: new AnalyticsRepository(database, 'AMD'),
+    today: () => TEST_TODAY,
+  });
   const syncSwitch = new SyncSwitch(database, sync, scheduler);
 
   const app = buildApp({
@@ -233,10 +240,8 @@ export async function createTestApp(
     }),
     auth,
     rates,
-    analytics: new AnalyticsService({
-      repository: new AnalyticsRepository(database, 'AMD'),
-      today: () => TEST_TODAY,
-    }),
+    analytics,
+    report: new ReportService(analytics, { base: 'AMD', maxRows: options.maxReportRows }),
     preferences: new PreferencesRepository(database),
     editor: new ExpenseEditor({ database, repository, groups }),
     idempotency: new IdempotencyService(database),
