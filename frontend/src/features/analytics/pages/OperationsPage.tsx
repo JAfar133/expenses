@@ -14,6 +14,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog.tsx';
 import { EditExpenseDialog } from '../components/EditExpenseDialog.tsx';
 import { OperationsTable } from '../components/OperationsTable.tsx';
 import { useAnalyticsReference } from '../hooks/useAnalyticsReference.ts';
+import { useDisplayCurrency } from '../hooks/useDisplayCurrency.tsx';
 import { useFilterOptions } from '../hooks/useFilterOptions.ts';
 import { useFilterState } from '../hooks/useFilterState.ts';
 import { useExpenseActions, useOperations } from '../hooks/useOperations.ts';
@@ -46,6 +47,8 @@ export default function OperationsPage() {
   const { data: user } = useCurrentUser();
   const canEdit = user?.canEdit ?? false;
   const { currency, baseCurrency } = useAnalyticsReference();
+  // The list total is in the display currency; the rows keep the card currency and the reporting amount
+  const { code: displayCurrency } = useDisplayCurrency();
   const cards = useQuery({ queryKey: ['cards'], queryFn: fetchCards, staleTime: Infinity });
   const options = useFilterOptions();
   const excelEnabled = useSyncState().data?.enabled ?? true;
@@ -55,7 +58,7 @@ export default function OperationsPage() {
   const requestedPage = Number(params.get('page') ?? 1);
   const page = Number.isInteger(requestedPage) && requestedPage >= 1 ? requestedPage : 1;
 
-  const filters = toApiFilters(state, today);
+  const filters = { ...toApiFilters(state, today), currency: displayCurrency };
   const list = useOperations(filters, {
     sort,
     direction,
@@ -134,8 +137,8 @@ export default function OperationsPage() {
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             Записей: <strong className="font-semibold">{list.data.total}</strong> на{' '}
             <strong className="font-semibold">
-              {formatAmount(list.data.totalAmount, currencyDigits(currency, baseCurrency))}{' '}
-              {currency}
+              {formatAmount(list.data.totalAmount, currencyDigits(displayCurrency, baseCurrency))}{' '}
+              {displayCurrency}
             </strong>
           </p>
         )}

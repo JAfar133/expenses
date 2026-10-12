@@ -79,7 +79,7 @@ describe('наименования в категории', () => {
     await waitFor(() => expect(nameRequests().length).toBeGreaterThan(0));
 
     expect(decodeURIComponent(nameRequests()[0]!)).toBe(
-      '/api/analytics/breakdown?from=2026-10-01&to=2026-10-31&categories=кафе&by=name',
+      '/api/analytics/breakdown?from=2026-10-01&to=2026-10-31&categories=кафе&currency=AMD&by=name',
     );
   });
 

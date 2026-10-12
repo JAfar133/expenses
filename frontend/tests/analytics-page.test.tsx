@@ -24,12 +24,14 @@ describe('обзор месяца', () => {
       expect(harness.requests.some((r) => r.startsWith('/api/analytics/summary'))).toBe(true),
     );
     const summaryRequest = harness.requests.find((r) => r.startsWith('/api/analytics/summary'))!;
-    expect(summaryRequest).toBe('/api/analytics/summary?from=2026-10-01&to=2026-10-31');
-    expect(harness.requests).toContain(
-      '/api/analytics/timeseries?from=2026-10-01&to=2026-10-31&granularity=day',
+    expect(summaryRequest).toBe(
+      '/api/analytics/summary?from=2026-10-01&to=2026-10-31&currency=AMD',
     );
     expect(harness.requests).toContain(
-      '/api/analytics/breakdown?from=2026-10-01&to=2026-10-31&by=category',
+      '/api/analytics/timeseries?from=2026-10-01&to=2026-10-31&currency=AMD&granularity=day',
+    );
+    expect(harness.requests).toContain(
+      '/api/analytics/breakdown?from=2026-10-01&to=2026-10-31&currency=AMD&by=category',
     );
   });
 
@@ -72,7 +74,9 @@ describe('переключение месяца', () => {
     expect(await screen.findByRole('heading', { name: 'Сентябрь 2026' })).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('/analytics?month=2026-09');
     await waitFor(() =>
-      expect(harness.requests).toContain('/api/analytics/summary?from=2026-09-01&to=2026-09-30'),
+      expect(harness.requests).toContain(
+        '/api/analytics/summary?from=2026-09-01&to=2026-09-30&currency=AMD',
+      ),
     );
   });
 

@@ -23,6 +23,8 @@ export interface OperationItem {
   amount: number;
   /** Currency of the card */
   currency: string;
+  /** The same expense in the requested display currency (`currency=` of the request) */
+  displayAmount?: number;
   /** The same expense in the reporting currency of the group */
   reportingAmount?: number;
   reportingCurrency?: string;

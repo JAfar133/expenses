@@ -13,6 +13,8 @@ export interface AnalyticsFilters {
   minAmount?: number;
   maxAmount?: number;
   includeDeleted?: boolean;
+  /** Display currency: the server sums in it (exact for records kept in it, converted for the rest); default is the reporting currency */
+  currency?: string;
 }
 
 export interface SummaryStats {

@@ -120,7 +120,9 @@ export function setupAnalyticsHarness() {
         ]),
       // User settings: empty by default, saving returns what was sent
       '/api/preferences': () => ok({}),
-      'PUT /api/preferences': () => ok(harness.bodies.at(-1) ?? {}),
+      // The body of the latest save (other requests may have come after it)
+      'PUT /api/preferences': () =>
+        ok(harness.bodies[harness.requests.lastIndexOf('PUT /api/preferences')] ?? {}),
       '/api/categories': () => ok(['кафе', 'продукты']),
     };
     vi.stubGlobal(

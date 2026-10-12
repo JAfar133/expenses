@@ -148,7 +148,7 @@ describe('список операций', () => {
     await waitFor(() => expect(listRequests().length).toBeGreaterThan(0));
 
     expect(lastList()).toBe(
-      '/api/expenses?from=2026-10-01&to=2026-10-31&sort=date&direction=desc&limit=50&offset=0',
+      '/api/expenses?from=2026-10-01&to=2026-10-31&currency=AMD&sort=date&direction=desc&limit=50&offset=0',
     );
   });
 
@@ -592,6 +592,26 @@ describe('валюты карт', () => {
     expect(rowOf('Такси')).toHaveTextContent('8,25 EUR · курс 405,58');
     expect(rowOf('Снятие')).toHaveTextContent('38 000 AMD');
     expect(rowOf('Снятие')).not.toHaveTextContent('курс 1');
+  });
+
+  it('итог — в валюте показа: запрос с currency, число сервера без пересчёта', async () => {
+    harness.handlers['/api/rates'] = () =>
+      ok({
+        base: 'AMD',
+        currencies: ['AMD', 'RUB'],
+        rates: [{ currency: 'RUB', rate: 4.2, fetchedAt: '2026-10-10T10:00:00.000Z' }],
+      });
+    harness.handlers['/api/preferences'] = () => ok({ 'analytics.currency': 'RUB' });
+    harness.handlers['/api/expenses'] = () =>
+      ok({
+        items: [item(1, { displayAmount: 5000, reportingAmount: 21498, reportingCurrency: 'AMD' })],
+        total: 1,
+        totalAmount: 5000,
+      });
+    renderAnalytics(OPS);
+
+    expect(await screen.findByText('5 000,00 RUB')).toBeInTheDocument();
+    expect(decodeURIComponent(listRequests().at(-1)!)).toContain('currency=RUB');
   });
 
   it('итог — в валюте отчётности группы', async () => {

@@ -2,15 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import type userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { compactNumber } from '../src/features/analytics/model/chart-data.ts';
-import {
-  currencyLabel,
-  flagOf,
-  moneyDigits,
-  scaleBreakdown,
-  scaleFactor,
-  scaleSeries,
-  scaleSummary,
-} from '../src/features/analytics/model/currency.ts';
+import { currencyLabel, flagOf, moneyDigits } from '../src/features/analytics/model/currency.ts';
 import {
   harness,
   ok,
@@ -26,34 +18,7 @@ const RATES = [
   { currency: 'USD', rate: 380, fetchedAt: '2026-10-10T10:00:00.000Z' },
 ];
 
-describe('модель пересчёта при отчётности в другой валюте', () => {
-  it('moneyDigits: целые только драммы (базовая валюта), остальные с копейками', () => {
-    expect(moneyDigits('AMD', 'AMD')).toBe(0);
-    expect(moneyDigits('USD', 'AMD')).toBe(2);
-  });
-
-  it('scaleFactor: отчётность в долларах → драммы умножаются на курс доллара', () => {
-    expect(scaleFactor('AMD', 'USD', RATES, 'AMD')).toBeCloseTo(380);
-    expect(scaleFactor('USD', 'USD', RATES, 'AMD')).toBe(1);
-    // USD → RUB: 1 USD = 380 AMD = 84,44 RUB
-    expect(scaleFactor('RUB', 'USD', RATES, 'AMD')).toBeCloseTo(380 / 4.5);
-  });
-
-  it('scaleFactor: нет курса — множитель 1', () => {
-    expect(scaleFactor('EUR', 'USD', RATES, 'AMD')).toBe(1);
-  });
-
-  it('scaleSummary с знаками: пересчитанные суммы округляются до знаков валюты', () => {
-    const summary = {
-      current: { ...stats(), total: 10.123, perDay: 1.116, average: 5.05, median: 5, max: 9.999 },
-      previous: null,
-    };
-    expect(scaleSummary(summary, 380, 0).current.total).toBe(3847);
-    expect(scaleSummary(summary, 1, 0)).toBe(summary);
-  });
-});
-
-describe('модель пересчёта', () => {
+describe('формат валют', () => {
   it('флаги и подписи', () => {
     expect(flagOf('AMD')).toBe('🇦🇲');
     expect(flagOf('USD')).toBe('🇺🇸');
@@ -65,61 +30,6 @@ describe('модель пересчёта', () => {
   it('знаков после запятой: драммы целые, остальные валюты с копейками', () => {
     expect(moneyDigits('AMD', 'AMD')).toBe(0);
     expect(moneyDigits('USD', 'AMD')).toBe(2);
-  });
-
-  it('scaleFactor: сумма в драммах делится на курс', () => {
-    expect(scaleFactor('AMD', 'AMD', RATES)).toBe(1);
-    expect(scaleFactor('USD', 'AMD', RATES)).toBeCloseTo(1 / 380);
-    expect(scaleFactor('RUB', 'AMD', RATES)).toBeCloseTo(1 / 4.5);
-  });
-
-  it('scaleFactor: нет курса или он некорректен — множитель 1', () => {
-    expect(scaleFactor('EUR', 'AMD', RATES)).toBe(1);
-    expect(scaleFactor('USD', 'AMD', undefined)).toBe(1);
-    expect(scaleFactor('USD', 'AMD', [{ currency: 'USD', rate: 0 }])).toBe(1);
-    expect(scaleFactor('USD', 'AMD', [{ currency: 'USD', rate: -5 }])).toBe(1);
-  });
-
-  const summary = {
-    current: { ...stats(), total: 3800, perDay: 380, average: 760, median: 380, max: 1900 },
-    previous: { ...stats(), total: 1900, perDay: 190, average: 380, median: 190, max: 950 },
-  };
-
-  it('scaleSummary меняет суммы, но не количества, дни и даты', () => {
-    const scaled = scaleSummary(summary, 1 / 380);
-
-    expect(scaled.current).toMatchObject({
-      total: 10,
-      perDay: 1,
-      average: 2,
-      median: 1,
-      max: 5,
-      count: 5,
-      days: 15,
-      activeDays: 3,
-      firstDate: '2026-10-01',
-    });
-    expect(scaled.previous).toMatchObject({ total: 5, count: 5 });
-  });
-
-  it('scaleSummary без предыдущего периода и с множителем 1', () => {
-    expect(scaleSummary({ ...summary, previous: null }, 0.5).previous).toBeNull();
-    expect(scaleSummary(summary, 1)).toBe(summary);
-  });
-
-  it('scaleSeries и scaleBreakdown: суммы пересчитываются, остальное остаётся; исходные данные не меняются', () => {
-    const series = [{ period: '2026-10-01', total: 760, count: 2, key: 'кафе' }];
-    const rows = [{ key: 'кафе', total: 760, count: 2, average: 380 }];
-
-    expect(scaleSeries(series, 1 / 380)).toEqual([
-      { period: '2026-10-01', total: 2, count: 2, key: 'кафе' },
-    ]);
-    expect(scaleBreakdown(rows, 1 / 380)).toEqual([
-      { key: 'кафе', total: 2, count: 2, average: 1 },
-    ]);
-    expect(series[0]!.total).toBe(760);
-    expect(scaleSeries(series, 1)).toBe(series);
-    expect(scaleBreakdown(rows, 1)).toBe(rows);
   });
 
   it('оси: небольшие дробные суммы с запятой', () => {
@@ -139,6 +49,9 @@ const withRates = () => {
   harness.handlers['/api/rates'] = () =>
     ok({ base: 'AMD', currencies: ['AMD', 'RUB', 'USD', 'EUR'], rates: RATES });
 };
+
+const summaryRequests = () =>
+  harness.requests.filter((r) => r.startsWith('/api/analytics/summary')).map(decodeURIComponent);
 
 describe('отчётность группы не в драммах', () => {
   const reportInDollars = () => {
@@ -161,7 +74,7 @@ describe('отчётность группы не в драммах', () => {
     expect(screen.getByText('Суммы в USD')).toBeInTheDocument();
   });
 
-  it('выбор драммов умножает суммы на курс доллара и округляет до целых', async () => {
+  it('выбор драммов — запрос с currency=AMD, суммы показаны как пришли с сервера', async () => {
     reportInDollars();
     const user = renderAnalytics();
     await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('2 100,00 USD'));
@@ -169,9 +82,9 @@ describe('отчётность группы не в драммах', () => {
 
     await pick(user, 'AMD');
 
-    // 2100 USD * 380 = 798 000 AMD; the rate note is the cross rate in the reporting currency
-    await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('798 000 AMD'));
-    expect(screen.getByText(/1 AMD = 0,0026 USD/)).toBeInTheDocument();
+    await waitFor(() => expect(summaryRequests().at(-1)).toContain('currency=AMD'));
+    // The mocked server returns 2100 whatever the currency: the client does not recalculate it
+    await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('2 100 AMD'));
   });
 });
 
@@ -199,21 +112,43 @@ describe('выбор валюты на странице анализа', () => {
     expect(screen.queryByRole('radiogroup', { name: 'Валюта отображения' })).toBeNull();
   });
 
-  it('выбор доллара пересчитывает плитки, количества не меняются', async () => {
+  it('каждый запрос аналитики несёт currency, и по умолчанию это валюта отчётности', async () => {
+    renderAnalytics();
+
+    await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('2 100 AMD'));
+    for (const path of ['summary', 'timeseries', 'breakdown']) {
+      const urls = harness.requests
+        .filter((r) => r.startsWith(`/api/analytics/${path}`))
+        .filter((r) => !r.includes('by=card'))
+        .map(decodeURIComponent);
+      expect(urls.length).toBeGreaterThan(0);
+      for (const url of urls) expect(url).toContain('currency=AMD');
+    }
+  });
+
+  it('выбор рубля: запросы с currency=RUB, числа с сервера показаны без пересчёта на клиенте', async () => {
     withRates();
     const user = renderAnalytics();
     await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('2 100 AMD'));
-    await waitFor(() => expect(screen.getByRole('radio', { name: '🇺🇸 USD' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('radio', { name: '🇷🇺 RUB' })).toBeInTheDocument());
 
-    await pick(user, 'USD');
+    await pick(user, 'RUB');
 
-    // 2100 / 380 = 5,53; 140 / 380 = 0,37; 420 / 380 = 1,11; 700 / 380 = 1,84
-    await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('5,53 USD'));
-    expect(tile('В день')).toHaveTextContent('0,37 USD');
-    expect(tile('Средний чек')).toHaveTextContent('1,11 USD');
-    expect(tile('Самая крупная')).toHaveTextContent('1,84 USD');
+    await waitFor(() => expect(summaryRequests().at(-1)).toContain('currency=RUB'));
+    await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('2 100,00 RUB'));
+    expect(tile('В день')).toHaveTextContent('140,00 RUB');
+    expect(tile('Средний чек')).toHaveTextContent('420,00 RUB');
+    expect(tile('Самая крупная')).toHaveTextContent('700,00 RUB');
     expect(tile('Операций')).toHaveTextContent('5');
     expect(tile('Потрачено')).not.toHaveTextContent('AMD');
+    const categoryRequests = harness.requests
+      .filter((r) => r.includes('by=category'))
+      .map(decodeURIComponent);
+    expect(categoryRequests.at(-1)).toContain('currency=RUB');
+    const seriesRequests = harness.requests.filter((r) =>
+      r.startsWith('/api/analytics/timeseries'),
+    );
+    expect(decodeURIComponent(seriesRequests.at(-1)!)).toContain('currency=RUB');
   });
 
   it('изменение к предыдущему периоду в процентах не зависит от валюты', async () => {
@@ -227,7 +162,7 @@ describe('выбор валюты на странице анализа', () => {
     expect(tile('Потрачено')).toHaveTextContent('больше на 110%');
   });
 
-  it('таблицы данных графиков пересчитаны, доли остаются', async () => {
+  it('таблицы данных графиков показывают числа сервера, доли остаются', async () => {
     withRates();
     const user = renderAnalytics();
     await waitFor(() => expect(screen.getByRole('radio', { name: '🇺🇸 USD' })).toBeInTheDocument());
@@ -236,21 +171,25 @@ describe('выбор валюты на странице анализа', () => {
 
     const tables = await screen.findAllByRole('table', { hidden: true });
     const categories = tables.find((t) => within(t).queryByText('Категория', { exact: false }))!;
-    // 1500 / 380 = 3.95, share 71.4%
-    await waitFor(() => expect(within(categories).getByText('3,95')).toBeInTheDocument());
+    await waitFor(() => expect(within(categories).getByText('1 500')).toBeInTheDocument());
     expect(within(categories).getByText('71,4%')).toBeInTheDocument();
     expect(within(categories).getByText('Сумма, USD', { exact: false })).toBeInTheDocument();
   });
 
-  it('под выбором указан курс ЦБ и дата', async () => {
+  it('под выбором: для валюты отчётности «Суммы в …», для другой — пояснение про пересчёт', async () => {
     withRates();
     const user = renderAnalytics();
     await waitFor(() => expect(screen.getByRole('radio', { name: '🇺🇸 USD' })).toBeInTheDocument());
-    expect(screen.queryByText(/курс ЦБ/)).toBeNull();
+    expect(screen.getByText('Суммы в AMD')).toBeInTheDocument();
 
     await pick(user, 'USD');
 
-    expect(await screen.findByText('1 USD = 380 AMD · курс ЦБ на 10.10.2026')).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        'Траты в USD показаны как введены, остальные пересчитаны по курсу ЦБ на день траты',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/1 USD =/)).toBeNull();
   });
 
   it('выбор сохраняется в настройках пользователя', async () => {
@@ -267,12 +206,13 @@ describe('выбор валюты на странице анализа', () => {
     expect(localStorage.getItem('analytics.analytics.currency')).toBe('RUB');
   });
 
-  it('сохранённая на сервере валюта применяется сразу', async () => {
+  it('сохранённая на сервере валюта применяется сразу: запросы с этой валютой', async () => {
     withRates();
     harness.handlers['/api/preferences'] = () => ok({ 'analytics.currency': 'USD' });
     renderAnalytics();
 
-    await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('5,53 USD'));
+    await waitFor(() => expect(summaryRequests().at(-1)).toContain('currency=USD'));
+    await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('2 100,00 USD'));
     expect(within(await group()).getByRole('radio', { name: /USD/ })).toBeChecked();
   });
 
@@ -285,7 +225,7 @@ describe('выбор валюты на странице анализа', () => {
     await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('2 100 AMD'));
   });
 
-  it('выбор действует на всех вкладках анализа, кроме журнала операций (там записи в драммах)', async () => {
+  it('выбор действует на всех вкладках анализа', async () => {
     withRates();
     harness.handlers['/api/preferences'] = () => ok({ 'analytics.currency': 'USD' });
     const user = renderAnalytics();
@@ -298,7 +238,7 @@ describe('выбор валюты на странице анализа', () => {
     expect(within(await group()).getByRole('radio', { name: /USD/ })).toBeChecked();
   });
 
-  it('на вкладке сравнения месяцев суммы тоже пересчитаны', async () => {
+  it('вкладка сравнения месяцев: запросы с валютой, суммы как у сервера', async () => {
     withRates();
     harness.handlers['/api/preferences'] = () => ok({ 'analytics.currency': 'USD' });
     harness.handlers['/api/analytics/timeseries'] = (url) =>
@@ -314,8 +254,28 @@ describe('выбор валюты на странице анализа', () => {
 
     const monthsTable = await screen.findByRole('table', { name: 'Расходы по месяцам' });
 
-    await waitFor(() => expect(within(monthsTable).getByText('10 USD')).toBeInTheDocument());
-    expect(within(monthsTable).getByText('5 USD')).toBeInTheDocument();
+    await waitFor(() => expect(within(monthsTable).getByText('1 900 USD')).toBeInTheDocument());
+    expect(within(monthsTable).getByText('3 800 USD')).toBeInTheDocument();
+    for (const request of harness.requests.filter((r) => r.startsWith('/api/analytics/'))) {
+      if (/by=card|\/authors|\/cards/.test(request)) continue;
+      expect(decodeURIComponent(request)).toContain('currency=USD');
+    }
+  });
+
+  it('журнал операций: запрос списка с currency, итог в валюте показа', async () => {
+    withRates();
+    harness.handlers['/api/preferences'] = () => ok({ 'analytics.currency': 'RUB' });
+    harness.handlers['/api/expenses'] = () => ok({ items: [], total: 0, totalAmount: 0 });
+    renderAnalytics('/analytics/operations');
+
+    await waitFor(() =>
+      expect(
+        harness.requests
+          .filter((r) => r.startsWith('/api/expenses?'))
+          .map(decodeURIComponent)
+          .at(-1),
+      ).toContain('currency=RUB'),
+    );
   });
 });
 

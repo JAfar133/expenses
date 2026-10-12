@@ -94,10 +94,10 @@ describe('запросы', () => {
 
     await waitFor(() => expect(timeseriesRequests()).toHaveLength(2));
     expect(timeseriesRequests()).toContain(
-      '/api/analytics/timeseries?from=2025-11-01&to=2026-10-31&granularity=month',
+      '/api/analytics/timeseries?from=2025-11-01&to=2026-10-31&currency=AMD&granularity=month',
     );
     expect(timeseriesRequests()).toContain(
-      '/api/analytics/timeseries?from=2025-11-01&to=2026-10-31&granularity=month&splitBy=category',
+      '/api/analytics/timeseries?from=2025-11-01&to=2026-10-31&currency=AMD&granularity=month&splitBy=category',
     );
   });
 
@@ -112,7 +112,7 @@ describe('запросы', () => {
 
     await waitFor(() =>
       expect(timeseriesRequests()).toContain(
-        `/api/analytics/timeseries?from=${from}&to=2026-10-31&granularity=month`,
+        `/api/analytics/timeseries?from=${from}&to=2026-10-31&currency=AMD&granularity=month`,
       ),
     );
     expect(localStorage.getItem('analytics.compare.months')).toBe(months);
@@ -232,7 +232,7 @@ describe('месяц к месяцу', () => {
     await waitFor(() => expect(location()).toHaveTextContent('a=2026-10&b=2026-08'));
     await waitFor(() =>
       expect(harness.requests).toContain(
-        '/api/analytics/breakdown?from=2026-08-01&to=2026-08-31&by=category',
+        '/api/analytics/breakdown?from=2026-08-01&to=2026-08-31&currency=AMD&by=category',
       ),
     );
   });

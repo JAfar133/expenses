@@ -73,7 +73,9 @@ describe('диапазон дат', () => {
       await screen.findByRole('button', { name: 'Диапазон дат: 01.09.2026 – 30.09.2026' }),
     ).toBeInTheDocument();
     await waitFor(() =>
-      expect(summaryRequests()).toContain('/api/analytics/summary?from=2026-09-01&to=2026-09-30'),
+      expect(summaryRequests()).toContain(
+        '/api/analytics/summary?from=2026-09-01&to=2026-09-30&currency=AMD',
+      ),
     );
   });
 
@@ -99,7 +101,9 @@ describe('диапазон дат', () => {
       ),
     );
     await waitFor(() =>
-      expect(lastSummary()).toBe('/api/analytics/summary?from=2026-10-05&to=2026-10-12'),
+      expect(lastSummary()).toBe(
+        '/api/analytics/summary?from=2026-10-05&to=2026-10-12&currency=AMD',
+      ),
     );
   });
 
@@ -261,7 +265,7 @@ describe('панель фильтров', () => {
     );
     await waitFor(() =>
       expect(lastSummary()).toBe(
-        `/analytics/summary?from=2026-10-01&to=2026-10-31&cards=${encodeURIComponent('Миша')}`.replace(
+        `/analytics/summary?from=2026-10-01&to=2026-10-31&cards=${encodeURIComponent('Миша')}&currency=AMD`.replace(
           '/analytics',
           '/api/analytics',
         ),

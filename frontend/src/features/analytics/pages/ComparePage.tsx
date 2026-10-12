@@ -7,7 +7,6 @@ import { MonthsTable } from '../components/MonthsTable.tsx';
 import { MonthVsMonth } from '../components/MonthVsMonth.tsx';
 import { useAnalyticsReference } from '../hooks/useAnalyticsReference.ts';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency.tsx';
-import { scaleBreakdown, scaleSeries } from '../model/currency.ts';
 import { useBreakdown, useTimeseries } from '../hooks/useAnalytics.ts';
 import { useFilterState } from '../hooks/useFilterState.ts';
 import { usePreference } from '../../preferences/hooks/usePreferences.ts';
@@ -33,14 +32,16 @@ export default function ComparePage() {
   const [params, setParams] = useSearchParams();
   const [range, setRange] = usePreference('compare.months');
   const { categoryOrder } = useAnalyticsReference();
-  const { code: currency, factor, digits } = useDisplayCurrency();
+  const { code: currency } = useDisplayCurrency();
 
   const latest = monthOf(today);
   const months = monthsEndingAt(latest, Number(range));
+  // The server sums in the display currency; it is part of the query keys, so a switch refetches
   const filters = {
     ...toApiFilters(state, today, false),
     from: monthRange(months[0]!).from,
     to: monthRange(latest).to,
+    currency,
   };
 
   const totals = useTimeseries(filters, 'month');
@@ -53,20 +54,16 @@ export default function ComparePage() {
     shiftMonth(latest, -1) >= months[0]! ? shiftMonth(latest, -1) : latest,
   );
   const rowsA = useBreakdown(
-    { ...toApiFilters(state, today, false), ...monthRange(a) },
+    { ...toApiFilters(state, today, false), ...monthRange(a), currency },
     'category',
   );
   const rowsB = useBreakdown(
-    { ...toApiFilters(state, today, false), ...monthRange(b) },
+    { ...toApiFilters(state, today, false), ...monthRange(b), currency },
     'category',
   );
 
-  const monthRows = totals.data
-    ? toMonthRows(scaleSeries(totals.data, factor, digits), today)
-    : undefined;
-  const matrix = byCategory.data
-    ? toCategoryMatrix(scaleSeries(byCategory.data, factor, digits), months)
-    : undefined;
+  const monthRows = totals.data ? toMonthRows(totals.data, today) : undefined;
+  const matrix = byCategory.data ? toCategoryMatrix(byCategory.data, months) : undefined;
 
   const pickMonths = (next: { a: MonthKey; b: MonthKey }) =>
     setParams(
@@ -118,8 +115,8 @@ export default function ComparePage() {
         a={a}
         b={b}
         onChange={pickMonths}
-        rowsA={rowsA.data && scaleBreakdown(rowsA.data, factor, digits)}
-        rowsB={rowsB.data && scaleBreakdown(rowsB.data, factor, digits)}
+        rowsA={rowsA.data}
+        rowsB={rowsB.data}
         currency={currency}
         loading={rowsA.isPending || rowsB.isPending}
       />

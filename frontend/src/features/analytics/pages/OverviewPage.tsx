@@ -7,7 +7,6 @@ import { DailyChart } from '../components/DailyChart.tsx';
 import { StatTile } from '../components/StatTile.tsx';
 import { useAnalyticsReference } from '../hooks/useAnalyticsReference.ts';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency.tsx';
-import { scaleBreakdown, scaleSeries, scaleSummary } from '../model/currency.ts';
 import { useBreakdown, useSummary, useTimeseries } from '../hooks/useAnalytics.ts';
 import { useFilterState } from '../hooks/useFilterState.ts';
 import { changePercent } from '../model/chart-data.ts';
@@ -17,10 +16,11 @@ import { granularityFor, toApiFilters } from '../model/filter-state.ts';
 /** Overview of the selected period with all filters applied: metrics, dynamics over time and categories. */
 export default function OverviewPage() {
   const { state, today } = useFilterState();
-  const filters = toApiFilters(state, today);
   const granularity = granularityFor(state, today);
   const { categoryOrder } = useAnalyticsReference();
-  const { code: currency, factor, digits } = useDisplayCurrency();
+  const { code: currency, digits } = useDisplayCurrency();
+  // The server sums in the display currency: exact for records kept in it, converted for the rest
+  const filters = { ...toApiFilters(state, today), currency };
 
   const summary = useSummary(filters);
   const series = useTimeseries(filters, granularity);
@@ -42,10 +42,8 @@ export default function OverviewPage() {
       { replace: true },
     );
 
-  // Amounts are in drams in the database; converted to the selected currency on display
-  const scaled = summary.data && scaleSummary(summary.data, factor, digits);
-  const current = scaled?.current;
-  const previous = scaled?.previous ?? undefined;
+  const current = summary.data?.current;
+  const previous = summary.data?.previous ?? undefined;
   const money = (value: number | undefined) =>
     value === undefined ? '…' : `${formatAmount(value, digits)} ${currency}`;
   const note = current ? `к предыдущим ${current.days} дн.` : undefined;
@@ -90,23 +88,23 @@ export default function OverviewPage() {
       </div>
 
       <DailyChart
-        points={series.data && scaleSeries(series.data, factor, digits)}
+        points={series.data && series.data}
         currency={currency}
         granularity={granularity}
         loading={series.isPending}
       />
       <CategoryChart
-        rows={categories.data && scaleBreakdown(categories.data, factor, digits)}
+        rows={categories.data && categories.data}
         currency={currency}
         categoryOrder={categoryOrder}
         onSelect={selectCategory}
         loading={categories.isPending}
       />
       <CategoryNames
-        categories={scaleBreakdown(categories.data ?? [], factor, digits)}
+        categories={categories.data ?? []}
         selected={drill}
         onSelect={selectCategory}
-        names={drill ? names.data && scaleBreakdown(names.data, factor, digits) : []}
+        names={drill ? names.data && names.data : []}
         categoryOrder={categoryOrder}
         currency={currency}
         loading={names.isPending && drill !== undefined}
