@@ -89,7 +89,7 @@ export const groupRoutes =
       await service.updateCategory(
         ownerOnly(request),
         parseId((request.params as { id: string }).id),
-        { name: body.name, archived: body.archived },
+        { name: body.name, archived: body.archived, mergeInto: body.mergeInto },
       );
       return { success: true };
     });

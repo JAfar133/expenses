@@ -254,6 +254,25 @@ export class GroupAdminRepository {
     );
   }
 
+  /** Moves the records of a category to another one of the group and removes the emptied category. */
+  async mergeCategory(groupId: string, sourceId: string, targetId: string): Promise<void> {
+    await this.database.transaction(async (tx) => {
+      const names = await tx.query<{ id: string; name: string }>(
+        'SELECT id, name FROM categories WHERE group_id = $1 AND id = ANY($2::uuid[])',
+        [groupId, [sourceId, targetId]],
+      );
+      const source = names.find((row) => row.id === sourceId);
+      const target = names.find((row) => row.id === targetId);
+      if (!source || !target) return;
+      await tx.query('UPDATE expenses SET category = $3 WHERE group_id = $1 AND category = $2', [
+        groupId,
+        source.name,
+        target.name,
+      ]);
+      await tx.query('DELETE FROM categories WHERE id = $1', [sourceId]);
+    });
+  }
+
   /** A member of the group by login (any role), or undefined. */
   async findMember(groupId: string, username: string): Promise<MemberInfo | undefined> {
     const [row] = await this.database.query<{

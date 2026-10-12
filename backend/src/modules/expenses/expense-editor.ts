@@ -20,7 +20,7 @@ export interface ExpenseEditorOptions {
   database: Database;
   repository: ExpenseRepository;
   /** Cards of the group: a record may be moved to any of them */
-  groups: Pick<GroupsRepository, 'cardNames'>;
+  groups: Pick<GroupsRepository, 'cardNames' | 'categoryNames'>;
 }
 
 /** Who edits: the login goes to the log, the group limits which records can be touched. */
@@ -63,6 +63,12 @@ export class ExpenseEditor {
 
       if (patch.card !== undefined && !(await this.groupCards(actor, tx)).includes(after.card)) {
         throw validationError('INVALID_CARD', 'Выберите карту из списка');
+      }
+      if (
+        patch.category !== undefined &&
+        !(await this.options.groups.categoryNames(actor.groupId, tx)).includes(after.category)
+      ) {
+        throw validationError('INVALID_CATEGORY', 'Выберите категорию из списка');
       }
       if (JSON.stringify(before) === JSON.stringify(after)) return false;
 

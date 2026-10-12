@@ -207,6 +207,84 @@ describe('категории', () => {
   });
 });
 
+describe('категории: список группы единственный', () => {
+  const create = (category: string, as = 'misha') =>
+    t.inject(
+      {
+        method: 'POST',
+        url: '/api/expenses',
+        headers: { 'idempotency-key': `key-${Math.random().toString(36).slice(2)}-xx` },
+        payload: { date: '2026-10-10', card: 'Миша', category, name: 'Что-то', amount: 10 },
+      },
+      as,
+    );
+
+  it('трата с категорией не из списка или из архива отклоняется', async () => {
+    expect((await create('кафе')).statusCode).toBe(201);
+    const unknown = await create('путешествия');
+    expect(unknown.statusCode).toBe(422);
+    expect(unknown.json().error.code).toBe('INVALID_CATEGORY');
+
+    const [cafe] = await rows<{ id: string }>("SELECT id FROM categories WHERE name = 'кафе'");
+    await call('PATCH', `/api/group/categories/${cafe!.id}`, 'misha', { archived: true });
+    expect((await create('кафе')).statusCode).toBe(422);
+  });
+
+  it('правка траты на категорию не из списка отклоняется', async () => {
+    const created = await create('кафе');
+    const id = created.json().data.id;
+
+    const response = await call('PATCH', `/api/expenses/${id}`, 'misha', { category: 'нет такой' });
+
+    expect(response.statusCode).toBe(422);
+    expect(response.json().error.code).toBe('INVALID_CATEGORY');
+  });
+
+  it('объединение: траты переходят в выбранную категорию, лишняя исчезает из списка', async () => {
+    await call('POST', '/api/group/categories', 'misha', { name: 'бытавуха' });
+    const repository = new PostgresExpenseRepository(database);
+    await repository.insertPending(
+      database,
+      { date: '2026-10-10', card: 'Миша', category: 'бытавуха', name: 'Мыло', amount: 7 },
+      'misha',
+    );
+    const [from] = await rows<{ id: string }>("SELECT id FROM categories WHERE name = 'бытавуха'");
+    const [into] = await rows<{ id: string }>("SELECT id FROM categories WHERE name = 'продукты'");
+
+    const merged = await call('PATCH', `/api/group/categories/${from!.id}`, 'misha', {
+      mergeInto: into!.id,
+    });
+
+    expect(merged.statusCode).toBe(200);
+    expect((await rows('SELECT category FROM expenses'))[0]).toEqual({ category: 'продукты' });
+    expect((await call('GET', '/api/categories', 'misha')).json().data).toEqual([
+      'кафе',
+      'продукты',
+    ]);
+  });
+
+  it('объединить с собой или с категорией другой группы нельзя', async () => {
+    const [cafe] = await rows<{ id: string }>("SELECT id FROM categories WHERE name = 'кафе'");
+    const [other] = await rows<{ id: string }>(
+      "INSERT INTO groups (name, reporting_currency, timezone) VALUES ('B', 'AMD', 'UTC') RETURNING id",
+    );
+    const [foreign] = await rows<{ id: string }>(
+      "INSERT INTO categories (group_id, name) VALUES ($1, 'чужая') RETURNING id",
+      [other!.id],
+    );
+
+    const self = await call('PATCH', `/api/group/categories/${cafe!.id}`, 'misha', {
+      mergeInto: cafe!.id,
+    });
+    const alien = await call('PATCH', `/api/group/categories/${cafe!.id}`, 'misha', {
+      mergeInto: foreign!.id,
+    });
+
+    expect(self.statusCode).toBe(422);
+    expect(alien.statusCode).toBe(404);
+  });
+});
+
 describe('приглашения', () => {
   const invite = async (role = 'member') =>
     (await call('POST', '/api/group/invitations', 'misha', { role })).json().data.token as string;

@@ -41,7 +41,8 @@ Before finishing work: `typecheck`, `test`, `format`.
   in the UI comes from there (`card_id`); the text column `expenses.card` is legacy and is kept for Excel. Inside a transaction pass the
   transaction executor to repository helpers (PGlite has a single connection: a query outside the transaction would wait forever).
   `canEdit` means "owner"; the settings page toggles the role in `memberships`. `ensureDefaultGroup` (start-up) fills the model for an
-  installation that predates groups; a transitional DB trigger fills `group_id`/`card_id` on writes.
+  installation that predates groups (and adds the categories used by existing records to the group's list); transitional DB triggers fill `group_id`/`card_id` and
+  add an unknown category to the list on writes. The categories table is the single list: the API rejects a category that is not in it.
 - Account: the name, card, time zone and editing right have defaults from `.env` and a personal choice on top of them (`custom_*`, `can_edit_override`); the effective values are assembled by `EFFECTIVE_USER_COLUMNS` in `auth.repository.ts`. Check rights by `request.user.canEdit`, not by the list from `.env`. Compute "today" by `request.user.timezone`.
 - The password from `.env` is applied only if the value in `.env` changed (`users.env_password_hash`); a password set by the user is not overwritten.
 - Do not log passwords and tokens or return them in responses; only hashes in the DB. Users' passwords are taken from `AUTH_PASSWORD_<USERNAME>`.

@@ -318,6 +318,10 @@ New people join by a **one-time link** (valid 7 days, only its hash is stored): 
 chooses their login, name and password on `/invite/<token>` and is signed in. The same kind of link resets a forgotten password.
 Users listed in `AUTH_USERS` keep working as before and cannot be removed from the app.
 
+**Categories.** The list of a group (`categories` table) is the single source: the form offers only the active ones, and an expense (or an edit)
+with another category is rejected (`422 INVALID_CATEGORY`). Categories already used by existing records, or arriving from Excel,
+are added to the list automatically, so none is lost; the owner then renames, archives or merges the duplicates.
+
 All routes below need login (the owner or the administrator), except the invitation ones.
 
 | Method and path                                                      | Purpose                                                                                                  |

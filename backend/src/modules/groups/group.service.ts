@@ -113,11 +113,20 @@ export class GroupService {
   async updateCategory(
     owner: AuthUser,
     categoryId: string,
-    patch: { name?: unknown; archived?: unknown },
+    patch: { name?: unknown; archived?: unknown; mergeInto?: unknown },
   ): Promise<void> {
     const groupId = this.groupOf(owner);
     if (!(await this.repository.categoryBelongsToGroup(groupId, categoryId))) {
       throw notFoundError();
+    }
+    if (patch.mergeInto !== undefined) {
+      const target = String(patch.mergeInto);
+      if (target === categoryId) {
+        throw validationError('INVALID_MERGE', 'Нельзя объединить категорию саму с собой');
+      }
+      if (!(await this.repository.categoryBelongsToGroup(groupId, target))) throw notFoundError();
+      await this.repository.mergeCategory(groupId, categoryId, target);
+      return;
     }
     const update: { name?: string; archived?: boolean } = {};
     if (patch.name !== undefined) update.name = cleanName(patch.name, 'Название категории');

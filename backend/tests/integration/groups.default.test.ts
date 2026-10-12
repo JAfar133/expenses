@@ -150,6 +150,36 @@ describe('записи, созданные до групп', () => {
   });
 });
 
+describe('категории из записей', () => {
+  it('категории, которые уже есть в тратах, попадают в список группы (ничего не пропадает)', async () => {
+    await addUsers();
+    await expenses.insertPending(database, { ...coffee, category: 'транспорт' }, 'misha');
+    await expenses.insertPending(database, { ...coffee, category: 'бытавуха' }, 'misha');
+    await expenses.insertPending(database, { ...coffee, category: 'кафе' }, 'misha');
+
+    await ensureDefaultGroup(database, config);
+
+    expect(await rows('SELECT name FROM categories ORDER BY position')).toEqual([
+      { name: 'кафе' },
+      { name: 'продукты' },
+      { name: 'другое' },
+      { name: 'транспорт' },
+      { name: 'бытавуха' },
+    ]);
+  });
+
+  it('новая запись с неизвестной категорией (например из Excel) добавляет её в список', async () => {
+    await addUsers();
+    await ensureDefaultGroup(database, config);
+
+    await expenses.importFromExcel(database, [{ ...coffee, category: 'здоровье' }]);
+
+    expect(await rows("SELECT name FROM categories WHERE name = 'здоровье'")).toHaveLength(1);
+    await expenses.importFromExcel(database, [{ ...coffee, category: 'здоровье', amount: 5 }]);
+    expect(await rows("SELECT name FROM categories WHERE name = 'здоровье'")).toHaveLength(1);
+  });
+});
+
 describe('новые записи после появления групп', () => {
   beforeEach(async () => {
     await addUsers();

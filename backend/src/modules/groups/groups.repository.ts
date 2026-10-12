@@ -32,20 +32,10 @@ export class GroupsRepository {
   }
 
   /** Categories of the group (not archived), in the owner's order. */
-  async categoryNames(groupId: string | null): Promise<string[]> {
+  async categoryNames(groupId: string | null, db: SqlExecutor = this.database): Promise<string[]> {
     if (!groupId) return [];
-    const rows = await this.database.query<{ name: string }>(
+    const rows = await db.query<{ name: string }>(
       'SELECT name FROM categories WHERE group_id = $1 AND archived_at IS NULL ORDER BY position, name',
-      [groupId],
-    );
-    return rows.map((row) => row.name);
-  }
-
-  /** Archived categories: records may still use them, but the form does not offer them. */
-  async archivedCategoryNames(groupId: string | null): Promise<string[]> {
-    if (!groupId) return [];
-    const rows = await this.database.query<{ name: string }>(
-      'SELECT name FROM categories WHERE group_id = $1 AND archived_at IS NOT NULL',
       [groupId],
     );
     return rows.map((row) => row.name);

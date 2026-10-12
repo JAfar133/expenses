@@ -140,6 +140,7 @@ async function assignExpenses(tx: SqlExecutor): Promise<number> {
      ON CONFLICT (group_id, name) DO NOTHING`,
     [group.id],
   );
+  await ensureCategories(tx);
   const assigned = await tx.query<{ id: string }>(
     `UPDATE expenses e
         SET group_id = COALESCE(e.group_id, $1),
@@ -150,4 +151,19 @@ async function assignExpenses(tx: SqlExecutor): Promise<number> {
     [group.id],
   );
   return assigned.length;
+}
+
+/** Every category used by the records gets into the list of its group (in the order of first use). */
+async function ensureCategories(tx: SqlExecutor): Promise<void> {
+  await tx.query(
+    `INSERT INTO categories (group_id, name, position)
+     SELECT used.group_id, used.category,
+            COALESCE((SELECT max(c.position) + 1 FROM categories c WHERE c.group_id = used.group_id), 0)
+              + row_number() OVER (PARTITION BY used.group_id ORDER BY used.first_seq) - 1
+       FROM (SELECT COALESCE(e.group_id, (SELECT id FROM groups ORDER BY created_at, id LIMIT 1)) AS group_id,
+                    e.category, min(e.seq) AS first_seq
+               FROM expenses e GROUP BY 1, 2) used
+      WHERE used.group_id IS NOT NULL
+     ON CONFLICT (group_id, name) DO NOTHING`,
+  );
 }

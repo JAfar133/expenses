@@ -72,14 +72,11 @@ describe('create', () => {
     expect(await repository.countQueue()).toBe(0);
   });
 
-  it('принимает неизвестную категорию как есть', async () => {
-    const created = await createService().create(
-      database,
-      { ...input, category: 'путешествия' },
-      author(),
-    );
-
-    expect(created.category).toBe('путешествия');
+  it('отклоняет категорию, которой нет в списке группы', async () => {
+    await expect(
+      createService().create(database, { ...input, category: 'путешествия' }, author()),
+    ).rejects.toMatchObject({ statusCode: 422, code: 'INVALID_CATEGORY' });
+    expect(await repository.countQueue()).toBe(0);
   });
 });
 
@@ -112,16 +109,5 @@ describe('getCategories', () => {
     ]);
 
     expect(await createService().getCategories(scope)).toEqual(['кафе', 'продукты', 'транспорт']);
-  });
-
-  it('отдаёт категории из конфигурации, если БД недоступна', async () => {
-    const broken = {
-      ...repository,
-      listCategories: async () => {
-        throw new Error('db down');
-      },
-    } as unknown as ExpenseRepository;
-
-    expect(await createService(broken).getCategories(scope)).toEqual(['кафе', 'продукты']);
   });
 });

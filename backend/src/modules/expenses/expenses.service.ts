@@ -21,7 +21,7 @@ export interface ExpenseAuthor {
 
 export interface ExpenseServiceOptions {
   /** Cards and categories of the user's group */
-  groups: Pick<GroupsRepository, 'editableCardNames' | 'categoryNames' | 'archivedCategoryNames'>;
+  groups: Pick<GroupsRepository, 'editableCardNames' | 'categoryNames'>;
   /** Base currency, available currencies and rates for conversion to drams */
   currency: AmountContext;
   logger?: { warn: (object: object, message: string) => void };
@@ -38,12 +38,9 @@ export class ExpenseService {
     return this.options.groups.editableCardNames(scope, db);
   }
 
-  /** Categories of the group + the ones already used by records the user can see (including those from Excel). */
-  async getCategories(scope: ExpenseScope): Promise<string[]> {
-    const configured = await this.options.groups.categoryNames(scope.groupId);
-    const archived = new Set(await this.options.groups.archivedCategoryNames(scope.groupId));
-    const stored = await this.readStoredCategories(scope);
-    return [...new Set([...configured, ...stored])].filter((name) => !archived.has(name));
+  /** Categories of the user's group: the owner's list, nothing else. */
+  getCategories(scope: ExpenseScope): Promise<string[]> {
+    return this.options.groups.categoryNames(scope.groupId);
   }
 
   /** Name suggestions: from most to least frequent. An unavailable DB does not break the form. */
@@ -68,6 +65,11 @@ export class ExpenseService {
     if (!(await this.getCards(author.scope, db)).includes(input.card)) {
       throw validationError('INVALID_CARD', 'Выберите карту из списка');
     }
+    if (
+      !(await this.options.groups.categoryNames(author.scope.groupId, db)).includes(input.category)
+    ) {
+      throw validationError('INVALID_CATEGORY', 'Выберите категорию из списка');
+    }
     const { amount, original } = await resolveAmount(
       {
         amount: input.amount,
@@ -87,15 +89,5 @@ export class ExpenseService {
 
   findById(id: string): Promise<StoredExpense | undefined> {
     return this.repository.findById(id);
-  }
-
-  /** DB unavailability must not break the form: return the categories from the configuration. */
-  private async readStoredCategories(scope: ExpenseScope): Promise<string[]> {
-    try {
-      return await this.repository.listCategories(scope);
-    } catch (error) {
-      this.options.logger?.warn({ err: error }, 'Failed to read categories from database');
-      return [];
-    }
   }
 }
