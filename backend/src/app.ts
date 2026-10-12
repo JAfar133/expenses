@@ -11,7 +11,11 @@ import { preferencesRoutes } from './modules/preferences/preferences.routes.ts';
 import type { PreferencesRepository } from './modules/preferences/preferences.repository.ts';
 import { ratesRoutes } from './modules/rates/rates.routes.ts';
 import type { RatesService } from './modules/rates/rates.service.ts';
+import type { GroupService } from './modules/groups/group.service.ts';
 import type { GroupsRepository } from './modules/groups/groups.repository.ts';
+import { adminRoutes, groupRoutes, invitationRoutes } from './modules/groups/groups.routes.ts';
+import type { InvitationsService } from './modules/groups/invitations.service.ts';
+import type { PlatformAdminService } from './modules/groups/platform-admin.service.ts';
 import { ExpenseEditor } from './modules/expenses/expense-editor.ts';
 import { expenseEditRoutes } from './modules/expenses/expense-edit.routes.ts';
 import { expensesRoutes } from './modules/expenses/expenses.routes.ts';
@@ -31,6 +35,12 @@ export interface AppDependencies {
   editor: ExpenseEditor;
   /** Cards of a group (for the default card in the profile) */
   groups: Pick<GroupsRepository, 'cardNames'>;
+  /** Management of the user's own group (owner) */
+  groupService: GroupService;
+  /** Groups for the application administrator */
+  platformAdmin: PlatformAdminService;
+  /** Invitation links */
+  invitations: InvitationsService;
   /** Logins allowed to edit and delete */
   editors?: string[];
   idempotency: IdempotencyService;
@@ -56,6 +66,9 @@ export function buildApp({
   preferences,
   editor,
   groups,
+  groupService,
+  platformAdmin,
+  invitations,
   idempotency,
   sync,
   scheduler,
@@ -142,6 +155,9 @@ export function buildApp({
     }),
     { prefix: '/api' },
   );
+  app.register(groupRoutes(groupService), { prefix: '/api' });
+  app.register(adminRoutes(platformAdmin), { prefix: '/api' });
+  app.register(invitationRoutes(invitations, auth), { prefix: '/api' });
   app.register(syncRoutes({ sync, scheduler }), { prefix: '/api' });
   app.register(
     authRoutes(auth, (user) =>

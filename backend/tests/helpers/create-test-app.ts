@@ -11,6 +11,10 @@ import { AnalyticsRepository } from '../../src/modules/analytics/analytics.repos
 import { AnalyticsService } from '../../src/modules/analytics/analytics.service.ts';
 import { PreferencesRepository } from '../../src/modules/preferences/preferences.repository.ts';
 import { ensureDefaultGroup } from '../../src/modules/groups/default-group.ts';
+import { GroupAdminRepository } from '../../src/modules/groups/group-admin.repository.ts';
+import { GroupService } from '../../src/modules/groups/group.service.ts';
+import { InvitationsService } from '../../src/modules/groups/invitations.service.ts';
+import { PlatformAdminService } from '../../src/modules/groups/platform-admin.service.ts';
 import { GroupsRepository } from '../../src/modules/groups/groups.repository.ts';
 import { ExpenseEditor } from '../../src/modules/expenses/expense-editor.ts';
 import { ExpenseService } from '../../src/modules/expenses/expenses.service.ts';
@@ -127,6 +131,7 @@ export interface TestApp {
   scheduler: SyncScheduler;
   auth: AuthService;
   authRepository: AuthRepository;
+  invitations: InvitationsService;
   /** A request as the logged-in user (misha by default): with login cookies and the site Origin header */
   inject: (options: InjectOptions, as?: TestUsername) => Promise<LightMyRequestResponse>;
   /** Login cookies for a user: creates a session directly, without checking the password */
@@ -139,6 +144,8 @@ export interface TestAppOptions {
   allowedOrigins?: string[];
   throttle?: LoginThrottle;
   checkDatabase?: () => Promise<unknown>;
+  /** Clock of the invitations service */
+  now?: () => Date;
 }
 
 /** "Today" in tests: a fixed date so calculations do not depend on the calendar. */
@@ -190,10 +197,25 @@ export async function createTestApp(
     admins: ['misha'],
   });
   const groups = new GroupsRepository(database);
+  const invitations = new InvitationsService({
+    database,
+    minPasswordLength: 12,
+    now: options.now,
+  });
 
   const app = buildApp({
     expenseService: new ExpenseService(repository, { groups, currency: rates }),
     groups,
+    invitations,
+    groupService: new GroupService(new GroupAdminRepository(database), invitations, auth),
+    platformAdmin: new PlatformAdminService({
+      database,
+      invitations,
+      currencies: ['AMD', 'USD', 'RUB'],
+      defaultCurrency: 'AMD',
+      defaultTimezone: 'Asia/Yerevan',
+      defaultCategories: ['кафе', 'продукты'],
+    }),
     auth,
     rates,
     analytics: new AnalyticsService({
@@ -249,6 +271,7 @@ export async function createTestApp(
     scheduler,
     auth,
     authRepository,
+    invitations,
     inject,
     sessionCookies,
   };

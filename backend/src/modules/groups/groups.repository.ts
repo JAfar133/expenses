@@ -40,4 +40,14 @@ export class GroupsRepository {
     );
     return rows.map((row) => row.name);
   }
+
+  /** Archived categories: records may still use them, but the form does not offer them. */
+  async archivedCategoryNames(groupId: string | null): Promise<string[]> {
+    if (!groupId) return [];
+    const rows = await this.database.query<{ name: string }>(
+      'SELECT name FROM categories WHERE group_id = $1 AND archived_at IS NOT NULL',
+      [groupId],
+    );
+    return rows.map((row) => row.name);
+  }
 }

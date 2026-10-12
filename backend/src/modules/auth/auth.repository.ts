@@ -83,8 +83,10 @@ const EFFECTIVE_USER_COLUMNS = `
     u.can_edit_default
   ) AS can_edit,
   COALESCE(u.custom_timezone, u.timezone_default) AS timezone,
-  (SELECT m.group_id FROM memberships m WHERE m.user_id = u.id) AS group_id,
-  (SELECT m.role FROM memberships m WHERE m.user_id = u.id) AS group_role,
+  (SELECT m.group_id FROM memberships m JOIN groups g ON g.id = m.group_id AND g.disabled_at IS NULL
+    WHERE m.user_id = u.id) AS group_id,
+  (SELECT m.role FROM memberships m JOIN groups g ON g.id = m.group_id AND g.disabled_at IS NULL
+    WHERE m.user_id = u.id) AS group_role,
   u.is_admin AS is_admin`;
 
 const SESSION_COLUMNS = `
@@ -137,12 +139,12 @@ export class AuthRepository {
     defaults: { canEdit?: boolean; timezone?: string } = {},
   ): Promise<void> {
     await this.database.query(
-      `INSERT INTO users (id, username, display_name, card, can_edit_default, timezone_default)
-       VALUES ($1, $2, $3, $3, $4, $5)
+      `INSERT INTO users (id, username, display_name, card, can_edit_default, timezone_default, from_env)
+       VALUES ($1, $2, $3, $3, $4, $5, true)
        ON CONFLICT (username) DO UPDATE
          SET display_name = EXCLUDED.display_name, card = EXCLUDED.card,
              can_edit_default = EXCLUDED.can_edit_default,
-             timezone_default = EXCLUDED.timezone_default,
+             timezone_default = EXCLUDED.timezone_default, from_env = true,
              disabled_at = NULL, updated_at = now()`,
       [randomUUID(), username, card, defaults.canEdit ?? false, defaults.timezone ?? 'UTC'],
     );
@@ -220,7 +222,7 @@ export class AuthRepository {
   async disableUsersExcept(usernames: string[]): Promise<void> {
     await this.database.query(
       `UPDATE users SET disabled_at = now(), updated_at = now()
-       WHERE disabled_at IS NULL AND NOT (username = ANY($1::text[]))`,
+       WHERE disabled_at IS NULL AND from_env AND NOT (username = ANY($1::text[]))`,
       [usernames],
     );
     await this.database.query(

@@ -65,6 +65,7 @@ describe('драйвер pg', () => {
       '0007_password_source.sql',
       '0008_profile.sql',
       '0009_groups.sql',
+      '0010_invitations.sql',
     ]);
   });
 

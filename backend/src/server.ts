@@ -3,7 +3,11 @@ import { buildApp } from './app.ts';
 import { loadEnv, readUserPasswords } from './config/env.ts';
 import { BackupService } from './infrastructure/backup/backup.service.ts';
 import { createPostgresDatabase, waitForDatabase } from './infrastructure/database/database.ts';
+import { GroupAdminRepository } from './modules/groups/group-admin.repository.ts';
+import { GroupService } from './modules/groups/group.service.ts';
 import { GroupsRepository } from './modules/groups/groups.repository.ts';
+import { InvitationsService } from './modules/groups/invitations.service.ts';
+import { PlatformAdminService } from './modules/groups/platform-admin.service.ts';
 import { ensureDefaultGroup } from './modules/groups/default-group.ts';
 import { migrate } from './infrastructure/database/migrate.ts';
 import { IdempotencyService } from './infrastructure/idempotency/idempotency.service.ts';
@@ -71,6 +75,10 @@ const database = createPostgresDatabase(env.DATABASE_URL, (error) =>
 );
 const expenses = new PostgresExpenseRepository(database);
 const groups = new GroupsRepository(database);
+const invitations = new InvitationsService({
+  database,
+  minPasswordLength: env.AUTH_MIN_PASSWORD_LENGTH,
+});
 const idempotency = new IdempotencyService(database);
 
 const HOUR_MS = 3_600_000;
@@ -131,6 +139,16 @@ const app = buildApp({
   preferences: new PreferencesRepository(database),
   editor: new ExpenseEditor({ database, repository: expenses, groups }),
   groups,
+  invitations,
+  groupService: new GroupService(new GroupAdminRepository(database), invitations, auth),
+  platformAdmin: new PlatformAdminService({
+    database,
+    invitations,
+    currencies: env.CURRENCIES,
+    defaultCurrency: env.DEFAULT_CURRENCY,
+    defaultTimezone: env.APP_TIMEZONE,
+    defaultCategories: env.CATEGORIES,
+  }),
   checkDatabase: () => database.query('SELECT 1'),
   trustProxy: env.TRUST_PROXY,
   allowedOrigins: env.ALLOWED_ORIGINS,

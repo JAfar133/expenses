@@ -21,7 +21,7 @@ export interface ExpenseAuthor {
 
 export interface ExpenseServiceOptions {
   /** Cards and categories of the user's group */
-  groups: Pick<GroupsRepository, 'editableCardNames' | 'categoryNames'>;
+  groups: Pick<GroupsRepository, 'editableCardNames' | 'categoryNames' | 'archivedCategoryNames'>;
   /** Base currency, available currencies and rates for conversion to drams */
   currency: AmountContext;
   logger?: { warn: (object: object, message: string) => void };
@@ -41,8 +41,9 @@ export class ExpenseService {
   /** Categories of the group + the ones already used by records the user can see (including those from Excel). */
   async getCategories(scope: ExpenseScope): Promise<string[]> {
     const configured = await this.options.groups.categoryNames(scope.groupId);
+    const archived = new Set(await this.options.groups.archivedCategoryNames(scope.groupId));
     const stored = await this.readStoredCategories(scope);
-    return [...new Set([...configured, ...stored])];
+    return [...new Set([...configured, ...stored])].filter((name) => !archived.has(name));
   }
 
   /** Name suggestions: from most to least frequent. An unavailable DB does not break the form. */
