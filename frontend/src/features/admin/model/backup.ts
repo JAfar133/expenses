@@ -1,5 +1,4 @@
 import { formatMoney } from '../../../shared/utils/money.ts';
-import type { AdminBackup } from '../api/admin.api.ts';
 
 /** File size for people: 512 Б, 48,3 КБ, 12,5 МБ. */
 export function formatSize(bytes: number): string {
@@ -16,22 +15,18 @@ export function formatAge(hours: number | null): string {
   return `${Math.floor(hours / 24)} дн. назад`;
 }
 
-export const STATE_TEXT: Record<AdminBackup['state'], string> = {
-  ok: 'Всё в порядке',
-  stale: 'Давно не было копии',
-  failed: 'Последний запуск закончился ошибкой',
-  unknown: 'Нет данных о бэкапах',
-};
+/** Short local date and time without the year: «12.10 22:15». */
+export function formatShortDateTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
+/** Very short reasons of a failed run. */
 export const RUN_ERROR_TEXT: Record<string, string> = {
-  dump_failed: 'не удалось снять дамп базы',
+  dump_failed: 'дамп не снят',
   verify_failed: 'дамп не прошёл проверку',
-  upload_failed: 'копия не загрузилась в OneDrive (локальная копия есть)',
+  upload_failed: 'не загрузилась в OneDrive',
   unexpected: 'непредвиденная ошибка',
-};
-
-export const REMOTE_TEXT: Record<'ok' | 'failed' | 'off', string> = {
-  ok: 'есть',
-  failed: 'не загрузилась',
-  off: 'не используется',
 };

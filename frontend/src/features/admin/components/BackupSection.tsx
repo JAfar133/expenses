@@ -1,86 +1,88 @@
+import type { ReactNode } from 'react';
 import { Notice } from '../../../shared/ui/Notice.tsx';
 import { CheckIcon, CloseIcon, PauseIcon, RefreshIcon } from '../../../shared/ui/icons.tsx';
 import { toErrorMessage } from '../../group/model/error-message.ts';
-import { formatDateTime } from '../../group/model/format.ts';
 import { SettingsSection } from '../../settings/components/SettingsSection.tsx';
 import type { AdminBackup } from '../api/admin.api.ts';
 import { hasBackupProblem, useAdminBackup } from '../hooks/useAdminBackup.ts';
-import { REMOTE_TEXT, RUN_ERROR_TEXT, STATE_TEXT, formatAge, formatSize } from '../model/backup.ts';
+import { RUN_ERROR_TEXT, formatAge, formatShortDateTime, formatSize } from '../model/backup.ts';
 
-const TONES = {
-  ok: { icon: <CheckIcon />, className: 'text-green-700 dark:text-green-400' },
-  problem: { icon: <CloseIcon />, className: 'text-red-600 dark:text-red-400' },
-  unknown: { icon: <PauseIcon />, className: 'text-zinc-500 dark:text-zinc-400' },
-};
+const RED = 'text-red-600 dark:text-red-400';
+const GREEN = 'text-green-700 dark:text-green-400';
+const GREY = 'text-zinc-500 dark:text-zinc-400';
 
-function StatusLine({ backup }: { backup: AdminBackup }) {
-  const tone =
-    backup.state === 'ok'
-      ? TONES.ok
-      : hasBackupProblem(backup.state)
-        ? TONES.problem
-        : TONES.unknown;
-  const text =
-    backup.state === 'unknown' && !backup.configured
-      ? 'Не настроено на сервере'
-      : STATE_TEXT[backup.state];
-
-  return (
-    <p className={`flex items-center gap-2 font-medium ${tone.className}`}>
-      {tone.icon}
-      {text}
-    </p>
-  );
+interface Line {
+  icon: ReactNode;
+  tone: string;
+  text: ReactNode;
 }
 
-function Details({ backup }: { backup: AdminBackup }) {
-  const { lastSuccess, lastRun } = backup;
-  return (
-    <div className="space-y-2 text-sm">
-      {lastSuccess && (
-        <div>
-          <p>
-            Последняя копия: {formatDateTime(lastSuccess.at)}
-            {backup.ageHours !== null && ` (${formatAge(backup.ageHours)})`}
-          </p>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {lastSuccess.file} · {formatSize(lastSuccess.sizeBytes)}
-          </p>
-          <p>Копия в OneDrive: {REMOTE_TEXT[lastSuccess.remote]}</p>
-        </div>
-      )}
-      {lastRun && (
-        <p>
-          Последний запуск: {formatDateTime(lastRun.at)} —{' '}
-          {lastRun.ok
-            ? 'успешно'
-            : `ошибка: ${RUN_ERROR_TEXT[lastRun.error] ?? RUN_ERROR_TEXT.unexpected}`}
-        </p>
-      )}
-    </div>
-  );
+/** The whole state in one short line. */
+function toLine(backup: AdminBackup): Line {
+  const { state, lastSuccess, lastRun } = backup;
+
+  if (state === 'ok' && lastSuccess) {
+    return {
+      icon: <CheckIcon />,
+      tone: GREEN,
+      text: (
+        <>
+          {formatShortDateTime(lastSuccess.at)} · {formatSize(lastSuccess.sizeBytes)}
+          {lastSuccess.remote === 'ok' && ' · OneDrive ✓'}
+          {lastSuccess.remote === 'failed' && <span className={RED}> · OneDrive ✗</span>}
+        </>
+      ),
+    };
+  }
+  if (state === 'stale') {
+    return {
+      icon: <CloseIcon />,
+      tone: RED,
+      text: lastSuccess
+        ? `Нет свежей копии · последняя ${formatShortDateTime(lastSuccess.at)} (${formatAge(backup.ageHours)})`
+        : 'Копий нет',
+    };
+  }
+  if (state === 'failed') {
+    const reason = RUN_ERROR_TEXT[lastRun?.error ?? ''] ?? RUN_ERROR_TEXT.unexpected;
+    return {
+      icon: <CloseIcon />,
+      tone: RED,
+      text: `Ошибка запуска: ${reason}${lastSuccess ? ` · последняя копия ${formatShortDateTime(lastSuccess.at)}` : ''}`,
+    };
+  }
+  return {
+    icon: <PauseIcon />,
+    tone: GREY,
+    text: backup.configured ? 'Нет данных' : 'Не настроено',
+  };
 }
 
 /** State of the nightly database backup. Read-only: the copies themselves are made by a script on the server. */
 export function BackupSection() {
   const query = useAdminBackup();
   const backup = query.data;
+  const line = backup && toLine(backup);
 
   return (
     <SettingsSection
       title="Бэкап базы"
-      hint={`Показывает, когда в последний раз успешно сделана копия базы и чем закончился последний запуск. Бэкап делает скрипт на сервере каждую ночь; здесь только состояние, сами копии приложение не трогает. Красный статус — копии нет дольше ${backup?.maxAgeHours ?? 26} часов или последний запуск завершился ошибкой.`}
+      hint={`Состояние ночного бэкапа базы. Красное: нет свежей копии (дольше ${backup?.maxAgeHours ?? 26} ч) или последний запуск закончился ошибкой.`}
     >
-      {backup && hasBackupProblem(backup.state) && (
-        <Notice variant="error">
-          Проверьте на сервере: ./scripts/backup-db.sh и лог ~/backups/backup.log
-        </Notice>
-      )}
       {query.isError && <Notice variant="error">{toErrorMessage(query.error)}</Notice>}
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1 space-y-2">
-          {backup && <StatusLine backup={backup} />}
-          {backup && <Details backup={backup} />}
+        <div className="min-w-0 flex-1">
+          {line && (
+            <p className={`flex items-start gap-2 text-sm font-medium ${line.tone}`}>
+              <span className="mt-0.5 shrink-0">{line.icon}</span>
+              <span className="min-w-0">{line.text}</span>
+            </p>
+          )}
+          {backup && hasBackupProblem(backup.state) && (
+            <p className={`mt-1 pl-7 text-xs ${GREY}`}>
+              Проверьте на сервере: ./scripts/backup-db.sh · лог ~/backups/backup.log
+            </p>
+          )}
         </div>
         <button
           type="button"

@@ -100,6 +100,14 @@ describe('форматирование', () => {
   });
 });
 
+const shot = (iso: string) => {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+const AT = shot('2026-10-12T03:00:00.000Z');
+const INSTRUCTION = 'Проверьте на сервере: ./scripts/backup-db.sh · лог ~/backups/backup.log';
+
 describe('раздел «Бэкап базы»', () => {
   it('раздел стоит первым на странице', async () => {
     await renderAdmin();
@@ -107,51 +115,19 @@ describe('раздел «Бэкап базы»', () => {
     expect(headings[1]).toBe('Бэкап базы');
   });
 
-  it('всё в порядке: статус, последняя копия с возрастом, файл, размер, OneDrive, запуск', async () => {
+  it('ok: одна строка — дата, размер, OneDrive ✓; без инструкции и лишних строк', async () => {
     await renderAdmin();
     const box = within(section());
 
-    expect(await box.findByText('Всё в порядке')).toBeInTheDocument();
-    expect(box.getByText(/Последняя копия: .*\(9 ч назад\)/)).toBeInTheDocument();
-    expect(box.getByText('expenses-2026-10-12.dump · 2,5 МБ')).toBeInTheDocument();
-    expect(box.getByText('Копия в OneDrive: есть')).toBeInTheDocument();
-    expect(box.getByText(/Последний запуск: .* — успешно/)).toBeInTheDocument();
+    expect(await box.findByText(`${AT} · 2,5 МБ · OneDrive ✓`)).toBeInTheDocument();
+    expect(box.queryByText(INSTRUCTION)).toBeNull();
     expect(box.queryByRole('alert')).toBeNull();
+    expect(box.queryByText(/expenses-2026/)).toBeNull();
+    expect(box.queryByText(/Последний запуск/)).toBeNull();
+    expect(box.queryByText(/назад/)).toBeNull();
   });
 
-  it('давно не было копии: красная плашка с инструкцией', async () => {
-    current = backup({ state: 'stale', ageHours: 60 });
-    await renderAdmin();
-    const box = within(section());
-
-    expect(await box.findByText('Давно не было копии')).toBeInTheDocument();
-    expect(box.getByRole('alert')).toHaveTextContent(
-      'Проверьте на сервере: ./scripts/backup-db.sh и лог ~/backups/backup.log',
-    );
-    expect(box.getByText(/\(2 дн\. назад\)/)).toBeInTheDocument();
-  });
-
-  it.each([
-    ['dump_failed', 'не удалось снять дамп базы'],
-    ['verify_failed', 'дамп не прошёл проверку'],
-    ['upload_failed', 'копия не загрузилась в OneDrive (локальная копия есть)'],
-    ['unexpected', 'непредвиденная ошибка'],
-  ])('последний запуск с ошибкой %s: «%s»', async (error, text) => {
-    current = backup({
-      state: 'failed',
-      lastRun: { at: '2026-10-12T03:00:00.000Z', ok: false, error },
-    });
-    await renderAdmin();
-    const box = within(section());
-
-    expect(await box.findByText('Последний запуск закончился ошибкой')).toBeInTheDocument();
-    expect(
-      box.getByText(new RegExp(`ошибка: ${text.replace(/[()]/g, '\\$&')}`)),
-    ).toBeInTheDocument();
-    expect(box.getByRole('alert')).toBeInTheDocument();
-  });
-
-  it('копия в OneDrive: не загрузилась и не используется', async () => {
+  it('OneDrive: не загрузилась — красная отметка; не используется — без неё', async () => {
     current = backup({
       lastSuccess: {
         at: '2026-10-12T03:00:00.000Z',
@@ -161,19 +137,67 @@ describe('раздел «Бэкап базы»', () => {
       },
     });
     await renderAdmin();
-    expect(
-      await within(section()).findByText('Копия в OneDrive: не загрузилась'),
-    ).toBeInTheDocument();
+    expect(await within(section()).findByText('· OneDrive ✗')).toBeInTheDocument();
   });
 
-  it('нет данных: серый статус без плашки; не настроено: свой текст', async () => {
+  it('OneDrive не используется: части про него нет', async () => {
+    current = backup({
+      lastSuccess: { at: '2026-10-12T03:00:00.000Z', file: 'a.dump', sizeBytes: 10, remote: 'off' },
+    });
+    await renderAdmin();
+    expect(await within(section()).findByText(`${AT} · 10 Б`)).toBeInTheDocument();
+  });
+
+  it('stale: «Нет свежей копии · последняя … (2 дн. назад)» и строка-инструкция', async () => {
+    current = backup({ state: 'stale', ageHours: 60 });
+    await renderAdmin();
+    const box = within(section());
+
+    expect(
+      await box.findByText(`Нет свежей копии · последняя ${AT} (2 дн. назад)`),
+    ).toBeInTheDocument();
+    expect(box.getByText(INSTRUCTION)).toBeInTheDocument();
+    expect(box.queryByRole('alert')).toBeNull();
+  });
+
+  it('stale без единой копии: «Копий нет»', async () => {
+    current = backup({ state: 'stale', lastSuccess: null, ageHours: null });
+    await renderAdmin();
+    const box = within(section());
+
+    expect(await box.findByText('Копий нет')).toBeInTheDocument();
+    expect(box.getByText(INSTRUCTION)).toBeInTheDocument();
+  });
+
+  it.each([
+    ['dump_failed', 'дамп не снят'],
+    ['verify_failed', 'дамп не прошёл проверку'],
+    ['upload_failed', 'не загрузилась в OneDrive'],
+    ['unexpected', 'непредвиденная ошибка'],
+  ])('failed, ошибка %s: «%s», с последней копией и инструкцией', async (error, text) => {
+    current = backup({
+      state: 'failed',
+      lastRun: { at: '2026-10-12T03:00:00.000Z', ok: false, error },
+    });
+    await renderAdmin();
+    const box = within(section());
+
+    expect(
+      await box.findByText(`Ошибка запуска: ${text} · последняя копия ${AT}`),
+    ).toBeInTheDocument();
+    expect(box.getByText(INSTRUCTION)).toBeInTheDocument();
+  });
+
+  it('нет данных: серый «Нет данных» без инструкции', async () => {
     current = backup({ state: 'unknown', lastSuccess: null, lastRun: null, ageHours: null });
     await renderAdmin();
-    expect(await within(section()).findByText('Нет данных о бэкапах')).toBeInTheDocument();
-    expect(within(section()).queryByRole('alert')).toBeNull();
+    const box = within(section());
+
+    expect(await box.findByText('Нет данных')).toBeInTheDocument();
+    expect(box.queryByText(INSTRUCTION)).toBeNull();
   });
 
-  it('не настроено на сервере', async () => {
+  it('не настроено на сервере: «Не настроено»', async () => {
     current = backup({
       configured: false,
       state: 'unknown',
@@ -182,28 +206,28 @@ describe('раздел «Бэкап базы»', () => {
       ageHours: null,
     });
     await renderAdmin();
-    expect(await within(section()).findByText('Не настроено на сервере')).toBeInTheDocument();
+    expect(await within(section()).findByText('Не настроено')).toBeInTheDocument();
   });
 
   it('«Обновить» запрашивает состояние заново', async () => {
     const person = await renderAdmin();
-    await within(section()).findByText('Всё в порядке');
+    await within(section()).findByText(`${AT} · 2,5 МБ · OneDrive ✓`);
     const before = requests.filter((r) => r === '/api/admin/backup').length;
 
-    current = backup({ state: 'stale' });
+    current = backup({ state: 'stale', ageHours: 60 });
     await person.click(within(section()).getByRole('button', { name: 'Обновить' }));
 
-    expect(await within(section()).findByText('Давно не было копии')).toBeInTheDocument();
+    expect(await within(section()).findByText(/Нет свежей копии/)).toBeInTheDocument();
     expect(requests.filter((r) => r === '/api/admin/backup').length).toBe(before + 1);
   });
 
-  it('подсказка называет предел в часах', async () => {
+  it('подсказка короткая и называет предел в часах', async () => {
     const person = await renderAdmin();
-    await within(section()).findByText('Всё в порядке');
+    await within(section()).findByText(`${AT} · 2,5 МБ · OneDrive ✓`);
 
     await person.click(within(section()).getByRole('button', { name: 'Подсказка' }));
 
-    expect(within(section()).getByText(/дольше 26 часов/)).toBeInTheDocument();
+    expect(within(section()).getByText(/дольше 26 ч\)/)).toBeInTheDocument();
   });
 });
 
