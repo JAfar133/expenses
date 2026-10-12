@@ -1,4 +1,4 @@
-lf e,#!/usr/bin/env bash
+#!/usr/bin/env bash
 # PostgreSQL backup on the server: dump, verification, copy to OneDrive, removal of old copies.
 #
 #   ./scripts/backup-db.sh
