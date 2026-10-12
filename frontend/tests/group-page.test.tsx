@@ -300,31 +300,38 @@ describe('объединение категорий', () => {
 });
 
 describe('подсказки', () => {
-  it('раздел «Карты» и «Убрать» показывают текст после нажатия', async () => {
+  it('у раздела одна подсказка с текстом по каждому действию', async () => {
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Карты' });
+    await screen.findByRole('heading', { name: 'Категории' });
+    const categories = within(section('Категории'));
 
-    const [cardsHint] = within(
-      screen.getByRole('heading', { name: 'Карты' }).parentElement!,
-    ).getAllByRole('button', { name: 'Подсказка' });
-    await person.click(cardsHint!);
-    expect(screen.getAllByText(/Владельцы видят все карты/).length).toBeGreaterThan(0);
+    expect(categories.getAllByRole('button', { name: 'Подсказка' })).toHaveLength(1);
+    await person.click(categories.getByRole('button', { name: 'Подсказка' }));
 
-    const row = screen.getByText('Настя', { selector: 'div' }).closest('li')!;
-    const hints = within(row).getAllByRole('button', { name: 'Подсказка' });
-    await person.click(hints.at(-1)!);
-    expect(
-      within(row).getByText(/Вернуть его можно только новым приглашением/),
-    ).toBeInTheDocument();
+    expect(categories.getByText(/Список категорий вашей группы/)).toBeInTheDocument();
+    expect(categories.getByText(/переносит все траты в другую категорию/)).toBeInTheDocument();
   });
 
-  it('у участника из настроек сервера подсказки про «Убрать» нет', async () => {
-    await renderGroup();
+  it('подсказка раздела «Участники» объясняет «Убрать» и сброс пароля', async () => {
+    const person = await renderGroup();
     await screen.findByRole('heading', { name: 'Участники' });
-    const row = screen.getByText('Петя', { selector: 'div' }).closest('li')!;
+    const members = within(section('Участники'));
 
-    // Only the password reset hint remains
-    expect(within(row).getAllByRole('button', { name: 'Подсказка' })).toHaveLength(1);
+    await person.click(members.getByRole('button', { name: 'Подсказка' }));
+
+    expect(members.getByText(/Вернуть можно только новым приглашением/)).toBeInTheDocument();
+    expect(members.getByText(/одноразовая, на 7 дней/)).toBeInTheDocument();
+  });
+
+  it('в строках списков нет кнопок «Подсказка»', async () => {
+    await renderGroup();
+    await screen.findByRole('heading', { name: 'Карты' });
+
+    for (const row of screen.getAllByRole('listitem')) {
+      expect(within(row).queryByRole('button', { name: 'Подсказка' })).toBeNull();
+    }
+    // One hint per section: name, members, invitations, cards, categories
+    expect(screen.getAllByRole('button', { name: 'Подсказка' })).toHaveLength(5);
   });
 });
 

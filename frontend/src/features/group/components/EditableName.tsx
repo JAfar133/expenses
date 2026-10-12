@@ -1,17 +1,14 @@
-import { HelpHint } from '../../../shared/ui/HelpHint.tsx';
 import { useState, type FormEvent } from 'react';
 import { compactInputClass, smallButtonClass } from './styles.ts';
 
 interface EditableNameProps {
   name: string;
   muted?: boolean;
-  /** Help for the rename action */
-  hint?: string;
   onRename: (name: string) => Promise<unknown>;
 }
 
 /** A name with an inline rename: the field opens in place of the text. */
-export function EditableName({ name, muted = false, hint, onRename }: EditableNameProps) {
+export function EditableName({ name, muted = false, onRename }: EditableNameProps) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(name);
 
@@ -42,7 +39,6 @@ export function EditableName({ name, muted = false, hint, onRename }: EditableNa
         >
           Изменить
         </button>
-        {hint && <HelpHint>{hint}</HelpHint>}
       </div>
     );
   }

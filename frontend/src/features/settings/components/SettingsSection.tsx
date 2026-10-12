@@ -5,7 +5,7 @@ interface SettingsSectionProps {
   title: string;
   description?: string;
   /** Help text: a "?" button next to the title */
-  hint?: string;
+  hint?: ReactNode;
   children: ReactNode;
 }
 

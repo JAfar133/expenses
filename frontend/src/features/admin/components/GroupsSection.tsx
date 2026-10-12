@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { HelpHint } from '../../../shared/ui/HelpHint.tsx';
+import { HintList } from '../../../shared/ui/HelpHint.tsx';
 import { Notice } from '../../../shared/ui/Notice.tsx';
 import { ConfirmDialog } from '../../analytics/components/ConfirmDialog.tsx';
 import { ErrorNotice } from '../../group/components/ErrorNotice.tsx';
@@ -41,7 +41,27 @@ export function GroupsSection() {
   }
 
   return (
-    <SettingsSection title="Группы">
+    <SettingsSection
+      title="Группы"
+      hint={
+        <HintList
+          items={[
+            [
+              'Ссылка для владельца',
+              'новая одноразовая ссылка, если первая потерялась или истекла.',
+            ],
+            [
+              'Отключить',
+              'участники не смогут ничего видеть и добавлять; данные остаются, группу можно включить обратно.',
+            ],
+            [
+              'Новая группа',
+              'создаёт пустую группу и ссылку для владельца (7 дней); траты группы вы не увидите.',
+            ],
+          ]}
+        />
+      }
+    >
       {groups.isError && <Notice variant="error">{toErrorMessage(groups.error)}</Notice>}
       <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
         {groups.data?.map((group) => (
@@ -67,9 +87,6 @@ export function GroupsSection() {
               >
                 Ссылка для владельца
               </button>
-              <HelpHint>
-                Новая одноразовая ссылка для владельца группы (если первая потерялась или истекла).
-              </HelpHint>
               {group.disabled ? (
                 <button
                   type="button"
@@ -88,12 +105,6 @@ export function GroupsSection() {
                 >
                   Отключить
                 </button>
-              )}
-              {!group.disabled && (
-                <HelpHint>
-                  Участники отключённой группы не смогут ничего видеть и добавлять. Данные остаются,
-                  группу можно включить обратно.
-                </HelpHint>
               )}
             </div>
             {link?.groupId === group.id && (

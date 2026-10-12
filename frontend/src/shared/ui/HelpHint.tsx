@@ -1,10 +1,12 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 
 /**
  * A round "?" button with a text bubble. Works by tap and keyboard (not hover-only):
- * closes on a second tap, Escape or a click outside. On phones the bubble spans the screen width.
+ * closes on a second tap, Escape or a click outside. There is one per section, next to its title.
+ * On phones the bubble spans the screen width (fixed); on wide screens it hangs under the "?" at the
+ * left of the card, so it always stays inside the viewport.
  */
-export function HelpHint({ children }: { children: string }) {
+export function HelpHint({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLSpanElement>(null);
   const bubbleId = useId();
@@ -46,11 +48,27 @@ export function HelpHint({ children }: { children: string }) {
         <span
           id={bubbleId}
           role="note"
-          className="fixed inset-x-4 z-30 mt-9 rounded-xl bg-zinc-800 px-3 py-2 text-left text-sm font-normal leading-snug text-white shadow-lg sm:absolute sm:inset-x-auto sm:left-0 sm:w-72 sm:max-w-[18rem] dark:bg-zinc-100 dark:text-zinc-900"
+          className="fixed inset-x-4 z-30 mt-9 rounded-xl bg-zinc-800 px-3 py-2 text-left text-sm font-normal leading-snug text-white shadow-lg sm:absolute sm:inset-x-auto sm:left-0 sm:w-max sm:max-w-[min(22rem,calc(100vw-2rem))] dark:bg-zinc-100 dark:text-zinc-900"
         >
           {children}
         </span>
       )}
     </span>
+  );
+}
+
+/** Bubble content: a short intro and one line per action. */
+export function HintList({ intro, items }: { intro?: string; items: [string, string][] }) {
+  return (
+    <>
+      {intro && <p className="mb-1.5">{intro}</p>}
+      <ul className="space-y-1">
+        {items.map(([action, text]) => (
+          <li key={action}>
+            <span className="font-semibold">{action}</span> — {text}
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

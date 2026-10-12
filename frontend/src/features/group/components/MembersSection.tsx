@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { HelpHint } from '../../../shared/ui/HelpHint.tsx';
+import { HintList } from '../../../shared/ui/HelpHint.tsx';
 import { SettingsSection } from '../../settings/components/SettingsSection.tsx';
 import { ConfirmDialog } from '../../analytics/components/ConfirmDialog.tsx';
 import {
@@ -47,7 +47,24 @@ export function MembersSection({ members, currentUsername }: MembersSectionProps
   return (
     <SettingsSection
       title="Участники"
-      hint="Владелец видит все карты группы, добавляет, правит и удаляет траты и управляет группой. Участник видит только карты, к которым ему дан доступ, и добавляет траты на карты с доступом «добавлять»."
+      hint={
+        <HintList
+          items={[
+            [
+              'Роль',
+              'владелец видит все карты, правит траты и управляет группой; участник видит только карты с доступом и добавляет траты на карты с доступом «добавлять».',
+            ],
+            [
+              'Ссылка для сброса пароля',
+              'одноразовая, на 7 дней: человек сам задаст новый пароль, старый перестанет работать, активные входы закроются.',
+            ],
+            [
+              'Убрать',
+              'человек больше не сможет войти; его прошлые траты остаются в группе. Вернуть можно только новым приглашением (с другим логином).',
+            ],
+          ]}
+        />
+      }
     >
       <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
         {members.map((member) => (
@@ -87,10 +104,6 @@ export function MembersSection({ members, currentUsername }: MembersSectionProps
                 >
                   Ссылка для сброса пароля
                 </button>
-                <HelpHint>
-                  Одноразовая ссылка на 7 дней: человек сам задаст новый пароль. Старый пароль
-                  перестанет работать, его активные входы закроются.
-                </HelpHint>
                 {!member.fromEnv && (
                   <button
                     type="button"
@@ -100,13 +113,6 @@ export function MembersSection({ members, currentUsername }: MembersSectionProps
                   >
                     Убрать
                   </button>
-                )}
-                {!member.fromEnv && (
-                  <HelpHint>
-                    Человек больше не сможет войти. Его прошлые траты останутся в группе, автором
-                    по-прежнему будет он. Вернуть его можно только новым приглашением (с другим
-                    логином).
-                  </HelpHint>
                 )}
               </div>
             )}

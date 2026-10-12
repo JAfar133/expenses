@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { HelpHint } from '../../../shared/ui/HelpHint.tsx';
+import { HintList } from '../../../shared/ui/HelpHint.tsx';
 import { SettingsSection } from '../../settings/components/SettingsSection.tsx';
 import {
   createCard,
@@ -37,7 +37,22 @@ export function CardsSection({ cards, members }: CardsSectionProps) {
   return (
     <SettingsSection
       title="Карты"
-      hint="Владельцы видят все карты. Участники видят только карты, к которым им дан доступ."
+      hint={
+        <HintList
+          intro="Владельцы видят все карты. Участники видят только карты, к которым им дан доступ."
+          items={[
+            ['Изменить', 'новое название сразу меняется везде, в том числе в прошлых тратах.'],
+            [
+              'В архив',
+              'карта пропадёт из формы добавления; прошлые траты, графики и итоги остаются, вернуть можно в любой момент.',
+            ],
+            [
+              'Доступ',
+              'нет доступа — карта и её траты скрыты; только смотреть — траты видны, но добавлять нельзя; добавлять — можно вносить новые траты.',
+            ],
+          ]}
+        />
+      }
     >
       <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
         {active.map((card) => (
@@ -45,7 +60,6 @@ export function CardsSection({ cards, members }: CardsSectionProps) {
             <div className="flex flex-wrap items-center justify-between gap-x-2">
               <EditableName
                 name={card.name}
-                hint="Новое название сразу меняется везде, в том числе в прошлых тратах."
                 onRename={(name) => update.mutateAsync({ id: card.id, patch: { name } })}
               />
               <div className="flex items-center">
@@ -60,13 +74,6 @@ export function CardsSection({ cards, members }: CardsSectionProps) {
                     Доступ
                   </button>
                 )}
-                {hasOthers && (
-                  <HelpHint>
-                    Нет доступа: карта скрыта, её траты не видны ни в списке, ни в графиках и
-                    итогах. Только смотреть: траты видны, но добавлять нельзя. Добавлять: можно ещё
-                    и вносить новые траты.
-                  </HelpHint>
-                )}
                 <button
                   type="button"
                   aria-label={`В архив: ${card.name}`}
@@ -75,10 +82,6 @@ export function CardsSection({ cards, members }: CardsSectionProps) {
                 >
                   В архив
                 </button>
-                <HelpHint>
-                  Карта пропадёт из формы добавления траты. Прошлые траты, графики и итоги останутся
-                  как были. Архивную карту можно вернуть в любой момент.
-                </HelpHint>
               </div>
             </div>
             {openAccess === card.id && (

@@ -1,4 +1,4 @@
-import { HelpHint } from '../../../shared/ui/HelpHint.tsx';
+import { HintList } from '../../../shared/ui/HelpHint.tsx';
 import { useState } from 'react';
 import { SettingsSection } from '../../settings/components/SettingsSection.tsx';
 import { createCategory, updateCategory, type GroupCategory } from '../api/group.api.ts';
@@ -25,14 +25,28 @@ export function CategoriesSection({ categories }: { categories: GroupCategory[] 
   return (
     <SettingsSection
       title="Категории"
-      hint="Список категорий вашей группы. В форме траты можно выбрать только их."
+      hint={
+        <HintList
+          intro="Список категорий вашей группы. В форме траты можно выбрать только их."
+          items={[
+            ['Изменить', 'новое название сразу меняется во всех прошлых тратах.'],
+            [
+              'В архив',
+              'категория пропадёт из формы добавления; прошлые траты остаются, вернуть можно в любой момент.',
+            ],
+            [
+              'Объединить',
+              'переносит все траты в другую категорию, а эту удаляет (удобно для дублей).',
+            ],
+          ]}
+        />
+      }
     >
       <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
         {active.map((category) => (
           <li key={category.id} className="flex flex-wrap items-center justify-between gap-2 py-1">
             <EditableName
               name={category.name}
-              hint="Новое название сразу меняется во всех прошлых тратах."
               onRename={(name) => update.mutateAsync({ id: category.id, patch: { name } })}
             />
             <button
@@ -43,10 +57,6 @@ export function CategoriesSection({ categories }: { categories: GroupCategory[] 
             >
               В архив
             </button>
-            <HelpHint>
-              Категория пропадёт из формы добавления. Прошлые траты с ней останутся как есть.
-              Архивную категорию можно вернуть.
-            </HelpHint>
             {active.length > 1 && (
               <>
                 <button
@@ -57,10 +67,6 @@ export function CategoriesSection({ categories }: { categories: GroupCategory[] 
                 >
                   Объединить
                 </button>
-                <HelpHint>
-                  Переносит все траты в другую категорию, а эту удаляет. Удобно для дублей вроде
-                  «бытавуха» и «бытовые расходы».
-                </HelpHint>
               </>
             )}
           </li>
