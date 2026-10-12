@@ -43,7 +43,7 @@ export function LinkPanel({ title, token, expiresAt, onClose }: LinkPanelProps) 
           onClick={() => void copy()}
           className="h-11 shrink-0 rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-500"
         >
-          {state === 'copied' ? 'Скопировано' : 'Скопировать'}
+          {state === 'copied' ? '✓ Скопировано' : 'Скопировать'}
         </button>
       </div>
       {state === 'failed' && (
