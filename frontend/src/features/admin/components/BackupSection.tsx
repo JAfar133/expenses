@@ -27,7 +27,8 @@ function toLine(backup: AdminBackup): Line {
       tone: GREEN,
       text: (
         <>
-          {formatShortDateTime(lastSuccess.at)} · {formatSize(lastSuccess.sizeBytes)}
+          {formatShortDateTime(lastSuccess.at)} · {lastSuccess.file} ·{' '}
+          {formatSize(lastSuccess.sizeBytes)}
           {lastSuccess.remote === 'ok' && ' · OneDrive'}
           {lastSuccess.remote === 'failed' && <span className={RED}> · OneDrive ✗</span>}
         </>
