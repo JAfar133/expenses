@@ -14,6 +14,8 @@ interface FilterPanelProps {
   onReset: () => void;
   /** Show the period picker; month comparison has its own period */
   showPeriod?: boolean;
+  /** Buttons next to the Filters toggle (e.g. the report download) */
+  actions?: ReactNode;
 }
 
 function FieldGroup({ label, children }: { label: string; children: ReactNode }) {
@@ -35,6 +37,7 @@ export function FilterPanel({
   onChange,
   onReset,
   showPeriod = true,
+  actions,
 }: FilterPanelProps) {
   const [openState, setOpenState] = usePreference('filters.panel');
   const open = openState === 'open';
@@ -49,21 +52,24 @@ export function FilterPanel({
       {showPeriod && <PeriodPicker state={state} today={today} onChange={onChange} />}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls="filter-fields"
-          onClick={() => setOpenState(open ? 'closed' : 'open')}
-          className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-zinc-300 px-3 text-sm font-medium hover:border-indigo-400 sm:h-9 sm:w-auto dark:border-zinc-700"
-        >
-          Фильтры
-          {count > 0 && (
-            <span className="flex size-5 items-center justify-center rounded-full bg-indigo-600 text-xs text-white">
-              {count}
-            </span>
-          )}
-          <span aria-hidden="true">{open ? '▴' : '▾'}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls="filter-fields"
+            onClick={() => setOpenState(open ? 'closed' : 'open')}
+            className="flex h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-zinc-300 px-3 text-sm font-medium hover:border-indigo-400 sm:h-9 sm:flex-none dark:border-zinc-700"
+          >
+            Фильтры
+            {count > 0 && (
+              <span className="flex size-5 items-center justify-center rounded-full bg-indigo-600 text-xs text-white">
+                {count}
+              </span>
+            )}
+            <span aria-hidden="true">{open ? '▴' : '▾'}</span>
+          </button>
+          {actions}
+        </div>
         <ActiveFilters
           state={state}
           authors={options.authors}

@@ -1,17 +1,15 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { ApiError } from '../../../shared/api/http.ts';
-import { DownloadIcon } from '../../../shared/ui/icons.tsx';
 import { Notice } from '../../../shared/ui/Notice.tsx';
 import { currencyDigits } from '../../../shared/utils/conversion.ts';
 import { formatAmount, formatMoney } from '../../../shared/utils/money.ts';
 import { useCurrentUser } from '../../auth/hooks/useAuth.ts';
 import { fetchCards } from '../../expenses/api/expenses.api.ts';
 import { toSaveErrorMessage } from '../../expenses/api/save-error-message.ts';
-import { ActionButton } from '../../group/components/ListRow.tsx';
 import { useSyncState } from '../../sync/hooks/useSyncState.ts';
-import { downloadExport, type OperationItem, type SortColumn } from '../api/operations.api.ts';
+import type { OperationItem, SortColumn } from '../api/operations.api.ts';
 import { ConfirmDialog } from '../components/ConfirmDialog.tsx';
 import { EditExpenseDialog } from '../components/EditExpenseDialog.tsx';
 import { OperationsTable } from '../components/OperationsTable.tsx';
@@ -121,14 +119,6 @@ export default function OperationsPage() {
   const done = (text: string) => setNotice({ kind: 'success', text });
   const failed = (error: unknown) => setNotice({ kind: 'error', text: toSaveErrorMessage(error) });
 
-  // The report covers exactly the current filters, period and display currency (no paging or sorting)
-  const exportReport = useMutation({
-    retry: false,
-    mutationFn: () => downloadExport(filters),
-    onMutate: () => setNotice(undefined),
-    onError: failed,
-  });
-
   const busyId = update.isPending
     ? editing?.id
     : remove.isPending
@@ -142,19 +132,7 @@ export default function OperationsPage() {
   return (
     <section className="space-y-4 rounded-2xl bg-white p-4 shadow-sm sm:p-5 dark:bg-zinc-900">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <div className="flex items-center gap-1">
-          <h2 className="text-base font-semibold">Все операции</h2>
-          <ActionButton
-            label="Скачать Excel"
-            icon={
-              <span className={exportReport.isPending ? 'animate-pulse' : undefined}>
-                <DownloadIcon />
-              </span>
-            }
-            disabled={exportReport.isPending}
-            onClick={() => exportReport.mutate()}
-          />
-        </div>
+        <h2 className="text-base font-semibold">Все операции</h2>
         {list.data && (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             Записей: <strong className="font-semibold">{list.data.total}</strong> на{' '}

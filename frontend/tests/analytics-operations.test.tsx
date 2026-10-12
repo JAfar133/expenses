@@ -700,7 +700,7 @@ describe('скачивание в Excel', () => {
     await waitFor(() => rowOf('Позиция 1'));
 
     const button = screen.getByRole('button', { name: 'Скачать Excel' });
-    expect(button).toHaveAttribute('title', 'Скачать Excel');
+    expect(button).toHaveAttribute('title', 'Скачать Excel с текущими фильтрами');
     await user.click(button);
 
     await waitFor(() => expect(exportRequests()).toHaveLength(1));
