@@ -71,6 +71,7 @@ describe('драйвер pg', () => {
       '0013_rate_history.sql',
       '0014_app_settings.sql',
       '0015_drop_can_edit_override.sql',
+      '0016_member_edit_window.sql',
     ]);
   });
 

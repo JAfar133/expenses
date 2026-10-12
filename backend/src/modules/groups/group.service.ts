@@ -12,6 +12,9 @@ import type { InvitationsService } from './invitations.service.ts';
 
 const MAX_NAME_LENGTH = 60;
 
+/** How long a member may correct their own expense: off, 15 minutes, 1 hour, 24 hours, a week. */
+export const MEMBER_EDIT_OPTIONS = [0, 15, 60, 1440, 10080] as const;
+
 export interface GroupView extends GroupOverview {
   invitations: InvitationInfo[];
   /** Currencies a card or the group may use */
@@ -61,6 +64,13 @@ export class GroupService {
       invitations: await this.repository.listInvitations(groupId),
       currencies: this.money.currencies,
     };
+  }
+
+  async setMemberEditMinutes(owner: AuthUser, minutes: unknown): Promise<void> {
+    if (!MEMBER_EDIT_OPTIONS.some((option) => option === minutes)) {
+      throw validationError('INVALID_MINUTES', 'Выберите срок из списка');
+    }
+    await this.repository.setMemberEditMinutes(this.groupOf(owner), minutes as number);
   }
 
   async rename(owner: AuthUser, name: unknown): Promise<void> {

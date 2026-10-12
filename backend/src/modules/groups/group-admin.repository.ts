@@ -10,6 +10,8 @@ export interface GroupInfo {
   reportingCurrency: string;
   timezone: string;
   disabled: boolean;
+  /** Minutes a member may correct their own expense (0: only the owner) */
+  memberEditMinutes: number;
 }
 
 export interface MemberInfo {
@@ -57,8 +59,9 @@ export class GroupAdminRepository {
       reporting_currency: string;
       timezone: string;
       disabled: boolean;
+      member_edit_minutes: number;
     }>(
-      `SELECT id, name, reporting_currency, timezone, (disabled_at IS NOT NULL) AS disabled
+      `SELECT id, name, reporting_currency, timezone, (disabled_at IS NOT NULL) AS disabled, member_edit_minutes
          FROM groups WHERE id = $1`,
       [groupId],
     );
@@ -69,6 +72,7 @@ export class GroupAdminRepository {
         reportingCurrency: row.reporting_currency,
         timezone: row.timezone,
         disabled: row.disabled,
+        memberEditMinutes: row.member_edit_minutes,
       }
     );
   }
@@ -126,6 +130,13 @@ export class GroupAdminRepository {
       })),
       categories,
     };
+  }
+
+  async setMemberEditMinutes(groupId: string, minutes: number): Promise<void> {
+    await this.database.query(
+      'UPDATE groups SET member_edit_minutes = $2, updated_at = now() WHERE id = $1',
+      [groupId, minutes],
+    );
   }
 
   async renameGroup(groupId: string, name: string): Promise<void> {

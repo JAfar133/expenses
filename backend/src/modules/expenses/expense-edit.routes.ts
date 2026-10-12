@@ -23,7 +23,12 @@ const patchSchema = z
 
 const idSchema = z.uuid();
 
-const actorOf = ({ username, groupId }: AuthUser) => ({ username, groupId });
+const actorOf = ({ id, username, groupId, role }: AuthUser) => ({
+  userId: id,
+  username,
+  groupId,
+  role,
+});
 
 export interface ExpenseEditRoutesDeps {
   editor: ExpenseEditor;
@@ -35,7 +40,8 @@ export interface ExpenseEditRoutesDeps {
 export const expenseEditRoutes =
   ({ editor, repository, sync, inlineExcelWaitMs }: ExpenseEditRoutesDeps): FastifyPluginAsync =>
   async (app) => {
-    /** Editing and deleting are available to the group owner only; members can add records and view. */
+    /** Restoring is for the group owner only. Editing and deleting are checked per record by the editor:
+     * the owner may touch any record, a member only their own within the time the owner allows. */
     const requireEditor = (request: { user?: { canEdit: boolean } }) => {
       if (!request.user?.canEdit) throw forbiddenError();
     };
@@ -67,7 +73,6 @@ export const expenseEditRoutes =
     };
 
     app.patch('/expenses/:id', async (request) => {
-      requireEditor(request);
       const id = parseId(request.params);
 
       const parsed = patchSchema.safeParse(request.body);
@@ -89,7 +94,6 @@ export const expenseEditRoutes =
     });
 
     app.delete('/expenses/:id', async (request) => {
-      requireEditor(request);
       const id = parseId(request.params);
 
       const { changed } = await editor.remove(id, actorOf(request.user!));

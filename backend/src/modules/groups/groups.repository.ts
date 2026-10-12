@@ -90,4 +90,31 @@ export class GroupsRepository {
       params,
     );
   }
+
+  /** For how many minutes a member may correct their own expense; 0: only the owner edits. */
+  async memberEditMinutes(
+    groupId: string | null,
+    db: SqlExecutor = this.database,
+  ): Promise<number> {
+    if (!groupId) return 0;
+    const [row] = await db.query<{ member_edit_minutes: number }>(
+      'SELECT member_edit_minutes FROM groups WHERE id = $1',
+      [groupId],
+    );
+    return row?.member_edit_minutes ?? 0;
+  }
+
+  /** Whether the user may add expenses to the card of the expense (access level `edit`). */
+  async canAddToCardOf(
+    userId: string,
+    expenseId: string,
+    db: SqlExecutor = this.database,
+  ): Promise<boolean> {
+    const rows = await db.query(
+      `SELECT 1 FROM expenses e JOIN card_access a ON a.card_id = e.card_id
+        WHERE e.id = $1 AND a.user_id = $2 AND a.level = 'edit'`,
+      [expenseId, userId],
+    );
+    return rows.length > 0;
+  }
 }

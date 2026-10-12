@@ -225,6 +225,7 @@ export async function createTestApp(
 
   const app = buildApp({
     syncSwitch,
+    now: options.now,
     backupStatus: options.backupStatus,
     expenseService: new ExpenseService(repository, { groups, currency: rates }),
     groups,
@@ -247,7 +248,7 @@ export async function createTestApp(
     analytics,
     report: new ReportService(analytics, { base: 'AMD', maxRows: options.maxReportRows }),
     preferences: new PreferencesRepository(database),
-    editor: new ExpenseEditor({ database, repository, groups }),
+    editor: new ExpenseEditor({ database, repository, groups, now: options.now }),
     idempotency: new IdempotencyService(database),
     sync: sync as unknown as SyncService,
     scheduler,

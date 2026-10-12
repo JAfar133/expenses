@@ -17,6 +17,8 @@ import type {
 interface ExpenseRow {
   id: string;
   group_id: string | null;
+  created_by: string;
+  created_at: string;
   date: string;
   card: string;
   category: string;
@@ -36,7 +38,7 @@ interface ExpenseRow {
   reporting_amount: number | null;
 }
 
-const COLUMNS = `id, group_id, ${dateText('date')} AS date, COALESCE((SELECT c.name FROM cards c WHERE c.id = card_id), card) AS card, category, name, amount, source, excel_status, ${timestampText('deleted_at')} AS deleted_at, deleted_reason, excel_snapshot, original_amount::float8 AS original_amount, original_currency, exchange_rate::float8 AS exchange_rate, card_currency, card_amount::float8 AS card_amount, reporting_currency, reporting_amount::float8 AS reporting_amount`;
+const COLUMNS = `id, group_id, created_by, ${timestampText('created_at')} AS created_at, ${dateText('date')} AS date, COALESCE((SELECT c.name FROM cards c WHERE c.id = card_id), card) AS card, category, name, amount, source, excel_status, ${timestampText('deleted_at')} AS deleted_at, deleted_reason, excel_snapshot, original_amount::float8 AS original_amount, original_currency, exchange_rate::float8 AS exchange_rate, card_currency, card_amount::float8 AS card_amount, reporting_currency, reporting_amount::float8 AS reporting_amount`;
 
 /**
  * The Excel sync belongs to one group, the first one (the installation that had Excel before groups existed).
@@ -61,6 +63,8 @@ const toMoney = (row: ExpenseRow): ExpenseMoney | null =>
 const toStored = (row: ExpenseRow): StoredExpense => ({
   id: row.id,
   groupId: row.group_id,
+  createdBy: row.created_by,
+  createdAt: row.created_at,
   date: row.date,
   card: row.card,
   category: row.category,

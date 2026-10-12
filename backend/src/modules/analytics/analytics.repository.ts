@@ -193,6 +193,7 @@ export class AnalyticsRepository {
     const [items, [totals]] = await Promise.all([
       this.database.query<ListRow>(
         `SELECT id, ${dateText('date')} AS date, ${CARD_NAME_SQL} AS card, category, name, amount, source,
+                ${timestampText('created_at')} AS created_at,
                 ${where.amount}::float8 AS display_amount,
                 card_amount::float8 AS card_amount, card_currency,
                 reporting_amount::float8 AS reporting_amount, reporting_currency,
@@ -239,6 +240,7 @@ interface ListRow {
   original_currency: string | null;
   exchange_rate: number | null;
   display_amount: number;
+  created_at: string;
   card_amount: number | null;
   card_currency: string | null;
   reporting_amount: number | null;
@@ -255,6 +257,7 @@ const toListItem = (row: ListRow, baseCurrency: string): ExpenseListItem => ({
   // The amount in the currency of the card (drams for old records); the drams amount stays for the Excel state
   amount: row.card_amount ?? row.amount,
   currency: row.card_currency ?? baseCurrency,
+  createdAt: row.created_at,
   dramsAmount: row.amount,
   displayAmount: row.display_amount,
   reportingAmount: row.reporting_amount ?? row.amount,

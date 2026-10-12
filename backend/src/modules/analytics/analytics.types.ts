@@ -95,6 +95,15 @@ export interface ExpenseListItem {
   amount: number;
   /** Currency of the card (and of `amount`) */
   currency: string;
+  /** When the record was created (ISO) */
+  createdAt: string;
+  /**
+   * The user of the request may correct or delete this record: the owner any one, a member their own within the time
+   * the owner allows (set by the route for the logged-in user)
+   */
+  editable?: boolean;
+  /** Until when a member may still correct their record (ISO); only for members */
+  editableUntil?: string | null;
   /** The amount in whole drams: the first five columns of the old Excel table */
   dramsAmount: number;
   /** The same amount in the currency of the request (`?currency=`; the reporting currency without it) */

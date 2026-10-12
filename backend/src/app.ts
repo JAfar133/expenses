@@ -39,7 +39,10 @@ export interface AppDependencies {
   /** Editing and deleting records */
   editor: ExpenseEditor;
   /** Cards of a group (for the default card in the profile) */
-  groups: Pick<GroupsRepository, 'cardNames' | 'reportingCurrency' | 'visibleCards'>;
+  groups: Pick<
+    GroupsRepository,
+    'cardNames' | 'reportingCurrency' | 'visibleCards' | 'memberEditMinutes' | 'editableCardNames'
+  >;
   /** Management of the user's own group (owner) */
   groupService: GroupService;
   /** Groups for the application administrator */
@@ -53,6 +56,8 @@ export interface AppDependencies {
   scheduler: SyncScheduler;
   /** State of the database backup for the administrator */
   backupStatus?: BackupStatusService;
+  /** Clock (tests) */
+  now?: () => Date;
   /** The administrator's switch of the Excel sync */
   syncSwitch?: SyncSwitch;
   /** Database check for `/api/ready`; without it the endpoint always reports ready */
@@ -83,6 +88,7 @@ export function buildApp({
   sync,
   scheduler,
   syncSwitch,
+  now,
   backupStatus,
   checkDatabase,
   inlineExcelWaitMs = 15_000,
@@ -165,7 +171,7 @@ export function buildApp({
   });
   app.register(ratesRoutes(rates), { prefix: '/api' });
   app.register(preferencesRoutes(preferences), { prefix: '/api' });
-  app.register(analyticsRoutes(analytics, groups, report, rates), { prefix: '/api' });
+  app.register(analyticsRoutes(analytics, groups, report, rates, now), { prefix: '/api' });
   app.register(
     expenseEditRoutes({
       editor,

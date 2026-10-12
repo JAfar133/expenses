@@ -1,6 +1,12 @@
-import { AppError, notFoundError, validationError } from '../../errors/app-error.ts';
+import {
+  AppError,
+  forbiddenError,
+  notFoundError,
+  validationError,
+} from '../../errors/app-error.ts';
 import type { Database, SqlExecutor } from '../../infrastructure/database/database.ts';
 import { decimalsOf } from './expense-amount.ts';
+import type { GroupRole } from '../auth/auth.types.ts';
 import type { GroupsRepository } from '../groups/groups.repository.ts';
 import type {
   Expense,
@@ -27,15 +33,28 @@ export interface ExpenseEditorOptions {
   database: Database;
   repository: ExpenseRepository;
   /** Cards of the group: a record may be moved to any of them */
-  groups: Pick<GroupsRepository, 'cardNames' | 'categoryNames' | 'moneyContext'>;
+  groups: Pick<
+    GroupsRepository,
+    | 'cardNames'
+    | 'categoryNames'
+    | 'moneyContext'
+    | 'editableCardNames'
+    | 'memberEditMinutes'
+    | 'canAddToCardOf'
+  >;
+  /** Clock (tests) */
+  now?: () => Date;
   /** Base currency of the drams amounts (Excel): AMD by default */
   base?: string;
 }
 
 /** Who edits: the login goes to the log, the group limits which records can be touched. */
 export interface EditActor {
+  userId: string;
   username: string;
   groupId: string | null;
+  /** The owner edits any record; a member only their own, within the time the owner allows */
+  role: GroupRole | null;
 }
 
 const busyError = () =>
@@ -191,6 +210,7 @@ export class ExpenseEditor {
 
   restore(id: string, actor: EditActor): Promise<EditResult> {
     const by = actor.username;
+    if (actor.role !== 'owner') throw forbiddenError();
     return this.edit(id, actor, async (tx, record) => {
       if (record.deletedAt === null) return false;
       const { repository } = this.options;
@@ -207,8 +227,42 @@ export class ExpenseEditor {
   }
 
   /** Common wrapper: transaction, record lock, a ban on changing a record that is being written to Excel right now. */
+  /** Cards a record may be moved to: any card of the group for the owner, the cards with access `edit` for a member. */
   private groupCards(actor: EditActor, db: SqlExecutor): Promise<string[]> {
-    return actor.groupId ? this.options.groups.cardNames(actor.groupId, db) : Promise.resolve([]);
+    if (!actor.groupId) return Promise.resolve([]);
+    if (actor.role === 'owner') return this.options.groups.cardNames(actor.groupId, db);
+    return this.options.groups.editableCardNames(
+      { userId: actor.userId, groupId: actor.groupId, role: actor.role },
+      db,
+    );
+  }
+
+  /**
+   * A member may change only their own record, only while the owner's time window is open and only if they may still
+   * add expenses to its card. The owner is not limited.
+   */
+  private async requireOwn(
+    actor: EditActor,
+    record: StoredExpense,
+    tx: SqlExecutor,
+  ): Promise<void> {
+    if (actor.role === 'owner') return;
+    const { groups } = this.options;
+    if (record.createdBy !== actor.username) throw forbiddenError();
+
+    const minutes = await groups.memberEditMinutes(actor.groupId, tx);
+    if (minutes === 0) {
+      throw new AppError(
+        403,
+        'MEMBER_EDIT_OFF',
+        'Исправлять и удалять траты может только владелец группы',
+      );
+    }
+    const age = (this.options.now ?? (() => new Date()))().getTime() - Date.parse(record.createdAt);
+    if (age > minutes * 60_000) {
+      throw new AppError(403, 'EDIT_WINDOW_CLOSED', 'Срок, когда эту трату можно исправить, истёк');
+    }
+    if (!(await groups.canAddToCardOf(actor.userId, record.id, tx))) throw forbiddenError();
   }
 
   private async edit(
@@ -225,6 +279,7 @@ export class ExpenseEditor {
       const record = await repository.findForUpdate(tx, id);
       // A record of another group looks the same as a missing one
       if (!record || !actor.groupId || record.groupId !== actor.groupId) throw notFoundError();
+      await this.requireOwn(actor, record, tx);
       if (record.excelStatus === 'writing') throw busyError();
 
       const changed = await work(tx, record);

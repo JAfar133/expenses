@@ -28,6 +28,10 @@ export interface ExpenseMoney {
 export interface StoredExpense extends Expense {
   /** The group the record belongs to; null for records made before groups existed */
   groupId: string | null;
+  /** Login of the author (`excel` for rows that came from the Excel file) */
+  createdBy: string;
+  /** When the record was created (ISO) */
+  createdAt: string;
   id: string;
   source: 'app' | 'excel';
   excelStatus: ExcelStatus;

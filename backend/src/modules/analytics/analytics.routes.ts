@@ -36,9 +36,14 @@ function filtersOf(
 export const analyticsRoutes =
   (
     analytics: AnalyticsService,
-    groups: Pick<GroupsRepository, 'visibleCards' | 'reportingCurrency'>,
+    groups: Pick<
+      GroupsRepository,
+      'visibleCards' | 'reportingCurrency' | 'memberEditMinutes' | 'editableCardNames'
+    >,
     report: ReportService,
     rates: Pick<RatesService, 'rateOf' | 'currencies'>,
+    /** Clock (tests) */
+    now: () => Date = () => new Date(),
   ): FastifyPluginAsync =>
   async (app) => {
     /** The currency of the request (`?currency=USD`) with its current rate; none: the group's reporting currency. */
@@ -54,6 +59,7 @@ export const analyticsRoutes =
       }
       return { currency, rate };
     };
+    const clock = now;
     const filtersFor = async (query: AnalyticsFilters & { currency?: string }, user: AuthUser) =>
       filtersOf(query, user, await displayOf(query.currency));
 
@@ -133,14 +139,28 @@ export const analyticsRoutes =
     app.get('/expenses', async (request) => {
       const query = parseQuery('list', request.query);
       const { sort, direction, limit, offset } = query;
-      return {
-        success: true,
-        data: await analytics.list(await filtersFor(query, request.user!), {
-          sort,
-          direction,
-          limit,
-          offset,
-        }),
-      };
+      const user = request.user!;
+      const page = await analytics.list(await filtersFor(query, user), {
+        sort,
+        direction,
+        limit,
+        offset,
+      });
+
+      // Which records the user may correct: the owner any, a member their own within the owner's time window
+      const owner = user.role === 'owner';
+      const minutes = owner ? 0 : await groups.memberEditMinutes(user.groupId);
+      const myCards = owner
+        ? new Set<string>()
+        : new Set(await groups.editableCardNames(scopeOf(user)));
+      const now = clock().getTime();
+      const items = page.items.map((item) => {
+        if (owner) return { ...item, editable: item.deletedAt === null };
+        const until = Date.parse(item.createdAt) + minutes * 60_000;
+        const own = item.createdBy === user.username && item.deletedAt === null && minutes > 0;
+        const editable = own && now <= until && myCards.has(item.card);
+        return { ...item, editable, editableUntil: own ? new Date(until).toISOString() : null };
+      });
+      return { success: true, data: { ...page, items } };
     });
   };

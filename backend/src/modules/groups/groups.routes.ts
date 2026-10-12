@@ -52,6 +52,12 @@ export const groupRoutes =
       return { success: true };
     });
 
+    /** Body: `{ "minutes": 0 | 15 | 60 | 1440 | 10080 }`: how long a member may correct their own expense. */
+    app.put('/group/member-edit', async (request) => {
+      await service.setMemberEditMinutes(ownerOnly(request), bodyOf(request).minutes);
+      return { success: true };
+    });
+
     app.post('/group/cards', async (request, reply) => {
       const body = bodyOf(request);
       const id = await service.createCard(ownerOnly(request), body.name, body.currency);
