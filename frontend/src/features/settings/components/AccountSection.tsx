@@ -147,16 +147,6 @@ export function AccountSection({ user }: { user: AuthUser }) {
           </p>
         </Field>
 
-        <div className="space-y-1 text-sm">
-          <div className="text-zinc-500 dark:text-zinc-400">Права</div>
-          <div className="font-medium">
-            {user.canEdit ? 'Просмотр, правка и удаление записей' : 'Просмотр'}
-          </div>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Права меняют пользователи с правом правки (блок «Права пользователей»)
-          </p>
-        </div>
-
         {saved && <Notice variant="success">Изменения сохранены</Notice>}
         {save.isError && <Notice variant="error">{toSaveErrorMessage(save.error)}</Notice>}
 

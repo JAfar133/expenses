@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { copyText } from '../../../shared/utils/clipboard.ts';
 import { formatDateTime } from '../model/format.ts';
 
 interface LinkPanelProps {
@@ -11,17 +12,18 @@ interface LinkPanelProps {
 /** A one-time invitation link with a copy button. The token is not stored anywhere else. */
 export function LinkPanel({ title, token, expiresAt, onClose }: LinkPanelProps) {
   const input = useRef<HTMLInputElement>(null);
-  const [copied, setCopied] = useState(false);
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const link = `${window.location.origin}/invite/${token}`;
 
+  // The "copied" label goes back to the button after a moment
+  useEffect(() => {
+    if (state === 'idle') return;
+    const timer = setTimeout(() => setState('idle'), 2500);
+    return () => clearTimeout(timer);
+  }, [state]);
+
   async function copy() {
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-    } catch {
-      // No clipboard access: select the text so it can be copied by hand
-      input.current?.select();
-    }
+    setState((await copyText(link, input.current)) ? 'copied' : 'failed');
   }
 
   return (
@@ -41,9 +43,14 @@ export function LinkPanel({ title, token, expiresAt, onClose }: LinkPanelProps) 
           onClick={() => void copy()}
           className="h-11 shrink-0 rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-500"
         >
-          {copied ? 'Скопировано' : 'Скопировать'}
+          {state === 'copied' ? 'Скопировано' : 'Скопировать'}
         </button>
       </div>
+      {state === 'failed' && (
+        <p role="status" className="text-xs text-red-600 dark:text-red-400">
+          Не удалось скопировать автоматически: нажмите на ссылку и выберите «Копировать».
+        </p>
+      )}
       <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
         <span>действует до {formatDateTime(expiresAt)}</span>
         {onClose && (

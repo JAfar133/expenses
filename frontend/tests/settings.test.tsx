@@ -100,12 +100,13 @@ describe('страница настроек', () => {
     expect(requests.some((r) => r.url === '/api/users')).toBe(false);
   });
 
-  it('у пользователя без права правки блока прав нет, права показаны текстом', async () => {
+  it('права не показываются никому: ни текстом, ни блоком', async () => {
     user = { ...MISHA, username: 'nastya', displayName: 'Настя', card: 'Настя', canEdit: false };
     renderSettings();
 
-    expect(await screen.findByText('Просмотр')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Права пользователей' })).toBeNull();
+    await screen.findByRole('heading', { name: 'Аккаунт' });
+    expect(screen.queryByText('Права')).toBeNull();
+    expect(screen.queryByText(/Просмотр/)).toBeNull();
     expect(requests.some((r) => r.url === '/api/users')).toBe(false);
   });
 });
@@ -122,7 +123,7 @@ describe('аккаунт', () => {
     expect(account().getByLabelText('Логин')).toHaveAttribute('readonly');
     await waitFor(() => expect(account().getByLabelText('Карта по умолчанию')).toHaveValue('Миша'));
     expect(account().getByLabelText('Часовой пояс')).toHaveValue('Asia/Yerevan');
-    expect(account().getByText('Просмотр, правка и удаление записей')).toBeInTheDocument();
+    expect(screen.queryByText('Права')).toBeNull();
   });
 
   it('«Сохранить» недоступно, пока ничего не менялось; при правке отправляются только изменённые поля', async () => {
