@@ -307,6 +307,37 @@ Errors: `{ "success": false, "error": { "code": "…", "message": "…" } }`
 An unavailable Excel is **not** an error: the expense is saved, and the response contains `excelStatus: "queued"`.
 Every response contains the `X-Request-Id` header: the same `requestId` appears in all lines of the request's log.
 
+## Groups, cards and invitations (v2)
+
+Every user belongs to exactly one **group**. An **owner** sees every card of the group and is the only one who edits and
+deletes records; a **member** sees only the cards they were given (`view` or `edit` = may add records). A card that is not given
+is hidden everywhere (form, list, charts, totals, suggestions). The cards, categories and the access are managed by the owner;
+groups are created by the **application administrator** (`ADMIN_USERS`), who sees only the structure of groups, never their expenses.
+
+New people join by a **one-time link** (valid 7 days, only its hash is stored): the owner creates it, the invited person
+chooses their login, name and password on `/invite/<token>` and is signed in. The same kind of link resets a forgotten password.
+Users listed in `AUTH_USERS` keep working as before and cannot be removed from the app.
+
+All routes below need login (the owner or the administrator), except the invitation ones.
+
+| Method and path                                                      | Purpose                                                                                                  |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `GET /api/group`                                                     | The owner's group: members, cards with access, categories, pending invitations                           |
+| `PATCH /api/group`                                                   | Rename the group                                                                                         |
+| `POST /api/group/cards`, `PATCH /api/group/cards/:id`                | Add, rename or archive a card (`409 NAME_TAKEN` for a duplicate name)                                    |
+| `PUT /api/group/cards/:id/access`                                    | `{"access": {"<login>": "view" \| "edit"}}`: replaces the access of the members (not listed = no access) |
+| `POST /api/group/categories`, `PATCH /api/group/categories/:id`      | Add, rename (records are renamed too) or archive a category                                              |
+| `POST /api/group/invitations`                                        | `{"role": "member" \| "owner"}`: returns `{token, expiresAt}` once                                       |
+| `DELETE /api/group/invitations/:id`                                  | Revoke a pending invitation                                                                              |
+| `PUT /api/group/members/:login/role`                                 | Give or take the owner role (the last owner stays)                                                       |
+| `POST /api/group/members/:login/reset-password`                      | A link for the member to set a new password                                                              |
+| `DELETE /api/group/members/:login`                                   | Remove a member (not yourself, not users from `AUTH_USERS`); their records stay                          |
+| `GET /api/admin/groups`, `POST /api/admin/groups`                    | Administrator: list groups, create a group (returns the first owner's link)                              |
+| `PATCH /api/admin/groups/:id`                                        | `{"disabled": true \| false}`: a disabled group's members see nothing                                    |
+| `POST /api/admin/groups/:id/owner-invitations`                       | A new link for an owner                                                                                  |
+| `POST /api/admin/users/:login/reset-password`                        | A password reset link for any user                                                                       |
+| `GET /api/invitations/:token`, `POST /api/invitations/:token/accept` | Public: what the link is for; create the account (or set the password) and sign in                       |
+
 ## Signing in to the app
 
 The users `misha` and `nastya` (the list is `AUTH_USERS`) log in with a username and password. Passwords are taken from `.env` (`AUTH_PASSWORD_<USERNAME>`): on every

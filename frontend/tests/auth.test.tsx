@@ -9,6 +9,8 @@ const MISHA = {
   displayName: 'Миша',
   card: 'Миша',
   canEdit: true,
+  role: 'member',
+  isAdmin: false,
   timezone: 'Asia/Yerevan',
 };
 const NASTYA = {
@@ -16,6 +18,8 @@ const NASTYA = {
   displayName: 'Настя',
   card: 'Настя',
   canEdit: false,
+  role: 'member',
+  isAdmin: false,
   timezone: 'Asia/Yerevan',
 };
 

@@ -136,9 +136,10 @@ export class InvitationsService {
         'Логин: от 3 до 32 символов, латинские буквы, цифры, точка, дефис и подчёркивание',
       );
     }
-    const displayName = (input.displayName ?? '').trim();
-    if (displayName.length < 1 || displayName.length > MAX_NAME_LENGTH) {
-      throw validationError('INVALID_NAME', `Имя: от 1 до ${MAX_NAME_LENGTH} символов`);
+    // The name is optional in the form: without it the login is shown
+    const displayName = (input.displayName ?? '').trim() || username;
+    if (displayName.length > MAX_NAME_LENGTH) {
+      throw validationError('INVALID_NAME', `Имя: не длиннее ${MAX_NAME_LENGTH} символов`);
     }
     const taken = await tx.query('SELECT 1 FROM users WHERE username = $1', [username]);
     if (taken.length > 0) throw new AppError(409, 'USERNAME_TAKEN', 'Этот логин уже занят');

@@ -280,11 +280,21 @@ describe('приглашения', () => {
     const token = await invite();
 
     expect((await accept(token, { username: 'A B' })).json().error.code).toBe('INVALID_USERNAME');
-    expect((await accept(token, { displayName: '' })).json().error.code).toBe('INVALID_NAME');
+    expect((await accept(token, { displayName: 'x'.repeat(41) })).json().error.code).toBe(
+      'INVALID_NAME',
+    );
     expect((await accept(token, { password: 'short' })).json().error.code).toBe('WEAK_PASSWORD');
     expect((await accept(token, { username: 'misha' })).json().error.code).toBe('USERNAME_TAKEN');
     // Failed attempts do not spend the invitation
     expect((await accept(token)).statusCode).toBe(201);
+  });
+
+  it('без имени в профиле показывается логин', async () => {
+    await accept(await invite(), { displayName: '  ' });
+
+    expect((await rows("SELECT display_name FROM users WHERE username = 'olya'"))[0]).toEqual({
+      display_name: 'olya',
+    });
   });
 
   it('список ожидающих приглашений в группе, токен в нём не отдаётся', async () => {

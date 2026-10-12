@@ -77,6 +77,8 @@ const MISHA = {
   displayName: 'Миша',
   card: 'Миша',
   canEdit: true,
+  role: 'member' as const,
+  isAdmin: false,
   timezone: 'Asia/Yerevan',
 };
 const NASTYA = {
@@ -84,6 +86,8 @@ const NASTYA = {
   displayName: 'Настя',
   card: 'Настя',
   canEdit: false,
+  role: 'member' as const,
+  isAdmin: false,
   timezone: 'Asia/Yerevan',
 };
 
@@ -162,6 +166,8 @@ describe('карта по умолчанию зависит от пользов�
       displayName: 'Иван',
       card: 'Иван',
       canEdit: false,
+      role: 'member' as const,
+      isAdmin: false,
       timezone: 'Asia/Yerevan',
     });
 

@@ -9,6 +9,10 @@ export interface AuthUser {
   canEdit: boolean;
   /** User time zone (IANA): "today" is determined by it */
   timezone: string;
+  /** Role in the group; null for an account without a group */
+  role: 'owner' | 'member' | null;
+  /** Application administrator */
+  isAdmin: boolean;
 }
 
 /** Current user, or null if not signed in. Other errors (network, server) are rethrown. */

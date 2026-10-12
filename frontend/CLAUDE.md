@@ -17,13 +17,15 @@ Before finishing work: `typecheck`, `test`, `format`.
 
 ## Structure
 
-- `src/features/<name>/` by function: `auth`, `expenses`, `sync`, `analytics` (the analytics page: charts on Recharts, colors and palette in `index.css`). Inside: `api/`, `hooks/`, `components/`, `schemas/`.
+- `src/features/<name>/` by function: `auth`, `expenses`, `sync`, `analytics` (the analytics page: charts on Recharts, colors and palette in `index.css`), `group` (owner page `/group`: members, invitations, cards with access, categories; and the public invitation page `/invite/:token`, outside `AuthGate`), `admin` (application admin page `/admin`: groups, password reset links). Inside: `api/`, `hooks/`, `components/`, `schemas/`.
 - User settings (chart views, etc.) are stored on the server: `features/preferences` (described in `model/preferences.ts`, the `usePreference` hook). The settings page `features/settings` is assembled from blocks.
 - `src/pages/` pages, `src/app/` the app root, routes (React Router) and the shared `AppShell` frame. The analytics page is loaded lazily.
 - `src/shared/` shared code: `api/http.ts` (requests), `ui/` (Button, Field, Notice), `utils/`.
 - Server data goes through TanStack Query, forms through React Hook Form + zod.
 
 ## Rules
+
+- **The UI of a regular user (role `member`) stays exactly as it was.** New things are visible only to an owner (link "Группа") and to an application admin (link "Админ"); for others they are not rendered at all (pages also redirect to `/`). Roles are managed only on the group page.
 
 - All API requests go through `apiRequest` from `shared/api/http.ts`: it refreshes the login itself using the refresh token on a 401
   (one retry) and reports a lost session. Do not use `fetch` directly.

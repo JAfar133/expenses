@@ -15,7 +15,7 @@ export function AppShell({ user }: { user: AuthUser }) {
   // The form fits a narrow column; the analytics page uses the full width
   const { pathname } = useLocation();
   const wide = pathname.startsWith('/analytics');
-  const medium = pathname.startsWith('/settings');
+  const medium = ['/settings', '/group', '/admin'].some((path) => pathname.startsWith(path));
 
   return (
     <main

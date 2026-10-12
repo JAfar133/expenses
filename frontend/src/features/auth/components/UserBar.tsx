@@ -20,6 +20,8 @@ export function UserBar({ user }: { user: AuthUser }) {
             Не удалось выйти
           </span>
         )}
+        {user.role === 'owner' && <BarLink to="/group" label="Группа" />}
+        {user.isAdmin && <BarLink to="/admin" label="Админ" />}
         <Link
           to="/settings"
           aria-label="Настройки"
@@ -38,6 +40,18 @@ export function UserBar({ user }: { user: AuthUser }) {
         </button>
       </div>
     </div>
+  );
+}
+
+/** A small text link for owner/admin pages: members never see these. */
+function BarLink({ to, label }: { to: string; label: string }) {
+  return (
+    <Link
+      to={to}
+      className="rounded-lg px-2 py-1.5 font-medium text-zinc-600 hover:bg-zinc-200/60 hover:text-indigo-600 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-indigo-400"
+    >
+      {label}
+    </Link>
   );
 }
 

@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AuthUser } from '../src/features/auth/api/auth.api.ts';
 import { AppShell } from '../src/app/AppShell.tsx';
 
 const json = (body: unknown) =>
@@ -11,11 +12,13 @@ const json = (body: unknown) =>
     headers: { 'Content-Type': 'application/json' },
   });
 
-const user = {
+const user: AuthUser = {
   username: 'misha',
   displayName: 'Миша',
   card: 'Миша',
   canEdit: true,
+  role: 'member',
+  isAdmin: false,
   timezone: 'Asia/Yerevan',
 };
 
@@ -40,14 +43,14 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
-function renderShell(path: string) {
+function renderShell(path: string, current: AuthUser = user) {
   render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
       <MemoryRouter initialEntries={[path]}>
         <Routes>
-          <Route element={<AppShell user={user} />}>
+          <Route element={<AppShell user={current} />}>
             <Route index element={<p>Страница формы</p>} />
             <Route path="analytics" element={<p>Страница анализа</p>} />
             <Route path="settings" element={<p>Страница настроек</p>} />
@@ -102,5 +105,26 @@ describe('AppShell', () => {
 
     expect(await screen.findByText('Страница настроек')).toBeInTheDocument();
     expect(screen.getByRole('main')).toHaveClass('max-w-2xl');
+  });
+
+  it('участник не видит ссылок «Группа» и «Админ»', () => {
+    renderShell('/');
+
+    expect(screen.queryByRole('link', { name: 'Группа' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Админ' })).toBeNull();
+  });
+
+  it('владелец видит «Группа», но не «Админ»', () => {
+    renderShell('/', { ...user, role: 'owner' });
+
+    expect(screen.getByRole('link', { name: 'Группа' })).toHaveAttribute('href', '/group');
+    expect(screen.queryByRole('link', { name: 'Админ' })).toBeNull();
+  });
+
+  it('администратор видит «Админ», но не «Группа»', () => {
+    renderShell('/', { ...user, isAdmin: true });
+
+    expect(screen.getByRole('link', { name: 'Админ' })).toHaveAttribute('href', '/admin');
+    expect(screen.queryByRole('link', { name: 'Группа' })).toBeNull();
   });
 });

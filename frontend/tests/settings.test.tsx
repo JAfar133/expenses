@@ -18,6 +18,8 @@ const MISHA = {
   displayName: 'Миша',
   card: 'Миша',
   canEdit: true,
+  role: 'member',
+  isAdmin: false,
   timezone: 'Asia/Yerevan',
 };
 
@@ -27,8 +29,6 @@ let requests: { method: string; url: string; body?: unknown }[];
 let passwordResponse: () => Response | Promise<Response>;
 let preferencesPut: () => Response | undefined;
 let profileResponse: ((body: Record<string, unknown>) => Response) | undefined;
-let usersList: { username: string; displayName: string; canEdit: boolean }[];
-let rightsResponse: (() => Response) | undefined;
 
 beforeEach(() => {
   user = MISHA;
@@ -37,11 +37,6 @@ beforeEach(() => {
   passwordResponse = () => json({ success: true });
   preferencesPut = () => undefined;
   profileResponse = undefined;
-  rightsResponse = undefined;
-  usersList = [
-    { username: 'misha', displayName: 'Миша', canEdit: true },
-    { username: 'nastya', displayName: 'Настя', canEdit: false },
-  ];
   localStorage.clear();
   vi.stubGlobal(
     'fetch',
@@ -59,16 +54,6 @@ beforeEach(() => {
           ...Object.fromEntries(Object.entries(body).filter(([, v]) => v !== null)),
         } as typeof user;
         return ok({ user });
-      }
-      if (url === '/api/users') return ok(usersList);
-      if (url.startsWith('/api/users/') && url.endsWith('/rights') && method === 'PUT') {
-        if (rightsResponse) return rightsResponse();
-        const name = decodeURIComponent(url.split('/')[3]!);
-        usersList = usersList.map((u) =>
-          u.username === name ? { ...u, canEdit: body.canEdit } : u,
-        );
-        if (name === user.username) user = { ...user, canEdit: body.canEdit };
-        return ok({ username: name, canEdit: body.canEdit });
       }
       if (url === '/api/auth/password') return passwordResponse();
       if (url === '/api/preferences') {
@@ -104,14 +89,15 @@ const puts = () => requests.filter((r) => r.method === 'PUT' && r.url === '/api/
 const section = (name: string) => screen.getByRole('heading', { name }).closest('section')!;
 
 describe('страница настроек', () => {
-  it('состоит из блоков: аккаунт, пароль, анализ, права (у редактора)', async () => {
+  it('состоит из блоков: аккаунт, пароль, анализ; блока прав пользователей больше нет', async () => {
     renderSettings();
 
     expect(await screen.findByRole('heading', { name: 'Настройки' })).toBeInTheDocument();
     for (const name of ['Аккаунт', 'Пароль', 'Анализ']) {
       expect(screen.getByRole('heading', { name })).toBeInTheDocument();
     }
-    expect(await screen.findByRole('heading', { name: 'Права пользователей' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Права пользователей' })).toBeNull();
+    expect(requests.some((r) => r.url === '/api/users')).toBe(false);
   });
 
   it('у пользователя без права правки блока прав нет, права показаны текстом', async () => {
@@ -229,55 +215,6 @@ describe('аккаунт', () => {
 
     await account().findByText('Изменения сохранены');
     expect(todayIso(instant)).toBe('2026-10-14');
-  });
-});
-
-describe('права пользователей', () => {
-  const rights = () => within(section('Права пользователей'));
-
-  it('список пользователей с переключателями права правки', async () => {
-    renderSettings();
-    await screen.findByRole('heading', { name: 'Права пользователей' });
-
-    expect(rights().getByRole('checkbox', { name: 'Может править и удалять: Миша' })).toBeChecked();
-    expect(
-      rights().getByRole('checkbox', { name: 'Может править и удалять: Настя' }),
-    ).not.toBeChecked();
-  });
-
-  it('дать право другому пользователю', async () => {
-    const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Права пользователей' });
-
-    await person.click(rights().getByRole('checkbox', { name: 'Может править и удалять: Настя' }));
-
-    await waitFor(() =>
-      expect(
-        requests.find((r) => r.method === 'PUT' && r.url === '/api/users/nastya/rights')?.body,
-      ).toEqual({
-        canEdit: true,
-      }),
-    );
-    await waitFor(() =>
-      expect(
-        rights().getByRole('checkbox', { name: 'Может править и удалять: Настя' }),
-      ).toBeChecked(),
-    );
-  });
-
-  it('ошибка (например, последний редактор) показывается', async () => {
-    rightsResponse = () =>
-      failure(
-        'LAST_EDITOR',
-        'Нельзя убрать право у последнего редактора: управлять правами будет некому',
-        409,
-      );
-    const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Права пользователей' });
-
-    await person.click(rights().getByRole('checkbox', { name: 'Может править и удалять: Миша' }));
-
-    expect(await rights().findByRole('alert')).toHaveTextContent('последнего редактора');
   });
 });
 

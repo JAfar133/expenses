@@ -1,7 +1,6 @@
 import { useCurrentUser } from '../../auth/hooks/useAuth.ts';
 import { AccountSection } from '../components/AccountSection.tsx';
 import { AnalyticsSection } from '../components/AnalyticsSection.tsx';
-import { UsersSection } from '../components/UsersSection.tsx';
 import { PasswordSection } from '../components/PasswordSection.tsx';
 
 /**
@@ -17,7 +16,6 @@ export default function SettingsPage() {
       <AccountSection user={user} />
       <PasswordSection />
       <AnalyticsSection />
-      {user.canEdit && <UsersSection />}
     </div>
   );
 }

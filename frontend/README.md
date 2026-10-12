@@ -90,6 +90,13 @@ Amounts on the analytics pages can be shown in another currency (selected with f
 chunk, so the expense form stays light. To run the development mode against a different backend, set `API_TARGET`
 (default `http://127.0.0.1:3000`): `API_TARGET=http://127.0.0.1:3100 npm run dev`.
 
+## Groups and administration
+
+- `/invite/:token` is a public page (no sign-in): joining a group by an invitation link or setting a new password by a reset link. On success the server signs the person in.
+- `/group` (link "Группа", only for a group owner): group name, members (role, password reset link, removal), invitations (the link is shown once, with a copy button), cards with per-member access, categories.
+- `/admin` (link "Админ", only for an application admin): all groups (owner link, disable/enable, create a group) and password reset links by login.
+- The UI of a regular member (role `member`) is unchanged: these links and pages are not rendered for them.
+
 ## Structure
 
 ```
@@ -98,6 +105,8 @@ src/
   pages/             pages
   features/expenses/ form, API requests, hooks, validation schema
   features/auth/     login: the login form, access gate, logout button
+  features/group/    owner page (members, invitations, cards, categories) and the invitation page
+  features/admin/    application admin page (groups, password reset)
   features/sync/     sync icon: timer, launch, queue state
   features/analytics/ analytics page: tiles, charts (Recharts), the "spent this month" block
   shared/            HTTP client, UI components, utilities
