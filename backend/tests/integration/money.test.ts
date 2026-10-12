@@ -445,3 +445,72 @@ describe('карты для фильтра', () => {
     expect(member.map((c: { name: string }) => c.name)).toEqual(['Миша', 'Настя']);
   });
 });
+
+describe('суммы в валюте показа (?currency=)', () => {
+  const total = async (currency?: string, extra = '') =>
+    (
+      await call(
+        'GET',
+        `/api/analytics/summary?${currency ? `currency=${currency}&` : ''}${extra}`,
+        'misha',
+      )
+    ).json().data.current.total;
+
+  it('трата, введённая в рублях, в рублях это ровно введённая сумма, а не округлённые драммы', async () => {
+    t.rates.rates.set('RUB', 4.2997);
+    await spend('Миша', 5000, { currency: 'RUB' });
+
+    // The record keeps 21 498 whole drams (5000 × 4.2997 = 21 498.5), but in roubles it is exactly what was typed
+    expect(await total()).toBe(21498);
+    expect(await total('RUB')).toBe(5000);
+    expect(await total('AMD')).toBe(21498);
+  });
+
+  it('прочие траты пересчитываются из драммов по курсу своего дня', async () => {
+    await spend('Миша', 3800, { date: '2026-10-01' });
+    await database.query(
+      "INSERT INTO exchange_rate_history (currency, date, rate, fetched_at) VALUES ('USD', '2026-09-30', 400, now())",
+    );
+    t.rates.rates.set('USD', 500);
+
+    // The rate of the day (400), not today's (500)
+    expect(await total('USD')).toBe(9.5);
+  });
+
+  it('карта в долларах: в долларах точная сумма карты, в драммах сумма в драммах', async () => {
+    await createCard('Доллары', 'USD');
+    await spend('Доллары', 10.5);
+
+    expect(await total('USD')).toBe(10.5);
+    expect(await total('AMD')).toBe(3990);
+  });
+
+  it('разбивки, динамика и список считаются в той же валюте; итог списка тоже', async () => {
+    t.rates.rates.set('RUB', 4.2997);
+    await spend('Миша', 5000, { currency: 'RUB', category: 'кафе' });
+
+    const byCategory = (
+      await call('GET', '/api/analytics/breakdown?by=category&currency=RUB', 'misha')
+    ).json().data;
+    const series = (
+      await call('GET', '/api/analytics/timeseries?granularity=month&currency=RUB', 'misha')
+    ).json().data;
+    const pageResponse = await call('GET', '/api/expenses?currency=RUB&limit=10', 'misha');
+    const page = pageResponse.json().data;
+
+    expect(byCategory[0]).toMatchObject({ key: 'кафе', total: 5000 });
+    expect(series.at(-1).total).toBe(5000);
+    expect(page.totalAmount).toBe(5000);
+    expect(page.items[0].displayAmount).toBe(5000);
+  });
+
+  it('валюта вне списка и валюта без курса отклоняются', async () => {
+    const unknown = await call('GET', '/api/analytics/summary?currency=XXX', 'misha');
+    t.rates.rates.delete('EUR');
+    const noRate = await call('GET', '/api/analytics/summary?currency=EUR', 'misha');
+
+    expect(unknown.statusCode).toBe(422);
+    expect(noRate.statusCode).toBe(422);
+    expect(noRate.json().error.code).toBe('RATE_UNAVAILABLE');
+  });
+});

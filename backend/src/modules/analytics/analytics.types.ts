@@ -22,6 +22,11 @@ export interface AnalyticsFilters {
    * without it the query is not limited (internal use and tests).
    */
   scope?: ExpenseScope;
+  /**
+   * The currency the amounts are summed in. A record entered (or kept) in that currency counts with its exact amount,
+   * the others are converted from drams at the rate of their day. Without it: the group's reporting currency.
+   */
+  display?: { currency: string; rate: number };
 }
 
 export interface SummaryStats {
@@ -90,7 +95,9 @@ export interface ExpenseListItem {
   amount: number;
   /** Currency of the card (and of `amount`) */
   currency: string;
-  /** The same amount in the group's reporting currency (what the totals add up) */
+  /** The same amount in the currency of the request (`?currency=`; the reporting currency without it) */
+  displayAmount: number;
+  /** The same amount in the group's reporting currency */
   reportingAmount: number;
   reportingCurrency: string;
   original: { amount: number; currency: string; rate: number } | null;

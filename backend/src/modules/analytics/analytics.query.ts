@@ -15,6 +15,23 @@ export const EXPENSES_SOURCE =
 export const AMOUNT_SQL = 'COALESCE(reporting_amount, amount)';
 
 /**
+ * The amount of a record in another currency (`currency` and `rate` are the placeholders of the query):
+ * a record entered in it, kept on a card in it or reported in it counts with its exact amount; any other is
+ * the drams amount divided by the rate of the day of the expense (the nearest known day, else the current rate).
+ */
+export const displayAmountSql = (currency: string, rate: string) => `(CASE
+  WHEN original_currency = ${currency}::text THEN original_amount
+  WHEN card_currency = ${currency}::text THEN card_amount
+  WHEN reporting_currency = ${currency}::text THEN reporting_amount
+  ELSE amount::numeric / COALESCE(
+    (SELECT h.rate FROM exchange_rate_history h
+      WHERE h.currency = ${currency}::text AND h.date <= expenses.date ORDER BY h.date DESC LIMIT 1),
+    (SELECT h.rate FROM exchange_rate_history h
+      WHERE h.currency = ${currency}::text AND h.date > expenses.date ORDER BY h.date LIMIT 1),
+    ${rate}::numeric)
+END)`;
+
+/**
  * The currency a record was entered in: what the user typed when it differs from the card (original_currency),
  * otherwise the currency of its card (drams for records without it). This is what the currency filter and the
  * breakdown by currency use.
@@ -29,6 +46,8 @@ export interface WhereClause {
   /** `WHERE …` or an empty string */
   sql: string;
   params: unknown[];
+  /** The SQL of a record's amount in the currency of the request (uses the parameters above) */
+  amount: string;
 }
 
 /** Escapes `%`, `_` and `\` for LIKE: the user searches for text, not a pattern. */
@@ -50,6 +69,11 @@ export function buildWhere(
     return `$${firstParam + params.length - 1}`;
   };
 
+  // The amount expression uses its own parameters: it is registered first and shared by the whole query
+  const amount = filters.display
+    ? displayAmountSql(param(filters.display.currency), param(filters.display.rate))
+    : AMOUNT_SQL;
+
   if (filters.scope) conditions.push(scopeCondition(filters.scope, param));
   if (!filters.includeDeleted) conditions.push('deleted_at IS NULL');
   if (filters.from) conditions.push(`date >= ${param(filters.from)}`);
@@ -68,10 +92,8 @@ export function buildWhere(
     );
   }
   if (filters.q) conditions.push(`name ILIKE ${param(`%${escapeLike(filters.q)}%`)} ESCAPE '\\'`);
-  if (filters.minAmount !== undefined)
-    conditions.push(`${AMOUNT_SQL} >= ${param(filters.minAmount)}`);
-  if (filters.maxAmount !== undefined)
-    conditions.push(`${AMOUNT_SQL} <= ${param(filters.maxAmount)}`);
+  if (filters.minAmount !== undefined) conditions.push(`${amount} >= ${param(filters.minAmount)}`);
+  if (filters.maxAmount !== undefined) conditions.push(`${amount} <= ${param(filters.maxAmount)}`);
 
-  return { sql: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '', params };
+  return { sql: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '', params, amount };
 }

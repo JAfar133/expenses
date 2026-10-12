@@ -38,6 +38,8 @@ const filtersShape = {
   q: optional(z.string().trim().max(100)),
   minAmount: optional(amountBound),
   maxAmount: optional(amountBound),
+  /** The currency amounts are shown in (default: the group's reporting currency) */
+  currency: optional(z.string().trim().length(3)),
   includeDeleted: z
     .enum(['true', 'false'])
     .default('false')

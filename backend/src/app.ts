@@ -28,7 +28,7 @@ import type { SyncService } from './modules/sync/sync.service.ts';
 export interface AppDependencies {
   expenseService: ExpenseService;
   auth: AuthService;
-  rates: Pick<RatesService, 'snapshot' | 'currencies'>;
+  rates: Pick<RatesService, 'snapshot' | 'currencies' | 'rateOf'>;
   analytics: AnalyticsService;
   /** User interface settings */
   preferences: Pick<PreferencesRepository, 'get' | 'merge'>;
@@ -157,7 +157,7 @@ export function buildApp({
   });
   app.register(ratesRoutes(rates), { prefix: '/api' });
   app.register(preferencesRoutes(preferences), { prefix: '/api' });
-  app.register(analyticsRoutes(analytics, groups), { prefix: '/api' });
+  app.register(analyticsRoutes(analytics, groups, rates), { prefix: '/api' });
   app.register(
     expenseEditRoutes({
       editor,

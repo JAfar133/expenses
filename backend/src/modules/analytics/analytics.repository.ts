@@ -3,13 +3,7 @@ import type { Expense } from '../../storage/expense.repository.ts';
 import type { Database } from '../../infrastructure/database/database.ts';
 import { dateText, timestampText } from '../../infrastructure/database/sql.ts';
 import { scopeCondition, type ExpenseScope } from '../groups/scope.ts';
-import {
-  AMOUNT_SQL,
-  buildWhere,
-  CARD_NAME_SQL,
-  CURRENCY_SQL,
-  EXPENSES_SOURCE,
-} from './analytics.query.ts';
+import { buildWhere, CARD_NAME_SQL, CURRENCY_SQL, EXPENSES_SOURCE } from './analytics.query.ts';
 import type {
   AnalyticsFilters,
   Author,
@@ -26,12 +20,11 @@ import type {
 } from './analytics.types.ts';
 
 /** Sort columns: only from this list, ready-made fragments go into the query, not user input. */
-const SORT_SQL: Record<SortColumn, string> = {
+const SORT_SQL: Record<Exclude<SortColumn, 'amount'>, string> = {
   date: 'date',
   card: CARD_NAME_SQL,
   category: 'category',
   name: 'lower(name)',
-  amount: AMOUNT_SQL,
   createdBy: 'created_by',
 };
 
@@ -75,11 +68,11 @@ export class AnalyticsRepository {
   async summary(filters: AnalyticsFilters): Promise<SummaryStats> {
     const where = buildWhere(filters, this.baseCurrency);
     const [row] = await this.database.query<SummaryRow>(
-      `SELECT COALESCE(sum(${AMOUNT_SQL}), 0)::float8 AS total,
+      `SELECT COALESCE(sum(${where.amount}), 0)::float8 AS total,
               count(*)::int AS count,
-              COALESCE(avg(${AMOUNT_SQL}), 0)::float8 AS average,
-              COALESCE(percentile_cont(0.5) WITHIN GROUP (ORDER BY ${AMOUNT_SQL}), 0)::float8 AS median,
-              COALESCE(max(${AMOUNT_SQL}), 0)::float8 AS max,
+              COALESCE(avg(${where.amount}), 0)::float8 AS average,
+              COALESCE(percentile_cont(0.5) WITHIN GROUP (ORDER BY ${where.amount}), 0)::float8 AS median,
+              COALESCE(max(${where.amount}), 0)::float8 AS max,
               count(DISTINCT date)::int AS active_days,
               ${dateText('min(date)')} AS first_date,
               ${dateText('max(date)')} AS last_date
@@ -126,12 +119,12 @@ export class AnalyticsRepository {
       average: number;
     }>(
       `SELECT ${keyExpression} AS key,
-              sum(${AMOUNT_SQL})::float8 AS total,
+              sum(${where.amount})::float8 AS total,
               count(*)::int AS count,
-              avg(${AMOUNT_SQL})::float8 AS average
+              avg(${where.amount})::float8 AS average
          FROM ${EXPENSES_SOURCE} ${where.sql}
         GROUP BY ${groupExpression}
-        ORDER BY sum(${AMOUNT_SQL}) DESC, 1
+        ORDER BY sum(${where.amount}) DESC, 1
         LIMIT $${params.length}`,
       params,
     );
@@ -155,7 +148,7 @@ export class AnalyticsRepository {
       count: number;
     }>(
       `SELECT ${dateText(period)} AS period${split},
-              sum(${AMOUNT_SQL})::float8 AS total,
+              sum(${where.amount})::float8 AS total,
               count(*)::int AS count
          FROM ${EXPENSES_SOURCE} ${where.sql}
         GROUP BY ${period}${groupSplit}
@@ -200,6 +193,7 @@ export class AnalyticsRepository {
     const [items, [totals]] = await Promise.all([
       this.database.query<ListRow>(
         `SELECT id, ${dateText('date')} AS date, ${CARD_NAME_SQL} AS card, category, name, amount, source,
+                ${where.amount}::float8 AS display_amount,
                 card_amount::float8 AS card_amount, card_currency,
                 reporting_amount::float8 AS reporting_amount, reporting_currency,
                 excel_status, created_by, updated_by, excel_last_error, deleted_reason, excel_snapshot,
@@ -207,12 +201,12 @@ export class AnalyticsRepository {
                 original_amount::float8 AS original_amount, original_currency,
                 exchange_rate::float8 AS exchange_rate
            FROM ${EXPENSES_SOURCE} ${where.sql}
-          ORDER BY ${SORT_SQL[options.sort]} ${direction}, seq ${direction}
+          ORDER BY ${options.sort === 'amount' ? where.amount : SORT_SQL[options.sort]} ${direction}, seq ${direction}
           LIMIT $${params.length - 1} OFFSET $${params.length}`,
         params,
       ),
       this.database.query<{ total: number; total_amount: number }>(
-        `SELECT count(*)::int AS total, COALESCE(sum(${AMOUNT_SQL}), 0)::float8 AS total_amount
+        `SELECT count(*)::int AS total, COALESCE(sum(${where.amount}), 0)::float8 AS total_amount
            FROM ${EXPENSES_SOURCE} ${where.sql}`,
         where.params,
       ),
@@ -244,6 +238,7 @@ interface ListRow {
   original_amount: number | null;
   original_currency: string | null;
   exchange_rate: number | null;
+  display_amount: number;
   card_amount: number | null;
   card_currency: string | null;
   reporting_amount: number | null;
@@ -260,6 +255,7 @@ const toListItem = (row: ListRow, baseCurrency: string): ExpenseListItem => ({
   // The amount in the currency of the card (drams for old records); the drams amount stays for the Excel state
   amount: row.card_amount ?? row.amount,
   currency: row.card_currency ?? baseCurrency,
+  displayAmount: row.display_amount,
   reportingAmount: row.reporting_amount ?? row.amount,
   reportingCurrency: row.reporting_currency ?? baseCurrency,
   original:
