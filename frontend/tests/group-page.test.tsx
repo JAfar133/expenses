@@ -385,68 +385,106 @@ describe('правка своих трат участниками', () => {
   });
 });
 
-describe('лимиты', () => {
-  const limits = () => within(section('Лимиты'));
+describe('лимиты в панели «Категории»', () => {
+  const categories = () => within(section('Категории'));
   const sentAll = (method: string, url: string) =>
     requests.filter((r) => r.method === method && r.url === url).map((r) => r.body);
+  const dialog = () => screen.getByRole('dialog');
 
-  it('раздел стоит после категорий; показывает лимиты с суммой и периодом', async () => {
+  async function open(person: Awaited<ReturnType<typeof renderGroup>>, name: string) {
+    await screen.findByRole('heading', { name: 'Категории' });
+    await person.click(await categories().findByRole('button', { name: `Лимит: ${name}` }));
+    return within(dialog());
+  }
+
+  it('нет отдельного раздела «Лимиты»; сверху закреплена строка «Все категории»', async () => {
+    await renderGroup();
+    await screen.findByRole('heading', { name: 'Категории' });
+    await categories().findByRole('button', { name: 'Лимит: Все категории' });
+
+    expect(screen.queryByRole('heading', { name: 'Лимиты' })).toBeNull();
+    const pinned = categories().getByText('Все категории').closest('li')!;
+    expect(pinned).toBe(categories().getAllByRole('listitem')[0]);
+    // Only the limit action: no rename, archive or merge for the overall limit
+    expect(within(pinned).getAllByRole('button')).toHaveLength(1);
+  });
+
+  it('у каждой категории есть действие «Лимит»; без лимита без строки о лимите', async () => {
+    await renderGroup();
+    await screen.findByRole('heading', { name: 'Категории' });
+    const button = await categories().findByRole('button', { name: 'Лимит: Еда' });
+
+    expect(button).toHaveAttribute('title', 'Лимит: Еда');
+    expect(button.closest('li')).not.toHaveTextContent('лимит ');
+  });
+
+  it('с лимитом строка показывает «лимит … · период», у «Все категории» тоже', async () => {
     budgetsList = [
       budget(),
       budget({
         id: 'b2',
         categoryId: 20,
         category: 'Еда',
-        limit: 5000,
+        limit: 80000,
         periodKind: 'month_from_day',
         periodDay: 5,
       }),
-      budget({ id: 'b3', categoryId: 21, category: 'Игры', limit: 1000, periodKind: 'week' }),
     ];
     await renderGroup();
-    await screen.findByRole('heading', { name: 'Лимиты' });
+    await screen.findByRole('heading', { name: 'Категории' });
 
-    const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
-    expect(headings.indexOf('Лимиты')).toBe(headings.indexOf('Категории') + 1);
-    expect(limits().getByText('20 000 AMD · календарный месяц')).toBeInTheDocument();
-    expect(limits().getByText('5 000 AMD · месяц с 5-го числа')).toBeInTheDocument();
-    expect(limits().getByText('1 000 AMD · неделя')).toBeInTheDocument();
+    expect(await categories().findByText('лимит 80 000 AMD · месяц с 5-го')).toBeInTheDocument();
+    expect(categories().getByText('лимит 20 000 AMD · месяц')).toBeInTheDocument();
+  });
+
+  it('диалог: период переключателем «Месяц / Неделя», без нативного select; число месяца только для «Месяц»', async () => {
+    const person = await renderGroup();
+    const box = await open(person, 'Еда');
+
+    expect(dialog()).toHaveAccessibleName('Лимит: Еда');
+    expect(box.queryByRole('combobox')).toBeNull();
+    expect(box.getByRole('radio', { name: 'Месяц' })).toBeChecked();
+    expect(box.getByLabelText('Месяц начинается')).toHaveValue('1');
+    expect(box.getByText('1 — календарный месяц')).toBeInTheDocument();
+    expect(box.getByText(/^Сейчас: \d\d\.\d\d – \d\d\.\d\d$/)).toBeInTheDocument();
+
+    await person.click(box.getByRole('radio', { name: 'Неделя' }));
+
+    expect(box.queryByLabelText('Месяц начинается')).toBeNull();
+    expect(box.getByText('с понедельника по воскресенье')).toBeInTheDocument();
   });
 
   it.each([
-    ['month', {}, { limit: 3000, periodKind: 'month' }],
-    ['week', {}, { limit: 3000, periodKind: 'week' }],
-    ['month_from_day', { day: '5' }, { limit: 3000, periodKind: 'month_from_day', periodDay: 5 }],
-  ])('добавление лимита с периодом %s отправляет верное тело', async (kind, extra, expected) => {
-    budgetsList = [budget()];
+    ['месяц, число 1 → month', 'Месяц', '1', { limit: 3000, periodKind: 'month' }],
+    [
+      'месяц, число 10 → month_from_day',
+      'Месяц',
+      '10',
+      { limit: 3000, periodKind: 'month_from_day', periodDay: 10 },
+    ],
+    ['неделя → week', 'Неделя', '', { limit: 3000, periodKind: 'week' }],
+  ])('новый лимит: %s', async (_name, mode, day, expected) => {
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Лимиты' });
+    const box = await open(person, 'Еда');
 
-    await person.selectOptions(limits().getByLabelText('Для чего лимит'), 'Еда');
-    await person.type(limits().getByLabelText('Сумма лимита'), '3000');
-    await person.selectOptions(limits().getByLabelText('Период лимита'), kind as string);
-    if ('day' in extra) {
-      await person.clear(limits().getByLabelText('Число месяца'));
-      await person.type(limits().getByLabelText('Число месяца'), extra.day as string);
+    await person.type(box.getByLabelText('Сумма'), '3000');
+    await person.click(box.getByRole('radio', { name: mode as string }));
+    if (mode === 'Месяц') {
+      await person.clear(box.getByLabelText('Месяц начинается'));
+      await person.type(box.getByLabelText('Месяц начинается'), day as string);
     }
-    await person.click(limits().getByRole('button', { name: 'Добавить' }));
+    await person.click(box.getByRole('button', { name: 'Сохранить' }));
 
     await waitFor(() => expect(sentAll('POST', '/api/group/budgets')).toHaveLength(1));
     expect(sentAll('POST', '/api/group/budgets')[0]).toEqual({ categoryId: 20, ...expected });
   });
 
-  it('общий лимит: categoryId null; вариант «Всего» исчезает, когда общий лимит уже есть', async () => {
+  it('общий лимит: categoryId null', async () => {
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Лимиты' });
-    const target = limits().getByLabelText('Для чего лимит');
-    expect(
-      within(target)
-        .getAllByRole('option')
-        .map((o) => o.textContent),
-    ).toEqual(['Всего (на всю группу)', 'Еда']);
+    const box = await open(person, 'Все категории');
 
-    await person.type(limits().getByLabelText('Сумма лимита'), '1500,5');
-    await person.click(limits().getByRole('button', { name: 'Добавить' }));
+    await person.type(box.getByLabelText('Сумма'), '1500,5');
+    await person.click(box.getByRole('button', { name: 'Сохранить' }));
 
     await waitFor(() => expect(sentAll('POST', '/api/group/budgets')).toHaveLength(1));
     expect(sentAll('POST', '/api/group/budgets')[0]).toEqual({
@@ -456,76 +494,101 @@ describe('лимиты', () => {
     });
   });
 
-  it('форма добавления скрыта, когда лимитами закрыто всё', async () => {
-    budgetsList = [budget(), budget({ id: 'b2', categoryId: 20, category: 'Еда' })];
-    await renderGroup();
-    await screen.findByRole('heading', { name: 'Лимиты' });
-
-    expect(limits().queryByLabelText('Для чего лимит')).toBeNull();
-  });
-
-  it('правка: PUT с новой суммой и периодом, категория не меняется', async () => {
-    budgetsList = [budget({ id: 'b2', categoryId: 20, category: 'Еда', limit: 5000 })];
+  it('существующий лимит: поля заполнены, «Сохранить» шлёт PUT, «Убрать лимит» — DELETE', async () => {
+    budgetsList = [
+      budget({
+        id: 'b2',
+        categoryId: 20,
+        category: 'Еда',
+        limit: 80000,
+        periodKind: 'month_from_day',
+        periodDay: 5,
+      }),
+    ];
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Лимиты' });
+    const box = await open(person, 'Еда');
 
-    await person.click(limits().getByRole('button', { name: 'Изменить лимит: Еда' }));
-    const amount = limits().getAllByLabelText('Сумма лимита')[0]!;
-    await person.clear(amount);
-    await person.type(amount, '7000');
-    await person.selectOptions(limits().getAllByLabelText('Период лимита')[0]!, 'week');
-    await person.click(limits().getByRole('button', { name: 'Сохранить' }));
+    expect(box.getByLabelText('Сумма')).toHaveValue('80 000');
+    expect(box.getByLabelText('Месяц начинается')).toHaveValue('5');
+    await person.clear(box.getByLabelText('Сумма'));
+    await person.type(box.getByLabelText('Сумма'), '90000');
+    await person.click(box.getByRole('radio', { name: 'Неделя' }));
+    await person.click(box.getByRole('button', { name: 'Сохранить' }));
 
     await waitFor(() => expect(sentAll('PUT', '/api/group/budgets/b2')).toHaveLength(1));
-    expect(sentAll('PUT', '/api/group/budgets/b2')[0]).toEqual({ limit: 7000, periodKind: 'week' });
-  });
+    expect(sentAll('PUT', '/api/group/budgets/b2')[0]).toEqual({
+      limit: 90000,
+      periodKind: 'week',
+    });
 
-  it('удаление идёт через подтверждение', async () => {
-    budgetsList = [budget()];
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Лимиты' });
-
-    await person.click(limits().getByRole('button', { name: 'Удалить лимит: Всего' }));
-    expect(requests.some((r) => r.method === 'DELETE')).toBe(false);
-    await person.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Удалить' }));
-
+    const again = await open(person, 'Еда');
+    await person.click(again.getByRole('button', { name: 'Убрать лимит' }));
     await waitFor(() =>
-      expect(requests.some((r) => r.method === 'DELETE' && r.url === '/api/group/budgets/b1')).toBe(
+      expect(requests.some((r) => r.method === 'DELETE' && r.url === '/api/group/budgets/b2')).toBe(
         true,
       ),
     );
   });
 
-  it('ошибка 409 BUDGET_EXISTS показывается как есть', async () => {
+  it('«Убрать лимит» есть только у существующего лимита', async () => {
+    const person = await renderGroup();
+    const box = await open(person, 'Еда');
+
+    expect(box.queryByRole('button', { name: 'Убрать лимит' })).toBeNull();
+  });
+
+  it('проверка: сумма больше нуля и число месяца 1–28', async () => {
+    const person = await renderGroup();
+    const box = await open(person, 'Еда');
+
+    await person.click(box.getByRole('button', { name: 'Сохранить' }));
+    expect(box.getByText('Введите сумму больше нуля')).toBeInTheDocument();
+
+    await person.type(box.getByLabelText('Сумма'), '100');
+    await person.clear(box.getByLabelText('Месяц начинается'));
+    await person.type(box.getByLabelText('Месяц начинается'), '30');
+    await person.click(box.getByRole('button', { name: 'Сохранить' }));
+    expect(box.getByText('Число месяца — от 1 до 28')).toBeInTheDocument();
+    expect(sentAll('POST', '/api/group/budgets')).toHaveLength(0);
+  });
+
+  it('ошибка сервера (409) показывается внутри диалога, диалог остаётся', async () => {
     override = (method, url) =>
       method === 'POST' && url === '/api/group/budgets'
         ? failure('BUDGET_EXISTS', 'Лимит на эту категорию уже есть', 409)
         : undefined;
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Лимиты' });
+    const box = await open(person, 'Еда');
 
-    await person.type(limits().getByLabelText('Сумма лимита'), '1000');
-    await person.click(limits().getByRole('button', { name: 'Добавить' }));
+    await person.type(box.getByLabelText('Сумма'), '1000');
+    await person.click(box.getByRole('button', { name: 'Сохранить' }));
 
-    expect(await limits().findByRole('alert')).toHaveTextContent('Лимит на эту категорию уже есть');
+    expect(await box.findByRole('alert')).toHaveTextContent('Лимит на эту категорию уже есть');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
-  it('пустая сумма не отправляется', async () => {
+  it('после сохранения диалог закрывается и лимиты запрашиваются заново (полоски обновятся)', async () => {
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Лимиты' });
+    const box = await open(person, 'Еда');
+    const before = requests.filter((r) => r.url === '/api/budgets').length;
 
-    await person.click(limits().getByRole('button', { name: 'Добавить' }));
+    budgetsList = [budget({ id: 'b9', categoryId: 20, category: 'Еда', limit: 3000 })];
+    await person.type(box.getByLabelText('Сумма'), '3000');
+    await person.click(box.getByRole('button', { name: 'Сохранить' }));
 
-    expect(limits().getByText('Введите лимит числом больше нуля')).toBeInTheDocument();
-    expect(sentAll('POST', '/api/group/budgets')).toHaveLength(0);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() =>
+      expect(requests.filter((r) => r.url === '/api/budgets').length).toBeGreaterThan(before),
+    );
+    expect(await categories().findByText('лимит 3 000 AMD · месяц')).toBeInTheDocument();
   });
 
-  it('участник страницу «Группа» не видит: лимитов и запроса нет', async () => {
+  it('участник страницу «Группа» не видит: действий «Лимит» и запроса лимитов нет', async () => {
     me = { ...OWNER, role: 'member' };
     await renderGroup();
 
     expect(await screen.findByText('Главная')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Лимиты' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Лимит:/ })).toBeNull();
     expect(requests.some((r) => r.url === '/api/budgets')).toBe(false);
   });
 });
@@ -664,13 +727,12 @@ describe('подсказки', () => {
   it('в строках списков нет кнопок «Подсказка»', async () => {
     await renderGroup();
     await screen.findByRole('heading', { name: 'Карты' });
-    await screen.findByRole('heading', { name: 'Лимиты' });
 
     for (const row of screen.getAllByRole('listitem')) {
       expect(within(row).queryByRole('button', { name: 'Подсказка' })).toBeNull();
     }
     // One hint per section: name, member edit, reporting currency, members, invitations, cards, categories
-    expect(screen.getAllByRole('button', { name: 'Подсказка' })).toHaveLength(8);
+    expect(screen.getAllByRole('button', { name: 'Подсказка' })).toHaveLength(7);
   });
 });
 

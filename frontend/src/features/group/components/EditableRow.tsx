@@ -10,6 +10,8 @@ interface EditableRowProps {
   /** A currency that can be changed together with the name (shown only with several options) */
   currency?: { value: string; options: string[] };
   onRename: (name: string, currency?: string) => Promise<unknown>;
+  /** Actions placed before "Изменить" (e.g. the limit) */
+  leading?: ReactNode;
   /** Other actions of the row, placed after "Изменить" (buttons, no fragments) */
   children?: ReactNode;
   /** Expands under the row */
@@ -17,7 +19,15 @@ interface EditableRowProps {
 }
 
 /** A list row with an inline rename: "Изменить" is the first action, the editor replaces the row. */
-export function EditableRow({ name, meta, currency, onRename, children, below }: EditableRowProps) {
+export function EditableRow({
+  name,
+  meta,
+  currency,
+  onRename,
+  leading,
+  children,
+  below,
+}: EditableRowProps) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(name);
   const [currencyValue, setCurrencyValue] = useState(currency?.value ?? '');
@@ -87,6 +97,7 @@ export function EditableRow({ name, meta, currency, onRename, children, below }:
       below={below}
     >
       <RowActions>
+        {leading}
         <ActionButton
           label={`Переименовать: ${name}`}
           onClick={() => {

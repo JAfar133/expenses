@@ -81,7 +81,7 @@ describe('BudgetBars', () => {
     expect(row).toHaveAttribute('title', '01.10–31.10');
   });
 
-  it('уровни: ok — без значка, warn — значок и янтарный цвет, over — красный с превышением', async () => {
+  it('уровни: ok — без значка, warn — значок и янтарная полоска, over — красные полоска и «+N», числа обычным цветом', async () => {
     budgets = [
       budget({
         id: 'a',
@@ -124,7 +124,8 @@ describe('BudgetBars', () => {
     expect(row('Кафе').querySelector('.bg-amber-500')).not.toBeNull();
     expect(row('Игры').querySelector('svg')).not.toBeNull();
     expect(row('Игры').querySelector('.bg-red-500')).not.toBeNull();
-    expect(within(row('Игры')).getByText('+1 200')).toHaveClass('font-semibold');
+    expect(within(row('Игры')).getByText('+1 200')).toHaveClass('text-red-600');
+    expect(within(row('Игры')).queryByText(/11 200 \/ 10 000 AMD/)).not.toHaveClass('text-red-600');
     // The bar never goes past 100%
     expect(screen.getByRole('progressbar', { name: 'Лимит: Игры' })).toHaveAttribute(
       'aria-valuenow',
@@ -228,18 +229,50 @@ describe('лимиты на странице добавления', () => {
 describe('лимиты на вкладке «Обзор»', () => {
   setupAnalyticsHarness();
 
-  it('с лимитами полоски сверху; без лимитов их нет', async () => {
+  const categoryCard = () =>
+    screen.getByRole('heading', { name: 'Расход по категориям' }).closest('section')!;
+
+  it('полоски внутри карточки «Расход по категориям», отдельной карточки нет', async () => {
     harness.handlers['/api/budgets'] = () => analyticsOk([budget()]);
     renderAnalytics();
-    expect(await screen.findByRole('progressbar', { name: 'Лимит: Всего' })).toBeInTheDocument();
+    await screen.findByRole('heading', { name: 'Расход по категориям' });
+
+    const bar = await within(categoryCard()).findByRole('progressbar', { name: 'Лимит: Всего' });
+    const region = screen.getByRole('region', { name: 'Лимиты' });
+    expect(categoryCard()).toContainElement(region);
+    expect(screen.getAllByRole('region', { name: 'Лимиты' })).toHaveLength(1);
+    // Under the card's header and switches, above the chart; «Всего» is the first row
+    expect(within(region).getAllByRole('progressbar')[0]).toBe(bar);
   });
 
-  it('без лимитов на обзоре ничего лишнего', async () => {
+  it('только «Всего» остаётся первой строкой, дальше категории по порядку', async () => {
+    harness.handlers['/api/budgets'] = () =>
+      analyticsOk([budget(), budget({ id: 'c', categoryId: '3', category: 'Игры' })]);
+    renderAnalytics();
+
+    const region = await screen.findByRole('region', { name: 'Лимиты' });
+    const names = within(region)
+      .getAllByRole('progressbar')
+      .map((bar) => bar.getAttribute('aria-label'));
+    expect(names).toEqual(['Лимит: Всего', 'Лимит: Игры']);
+  });
+
+  it('без лимитов карточка категорий без изменений', async () => {
     harness.handlers['/api/budgets'] = () => analyticsOk([]);
     renderAnalytics();
-    await screen.findByText('Потрачено');
+    await screen.findByRole('heading', { name: 'Расход по категориям' });
 
     expect(screen.queryByRole('region', { name: 'Лимиты' })).toBeNull();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+  });
+
+  it('вверху обзора отдельной карточки с лимитами нет', async () => {
+    harness.handlers['/api/budgets'] = () => analyticsOk([budget()]);
+    renderAnalytics();
+    await screen.findByRole('progressbar', { name: 'Лимит: Всего' });
+
+    const region = screen.getByRole('region', { name: 'Лимиты' });
+    expect(region.parentElement?.closest('section')).toBe(categoryCard());
   });
 
   it('на других вкладках полосок нет', async () => {

@@ -147,3 +147,12 @@ export const WarningIcon = () => (
     <path d="M12 10v4M12 17.5v.01" />
   </Icon>
 );
+
+/** A spending limit */
+export const GaugeIcon = () => (
+  <Icon>
+    <path d="M4.5 17a8 8 0 1 1 15 0" />
+    <path d="M12 14l4-5" />
+    <path d="M3 20h18" />
+  </Icon>
+);

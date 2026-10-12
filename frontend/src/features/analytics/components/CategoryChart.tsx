@@ -23,6 +23,7 @@ import {
   toSlices,
   type Slice,
 } from '../model/chart-data.ts';
+import { BudgetBars } from '../../budgets/components/BudgetBars.tsx';
 import { ChartCard, ChartMessage, DataTable } from './ChartCard.tsx';
 import { ChartTooltip } from './ChartTooltip.tsx';
 import { ChartTypeSwitch } from './ChartTypeSwitch.tsx';
@@ -80,6 +81,7 @@ export function CategoryChart({
         )
       }
     >
+      <BudgetBars variant="inline" />
       {loading && !rows ? (
         <ChartMessage>Загрузка…</ChartMessage>
       ) : !rows || total === 0 ? (

@@ -39,6 +39,7 @@ const BASE =
   'flex size-10 items-center justify-center rounded-lg transition focus-visible:outline-none ' +
   'focus-visible:ring-2 focus-visible:ring-indigo-500/60 disabled:cursor-not-allowed disabled:opacity-60 sm:size-9';
 const TONES = {
+  neutral: 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800',
   default: 'text-indigo-600 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950/60',
   danger: 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/60',
   success: 'text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950/60',

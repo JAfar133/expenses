@@ -1,7 +1,6 @@
 import { Navigate } from 'react-router';
 import { Notice } from '../../../shared/ui/Notice.tsx';
 import { useCurrentUser } from '../../auth/hooks/useAuth.ts';
-import { BudgetsSection } from '../components/BudgetsSection.tsx';
 import { CardsSection } from '../components/CardsSection.tsx';
 import { CategoriesSection } from '../components/CategoriesSection.tsx';
 import { GroupNameSection } from '../components/GroupNameSection.tsx';
@@ -51,7 +50,6 @@ function GroupContent({ currentUsername }: { currentUsername: string }) {
         reportingCurrency={data.group.reportingCurrency}
       />
       <CategoriesSection categories={data.categories} />
-      <BudgetsSection categories={data.categories} />
     </div>
   );
 }
