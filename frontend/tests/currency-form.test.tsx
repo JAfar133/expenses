@@ -174,7 +174,7 @@ describe('валюта по карте', () => {
     expect(screen.getByLabelText('Стоимость')).toHaveValue('12,34');
   });
 
-  it('если все карты в драммах, рядом с картами нет валют', async () => {
+  it('рядом с каждой картой показана её валюта, в том числе когда все карты в драммах', async () => {
     cards = [
       { name: 'Миша', currency: 'AMD' },
       { name: 'Настя', currency: 'AMD' },
@@ -182,6 +182,7 @@ describe('валюта по карте', () => {
     await renderForm();
 
     const picker = screen.getByRole('radiogroup', { name: 'Карта' });
-    expect(picker).not.toHaveTextContent('AMD');
+    expect(picker).toHaveTextContent('МишаAMD');
+    expect(picker).toHaveTextContent('НастяAMD');
   });
 });
