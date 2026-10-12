@@ -3,6 +3,7 @@ import { buildApp } from './app.ts';
 import { loadEnv, readUserPasswords } from './config/env.ts';
 import { BackupService } from './infrastructure/backup/backup.service.ts';
 import { createPostgresDatabase, waitForDatabase } from './infrastructure/database/database.ts';
+import { ensureDefaultGroup } from './modules/groups/default-group.ts';
 import { migrate } from './infrastructure/database/migrate.ts';
 import { IdempotencyService } from './infrastructure/idempotency/idempotency.service.ts';
 import { AnalyticsRepository } from './modules/analytics/analytics.repository.ts';
@@ -169,6 +170,17 @@ const userSync = await auth.syncUsers(env.AUTH_USERS, readUserPasswords(env.AUTH
   editors: env.EDITOR_USERS,
   timezone: env.APP_TIMEZONE,
 });
+const group = await ensureDefaultGroup(database, {
+  name: env.DEFAULT_GROUP_NAME,
+  currency: env.DEFAULT_CURRENCY,
+  timezone: env.APP_TIMEZONE,
+  cards: env.CARDS,
+  categories: env.CATEGORIES,
+  admins: env.ADMIN_USERS,
+});
+if (group.created || group.assigned > 0) {
+  app.log.info(group, 'Default group prepared');
+}
 if (userSync.passwordsUpdated.length > 0) {
   app.log.info({ users: userSync.passwordsUpdated }, 'User passwords updated');
 }

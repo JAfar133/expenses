@@ -83,6 +83,8 @@ services:
       AUTH_USERS: ${AUTH_USERS:-misha:Миша,nastya:Настя}
       # Who can edit and delete records (everyone else is read-only)
       EDITOR_USERS: ${EDITOR_USERS:-misha}
+      ADMIN_USERS: ${ADMIN_USERS:-}
+      DEFAULT_GROUP_NAME: ${DEFAULT_GROUP_NAME:-Семья}
       AUTH_PASSWORD_MISHA: ${AUTH_PASSWORD_MISHA:-}
       AUTH_PASSWORD_NASTYA: ${AUTH_PASSWORD_NASTYA:-}
       ACCESS_TOKEN_TTL_HOURS: ${ACCESS_TOKEN_TTL_HOURS:-24}

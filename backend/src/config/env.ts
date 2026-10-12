@@ -86,6 +86,10 @@ const envSchema = z.object({
 
   // Logins allowed to edit and delete records (comma-separated)
   EDITOR_USERS: z.string().default('misha').transform(list),
+  // Logins of application administrators (manage groups; none by default)
+  ADMIN_USERS: z.string().default('').transform(list),
+  // Name of the group created for the existing users on the first start
+  DEFAULT_GROUP_NAME: z.string().trim().min(1).default('Семья'),
   CARDS: z.string().default('Миша,Настя').transform(list),
   CATEGORIES: z.string().default('кафе,одежда,продукты,жилье,маркетплейс,другое').transform(list),
 });

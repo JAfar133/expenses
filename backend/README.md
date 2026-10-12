@@ -60,6 +60,8 @@ On startup the backend waits for the database, applies migrations, starts synchr
 | `AUTH_USERS`                   | `misha:Миша,nastya:Настя`       | Users: `username:default card`. Username: lowercase Latin letters, digits, `_`                                       |
 | `AUTH_PASSWORD_<USERNAME>`     | not set                         | The user's password (`AUTH_PASSWORD_MISHA`, `AUTH_PASSWORD_NASTYA`), at least `AUTH_MIN_PASSWORD_LENGTH`             |
 | `EDITOR_USERS`                 | `misha`                         | Who may edit and delete entries **by default**; after that the editors change rights themselves on the settings page |
+| `ADMIN_USERS`                  | empty                           | Application administrators (v2: manage groups)                                                                       |
+| `DEFAULT_GROUP_NAME`           | `Семья`                         | Name of the group created for the existing users on the first start (v2)                                             |
 | `AUTH_MIN_PASSWORD_LENGTH`     | `8`                             | Minimum password length (less than 8 is not allowed)                                                                 |
 | `ACCESS_TOKEN_TTL_HOURS`       | `24`                            | Access token lifetime (the login cookie)                                                                             |
 | `REFRESH_TOKEN_TTL_DAYS`       | `7`                             | Refresh token lifetime; extended on every refresh                                                                    |
@@ -194,7 +196,7 @@ Prefix `/api`, JSON format.
 
 | Method and path                   | Purpose                                                                                                                                      |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/health`                 | Liveness check, does not touch OneDrive or the database. Public (like `/api/ready` and `/api/auth/login`, `/refresh`, `/logout`)              |
+| `GET /api/health`                 | Liveness check, does not touch OneDrive or the database. Public (like `/api/ready` and `/api/auth/login`, `/refresh`, `/logout`)             |
 | `GET /api/ready`                  | Readiness check: `SELECT 1` against the database, `503` if it does not answer. `deploy.sh` waits for it                                      |
 | `POST /api/auth/login`            | Login: `{"username","password"}`, sets cookies, returns the user and their default card                                                      |
 | `POST /api/auth/refresh`          | Refreshes the tokens using the refresh cookie (called by the app itself)                                                                     |

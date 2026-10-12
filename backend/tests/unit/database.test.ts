@@ -20,10 +20,15 @@ describe('миграции', () => {
 
     expect(tables.map((t) => t.table_name)).toEqual([
       'auth_sessions',
+      'card_access',
+      'cards',
+      'categories',
       'exchange_rates',
       'expense_changes',
       'expenses',
+      'groups',
       'idempotency_keys',
+      'memberships',
       'schema_migrations',
       'sync_state',
       'users',
