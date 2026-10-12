@@ -4,7 +4,7 @@ export type MemberRole = 'owner' | 'member';
 export type AccessLevel = 'view' | 'edit';
 
 export interface GroupMember {
-  userId: number;
+  userId: string;
   username: string;
   displayName: string;
   role: MemberRole;
@@ -13,21 +13,21 @@ export interface GroupMember {
 }
 
 export interface GroupCard {
-  id: number;
+  id: string;
   name: string;
   currency: string;
   archived: boolean;
-  access: { userId: number; level: AccessLevel }[];
+  access: { userId: string; level: AccessLevel }[];
 }
 
 export interface GroupCategory {
-  id: number;
+  id: string;
   name: string;
   archived: boolean;
 }
 
 export interface GroupInvitation {
-  id: number;
+  id: string;
   kind: 'join' | 'reset';
   role: MemberRole | null;
   username: string | null;
@@ -37,12 +37,14 @@ export interface GroupInvitation {
 
 export interface GroupOverview {
   group: {
-    id: number;
+    id: string;
     name: string;
     reportingCurrency: string;
     timezone: string;
     disabled: boolean;
   };
+  /** Currencies allowed for cards and for the reporting currency */
+  currencies: string[];
   members: GroupMember[];
   cards: GroupCard[];
   categories: GroupCategory[];
@@ -63,28 +65,34 @@ export const fetchGroup = async () => (await apiRequest<GroupOverview>('/group')
 export const renameGroup = (name: string) =>
   apiRequest('/group', { method: 'PATCH', ...json({ name }) });
 
-export const createCard = (name: string) =>
-  apiRequest<{ id: number }>('/group/cards', { method: 'POST', ...json({ name }) });
+export const createCard = (name: string, currency?: string) =>
+  apiRequest<{ id: string }>('/group/cards', {
+    method: 'POST',
+    ...json(currency ? { name, currency } : { name }),
+  });
 
-export const updateCard = (id: number, patch: { name?: string; archived?: boolean }) =>
-  apiRequest(`/group/cards/${id}`, { method: 'PATCH', ...json(patch) });
+/** The currency of a card can change only while it has no records (409 CARD_HAS_EXPENSES otherwise). */
+export const updateCard = (
+  id: string,
+  patch: { name?: string; archived?: boolean; currency?: string },
+) => apiRequest(`/group/cards/${id}`, { method: 'PATCH', ...json(patch) });
 
 /** Replaces the access of all members: those not listed lose access to the card. */
-export const setCardAccess = (id: number, access: Record<string, AccessLevel>) =>
+export const setCardAccess = (id: string, access: Record<string, AccessLevel>) =>
   apiRequest(`/group/cards/${id}/access`, { method: 'PUT', ...json({ access }) });
 
 export const createCategory = (name: string) =>
   apiRequest('/group/categories', { method: 'POST', ...json({ name }) });
 
 export const updateCategory = (
-  id: number,
-  patch: { name?: string; archived?: boolean; mergeInto?: number },
+  id: string,
+  patch: { name?: string; archived?: boolean; mergeInto?: string },
 ) => apiRequest(`/group/categories/${id}`, { method: 'PATCH', ...json(patch) });
 
 export const createInvitation = async (role: MemberRole) =>
   (await apiRequest<IssuedLink>('/group/invitations', { method: 'POST', ...json({ role }) })).data;
 
-export const revokeInvitation = (id: number) =>
+export const revokeInvitation = (id: string) =>
   apiRequest(`/group/invitations/${id}`, { method: 'DELETE' });
 
 export const setMemberRole = (username: string, role: MemberRole) =>
@@ -95,3 +103,12 @@ export const createMemberResetLink = async (username: string) =>
 
 export const removeMember = (username: string) =>
   apiRequest(member(username), { method: 'DELETE' });
+
+/** Changes the reporting currency; the server recalculates the records and says how many it touched. */
+export const setReportingCurrency = async (currency: string) =>
+  (
+    await apiRequest<{ recalculated: number }>('/group/reporting-currency', {
+      method: 'PUT',
+      ...json({ currency }),
+    })
+  ).data;

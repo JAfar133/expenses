@@ -64,9 +64,8 @@ export function AccountSection({ user }: { user: AuthUser }) {
   };
 
   const options = timezoneOptions(values.timezone);
-  const cardOptions = cards.data?.includes(values.card)
-    ? cards.data
-    : [values.card, ...(cards.data ?? [])];
+  const cardNames = cards.data?.map((card) => card.name) ?? [];
+  const cardOptions = cardNames.includes(values.card) ? cardNames : [values.card, ...cardNames];
 
   return (
     <SettingsSection

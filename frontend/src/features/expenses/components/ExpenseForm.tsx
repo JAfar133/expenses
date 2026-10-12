@@ -6,10 +6,16 @@ import { Button } from '../../../shared/ui/Button.tsx';
 import { Field, inputClassName } from '../../../shared/ui/Field.tsx';
 import { Notice } from '../../../shared/ui/Notice.tsx';
 import { todayIso } from '../../../shared/utils/date.ts';
-import { formatMoney, parseAmount, parseDecimal } from '../../../shared/utils/money.ts';
+import { currencyDigits } from '../../../shared/utils/conversion.ts';
+import {
+  formatAmountInput,
+  formatMoney,
+  parseAmount,
+  parseDecimal,
+} from '../../../shared/utils/money.ts';
 import { newRequestId } from '../../../shared/utils/request-id.ts';
 import { readStored, writeStored } from '../../../shared/utils/storage.ts';
-import type { CreatedExpense, NameSuggestion } from '../api/expenses.api.ts';
+import type { Card, CreatedExpense, NameSuggestion } from '../api/expenses.api.ts';
 import { toSaveErrorMessage } from '../api/save-error-message.ts';
 import { useCreateExpense } from '../hooks/useCreateExpense.ts';
 import { useNameSuggestions } from '../hooks/useNameSuggestions.ts';
@@ -25,9 +31,12 @@ const lastCategoryKey = (username: string) => `expenses.lastCategory.${username}
 const SUCCESS_VISIBLE_MS = 4000;
 
 interface ExpenseFormProps {
-  cards: string[];
+  cards: Card[];
   categories: string[];
+  /** Reporting currency of the group */
   currency: string;
+  /** Drams: rates are quoted against it */
+  baseCurrency: string;
   user: AuthUser;
 }
 
@@ -37,39 +46,56 @@ function rememberedChoice(key: string, options: string[]): string | undefined {
   return value && options.includes(value) ? value : undefined;
 }
 
-/** What goes to the server: whole amount in drams; for a foreign currency, the amount, currency and the rate the user saw. */
-function amountPayload(values: ExpenseFormValues, base: string) {
-  if (values.currency === base) {
-    return { amount: parseAmount(values.amount)! };
-  }
-  return {
-    amount: parseDecimal(values.amount)!,
-    currency: values.currency,
-    rate: parseDecimal(values.rate)!,
-  };
+/**
+ * What goes to the server: the amount in the typed currency. The currency is sent only when it differs from the card's
+ * one, the rate only when it is neither drams nor the card currency (the server knows the rest).
+ */
+function amountPayload(values: ExpenseFormValues, base: string, cardCurrency: string) {
+  const isBase = values.currency === base;
+  const amount = isBase ? parseAmount(values.amount)! : parseDecimal(values.amount)!;
+  if (values.currency === cardCurrency) return { amount };
+  if (isBase) return { amount, currency: values.currency };
+  return { amount, currency: values.currency, rate: parseDecimal(values.rate)! };
 }
 
-function successMessage({ amount, original }: CreatedExpense, base: string): string {
+/** The message names the amount in the reporting currency of the group, as the record reports it. */
+function successMessage(
+  { reportingAmount, reportingCurrency, original }: CreatedExpense,
+  reporting: string,
+  base: string,
+): string {
   if (!original) return 'Расход успешно добавлен';
-  return `Расход добавлен: ${formatMoney(amount)} ${base} (${formatMoney(original.amount)} ${original.currency} по курсу ${formatMoney(original.rate, 6)})`;
+  return `Расход добавлен: ${formatMoney(reportingAmount, currencyDigits(reportingCurrency ?? reporting, base))} ${reportingCurrency ?? reporting} (${formatMoney(original.amount)} ${original.currency} по курсу ${formatMoney(original.rate, 6)})`;
 }
 
-export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormProps) {
+export function ExpenseForm({ cards, categories, currency, baseCurrency, user }: ExpenseFormProps) {
   const createExpense = useCreateExpense();
   // One key per attempt: resubmitting the same operation will not create a duplicate
   const idempotencyKey = useRef(newRequestId());
 
-  const schema = useMemo(() => createExpenseFormSchema(currency), [currency]);
+  const cardNames = useMemo(() => cards.map((card) => card.name), [cards]);
+  const cardCurrencyOf = (name: string) =>
+    cards.find((card) => card.name === name)?.currency ?? baseCurrency;
+  const schema = useMemo(
+    () =>
+      createExpenseFormSchema(
+        baseCurrency,
+        Object.fromEntries(cards.map((card) => [card.name, card.currency])),
+      ),
+    [baseCurrency, cards],
+  );
+  const defaultCard = cardNames.includes(user.card) ? user.card : (cardNames[0] ?? '');
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       date: todayIso(),
       // The default card is the signed-in user's card (the card is named after the user)
-      card: cards.includes(user.card) ? user.card : (cards[0] ?? ''),
+      card: defaultCard,
       category: rememberedChoice(lastCategoryKey(user.username), categories) ?? '',
       name: '',
-      currency,
+      // The typed currency starts as the currency of the card
+      currency: cardCurrencyOf(defaultCard),
       amount: '',
       rate: '',
     },
@@ -103,6 +129,16 @@ export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormPr
     return () => clearTimeout(timer);
   }, [createExpense.isSuccess, createExpense.reset]);
 
+  // A new card: the typed currency goes back to the card's one, the rate and fractional part are not needed
+  const resetCurrencyFor = (cardName: string) => {
+    const next = cardCurrencyOf(cardName);
+    if (next === baseCurrency) {
+      setValue('amount', formatAmountInput(getValues('amount').split(/[.,]/)[0] ?? ''));
+    }
+    setValue('currency', next);
+    setValue('rate', '');
+  };
+
   const submit = handleSubmit((values) => {
     if (createExpense.isPending) return;
 
@@ -111,7 +147,7 @@ export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormPr
       card: values.card,
       category: values.category,
       name: values.name.trim(),
-      ...amountPayload(values, currency),
+      ...amountPayload(values, baseCurrency, cardCurrencyOf(values.card)),
     };
 
     createExpense.mutate(
@@ -142,7 +178,12 @@ export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormPr
       </Field>
 
       <Field label="Карта" error={errors.card?.message}>
-        <CardPicker cards={cards} registration={register('card')} />
+        <CardPicker
+          cards={cards}
+          registration={register('card', {
+            onChange: (event) => resetCurrencyFor(event.target.value),
+          })}
+        />
       </Field>
 
       <Field label="Категория" htmlFor="category" error={errors.category?.message}>
@@ -176,11 +217,13 @@ export function ExpenseForm({ cards, categories, currency, user }: ExpenseFormPr
         <NameSuggestions suggestions={suggestions} onPick={pickSuggestion} />
       </Field>
 
-      <AmountFields form={form} base={currency} rates={rates} />
+      <AmountFields form={form} base={baseCurrency} cards={cards} rates={rates} />
 
       {createExpense.isSuccess &&
         (createExpense.data.excelStatus !== 'queued' ? (
-          <Notice variant="success">{successMessage(createExpense.data, currency)}</Notice>
+          <Notice variant="success">
+            {successMessage(createExpense.data, currency, baseCurrency)}
+          </Notice>
         ) : (
           <Notice variant="info">
             Расход сохранён. В Excel он появится позже, когда файл освободится

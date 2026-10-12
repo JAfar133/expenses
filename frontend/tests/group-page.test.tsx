@@ -29,6 +29,7 @@ const overview = () => ({
     timezone: 'Asia/Yerevan',
     disabled: false,
   },
+  currencies: ['AMD', 'USD'],
   members: [
     { userId: 1, username: 'misha', displayName: 'Миша', role: 'owner', fromEnv: true },
     { userId: 2, username: 'nastya', displayName: 'Настя', role: 'member', fromEnv: false },
@@ -162,7 +163,7 @@ describe('карты', () => {
     await person.type(cards().getByLabelText('Новая карта'), 'Отпуск');
     await person.click(cards().getByRole('button', { name: 'Добавить' }));
 
-    expect(sent('POST', '/api/group/cards')).toEqual({ name: 'Отпуск' });
+    expect(sent('POST', '/api/group/cards')).toEqual({ name: 'Отпуск', currency: 'AMD' });
   });
 
   it('показывает подсказку о видимости карт', async () => {
@@ -236,6 +237,126 @@ describe('карты', () => {
     await person.click(cards().getByRole('button', { name: 'Добавить' }));
 
     expect(await cards().findByRole('alert')).toHaveTextContent('Карта с таким названием уже есть');
+  });
+});
+
+describe('валюты карт', () => {
+  const cards = () => within(section('Карты'));
+
+  it('у каждой карты видна её валюта', async () => {
+    override = (method, url) =>
+      method === 'GET' && url === '/api/group'
+        ? ok({
+            ...overview(),
+            cards: overview().cards.map((c) => (c.id === 11 ? { ...c, currency: 'USD' } : c)),
+          })
+        : undefined;
+    await renderGroup();
+    await screen.findByRole('heading', { name: 'Карты' });
+
+    expect(cards().getByText('Общая').closest('li')).toHaveTextContent('USD');
+    expect(cards().getByText('Миша').closest('li')).toHaveTextContent('AMD');
+  });
+
+  it('новая карта: валюта по умолчанию — валюта отчётности, выбранная уходит на сервер', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: 'Карты' });
+
+    const select = cards().getByLabelText('Валюта новой карты');
+    expect(select).toHaveValue('AMD');
+    await person.selectOptions(select, 'USD');
+    await person.type(cards().getByLabelText('Новая карта'), 'Отпуск');
+    await person.click(cards().getByRole('button', { name: 'Добавить' }));
+
+    expect(sent('POST', '/api/group/cards')).toEqual({ name: 'Отпуск', currency: 'USD' });
+  });
+
+  it('если разрешена одна валюта, выбора валюты нет, на сервер уходит только название', async () => {
+    override = (method, url) =>
+      method === 'GET' && url === '/api/group'
+        ? ok({ ...overview(), currencies: ['AMD'] })
+        : undefined;
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: 'Карты' });
+
+    expect(cards().queryByLabelText('Валюта новой карты')).toBeNull();
+    await person.type(cards().getByLabelText('Новая карта'), 'Отпуск');
+    await person.click(cards().getByRole('button', { name: 'Добавить' }));
+
+    expect(sent('POST', '/api/group/cards')).toEqual({ name: 'Отпуск' });
+  });
+
+  it('смена валюты в режиме правки отправляет только валюту', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: 'Карты' });
+
+    await person.click(cards().getByRole('button', { name: 'Переименовать: Общая' }));
+    await person.selectOptions(cards().getByLabelText('Валюта: Общая'), 'USD');
+    await person.click(cards().getByRole('button', { name: 'Сохранить' }));
+
+    expect(sent('PATCH', '/api/group/cards/11')).toEqual({ currency: 'USD' });
+  });
+
+  it('сообщение CARD_HAS_EXPENSES показывается как есть', async () => {
+    override = (method, url) =>
+      method === 'PATCH' && url === '/api/group/cards/11'
+        ? failure('CARD_HAS_EXPENSES', 'По карте уже есть траты: валюту не изменить', 409)
+        : undefined;
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: 'Карты' });
+
+    await person.click(cards().getByRole('button', { name: 'Переименовать: Общая' }));
+    await person.selectOptions(cards().getByLabelText('Валюта: Общая'), 'USD');
+    await person.click(cards().getByRole('button', { name: 'Сохранить' }));
+
+    expect(await cards().findByRole('alert')).toHaveTextContent('По карте уже есть траты');
+  });
+});
+
+describe('валюта отчётности', () => {
+  const reporting = () => within(section('Валюта отчётности'));
+
+  it('показывает текущую валюту; смена — с подтверждением, PUT и сообщение о пересчёте', async () => {
+    override = (method, url) =>
+      method === 'PUT' && url === '/api/group/reporting-currency'
+        ? ok({ recalculated: 3 })
+        : undefined;
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: 'Валюта отчётности' });
+
+    expect(reporting().getByText('AMD', { selector: 'span' })).toBeInTheDocument();
+    expect(reporting().getByRole('button', { name: 'Изменить' })).toBeDisabled();
+    await person.selectOptions(reporting().getByLabelText('Новая валюта отчётности'), 'USD');
+    await person.click(reporting().getByRole('button', { name: 'Изменить' }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Все суммы пересчитаются в USD');
+    expect(dialog).toHaveTextContent('Это нельзя отменить');
+    expect(sent('PUT', '/api/group/reporting-currency')).toBeUndefined();
+    await person.click(within(dialog).getByRole('button', { name: 'Сменить' }));
+
+    expect(sent('PUT', '/api/group/reporting-currency')).toEqual({ currency: 'USD' });
+    expect(await reporting().findByText('Пересчитано трат: 3')).toBeInTheDocument();
+    // The group is loaded again: totals changed
+    await waitFor(() =>
+      expect(requests.filter((r) => r.method === 'GET' && r.url === '/api/group')).toHaveLength(2),
+    );
+  });
+
+  it('ошибка сервера показывается, подтверждение закрывается', async () => {
+    override = (method, url) =>
+      method === 'PUT' && url === '/api/group/reporting-currency'
+        ? failure('RATE_UNAVAILABLE', 'Курс валюты недоступен', 422)
+        : undefined;
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: 'Валюта отчётности' });
+
+    await person.selectOptions(reporting().getByLabelText('Новая валюта отчётности'), 'USD');
+    await person.click(reporting().getByRole('button', { name: 'Изменить' }));
+    await person.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Сменить' }));
+
+    expect(await reporting().findByRole('alert')).toHaveTextContent('Курс валюты недоступен');
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
 
@@ -330,8 +451,8 @@ describe('подсказки', () => {
     for (const row of screen.getAllByRole('listitem')) {
       expect(within(row).queryByRole('button', { name: 'Подсказка' })).toBeNull();
     }
-    // One hint per section: name, members, invitations, cards, categories
-    expect(screen.getAllByRole('button', { name: 'Подсказка' })).toHaveLength(5);
+    // One hint per section: name, reporting currency, members, invitations, cards, categories
+    expect(screen.getAllByRole('button', { name: 'Подсказка' })).toHaveLength(6);
   });
 });
 

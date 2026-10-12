@@ -1,8 +1,14 @@
 import { z } from 'zod';
 import { parseAmount, parseDecimal } from '../../../shared/utils/money.ts';
 
-/** The form depends on the base currency: its amount is a whole number, other currencies have decimals and a rate. */
-export function createExpenseFormSchema(baseCurrency: string) {
+/**
+ * The form depends on the base currency (drams: a whole amount, no rate) and on the card currencies:
+ * the rate is asked only when the typed currency is neither drams nor the currency of the card.
+ */
+export function createExpenseFormSchema(
+  baseCurrency: string,
+  cardCurrencies: Record<string, string> = {},
+) {
   return z
     .object({
       date: z.string().min(1, 'Укажите дату'),
@@ -11,7 +17,7 @@ export function createExpenseFormSchema(baseCurrency: string) {
       name: z.string().trim().min(1, 'Введите наименование').max(255, 'Не более 255 символов'),
       currency: z.string().min(1, 'Выберите валюту'),
       amount: z.string(),
-      /** Rate: drams per unit of currency; needed only for a foreign currency */
+      /** Rate: drams per unit of the typed currency */
       rate: z.string(),
     })
     .superRefine((values, context) => {
@@ -21,7 +27,8 @@ export function createExpenseFormSchema(baseCurrency: string) {
       if (amountMessage)
         context.addIssue({ code: 'custom', path: ['amount'], message: amountMessage });
 
-      const rateMessage = isBase ? null : validateRate(values.rate);
+      const needsRate = !isBase && values.currency !== cardCurrencies[values.card];
+      const rateMessage = needsRate ? validateRate(values.rate) : null;
       if (rateMessage) context.addIssue({ code: 'custom', path: ['rate'], message: rateMessage });
     });
 }

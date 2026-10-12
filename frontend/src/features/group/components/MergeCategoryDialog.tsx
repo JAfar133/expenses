@@ -7,7 +7,7 @@ interface MergeCategoryDialogProps {
   category: GroupCategory;
   targets: GroupCategory[];
   busy: boolean;
-  onMerge: (targetId: number) => void;
+  onMerge: (targetId: string) => void;
   onCancel: () => void;
 }
 
@@ -31,7 +31,7 @@ export function MergeCategoryDialog({
         id="merge-target"
         value={targetId}
         className={`${compactSelectClass} mb-3 w-full`}
-        onChange={(event) => setTargetId(Number(event.target.value))}
+        onChange={(event) => setTargetId(event.target.value)}
       >
         {targets.map((item) => (
           <option key={item.id} value={item.id}>

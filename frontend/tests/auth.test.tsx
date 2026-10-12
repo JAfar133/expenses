@@ -88,9 +88,13 @@ function installFakeServer(
       }
 
       if (server.access !== 'valid') return unauthenticated();
-      if (call === 'GET /cards') return ok(['Миша', 'Настя']);
+      if (call === 'GET /cards')
+        return ok([
+          { name: 'Миша', currency: 'AMD' },
+          { name: 'Настя', currency: 'AMD' },
+        ]);
       if (call === 'GET /categories') return ok(['кафе', 'продукты']);
-      if (call === 'GET /config') return ok({ currency: 'AMD' });
+      if (call === 'GET /config') return ok({ currency: 'AMD', baseCurrency: 'AMD' });
       if (call === 'GET /sync/status') {
         return ok({
           enabled: true,

@@ -7,7 +7,8 @@ import {
   formatMoney,
   parseDecimal,
 } from '../../../shared/utils/money.ts';
-import type { RatesResponse } from '../api/expenses.api.ts';
+import { crossRate, currencyDigits } from '../../../shared/utils/conversion.ts';
+import type { Card, RatesResponse } from '../api/expenses.api.ts';
 import type { ExpenseFormValues } from '../schemas/expense-form.schema.ts';
 
 const AMOUNT_DECIMALS = 2;
@@ -15,9 +16,10 @@ const RATE_DECIMALS = 6;
 
 interface AmountFieldsProps {
   form: UseFormReturn<ExpenseFormValues>;
-  /** Base currency (drams): accounting and Excel use it */
+  /** Base currency (drams): rates are quoted against it, its amounts are whole */
   base: string;
-  /** Available currencies and rates; until loaded, only the base currency is available */
+  cards: Card[];
+  /** Available currencies and rates; until loaded, only the card currency is available */
   rates?: RatesResponse;
 }
 
@@ -27,23 +29,33 @@ export function rateText(rates: RatesResponse | undefined, currency: string): st
   return rate === undefined ? '' : formatDecimalInput(String(rate), { maxDecimals: RATE_DECIMALS });
 }
 
-/** Amount in drams from the entered amount and rate; null until something is missing. */
-export function convertedAmount(amount: string, rate: string): number | null {
-  const [value, factor] = [parseDecimal(amount), parseDecimal(rate)];
-  return value === null || factor === null ? null : Math.round(value * factor);
+/** Amount in the card currency from the typed amount and the rate (drams per typed unit); null until something is missing. */
+export function convertedAmount(
+  amount: string,
+  inputRate: number,
+  cardRate: number,
+  digits: number,
+): number | null {
+  const value = parseDecimal(amount);
+  if (value === null) return null;
+  const factor = 10 ** digits;
+  return Math.round(((value * inputRate) / cardRate) * factor) / factor;
 }
 
 /**
- * Cost, currency and (for a foreign currency) rate with conversion to drams.
- * In drams the amount is a whole number; in a foreign currency decimals can be entered.
+ * Cost, currency and (when needed) rate with conversion into the card currency.
+ * The currency starts as the card's one. In drams the amount is a whole number, in others decimals can be entered.
  */
-export function AmountFields({ form, base, rates }: AmountFieldsProps) {
+export function AmountFields({ form, base, cards, rates }: AmountFieldsProps) {
   const { register, setValue, getValues, watch, formState } = form;
-  const [currency, amount, rate] = watch(['currency', 'amount', 'rate']);
+  const [currency, amount, rate, card] = watch(['currency', 'amount', 'rate', 'card']);
   const { errors } = formState;
 
-  const currencies = rates?.currencies ?? [base];
-  const isForeign = currency !== base;
+  const cardCurrency = cards.find((item) => item.name === card)?.currency ?? base;
+  const currencies = [...new Set([cardCurrency, ...(rates?.currencies ?? [])])];
+  const isBase = currency === base;
+  // A rate is needed only when the typed currency is neither drams nor the card currency
+  const needsRate = !isBase && currency !== cardCurrency;
 
   const amountField = register('amount');
   const currencyField = register('currency');
@@ -54,10 +66,16 @@ export function AmountFields({ form, base, rates }: AmountFieldsProps) {
       const whole = getValues('amount').split(/[.,]/)[0] ?? '';
       setValue('amount', formatAmountInput(whole));
     }
-    setValue('rate', next === base ? '' : rateText(rates, next), { shouldValidate: false });
+    const rateNeeded = next !== base && next !== cardCurrency;
+    setValue('rate', rateNeeded ? rateText(rates, next) : '', { shouldValidate: false });
   };
 
-  const converted = isForeign ? convertedAmount(amount, rate) : null;
+  const inputRate = isBase ? 1 : parseDecimal(rate);
+  const cardRate = crossRate(rates?.rates, cardCurrency, base, base);
+  const converted =
+    currency !== cardCurrency && inputRate !== null && cardRate !== undefined
+      ? convertedAmount(amount, inputRate, cardRate, currencyDigits(cardCurrency, base))
+      : null;
 
   return (
     <>
@@ -66,18 +84,18 @@ export function AmountFields({ form, base, rates }: AmountFieldsProps) {
           <input
             id="amount"
             type="text"
-            inputMode={isForeign ? 'decimal' : 'numeric'}
+            inputMode={isBase ? 'numeric' : 'decimal'}
             autoComplete="off"
             className={`${inputClassName} pr-28`}
             aria-invalid={!!errors.amount}
             {...amountField}
             onChange={(event) => {
-              event.target.value = isForeign
-                ? formatDecimalInput(event.target.value, {
+              event.target.value = isBase
+                ? formatAmountInput(event.target.value)
+                : formatDecimalInput(event.target.value, {
                     maxDecimals: AMOUNT_DECIMALS,
                     group: true,
-                  })
-                : formatAmountInput(event.target.value);
+                  });
               return amountField.onChange(event);
             }}
           />
@@ -99,18 +117,18 @@ export function AmountFields({ form, base, rates }: AmountFieldsProps) {
             </select>
           ) : (
             <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-zinc-500">
-              {currencyLabel(base)}
+              {currencyLabel(cardCurrency)}
             </span>
           )}
         </div>
         {converted !== null && (
           <p className="text-sm text-zinc-500" aria-live="polite">
-            ≈ {formatMoney(converted)} {base}
+            ≈ {formatMoney(converted, currencyDigits(cardCurrency, base))} {cardCurrency}
           </p>
         )}
       </Field>
 
-      {isForeign && (
+      {needsRate && (
         <Field label={`Курс: ${base} за 1 ${currency}`} htmlFor="rate" error={errors.rate?.message}>
           <input
             id="rate"

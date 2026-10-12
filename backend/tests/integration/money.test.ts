@@ -379,3 +379,30 @@ describe('группа с валютой отчётности, созданна�
     expect(summary.total).toBe(12.34);
   });
 });
+
+describe('ответ на создание траты', () => {
+  it('отдаёт суммы в валюте карты и в валюте отчётности', async () => {
+    await createCard('Доллары', 'USD');
+
+    const response = await spend('Доллары', 10.5);
+
+    expect(response.json().data).toMatchObject({
+      amount: 10.5,
+      currency: 'USD',
+      reportingAmount: 3990,
+      reportingCurrency: 'AMD',
+      original: null,
+    });
+  });
+
+  it('карта в драммах: как раньше, суммы совпадают', async () => {
+    const response = await spend('Миша', 500);
+
+    expect(response.json().data).toMatchObject({
+      amount: 500,
+      currency: 'AMD',
+      reportingAmount: 500,
+      reportingCurrency: 'AMD',
+    });
+  });
+});

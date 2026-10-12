@@ -1,9 +1,12 @@
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { ApiError } from '../../../shared/api/http.ts';
 import { Notice } from '../../../shared/ui/Notice.tsx';
+import { currencyDigits } from '../../../shared/utils/conversion.ts';
 import { formatMoney } from '../../../shared/utils/money.ts';
 import { useCurrentUser } from '../../auth/hooks/useAuth.ts';
+import { fetchCards } from '../../expenses/api/expenses.api.ts';
 import { toSaveErrorMessage } from '../../expenses/api/save-error-message.ts';
 import { useSyncState } from '../../sync/hooks/useSyncState.ts';
 import type { OperationItem, SortColumn } from '../api/operations.api.ts';
@@ -24,13 +27,26 @@ import {
   rangeLabel,
 } from '../model/operations.ts';
 
+/** Cards a record can be moved to: only those in the same currency (the server rejects the rest). */
+function cardsForEditing(
+  item: OperationItem,
+  cards: { name: string; currency: string }[] | undefined,
+  known: { value: string }[],
+  reporting: string,
+): string[] {
+  if (!cards) return known.map((card) => card.value);
+  const own = item.currency || reporting;
+  return cards.filter((card) => card.currency === own).map((card) => card.name);
+}
+
 /** "Operations" tab: all records with sorting and pages; editors can edit, delete and restore. */
 export default function OperationsPage() {
   const { state, today } = useFilterState();
   const [params, setParams] = useSearchParams();
   const { data: user } = useCurrentUser();
   const canEdit = user?.canEdit ?? false;
-  const { currency } = useAnalyticsReference();
+  const { currency, baseCurrency } = useAnalyticsReference();
+  const cards = useQuery({ queryKey: ['cards'], queryFn: fetchCards, staleTime: Infinity });
   const options = useFilterOptions();
   const excelEnabled = useSyncState().data?.enabled ?? true;
   const { update, remove, restore } = useExpenseActions();
@@ -118,7 +134,8 @@ export default function OperationsPage() {
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             Записей: <strong className="font-semibold">{list.data.total}</strong> на{' '}
             <strong className="font-semibold">
-              {formatMoney(list.data.totalAmount)} {currency}
+              {formatMoney(list.data.totalAmount, currencyDigits(currency, baseCurrency))}{' '}
+              {currency}
             </strong>
           </p>
         )}
@@ -157,6 +174,7 @@ export default function OperationsPage() {
         <OperationsTable
           items={items}
           currency={currency}
+          baseCurrency={baseCurrency}
           sort={sort}
           direction={direction}
           onSort={changeSort}
@@ -208,9 +226,10 @@ export default function OperationsPage() {
       {editing && (
         <EditExpenseDialog
           item={editing}
-          cards={options.cards.map((card) => card.value)}
+          cards={cardsForEditing(editing, cards.data, options.cards, currency)}
           categories={options.categories.map((category) => category.value)}
-          currency={currency}
+          currency={editing.currency || currency}
+          baseCurrency={baseCurrency}
           saving={update.isPending}
           error={update.error}
           onClose={() => setEditing(undefined)}
@@ -231,7 +250,7 @@ export default function OperationsPage() {
       {deleting && (
         <ConfirmDialog
           title="Удалить запись?"
-          message={`«${deleting.name}», ${formatMoney(deleting.amount)} ${currency}. Запись можно будет вернуть: включите «Показывать удалённые» в фильтрах. Из Excel строка будет убрана.`}
+          message={`«${deleting.name}», ${formatMoney(deleting.amount, currencyDigits(deleting.currency || currency, baseCurrency))} ${deleting.currency || currency}. Запись можно будет вернуть: включите «Показывать удалённые» в фильтрах. Из Excel строка будет убрана.`}
           confirmLabel="Удалить"
           busy={remove.isPending}
           onCancel={() => setDeleting(undefined)}

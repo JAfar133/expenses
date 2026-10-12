@@ -11,8 +11,8 @@ import { ErrorNotice } from './ErrorNotice.tsx';
 import { ActionButton, ListRow, RowActions } from './ListRow.tsx';
 
 type CategoryPatch = {
-  id: number;
-  patch: { name?: string; archived?: boolean; mergeInto?: number };
+  id: string;
+  patch: { name?: string; archived?: boolean; mergeInto?: string };
 };
 
 /** Categories of the group: add, rename, archive and restore. */

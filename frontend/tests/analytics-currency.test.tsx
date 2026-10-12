@@ -26,6 +26,33 @@ const RATES = [
   { currency: 'USD', rate: 380, fetchedAt: '2026-10-10T10:00:00.000Z' },
 ];
 
+describe('модель пересчёта при отчётности в другой валюте', () => {
+  it('moneyDigits: целые только драммы (базовая валюта), остальные с копейками', () => {
+    expect(moneyDigits('AMD', 'AMD')).toBe(0);
+    expect(moneyDigits('USD', 'AMD')).toBe(2);
+  });
+
+  it('scaleFactor: отчётность в долларах → драммы умножаются на курс доллара', () => {
+    expect(scaleFactor('AMD', 'USD', RATES, 'AMD')).toBeCloseTo(380);
+    expect(scaleFactor('USD', 'USD', RATES, 'AMD')).toBe(1);
+    // USD → RUB: 1 USD = 380 AMD = 84,44 RUB
+    expect(scaleFactor('RUB', 'USD', RATES, 'AMD')).toBeCloseTo(380 / 4.5);
+  });
+
+  it('scaleFactor: нет курса — множитель 1', () => {
+    expect(scaleFactor('EUR', 'USD', RATES, 'AMD')).toBe(1);
+  });
+
+  it('scaleSummary с знаками: пересчитанные суммы округляются до знаков валюты', () => {
+    const summary = {
+      current: { ...stats(), total: 10.123, perDay: 1.116, average: 5.05, median: 5, max: 9.999 },
+      previous: null,
+    };
+    expect(scaleSummary(summary, 380, 0).current.total).toBe(3847);
+    expect(scaleSummary(summary, 1, 0)).toBe(summary);
+  });
+});
+
 describe('модель пересчёта', () => {
   it('флаги и подписи', () => {
     expect(flagOf('AMD')).toBe('🇦🇲');
@@ -112,6 +139,41 @@ const withRates = () => {
   harness.handlers['/api/rates'] = () =>
     ok({ base: 'AMD', currencies: ['AMD', 'RUB', 'USD', 'EUR'], rates: RATES });
 };
+
+describe('отчётность группы не в драммах', () => {
+  const reportInDollars = () => {
+    withRates();
+    harness.handlers['/api/config'] = () => ok({ currency: 'USD', baseCurrency: 'AMD' });
+  };
+
+  it('по умолчанию суммы показаны в валюте отчётности, драммы тоже есть в списке', async () => {
+    reportInDollars();
+    renderAnalytics();
+
+    await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('2 100 USD'));
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('radiogroup', { name: 'Валюта отображения' }))
+          .getAllByRole('radio')
+          .map((o) => o.textContent),
+      ).toEqual(['🇺🇸 USD', '🇷🇺 RUB', '🇦🇲 AMD']),
+    );
+    expect(screen.getByText('Суммы в USD')).toBeInTheDocument();
+  });
+
+  it('выбор драммов умножает суммы на курс доллара и округляет до целых', async () => {
+    reportInDollars();
+    const user = renderAnalytics();
+    await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('2 100 USD'));
+    await waitFor(() => expect(screen.getByRole('radio', { name: '🇦🇲 AMD' })).toBeInTheDocument());
+
+    await pick(user, 'AMD');
+
+    // 2100 USD * 380 = 798 000 AMD; the rate note is the cross rate in the reporting currency
+    await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('798 000 AMD'));
+    expect(screen.getByText(/1 AMD = 0,0026 USD/)).toBeInTheDocument();
+  });
+});
 
 describe('выбор валюты на странице анализа', () => {
   it('в списке флаги стран и коды валют, у которых есть курс (и базовая)', async () => {

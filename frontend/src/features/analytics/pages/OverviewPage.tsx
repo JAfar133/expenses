@@ -43,7 +43,7 @@ export default function OverviewPage() {
     );
 
   // Amounts are in drams in the database; converted to the selected currency on display
-  const scaled = summary.data && scaleSummary(summary.data, factor);
+  const scaled = summary.data && scaleSummary(summary.data, factor, digits);
   const current = scaled?.current;
   const previous = scaled?.previous ?? undefined;
   const money = (value: number | undefined) =>
@@ -90,23 +90,23 @@ export default function OverviewPage() {
       </div>
 
       <DailyChart
-        points={series.data && scaleSeries(series.data, factor)}
+        points={series.data && scaleSeries(series.data, factor, digits)}
         currency={currency}
         granularity={granularity}
         loading={series.isPending}
       />
       <CategoryChart
-        rows={categories.data && scaleBreakdown(categories.data, factor)}
+        rows={categories.data && scaleBreakdown(categories.data, factor, digits)}
         currency={currency}
         categoryOrder={categoryOrder}
         onSelect={selectCategory}
         loading={categories.isPending}
       />
       <CategoryNames
-        categories={scaleBreakdown(categories.data ?? [], factor)}
+        categories={scaleBreakdown(categories.data ?? [], factor, digits)}
         selected={drill}
         onSelect={selectCategory}
-        names={drill ? names.data && scaleBreakdown(names.data, factor) : []}
+        names={drill ? names.data && scaleBreakdown(names.data, factor, digits) : []}
         categoryOrder={categoryOrder}
         currency={currency}
         loading={names.isPending && drill !== undefined}

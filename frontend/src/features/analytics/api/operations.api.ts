@@ -19,10 +19,14 @@ export interface OperationItem {
   card: string;
   category: string;
   name: string;
-  /** Amount in drams */
+  /** Amount in the currency of the card */
   amount: number;
-  /** Input currency; an empty original currency means the base (AMD) */
+  /** Currency of the card */
   currency: string;
+  /** The same expense in the reporting currency of the group */
+  reportingAmount?: number;
+  reportingCurrency?: string;
+  /** What was typed, if its currency differed from the card's */
   original: { amount: number; currency: string; rate: number } | null;
   createdBy: string;
   source: 'app' | 'excel';
@@ -37,6 +41,7 @@ export interface OperationItem {
 export interface OperationsPage {
   items: OperationItem[];
   total: number;
+  /** In the reporting currency */
   totalAmount: number;
 }
 
@@ -60,7 +65,7 @@ export interface ExpensePatch {
   card?: string;
   category?: string;
   name?: string;
-  /** Whole amount in drams */
+  /** Amount in the currency of the card: whole in drams, otherwise at most 2 decimals */
   amount?: number;
 }
 

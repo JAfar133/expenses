@@ -545,3 +545,111 @@ describe('вкладка', () => {
     await waitFor(() => expect(lastList()).toContain('cards=Настя'));
   });
 });
+
+describe('валюты карт', () => {
+  const usd = () =>
+    item(1, {
+      card: 'Доллары',
+      name: 'Walmart',
+      amount: 10.5,
+      currency: 'USD',
+      reportingAmount: 3800,
+      reportingCurrency: 'AMD',
+    });
+
+  it('карта в долларах: сумма в валюте карты, сумма отчётности второй строкой', async () => {
+    serve([usd()]);
+    renderAnalytics(OPS);
+    await waitFor(() => rowOf('Walmart'));
+
+    const row = rowOf('Walmart');
+    expect(row).toHaveTextContent('10,50 USD');
+    expect(row).toHaveTextContent('≈ 3 800 AMD');
+  });
+
+  it('введённая валюта показана с курсом, драммы без «курс 1»', async () => {
+    serve([
+      item(1, {
+        name: 'Такси',
+        amount: 9.24,
+        currency: 'USD',
+        reportingAmount: 3346,
+        reportingCurrency: 'AMD',
+        original: { amount: 8.25, currency: 'EUR', rate: 405.58 },
+      }),
+      item(2, {
+        name: 'Снятие',
+        amount: 105,
+        currency: 'USD',
+        reportingAmount: 38000,
+        reportingCurrency: 'AMD',
+        original: { amount: 38000, currency: 'AMD', rate: 1 },
+      }),
+    ]);
+    renderAnalytics(OPS);
+    await waitFor(() => rowOf('Такси'));
+
+    expect(rowOf('Такси')).toHaveTextContent('8,25 EUR · курс 405,58');
+    expect(rowOf('Снятие')).toHaveTextContent('38 000 AMD');
+    expect(rowOf('Снятие')).not.toHaveTextContent('курс 1');
+  });
+
+  it('итог — в валюте отчётности группы', async () => {
+    harness.handlers['/api/config'] = () => ok({ currency: 'USD', baseCurrency: 'AMD' });
+    harness.handlers['/api/expenses'] = () =>
+      ok({
+        items: [
+          item(1, { currency: 'USD', amount: 10, reportingAmount: 10, reportingCurrency: 'USD' }),
+        ],
+        total: 1,
+        totalAmount: 137.16,
+      });
+    renderAnalytics(OPS);
+
+    expect(await screen.findByText('137,16 USD')).toBeInTheDocument();
+  });
+
+  it('записи в драммах при отчётности в драммах: ничего лишнего', async () => {
+    serve([item(1, { reportingAmount: 1000, reportingCurrency: 'AMD' })]);
+    renderAnalytics(OPS);
+    await waitFor(() => rowOf('Позиция 1'));
+
+    expect(rowOf('Позиция 1')).toHaveTextContent('1 000 AMD');
+    expect(rowOf('Позиция 1')).not.toHaveTextContent('≈');
+  });
+
+  it('правка записи по карте в долларах: сумма с копейками, подсказка, только карты в долларах', async () => {
+    harness.handlers['/api/cards'] = () =>
+      ok([
+        { name: 'Миша', currency: 'AMD' },
+        { name: 'Доллары', currency: 'USD' },
+        { name: 'Запас', currency: 'USD' },
+      ]);
+    serve([usd()]);
+    const user = renderAnalytics(OPS);
+    await waitFor(() => rowOf('Walmart'));
+    await user.click(within(table()).getByRole('button', { name: 'Изменить запись: Walmart' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Изменить запись' });
+
+    const amount = within(dialog).getByLabelText('Стоимость, USD');
+    expect(amount).toHaveValue('10,5');
+    expect(amount).toHaveAttribute('inputmode', 'decimal');
+    expect(within(dialog).getByText(/Карта в USD/)).toBeInTheDocument();
+    const cards = within(within(dialog).getByLabelText('Карта')).getAllByRole('option');
+    expect(cards.map((option) => option.textContent)).toEqual(['Доллары', 'Запас']);
+  });
+
+  it('buildPatch: для карты не в драммах принимает копейки', () => {
+    const base = usd();
+    const values = {
+      date: base.date,
+      card: base.card,
+      category: base.category,
+      name: base.name,
+      amount: '12,75',
+    };
+
+    expect(buildPatch(base, values, false).patch).toEqual({ amount: 12.75 });
+    expect(buildPatch(base, values).errors.amount).toBe('Введите целое число');
+  });
+});

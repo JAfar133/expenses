@@ -46,7 +46,11 @@ beforeEach(() => {
       requests.push({ method, url, body });
 
       if (url === '/api/auth/me') return ok({ user });
-      if (url === '/api/cards') return ok(['Миша', 'Настя']);
+      if (url === '/api/cards')
+        return ok([
+          { name: 'Миша', currency: 'AMD' },
+          { name: 'Настя', currency: 'AMD' },
+        ]);
       if (url === '/api/auth/profile' && method === 'PATCH') {
         if (profileResponse) return profileResponse(body);
         user = {

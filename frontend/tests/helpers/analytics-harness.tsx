@@ -96,7 +96,7 @@ export function setupAnalyticsHarness() {
           { value: 'nastya', label: 'Настя', count: 2 },
         ]),
       '/api/rates': () => ok({ base: 'AMD', currencies: ['AMD', 'USD'], rates: [] }),
-      '/api/config': () => ok({ currency: 'AMD' }),
+      '/api/config': () => ok({ currency: 'AMD', baseCurrency: 'AMD' }),
       '/api/auth/me': () =>
         ok({ user: { username: 'misha', displayName: 'Миша', card: 'Миша', canEdit: true } }),
       '/api/sync/status': () =>
@@ -108,7 +108,11 @@ export function setupAnalyticsHarness() {
           nextRunAt: null,
           serverTime: '',
         }),
-      '/api/cards': () => ok(['Миша', 'Настя']),
+      '/api/cards': () =>
+        ok([
+          { name: 'Миша', currency: 'AMD' },
+          { name: 'Настя', currency: 'AMD' },
+        ]),
       // User settings: empty by default, saving returns what was sent
       '/api/preferences': () => ok({}),
       'PUT /api/preferences': () => ok(harness.bodies.at(-1) ?? {}),

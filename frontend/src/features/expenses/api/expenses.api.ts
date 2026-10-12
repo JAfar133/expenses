@@ -5,11 +5,11 @@ export interface CreateExpenseRequest {
   card: string;
   category: string;
   name: string;
-  /** Amount in `currency`; a whole number in drams */
+  /** Amount in `currency`; a whole number in drams, otherwise at most 2 decimals */
   amount: number;
-  /** Not specified: drams */
+  /** Not specified: the currency of the card */
   currency?: string;
-  /** Rate: drams per unit of currency; needed for a foreign currency */
+  /** Rate: drams per unit of the INPUT currency; needed when it is neither drams nor the card currency */
   rate?: number;
 }
 
@@ -22,18 +22,37 @@ export interface ExpenseOriginal {
 
 export interface CreatedExpense extends Omit<CreateExpenseRequest, 'currency' | 'rate'> {
   id: string;
+  /** `amount` is in the currency of the card (`currency`); the same expense in the group's reporting currency: */
+  currency: string | null;
+  reportingAmount: number;
+  reportingCurrency: string | null;
   /** synced: the record is already in Excel, queued: waiting in the queue (file busy or OneDrive unavailable) */
   excelStatus: 'synced' | 'queued' | 'disabled';
-  /** `amount` is always in drams; for a foreign currency this holds the original amount and rate, otherwise null */
+  /** If another currency than the card's was typed, this holds the original amount and rate, otherwise null */
   original: ExpenseOriginal | null;
 }
 
-export const fetchCards = async () => (await apiRequest<string[]>('/cards')).data;
+/** A card the user may add expenses to, with its currency. */
+export interface Card {
+  name: string;
+  currency: string;
+}
+
+export const fetchCards = async () => (await apiRequest<Card[]>('/cards')).data;
 
 export const fetchCategories = async () => (await apiRequest<string[]>('/categories')).data;
 
-export const fetchCurrency = async () =>
-  (await apiRequest<{ currency: string }>('/config')).data.currency;
+export interface AppConfig {
+  /** Reporting currency of the group: totals and charts are in it */
+  currency: string;
+  /** Drams: the currency all rates are quoted against */
+  baseCurrency: string;
+}
+
+export const fetchConfig = async (): Promise<AppConfig> => {
+  const data = (await apiRequest<Partial<AppConfig> & { currency: string }>('/config')).data;
+  return { currency: data.currency, baseCurrency: data.baseCurrency ?? 'AMD' };
+};
 
 export async function createExpense(expense: CreateExpenseRequest, idempotencyKey: string) {
   const response = await apiRequest<CreatedExpense>('/expenses', {

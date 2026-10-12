@@ -36,7 +36,14 @@ beforeEach(() => {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
-      if (url === '/api/cards') return json(200, { success: true, data: ['Миша', 'Настя'] });
+      if (url === '/api/cards')
+        return json(200, {
+          success: true,
+          data: [
+            { name: 'Миша', currency: 'AMD' },
+            { name: 'Настя', currency: 'AMD' },
+          ],
+        });
       if (url === '/api/categories')
         return json(200, { success: true, data: ['кафе', 'продукты'] });
       if (url === '/api/sync/status') {
@@ -61,7 +68,8 @@ beforeEach(() => {
       if (url === '/api/rates') return ratesResponse();
       if (url === '/api/name-suggestions')
         return json(200, { success: true, data: nameSuggestions });
-      if (url === '/api/config') return json(200, { success: true, data: { currency: 'AMD' } });
+      if (url === '/api/config')
+        return json(200, { success: true, data: { currency: 'AMD', baseCurrency: 'AMD' } });
       if (url === '/api/expenses') {
         return postExpense(JSON.parse(String(init?.body)), new Headers(init?.headers));
       }
@@ -268,7 +276,14 @@ describe('валюта', () => {
     withRates();
     postExpense.mockImplementation((body) =>
       created(
-        { ...body, amount: 3990, original: { amount: 10.5, currency: 'USD', rate: 380 } },
+        {
+          ...body,
+          amount: 3990,
+          currency: 'AMD',
+          reportingAmount: 3990,
+          reportingCurrency: 'AMD',
+          original: { amount: 10.5, currency: 'USD', rate: 380 },
+        },
         'synced',
       ),
     );

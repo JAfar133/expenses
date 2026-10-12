@@ -11,24 +11,35 @@ import {
   type GroupMember,
 } from '../api/group.api.ts';
 import { useGroupMutation } from '../hooks/useGroup.ts';
+import { compactSelectClass } from './styles.ts';
 import { AddNameForm } from './AddNameForm.tsx';
 import { CardAccess } from './CardAccess.tsx';
 import { EditableRow } from './EditableRow.tsx';
 import { ErrorNotice } from './ErrorNotice.tsx';
 import { ActionButton, ListRow, RowActions } from './ListRow.tsx';
 
-type CardPatch = { id: number; patch: { name?: string; archived?: boolean } };
-type AccessChange = { id: number; access: Record<string, AccessLevel> };
+type CardPatch = {
+  id: string;
+  patch: { name?: string; archived?: boolean; currency?: string };
+};
+type AccessChange = { id: string; access: Record<string, AccessLevel> };
 
 interface CardsSectionProps {
   cards: GroupCard[];
   members: GroupMember[];
+  /** Currencies allowed for cards */
+  currencies: string[];
+  /** The group's reporting currency: the default for a new card */
+  reportingCurrency: string;
 }
 
 /** Cards of the group: add, rename, archive, and who may see or add to each card. */
-export function CardsSection({ cards, members }: CardsSectionProps) {
-  const [openAccess, setOpenAccess] = useState<number | null>(null);
-  const add = useGroupMutation(createCard);
+export function CardsSection({ cards, members, currencies, reportingCurrency }: CardsSectionProps) {
+  const [openAccess, setOpenAccess] = useState<string | null>(null);
+  const [newCurrency, setNewCurrency] = useState(reportingCurrency);
+  const add = useGroupMutation(({ name, currency }: { name: string; currency?: string }) =>
+    createCard(name, currency),
+  );
   const update = useGroupMutation(({ id, patch }: CardPatch) => updateCard(id, patch));
   const access = useGroupMutation(({ id, access }: AccessChange) => setCardAccess(id, access));
   const hasOthers = members.some((member) => member.role !== 'owner');
@@ -40,7 +51,7 @@ export function CardsSection({ cards, members }: CardsSectionProps) {
       title="Карты"
       hint={
         <HintList
-          intro="Владельцы видят все карты. Участники видят только карты, к которым им дан доступ."
+          intro="Владельцы видят все карты. Участники видят только карты, к которым им дан доступ. Валюта карты задаётся при создании; пока по карте нет трат, её можно изменить."
           items={[
             [
               'Изменить',
@@ -51,6 +62,10 @@ export function CardsSection({ cards, members }: CardsSectionProps) {
               'В архив',
               'карта пропадёт из формы добавления; прошлые траты, графики и итоги остаются, вернуть можно в любой момент.',
               <ArchiveIcon />,
+            ],
+            [
+              'Валюта',
+              'задаётся при создании карты; пока по карте нет трат, её можно изменить кнопкой «Изменить».',
             ],
             [
               'Доступ',
@@ -66,7 +81,17 @@ export function CardsSection({ cards, members }: CardsSectionProps) {
           <EditableRow
             key={card.id}
             name={card.name}
-            onRename={(name) => update.mutateAsync({ id: card.id, patch: { name } })}
+            meta={card.currency}
+            currency={{ value: card.currency, options: currencies }}
+            onRename={(name, currency) =>
+              update.mutateAsync({
+                id: card.id,
+                patch: {
+                  ...(name !== card.name ? { name } : {}),
+                  ...(currency ? { currency } : {}),
+                },
+              })
+            }
             below={
               openAccess === card.id && (
                 <CardAccess
@@ -99,7 +124,25 @@ export function CardsSection({ cards, members }: CardsSectionProps) {
         label="Новая карта"
         placeholder="Новая карта"
         busy={add.isPending}
-        onAdd={(name) => add.mutateAsync(name)}
+        extra={
+          currencies.length > 1 && (
+            <select
+              aria-label="Валюта новой карты"
+              value={newCurrency}
+              onChange={(event) => setNewCurrency(event.target.value)}
+              className={`${compactSelectClass} h-11 min-w-0 flex-1 sm:h-11 sm:flex-none`}
+            >
+              {currencies.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </select>
+          )
+        }
+        onAdd={(name) =>
+          add.mutateAsync({ name, currency: currencies.length > 1 ? newCurrency : undefined })
+        }
       />
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
         Владельцы видят все карты. Участники видят только карты, к которым им дан доступ.

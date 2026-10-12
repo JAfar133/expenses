@@ -33,7 +33,7 @@ export default function ComparePage() {
   const [params, setParams] = useSearchParams();
   const [range, setRange] = usePreference('compare.months');
   const { categoryOrder } = useAnalyticsReference();
-  const { code: currency, factor } = useDisplayCurrency();
+  const { code: currency, factor, digits } = useDisplayCurrency();
 
   const latest = monthOf(today);
   const months = monthsEndingAt(latest, Number(range));
@@ -61,9 +61,11 @@ export default function ComparePage() {
     'category',
   );
 
-  const monthRows = totals.data ? toMonthRows(scaleSeries(totals.data, factor), today) : undefined;
+  const monthRows = totals.data
+    ? toMonthRows(scaleSeries(totals.data, factor, digits), today)
+    : undefined;
   const matrix = byCategory.data
-    ? toCategoryMatrix(scaleSeries(byCategory.data, factor), months)
+    ? toCategoryMatrix(scaleSeries(byCategory.data, factor, digits), months)
     : undefined;
 
   const pickMonths = (next: { a: MonthKey; b: MonthKey }) =>
@@ -116,8 +118,8 @@ export default function ComparePage() {
         a={a}
         b={b}
         onChange={pickMonths}
-        rowsA={rowsA.data && scaleBreakdown(rowsA.data, factor)}
-        rowsB={rowsB.data && scaleBreakdown(rowsB.data, factor)}
+        rowsA={rowsA.data && scaleBreakdown(rowsA.data, factor, digits)}
+        rowsB={rowsB.data && scaleBreakdown(rowsB.data, factor, digits)}
         currency={currency}
         loading={rowsA.isPending || rowsB.isPending}
       />

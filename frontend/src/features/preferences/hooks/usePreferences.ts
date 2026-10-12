@@ -109,3 +109,11 @@ export function usePreference<K extends PreferenceKey>(
   );
   return [value, change];
 }
+
+/** The user's explicit choice of a preference, or undefined if they never chose (the default is not a choice). */
+export function useChosenPreference<K extends PreferenceKey>(
+  key: K,
+): PreferenceValue<K> | undefined {
+  const { data } = usePreferences();
+  return (data?.[key] ?? readLocal(key)) as PreferenceValue<K> | undefined;
+}

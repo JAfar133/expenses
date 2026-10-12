@@ -64,7 +64,12 @@ export const expensesRoutes =
             card: saved.card,
             category: saved.category,
             name: saved.name,
-            amount: saved.amount,
+            // The amount in the currency of the card and in the group's reporting currency
+            // (records without money columns are in drams)
+            amount: saved.money?.cardAmount ?? saved.amount,
+            currency: saved.money?.cardCurrency ?? null,
+            reportingAmount: saved.money?.reportingAmount ?? saved.amount,
+            reportingCurrency: saved.money?.reportingCurrency ?? null,
             original: saved.original,
             excelStatus,
           },

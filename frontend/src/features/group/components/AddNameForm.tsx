@@ -1,15 +1,17 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { compactInputClass } from './styles.ts';
 
 interface AddNameFormProps {
   label: string;
   placeholder: string;
   busy?: boolean;
+  /** An extra control between the field and the button (e.g. a currency select) */
+  extra?: ReactNode;
   onAdd: (name: string) => Promise<unknown>;
 }
 
 /** A name input with an "Добавить" button; the field is cleared only after a successful save. */
-export function AddNameForm({ label, placeholder, busy = false, onAdd }: AddNameFormProps) {
+export function AddNameForm({ label, placeholder, busy = false, extra, onAdd }: AddNameFormProps) {
   const [name, setName] = useState('');
 
   async function submit(event: FormEvent) {
@@ -25,14 +27,15 @@ export function AddNameForm({ label, placeholder, busy = false, onAdd }: AddName
   }
 
   return (
-    <form onSubmit={(event) => void submit(event)} className="flex gap-2">
+    <form onSubmit={(event) => void submit(event)} className="flex flex-wrap gap-2">
       <input
         aria-label={label}
         placeholder={placeholder}
         value={name}
         onChange={(event) => setName(event.target.value)}
-        className={compactInputClass}
+        className={`${compactInputClass} ${extra ? 'basis-full sm:basis-0' : ''}`}
       />
+      {extra}
       <button
         type="submit"
         disabled={busy || name.trim() === ''}

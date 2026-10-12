@@ -2,7 +2,13 @@ import { useState, type FormEvent } from 'react';
 import { Field, inputClassName } from '../../../shared/ui/Field.tsx';
 import { Modal } from '../../../shared/ui/Modal.tsx';
 import { Notice } from '../../../shared/ui/Notice.tsx';
-import { formatAmountInput, formatMoney, parseAmount } from '../../../shared/utils/money.ts';
+import {
+  formatAmountInput,
+  formatDecimalInput,
+  formatMoney,
+  parseAmount,
+  parseDecimal,
+} from '../../../shared/utils/money.ts';
 import { toSaveErrorMessage } from '../../expenses/api/save-error-message.ts';
 import type { ExpensePatch, OperationItem } from '../api/operations.api.ts';
 
@@ -10,7 +16,10 @@ interface EditExpenseDialogProps {
   item: OperationItem;
   cards: string[];
   categories: string[];
+  /** Currency of the record's card: the amount is edited in it */
   currency: string;
+  /** Drams: their amounts are whole, other currencies have cents */
+  baseCurrency?: string;
   /** Saving in progress */
   saving: boolean;
   /** Error of the last save */
@@ -23,6 +32,7 @@ interface EditExpenseDialogProps {
 export function buildPatch(
   item: OperationItem,
   values: { date: string; card: string; category: string; name: string; amount: string },
+  whole = true,
 ): { patch: ExpensePatch; errors: Partial<Record<keyof typeof values, string>> } {
   const errors: Partial<Record<keyof typeof values, string>> = {};
   const patch: ExpensePatch = {};
@@ -40,36 +50,40 @@ export function buildPatch(
   if (!name) errors.name = 'Введите наименование';
   else if (name !== item.name) patch.name = name;
 
-  const amount = parseAmount(values.amount);
+  const amount = whole ? parseAmount(values.amount) : parseDecimal(values.amount);
   if (!values.amount.trim()) errors.amount = 'Введите стоимость';
-  else if (amount === null) errors.amount = 'Введите целое число';
+  else if (amount === null) errors.amount = whole ? 'Введите целое число' : 'Введите число';
   else if (amount <= 0) errors.amount = 'Стоимость должна быть больше нуля';
   else if (amount !== item.amount) patch.amount = amount;
 
   return { patch, errors };
 }
 
-/** Record edit: date, card, category, name and cost in drams. Only changed fields are sent. */
+/** Record edit: date, card, category, name and cost in the card currency. Only changed fields are sent. */
 export function EditExpenseDialog({
   item,
   cards,
   categories,
   currency,
+  baseCurrency = 'AMD',
   saving,
   error,
   onSave,
   onClose,
 }: EditExpenseDialogProps) {
+  const whole = currency === baseCurrency;
+  const formatAmount = (value: string) =>
+    whole ? formatAmountInput(value) : formatDecimalInput(value, { maxDecimals: 2, group: true });
   const [values, setValues] = useState({
     date: item.date,
     card: item.card,
     category: item.category,
     name: item.name,
-    amount: formatAmountInput(String(item.amount)),
+    amount: formatAmount(String(item.amount)),
   });
   const [submitted, setSubmitted] = useState(false);
 
-  const { patch, errors } = buildPatch(item, values);
+  const { patch, errors } = buildPatch(item, values, whole);
   const changed = Object.keys(patch).length > 0;
   const invalid = Object.keys(errors).length > 0;
   const shown = submitted ? errors : {};
@@ -147,13 +161,18 @@ export function EditExpenseDialog({
           <input
             id="edit-amount"
             type="text"
-            inputMode="numeric"
+            inputMode={whole ? 'numeric' : 'decimal'}
             autoComplete="off"
             className={inputClassName}
             value={values.amount}
             aria-invalid={!!shown.amount}
-            onChange={(event) => set('amount')(formatAmountInput(event.target.value))}
+            onChange={(event) => set('amount')(formatAmount(event.target.value))}
           />
+          {!whole && (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              Карта в {currency}: сумма указывается в этой валюте, до двух знаков после запятой
+            </p>
+          )}
         </Field>
 
         {item.original && 'amount' in patch && (

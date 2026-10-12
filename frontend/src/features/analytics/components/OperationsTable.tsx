@@ -1,10 +1,14 @@
+import { currencyDigits } from '../../../shared/utils/conversion.ts';
 import { formatMoney } from '../../../shared/utils/money.ts';
 import type { OperationItem, SortColumn, SortDirection } from '../api/operations.api.ts';
 import { ExcelStateBadge } from './ExcelStateBadge.tsx';
 
 interface OperationsTableProps {
   items: OperationItem[];
+  /** Reporting currency (also the fallback for a record without its own currency) */
   currency: string;
+  /** Drams: their amounts have no decimals */
+  baseCurrency: string;
   sort: SortColumn;
   direction: SortDirection;
   onSort: (column: SortColumn) => void;
@@ -30,17 +34,51 @@ const COLUMNS: { id: SortColumn; label: string; numeric?: boolean }[] = [
 
 const formatDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 
-/** Amount with a note of the original currency if the expense was not entered in drams. */
-function Amount({ item, currency }: { item: OperationItem; currency: string }) {
+/**
+ * Amount in the card currency; a note of what was typed if it was another currency, and the reporting amount
+ * if it differs from the card currency.
+ */
+function Amount({
+  item,
+  currency,
+  baseCurrency,
+}: {
+  item: OperationItem;
+  currency: string;
+  baseCurrency: string;
+}) {
+  const own = item.currency || currency;
+  const showReporting =
+    item.reportingAmount !== undefined &&
+    item.reportingCurrency !== undefined &&
+    item.reportingCurrency !== own;
+
   return (
     <span className="inline-flex flex-col items-end">
-      <span className="font-medium tabular-nums">
-        {formatMoney(item.amount)} {currency}
+      <span className="font-medium tabular-nums whitespace-nowrap">
+        {formatMoney(
+          item.amount,
+          currencyDigits(own, baseCurrency),
+          currencyDigits(own, baseCurrency),
+        )}{' '}
+        {own}
       </span>
       {item.original && (
         <span className="text-xs text-zinc-500 dark:text-zinc-400">
-          {formatMoney(item.original.amount)} {item.original.currency} · курс{' '}
-          {formatMoney(item.original.rate, 6)}
+          {formatMoney(item.original.amount)} {item.original.currency}
+          {item.original.currency !== baseCurrency &&
+            ` · курс ${formatMoney(item.original.rate, 6)}`}
+        </span>
+      )}
+      {showReporting && (
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+          ≈{' '}
+          {formatMoney(
+            item.reportingAmount!,
+            currencyDigits(item.reportingCurrency!, baseCurrency),
+            currencyDigits(item.reportingCurrency!, baseCurrency),
+          )}{' '}
+          {item.reportingCurrency}
         </span>
       )}
     </span>
@@ -102,8 +140,18 @@ const nameClass = (item: OperationItem) =>
 
 /** Operations table: on wide screens a table sortable by headers, on phones cards. */
 export function OperationsTable(props: OperationsTableProps) {
-  const { items, currency, sort, direction, onSort, canEdit, excelEnabled, authorLabel, busyId } =
-    props;
+  const {
+    items,
+    currency,
+    baseCurrency,
+    sort,
+    direction,
+    onSort,
+    canEdit,
+    excelEnabled,
+    authorLabel,
+    busyId,
+  } = props;
   const actions = (item: OperationItem) => (
     <Actions
       item={item}
@@ -167,7 +215,7 @@ export function OperationsTable(props: OperationsTableProps) {
                   {item.name}
                 </th>
                 <td className="py-2.5 pr-4 text-right whitespace-nowrap">
-                  <Amount item={item} currency={currency} />
+                  <Amount item={item} currency={currency} baseCurrency={baseCurrency} />
                 </td>
                 <td className="py-2.5 pr-4">{authorLabel(item.createdBy)}</td>
                 <td className="py-2.5 pr-4">
@@ -194,7 +242,7 @@ export function OperationsTable(props: OperationsTableProps) {
                   {formatDate(item.date)} · {item.category} · {item.card}
                 </div>
               </div>
-              <Amount item={item} currency={currency} />
+              <Amount item={item} currency={currency} baseCurrency={baseCurrency} />
             </div>
             <div className="mt-2 flex flex-wrap items-end justify-between gap-2">
               <div className="space-y-1">

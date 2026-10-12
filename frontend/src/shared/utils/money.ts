@@ -63,8 +63,11 @@ export function parseDecimal(value: string): number | null {
 }
 
 /** Number for display: `3990` → `3 990`, `10.5` → `10,5`. */
-export function formatMoney(value: number, maxFractionDigits = 2): string {
-  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: maxFractionDigits })
+export function formatMoney(value: number, maxFractionDigits = 2, minFractionDigits = 0): string {
+  return new Intl.NumberFormat('ru-RU', {
+    maximumFractionDigits: maxFractionDigits,
+    minimumFractionDigits: minFractionDigits,
+  })
     .format(value)
     .replace(/[\s ]/g, ' ');
 }
