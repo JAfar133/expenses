@@ -470,7 +470,7 @@ describe('роль владельца', () => {
     await person.click(
       within(section('Участники')).getByRole('button', { name: 'Сделать участником: Настя' }),
     );
-    expect(screen.getByRole('dialog')).toHaveTextContent('не сможет править траты');
+    expect(screen.getByRole('dialog')).toHaveTextContent('Роль «Участник» для: Настя');
     await person.click(
       within(screen.getByRole('dialog')).getByRole('button', { name: 'Сделать участником' }),
     );
