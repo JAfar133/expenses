@@ -2,6 +2,7 @@ import type { AuthUser } from '../features/auth/api/auth.api.ts';
 import { ExpenseForm } from '../features/expenses/components/ExpenseForm.tsx';
 import { useExpenseReference } from '../features/expenses/hooks/useExpenseReference.ts';
 import { MonthSpent } from '../features/analytics/components/MonthSpent.tsx';
+import { BudgetBars } from '../features/budgets/components/BudgetBars.tsx';
 import { Notice } from '../shared/ui/Notice.tsx';
 
 export function AddExpensePage({ user }: { user: AuthUser }) {
@@ -33,6 +34,7 @@ export function AddExpensePage({ user }: { user: AuthUser }) {
       </section>
 
       {reference.data && <MonthSpent currency={reference.data.currency} />}
+      {reference.data && <BudgetBars className="mt-4" />}
     </>
   );
 }

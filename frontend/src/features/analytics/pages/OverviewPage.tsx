@@ -1,4 +1,5 @@
 import { useSearchParams } from 'react-router';
+import { BudgetBars } from '../../budgets/components/BudgetBars.tsx';
 import { Notice } from '../../../shared/ui/Notice.tsx';
 import { formatAmount, formatMoney } from '../../../shared/utils/money.ts';
 import { CategoryChart } from '../components/CategoryChart.tsx';
@@ -50,6 +51,7 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-4">
+      <BudgetBars />
       {summary.isError && (
         <Notice variant="error">
           Не удалось загрузить данные.{' '}

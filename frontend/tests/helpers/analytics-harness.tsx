@@ -123,6 +123,7 @@ export function setupAnalyticsHarness() {
       // The body of the latest save (other requests may have come after it)
       'PUT /api/preferences': () =>
         ok(harness.bodies[harness.requests.lastIndexOf('PUT /api/preferences')] ?? {}),
+      '/api/budgets': () => ok([]),
       '/api/categories': () => ok(['кафе', 'продукты']),
     };
     vi.stubGlobal(

@@ -104,6 +104,8 @@ chunk, so the expense form stays light. To run the development mode against a di
 
 - A member sees "Изменить"/"Удалить" only on their own records that the server marks `editable` (window set by the owner on `/group`, "Правка своих трат участниками"); the tooltip shows the deadline. Nothing else changes for a member.
 
+- Limits (budgets): `GET /api/budgets` feeds the progress bars (`features/budgets`, shown under the add form and at the top of the analysis "Обзор" tab; nothing is rendered when the group has no limits). The owner manages them in the "Лимиты" section of `/group` (amount, period kind, optional day of month).
+
 ## Structure
 
 ```

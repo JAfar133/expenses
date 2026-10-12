@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { SYNC_STATE_KEY } from '../../sync/hooks/useSyncState.ts';
 import { createExpense, type CreateExpenseRequest } from '../api/expenses.api.ts';
+import { BUDGETS_KEY } from '../../budgets/hooks/useBudgets.ts';
 import { ANALYTICS_KEY } from '../../analytics/hooks/useAnalytics.ts';
 import { NAME_SUGGESTIONS_KEY } from './useNameSuggestions.ts';
 
@@ -23,6 +24,8 @@ export function useCreateExpense() {
       void queryClient.invalidateQueries({ queryKey: NAME_SUGGESTIONS_KEY });
       void queryClient.invalidateQueries({ queryKey: ANALYTICS_KEY });
       void queryClient.invalidateQueries({ queryKey: SYNC_STATE_KEY });
+      // Limits show how much is spent: a new expense moves the bars
+      void queryClient.invalidateQueries({ queryKey: BUDGETS_KEY });
     },
   });
 }

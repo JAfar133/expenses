@@ -10,6 +10,7 @@ import {
   type ExpensePatch,
   type ListQuery,
 } from '../api/operations.api.ts';
+import { BUDGETS_KEY } from '../../budgets/hooks/useBudgets.ts';
 import { ANALYTICS_KEY } from './useAnalytics.ts';
 
 /** Operations list with sorting and pages; the previous page stays on screen while a new one loads. */
@@ -29,6 +30,7 @@ export function useExpenseActions() {
     Promise.all([
       queryClient.invalidateQueries({ queryKey: ANALYTICS_KEY }),
       queryClient.invalidateQueries({ queryKey: SYNC_STATE_KEY }),
+      queryClient.invalidateQueries({ queryKey: BUDGETS_KEY }),
       queryClient.invalidateQueries({ queryKey: NAME_SUGGESTIONS_KEY }),
       queryClient.invalidateQueries({ queryKey: ['categories'] }),
     ]);

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { BUDGETS_KEY } from '../../budgets/hooks/useBudgets.ts';
 import { fetchGroup } from '../api/group.api.ts';
 
 export const GROUP_KEY = ['group'];
@@ -16,6 +17,10 @@ export function useGroupMutation<TInput, TResult = unknown>(
   return useMutation({
     retry: false,
     mutationFn: action,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: GROUP_KEY }),
+    onSuccess: () => {
+      // Categories and cards affect what limits count
+      void queryClient.invalidateQueries({ queryKey: BUDGETS_KEY });
+      return queryClient.invalidateQueries({ queryKey: GROUP_KEY });
+    },
   });
 }

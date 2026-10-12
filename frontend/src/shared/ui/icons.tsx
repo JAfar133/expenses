@@ -140,3 +140,10 @@ export const RefreshIcon = () => (
     <path d="M19.5 10A8 8 0 1 0 20 14" />
   </Icon>
 );
+
+export const WarningIcon = () => (
+  <Icon size={16}>
+    <path d="M12 4l9 16H3L12 4z" />
+    <path d="M12 10v4M12 17.5v.01" />
+  </Icon>
+);
