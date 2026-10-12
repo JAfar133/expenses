@@ -19,6 +19,8 @@ import { GroupsRepository } from '../../src/modules/groups/groups.repository.ts'
 import { ExpenseEditor } from '../../src/modules/expenses/expense-editor.ts';
 import { ExpenseService } from '../../src/modules/expenses/expenses.service.ts';
 import type { BackupStatusService } from '../../src/modules/admin/backup-status.service.ts';
+import { BudgetsRepository } from '../../src/modules/budgets/budgets.repository.ts';
+import { BudgetsService } from '../../src/modules/budgets/budgets.service.ts';
 import { ReportService } from '../../src/modules/reports/report.service.ts';
 import { SyncSwitch } from '../../src/modules/sync/sync-switch.ts';
 import { SyncScheduler } from '../../src/modules/sync/sync.scheduler.ts';
@@ -217,8 +219,10 @@ export async function createTestApp(
     now: options.now,
   });
 
+  const analyticsRepository = new AnalyticsRepository(database, 'AMD');
+  const budgetsRepository = new BudgetsRepository(database);
   const analytics = new AnalyticsService({
-    repository: new AnalyticsRepository(database, 'AMD'),
+    repository: analyticsRepository,
     today: () => TEST_TODAY,
   });
   const syncSwitch = new SyncSwitch(database, sync, scheduler);
@@ -230,11 +234,22 @@ export async function createTestApp(
     expenseService: new ExpenseService(repository, { groups, currency: rates }),
     groups,
     invitations,
-    groupService: new GroupService(new GroupAdminRepository(database), invitations, auth, {
-      currencies: ['AMD', 'USD', 'RUB', 'EUR'],
-      base: 'AMD',
-      rateOf: (currency) => rates.rateOf(currency),
+    budgets: new BudgetsService({
+      repository: budgetsRepository,
+      analytics: analyticsRepository,
+      now: options.now,
     }),
+    groupService: new GroupService(
+      new GroupAdminRepository(database),
+      invitations,
+      auth,
+      {
+        currencies: ['AMD', 'USD', 'RUB', 'EUR'],
+        base: 'AMD',
+        rateOf: (currency) => rates.rateOf(currency),
+      },
+      budgetsRepository,
+    ),
     platformAdmin: new PlatformAdminService({
       database,
       invitations,

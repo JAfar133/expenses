@@ -53,6 +53,8 @@ export class GroupService {
     private readonly invitations: InvitationsService,
     private readonly auth: Pick<AuthService, 'setUserRights'>,
     private readonly money: GroupCurrencies,
+    /** Scales the spending limits when the reporting currency changes */
+    private readonly budgets?: { scaleLimits: (groupId: string, factor: number) => Promise<void> },
   ) {}
 
   async view(owner: AuthUser): Promise<GroupView> {
@@ -187,12 +189,20 @@ export class GroupService {
     if (rate === undefined || !(rate > 0)) {
       throw validationError('RATE_UNAVAILABLE', `Курс валюты ${code} недоступен`);
     }
-    return this.repository.setReportingCurrency(
+    // The limits keep their meaning: they follow the currency at today's rates
+    const oldCurrency = (await this.repository.getGroup(groupId))?.reportingCurrency;
+    const oldRate =
+      !oldCurrency || oldCurrency === this.money.base ? 1 : await this.money.rateOf(oldCurrency);
+    const recalculated = await this.repository.setReportingCurrency(
       groupId,
       code,
       rate,
       code === this.money.base ? 0 : 2,
     );
+    if (this.budgets && oldRate !== undefined && oldCurrency !== code) {
+      await this.budgets.scaleLimits(groupId, oldRate / rate);
+    }
+    return recalculated;
   }
 
   invite(owner: AuthUser, role: GroupRole) {

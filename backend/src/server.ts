@@ -12,6 +12,8 @@ import { ensureDefaultGroup } from './modules/groups/default-group.ts';
 import { migrate } from './infrastructure/database/migrate.ts';
 import { IdempotencyService } from './infrastructure/idempotency/idempotency.service.ts';
 import { AnalyticsRepository } from './modules/analytics/analytics.repository.ts';
+import { BudgetsRepository } from './modules/budgets/budgets.repository.ts';
+import { BudgetsService } from './modules/budgets/budgets.service.ts';
 import { ReportService } from './modules/reports/report.service.ts';
 import { AnalyticsService } from './modules/analytics/analytics.service.ts';
 import { todayIn } from './modules/analytics/date-math.ts';
@@ -110,6 +112,11 @@ const analytics = new AnalyticsService({
   repository: new AnalyticsRepository(database, env.DEFAULT_CURRENCY),
   today: (timezone) => todayIn(timezone),
 });
+const budgetsRepository = new BudgetsRepository(database);
+const budgets = new BudgetsService({
+  repository: budgetsRepository,
+  analytics: new AnalyticsRepository(database, env.DEFAULT_CURRENCY),
+});
 const report = new ReportService(analytics, { base: env.DEFAULT_CURRENCY });
 
 const sync = new SyncService({
@@ -156,11 +163,18 @@ const app = buildApp({
   }),
   groups,
   invitations,
-  groupService: new GroupService(new GroupAdminRepository(database), invitations, auth, {
-    currencies: env.CURRENCIES,
-    base: env.DEFAULT_CURRENCY,
-    rateOf: (currency) => rates.rateOf(currency),
-  }),
+  budgets,
+  groupService: new GroupService(
+    new GroupAdminRepository(database),
+    invitations,
+    auth,
+    {
+      currencies: env.CURRENCIES,
+      base: env.DEFAULT_CURRENCY,
+      rateOf: (currency) => rates.rateOf(currency),
+    },
+    budgetsRepository,
+  ),
   platformAdmin: new PlatformAdminService({
     database,
     invitations,

@@ -13,6 +13,8 @@ import type { PreferencesRepository } from './modules/preferences/preferences.re
 import { ratesRoutes } from './modules/rates/rates.routes.ts';
 import type { RatesService } from './modules/rates/rates.service.ts';
 import type { BackupStatusService } from './modules/admin/backup-status.service.ts';
+import { budgetsRoutes } from './modules/budgets/budgets.routes.ts';
+import type { BudgetsService } from './modules/budgets/budgets.service.ts';
 import type { GroupService } from './modules/groups/group.service.ts';
 import type { GroupsRepository } from './modules/groups/groups.repository.ts';
 import { adminRoutes, groupRoutes, invitationRoutes } from './modules/groups/groups.routes.ts';
@@ -47,6 +49,8 @@ export interface AppDependencies {
   groupService: GroupService;
   /** Groups for the application administrator */
   platformAdmin: PlatformAdminService;
+  /** Spending limits */
+  budgets: BudgetsService;
   /** Invitation links */
   invitations: InvitationsService;
   /** Logins allowed to edit and delete */
@@ -84,6 +88,7 @@ export function buildApp({
   groupService,
   platformAdmin,
   invitations,
+  budgets,
   idempotency,
   sync,
   scheduler,
@@ -181,6 +186,7 @@ export function buildApp({
     }),
     { prefix: '/api' },
   );
+  app.register(budgetsRoutes(budgets), { prefix: '/api' });
   app.register(groupRoutes(groupService), { prefix: '/api' });
   app.register(adminRoutes(platformAdmin, backupStatus), { prefix: '/api' });
   app.register(invitationRoutes(invitations, auth), { prefix: '/api' });
