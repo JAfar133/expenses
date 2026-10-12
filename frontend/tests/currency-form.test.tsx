@@ -182,7 +182,7 @@ describe('валюта по карте', () => {
     await renderForm();
 
     const picker = screen.getByRole('radiogroup', { name: 'Карта' });
-    expect(picker).toHaveTextContent('МишаAMD');
-    expect(picker).toHaveTextContent('НастяAMD');
+    expect(picker).toHaveTextContent('🇦🇲AMD');
+    expect(picker.textContent?.match(/AMD/g)).toHaveLength(2);
   });
 });
