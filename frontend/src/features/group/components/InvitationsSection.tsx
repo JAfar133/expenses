@@ -1,3 +1,4 @@
+import { CloseIcon } from '../../../shared/ui/icons.tsx';
 import { useState } from 'react';
 import { HintList } from '../../../shared/ui/HelpHint.tsx';
 import { SettingsSection } from '../../settings/components/SettingsSection.tsx';
@@ -10,9 +11,10 @@ import {
 } from '../api/group.api.ts';
 import { useGroupMutation } from '../hooks/useGroup.ts';
 import { formatDateTime } from '../model/format.ts';
+import { compactSelectClass } from './styles.ts';
 import { ErrorNotice } from './ErrorNotice.tsx';
 import { LinkPanel } from './LinkPanel.tsx';
-import { ActionButton, ListRow, RowActions, actionSelectClass } from './ListRow.tsx';
+import { ActionButton, ListRow, RowActions } from './ListRow.tsx';
 
 const ROLE_LABELS: Record<MemberRole, string> = { owner: 'Владелец', member: 'Участник' };
 
@@ -52,7 +54,7 @@ export function InvitationsSection({ invitations }: { invitations: GroupInvitati
         <select
           aria-label="Роль приглашённого"
           value={role}
-          className={`${actionSelectClass} !min-h-11 sm:!min-h-10`}
+          className={`${compactSelectClass} h-11 w-full min-w-0 sm:h-10 sm:w-auto`}
           onChange={(event) => setRole(event.target.value as MemberRole)}
         >
           <option value="member">Участник</option>
@@ -82,7 +84,7 @@ export function InvitationsSection({ invitations }: { invitations: GroupInvitati
               key={invitation.id}
               main={
                 <>
-                  <div className="truncate text-sm font-medium">{describe(invitation)}</div>
+                  <div className="text-sm font-medium">{describe(invitation)}</div>
                   <div className="text-xs text-zinc-500 dark:text-zinc-400">
                     действует до {formatDateTime(invitation.expiresAt)}
                   </div>
@@ -91,13 +93,12 @@ export function InvitationsSection({ invitations }: { invitations: GroupInvitati
             >
               <RowActions>
                 <ActionButton
-                  tone="danger"
-                  aria-label={`Отозвать: ${describe(invitation)}`}
+                  label={`Отозвать: ${describe(invitation)}`}
                   disabled={revoke.isPending}
                   onClick={() => revoke.mutate(invitation.id)}
-                >
-                  Отозвать
-                </ActionButton>
+                  tone="danger"
+                  icon={<CloseIcon />}
+                />
               </RowActions>
             </ListRow>
           ))}

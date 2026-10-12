@@ -1,3 +1,4 @@
+import { LinkIcon, PauseIcon, PlayIcon } from '../../../shared/ui/icons.tsx';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { HintList } from '../../../shared/ui/HelpHint.tsx';
@@ -49,10 +50,12 @@ export function GroupsSection() {
             [
               'Ссылка для владельца',
               'новая одноразовая ссылка, если первая потерялась или истекла.',
+              <LinkIcon />,
             ],
             [
               'Отключить',
               'участники не смогут ничего видеть и добавлять; данные остаются, группу можно включить обратно.',
+              <PauseIcon />,
             ],
             [
               'Новая группа',
@@ -69,7 +72,7 @@ export function GroupsSection() {
             key={group.id}
             main={
               <>
-                <div className="truncate font-medium">{group.name}</div>
+                <div className="font-medium">{group.name}</div>
                 <div className="text-xs text-zinc-500 dark:text-zinc-400">
                   {group.reportingCurrency} · владельцев: {group.owners} · участников:{' '}
                   {group.members}
@@ -98,27 +101,25 @@ export function GroupsSection() {
           >
             <RowActions>
               <ActionButton
-                aria-label={`Ссылка для владельца: ${group.name}`}
+                label={`Ссылка для владельца: ${group.name}`}
                 disabled={ownerLink.isPending}
                 onClick={() => ownerLink.mutate(group.id)}
-              >
-                Ссылка для владельца
-              </ActionButton>
+                icon={<LinkIcon />}
+              />
               {group.disabled ? (
                 <ActionButton
-                  aria-label={`Включить: ${group.name}`}
+                  label={`Включить: ${group.name}`}
                   onClick={() => toggle.mutate({ id: group.id, disabled: false })}
-                >
-                  Включить
-                </ActionButton>
+                  tone="success"
+                  icon={<PlayIcon />}
+                />
               ) : (
                 <ActionButton
-                  tone="danger"
-                  aria-label={`Отключить: ${group.name}`}
+                  label={`Отключить: ${group.name}`}
                   onClick={() => setDisabling(group)}
-                >
-                  Отключить
-                </ActionButton>
+                  tone="danger"
+                  icon={<PauseIcon />}
+                />
               )}
             </RowActions>
           </ListRow>

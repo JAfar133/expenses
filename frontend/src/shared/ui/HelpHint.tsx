@@ -76,15 +76,24 @@ export function HelpHint({ children }: { children: ReactNode }) {
   );
 }
 
-/** Bubble content: a short intro and one line per action. */
-export function HintList({ intro, items }: { intro?: string; items: [string, string][] }) {
+/** Bubble content: a short intro and one line per action; an optional icon is the same as on the button. */
+export function HintList({
+  intro,
+  items,
+}: {
+  intro?: string;
+  items: [action: string, text: string, icon?: ReactNode][];
+}) {
   return (
     <>
       {intro && <p className="mb-1.5">{intro}</p>}
-      <ul className="space-y-1">
-        {items.map(([action, text]) => (
-          <li key={action}>
-            <span className="font-semibold">{action}</span> — {text}
+      <ul className="space-y-1.5">
+        {items.map(([action, text, icon]) => (
+          <li key={action} className="flex gap-2">
+            {icon && <span className="mt-0.5 shrink-0">{icon}</span>}
+            <span>
+              <span className="font-semibold">{action}</span> — {text}
+            </span>
           </li>
         ))}
       </ul>

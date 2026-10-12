@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { CheckIcon, CloseIcon, CopyIcon } from '../../../shared/ui/icons.tsx';
 import { copyText } from '../../../shared/utils/clipboard.ts';
 import { formatDateTime } from '../model/format.ts';
 
@@ -59,40 +60,17 @@ export function LinkPanel({ title, token, expiresAt, onClose }: LinkPanelProps) 
       <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
         <span>действует до {formatDateTime(expiresAt)}</span>
         {onClose && (
-          <button type="button" onClick={onClose} className="font-medium text-indigo-600">
-            Закрыть
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Закрыть"
+            title="Закрыть"
+            className="flex size-9 items-center justify-center rounded-lg text-zinc-500 hover:bg-white/70 dark:hover:bg-zinc-800"
+          >
+            <CloseIcon />
           </button>
         )}
       </div>
     </div>
-  );
-}
-
-const iconProps = {
-  width: 20,
-  height: 20,
-  viewBox: '0 0 24 24',
-  fill: 'none',
-  stroke: 'currentColor',
-  strokeWidth: 2,
-  strokeLinecap: 'round',
-  strokeLinejoin: 'round',
-  'aria-hidden': true,
-} as const;
-
-function CopyIcon() {
-  return (
-    <svg {...iconProps}>
-      <rect x="9" y="9" width="11" height="11" rx="2" />
-      <path d="M5 15V6a2 2 0 0 1 2-2h9" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg {...iconProps}>
-      <path d="M5 12.5l4.5 4.5L19 7" />
-    </svg>
   );
 }

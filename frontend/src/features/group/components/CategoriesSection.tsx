@@ -1,3 +1,4 @@
+import { ArchiveIcon, MergeIcon, PencilIcon, UndoIcon } from '../../../shared/ui/icons.tsx';
 import { HintList } from '../../../shared/ui/HelpHint.tsx';
 import { useState } from 'react';
 import { SettingsSection } from '../../settings/components/SettingsSection.tsx';
@@ -29,14 +30,16 @@ export function CategoriesSection({ categories }: { categories: GroupCategory[] 
         <HintList
           intro="Список категорий вашей группы. В форме траты можно выбрать только их."
           items={[
-            ['Изменить', 'новое название сразу меняется во всех прошлых тратах.'],
+            ['Изменить', 'новое название сразу меняется во всех прошлых тратах.', <PencilIcon />],
             [
               'В архив',
               'категория пропадёт из формы добавления; прошлые траты остаются, вернуть можно в любой момент.',
+              <ArchiveIcon />,
             ],
             [
               'Объединить',
               'переносит все траты в другую категорию, а эту удаляет (удобно для дублей).',
+              <MergeIcon />,
             ],
           ]}
         />
@@ -51,19 +54,17 @@ export function CategoriesSection({ categories }: { categories: GroupCategory[] 
           >
             {active.length > 1 && (
               <ActionButton
-                aria-label={`Объединить: ${category.name}`}
+                label={`Объединить: ${category.name}`}
                 onClick={() => setMerging(category)}
-              >
-                Объединить
-              </ActionButton>
+                icon={<MergeIcon />}
+              />
             )}
             <ActionButton
-              tone="danger"
-              aria-label={`В архив: ${category.name}`}
+              label={`В архив: ${category.name}`}
               onClick={() => update.mutate({ id: category.id, patch: { archived: true } })}
-            >
-              В архив
-            </ActionButton>
+              tone="danger"
+              icon={<ArchiveIcon />}
+            />
           </EditableRow>
         ))}
       </ul>
@@ -82,15 +83,15 @@ export function CategoriesSection({ categories }: { categories: GroupCategory[] 
             {archived.map((category) => (
               <ListRow
                 key={category.id}
-                main={<span className="block truncate text-zinc-500">{category.name}</span>}
+                main={<span className="block text-zinc-500">{category.name}</span>}
               >
                 <RowActions>
                   <ActionButton
-                    aria-label={`Вернуть: ${category.name}`}
+                    label={`Вернуть: ${category.name}`}
                     onClick={() => update.mutate({ id: category.id, patch: { archived: false } })}
-                  >
-                    Вернуть
-                  </ActionButton>
+                    tone="success"
+                    icon={<UndoIcon />}
+                  />
                 </RowActions>
               </ListRow>
             ))}

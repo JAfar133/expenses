@@ -1,6 +1,7 @@
+import { PencilIcon } from '../../../shared/ui/icons.tsx';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { ActionButton, ListRow, RowActions } from './ListRow.tsx';
-import { compactInputClass } from './styles.ts';
+import { compactInputClass, textButtonClass } from './styles.ts';
 
 interface EditableRowProps {
   name: string;
@@ -43,8 +44,12 @@ export function EditableRow({ name, onRename, children, below }: EditableRowProp
             className={`${compactInputClass} w-full sm:flex-1`}
           />
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:shrink-0">
-            <ActionButton type="submit">Сохранить</ActionButton>
-            <ActionButton onClick={() => setEditing(false)}>Отмена</ActionButton>
+            <button type="submit" className={textButtonClass}>
+              Сохранить
+            </button>
+            <button type="button" onClick={() => setEditing(false)} className={textButtonClass}>
+              Отмена
+            </button>
           </div>
         </form>
       </li>
@@ -52,17 +57,16 @@ export function EditableRow({ name, onRename, children, below }: EditableRowProp
   }
 
   return (
-    <ListRow main={<span className="block truncate font-medium">{name}</span>} below={below}>
+    <ListRow main={<span className="block font-medium">{name}</span>} below={below}>
       <RowActions>
         <ActionButton
-          aria-label={`Переименовать: ${name}`}
+          label={`Переименовать: ${name}`}
           onClick={() => {
             setValue(name);
             setEditing(true);
           }}
-        >
-          Изменить
-        </ActionButton>
+          icon={<PencilIcon />}
+        />
         {children}
       </RowActions>
     </ListRow>

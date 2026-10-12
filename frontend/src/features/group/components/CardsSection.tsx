@@ -1,3 +1,4 @@
+import { ArchiveIcon, LockIcon, PencilIcon, UndoIcon } from '../../../shared/ui/icons.tsx';
 import { useState } from 'react';
 import { HintList } from '../../../shared/ui/HelpHint.tsx';
 import { SettingsSection } from '../../settings/components/SettingsSection.tsx';
@@ -41,14 +42,20 @@ export function CardsSection({ cards, members }: CardsSectionProps) {
         <HintList
           intro="Владельцы видят все карты. Участники видят только карты, к которым им дан доступ."
           items={[
-            ['Изменить', 'новое название сразу меняется везде, в том числе в прошлых тратах.'],
+            [
+              'Изменить',
+              'новое название сразу меняется везде, в том числе в прошлых тратах.',
+              <PencilIcon />,
+            ],
             [
               'В архив',
               'карта пропадёт из формы добавления; прошлые траты, графики и итоги остаются, вернуть можно в любой момент.',
+              <ArchiveIcon />,
             ],
             [
               'Доступ',
               'нет доступа — карта и её траты скрыты; только смотреть — траты видны, но добавлять нельзя; добавлять — можно вносить новые траты.',
+              <LockIcon />,
             ],
           ]}
         />
@@ -73,20 +80,18 @@ export function CardsSection({ cards, members }: CardsSectionProps) {
           >
             {hasOthers && (
               <ActionButton
-                aria-label={`Доступ: ${card.name}`}
+                label={`Доступ: ${card.name}`}
                 aria-expanded={openAccess === card.id}
                 onClick={() => setOpenAccess(openAccess === card.id ? null : card.id)}
-              >
-                Доступ
-              </ActionButton>
+                icon={<LockIcon />}
+              />
             )}
             <ActionButton
-              tone="danger"
-              aria-label={`В архив: ${card.name}`}
+              label={`В архив: ${card.name}`}
               onClick={() => update.mutate({ id: card.id, patch: { archived: true } })}
-            >
-              В архив
-            </ActionButton>
+              tone="danger"
+              icon={<ArchiveIcon />}
+            />
           </EditableRow>
         ))}
       </ul>
@@ -108,15 +113,15 @@ export function CardsSection({ cards, members }: CardsSectionProps) {
             {archived.map((card) => (
               <ListRow
                 key={card.id}
-                main={<span className="block truncate text-zinc-500">{card.name}</span>}
+                main={<span className="block text-zinc-500">{card.name}</span>}
               >
                 <RowActions>
                   <ActionButton
-                    aria-label={`Вернуть: ${card.name}`}
+                    label={`Вернуть: ${card.name}`}
                     onClick={() => update.mutate({ id: card.id, patch: { archived: false } })}
-                  >
-                    Вернуть
-                  </ActionButton>
+                    tone="success"
+                    icon={<UndoIcon />}
+                  />
                 </RowActions>
               </ListRow>
             ))}

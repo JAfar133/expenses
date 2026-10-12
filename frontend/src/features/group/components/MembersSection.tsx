@@ -1,3 +1,4 @@
+import { KeyIcon, UserMinusIcon } from '../../../shared/ui/icons.tsx';
 import { useState } from 'react';
 import { HintList } from '../../../shared/ui/HelpHint.tsx';
 import { SettingsSection } from '../../settings/components/SettingsSection.tsx';
@@ -13,7 +14,7 @@ import {
 import { useGroupMutation } from '../hooks/useGroup.ts';
 import { ErrorNotice } from './ErrorNotice.tsx';
 import { LinkPanel } from './LinkPanel.tsx';
-import { ActionButton, ListRow, RowActions, actionSelectClass } from './ListRow.tsx';
+import { ActionButton, ListRow, RowActions, roleSelectClass } from './ListRow.tsx';
 
 const ROLE_LABELS: Record<MemberRole, string> = { owner: 'Владелец', member: 'Участник' };
 
@@ -57,10 +58,12 @@ export function MembersSection({ members, currentUsername }: MembersSectionProps
             [
               'Ссылка для сброса пароля',
               'одноразовая, на 7 дней: человек сам задаст новый пароль, старый перестанет работать, активные входы закроются.',
+              <KeyIcon />,
             ],
             [
               'Убрать',
               'человек больше не сможет войти; его прошлые траты остаются в группе. Вернуть можно только новым приглашением (с другим логином).',
+              <UserMinusIcon />,
             ],
           ]}
         />
@@ -72,16 +75,32 @@ export function MembersSection({ members, currentUsername }: MembersSectionProps
             key={member.userId}
             main={
               <>
-                <div className="truncate font-medium">{member.displayName}</div>
-                <div className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                  {member.username}
-                </div>
+                <div className="font-medium">{member.displayName}</div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400">{member.username}</div>
               </>
             }
             badge={
-              <span className="shrink-0 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium dark:bg-zinc-800">
-                {ROLE_LABELS[member.role]}
-              </span>
+              member.username === currentUsername ? (
+                <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium dark:bg-zinc-800">
+                  {ROLE_LABELS[member.role]}
+                </span>
+              ) : (
+                <select
+                  aria-label={`Роль: ${member.displayName}`}
+                  value={member.role}
+                  disabled={changeRole.isPending}
+                  className={roleSelectClass}
+                  onChange={(event) =>
+                    changeRole.mutate({
+                      username: member.username,
+                      role: event.target.value as MemberRole,
+                    })
+                  }
+                >
+                  <option value="member">Участник</option>
+                  <option value="owner">Владелец</option>
+                </select>
+              )
             }
             below={
               link?.username === member.username && (
@@ -98,36 +117,19 @@ export function MembersSection({ members, currentUsername }: MembersSectionProps
           >
             {member.username !== currentUsername && (
               <RowActions>
-                <select
-                  aria-label={`Роль: ${member.displayName}`}
-                  value={member.role}
-                  disabled={changeRole.isPending}
-                  className={actionSelectClass}
-                  onChange={(event) =>
-                    changeRole.mutate({
-                      username: member.username,
-                      role: event.target.value as MemberRole,
-                    })
-                  }
-                >
-                  <option value="member">Участник</option>
-                  <option value="owner">Владелец</option>
-                </select>
                 <ActionButton
-                  aria-label={`Ссылка для сброса пароля: ${member.displayName}`}
+                  label={`Ссылка для сброса пароля: ${member.displayName}`}
                   disabled={resetLink.isPending}
                   onClick={() => resetLink.mutate(member.username)}
-                >
-                  Ссылка для сброса пароля
-                </ActionButton>
+                  icon={<KeyIcon />}
+                />
                 {!member.fromEnv && (
                   <ActionButton
-                    tone="danger"
-                    aria-label={`Убрать: ${member.displayName}`}
+                    label={`Убрать: ${member.displayName}`}
                     onClick={() => setRemoving(member)}
-                  >
-                    Убрать
-                  </ActionButton>
+                    tone="danger"
+                    icon={<UserMinusIcon />}
+                  />
                 )}
               </RowActions>
             )}

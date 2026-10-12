@@ -335,6 +335,19 @@ describe('подсказки', () => {
   });
 });
 
+describe('кнопки-иконки', () => {
+  it('у каждой иконки есть aria-label и такой же title', async () => {
+    await renderGroup();
+    await screen.findByRole('heading', { name: 'Карты' });
+
+    for (const name of ['Переименовать: Общая', 'Доступ: Общая', 'В архив: Общая']) {
+      const button = screen.getByRole('button', { name });
+      expect(button).toHaveAttribute('title', name);
+      expect(button).not.toHaveTextContent(/\S/);
+    }
+  });
+});
+
 describe('приглашения', () => {
   const invitations = () => within(section('Приглашения'));
 
