@@ -28,6 +28,7 @@ const overview = () => ({
     reportingCurrency: 'AMD',
     timezone: 'Asia/Yerevan',
     disabled: false,
+    memberEditMinutes: 1440,
   },
   currencies: ['AMD', 'USD'],
   members: [
@@ -313,6 +314,56 @@ describe('валюты карт', () => {
   });
 });
 
+describe('правка своих трат участниками', () => {
+  const edit = () => within(section('Правка своих трат участниками'));
+
+  it('показывает текущее значение и стоит сразу после названия группы', async () => {
+    await renderGroup();
+    await screen.findByRole('heading', { name: 'Правка своих трат участниками' });
+
+    expect(edit().getByRole('combobox')).toHaveValue('1440');
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+    expect(headings.indexOf('Правка своих трат участниками')).toBe(
+      headings.indexOf('Название группы') + 1,
+    );
+  });
+
+  it.each([
+    ['Выключено', 0],
+    ['15 минут', 15],
+    ['1 час', 60],
+    ['24 часа', 1440],
+    ['Неделя', 10080],
+  ])('«%s» сохраняется сразу: PUT с minutes %i', async (label, minutes) => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: 'Правка своих трат участниками' });
+    // Pick a different value first so that the select really changes
+    const select = edit().getByRole('combobox');
+    if (minutes === 1440) await person.selectOptions(select, 'Неделя');
+
+    await person.selectOptions(select, label);
+
+    await waitFor(() =>
+      expect(requests.filter((r) => r.url === '/api/group/member-edit').at(-1)?.body).toEqual({
+        minutes,
+      }),
+    );
+  });
+
+  it('ошибка сервера показывается', async () => {
+    override = (method, url) =>
+      method === 'PUT' && url === '/api/group/member-edit'
+        ? failure('INVALID_MINUTES', 'Недопустимое значение', 422)
+        : undefined;
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: 'Правка своих трат участниками' });
+
+    await person.selectOptions(edit().getByRole('combobox'), 'Выключено');
+
+    expect(await edit().findByRole('alert')).toHaveTextContent('Недопустимое значение');
+  });
+});
+
 describe('валюта отчётности', () => {
   const reporting = () => within(section('Валюта отчётности'));
 
@@ -451,8 +502,8 @@ describe('подсказки', () => {
     for (const row of screen.getAllByRole('listitem')) {
       expect(within(row).queryByRole('button', { name: 'Подсказка' })).toBeNull();
     }
-    // One hint per section: name, reporting currency, members, invitations, cards, categories
-    expect(screen.getAllByRole('button', { name: 'Подсказка' })).toHaveLength(6);
+    // One hint per section: name, member edit, reporting currency, members, invitations, cards, categories
+    expect(screen.getAllByRole('button', { name: 'Подсказка' })).toHaveLength(7);
   });
 });
 

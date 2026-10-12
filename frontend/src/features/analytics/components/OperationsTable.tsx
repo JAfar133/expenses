@@ -1,3 +1,4 @@
+import { formatShortDateTime } from '../../admin/model/backup.ts';
 import { currencyDigits } from '../../../shared/utils/conversion.ts';
 import { formatAmount, formatMoney } from '../../../shared/utils/money.ts';
 import type { OperationItem, SortColumn, SortDirection } from '../api/operations.api.ts';
@@ -12,7 +13,8 @@ interface OperationsTableProps {
   sort: SortColumn;
   direction: SortDirection;
   onSort: (column: SortColumn) => void;
-  canEdit: boolean;
+  /** The user may restore deleted records (owner) */
+  canRestore: boolean;
   excelEnabled: boolean;
   /** Login to display name */
   authorLabel: (login: string) => string;
@@ -89,6 +91,10 @@ function Actions({
   item: OperationItem;
   busy: boolean;
 }) {
+  // A member's record can be edited until a deadline: shown as a tooltip only, to keep the screen simple
+  const hint = item.editableUntil
+    ? `Можно исправить до ${formatShortDateTime(item.editableUntil)}`
+    : undefined;
   const className =
     'h-9 rounded-lg px-3 text-sm font-medium hover:bg-zinc-100 disabled:opacity-50 dark:hover:bg-zinc-800';
 
@@ -113,6 +119,7 @@ function Actions({
         disabled={busy}
         onClick={() => onEdit(item)}
         aria-label={`Изменить запись: ${item.name}`}
+        title={hint}
       >
         Изменить
       </button>
@@ -122,6 +129,7 @@ function Actions({
         disabled={busy}
         onClick={() => onDelete(item)}
         aria-label={`Удалить запись: ${item.name}`}
+        title={hint}
       >
         Удалить
       </button>
@@ -141,20 +149,24 @@ export function OperationsTable(props: OperationsTableProps) {
     sort,
     direction,
     onSort,
-    canEdit,
+    canRestore,
     excelEnabled,
     authorLabel,
     busyId,
   } = props;
-  const actions = (item: OperationItem) => (
-    <Actions
-      item={item}
-      busy={busyId === item.id}
-      onEdit={props.onEdit}
-      onDelete={props.onDelete}
-      onRestore={props.onRestore}
-    />
-  );
+  // Actions follow the server's verdict per record: `editable` (live records), restore only for the owner
+  const hasActions = (item: OperationItem) => (item.deletedAt ? canRestore : item.editable);
+  const showActions = items.some(hasActions);
+  const actions = (item: OperationItem) =>
+    hasActions(item) && (
+      <Actions
+        item={item}
+        busy={busyId === item.id}
+        onEdit={props.onEdit}
+        onDelete={props.onDelete}
+        onRestore={props.onRestore}
+      />
+    );
 
   return (
     <>
@@ -190,7 +202,7 @@ export function OperationsTable(props: OperationsTableProps) {
               <th scope="col" className="py-2 pr-4 font-medium">
                 Excel
               </th>
-              {canEdit && (
+              {showActions && (
                 <th scope="col" className="py-2 text-right font-medium">
                   Действия
                 </th>
@@ -219,7 +231,7 @@ export function OperationsTable(props: OperationsTableProps) {
                     excelEnabled={excelEnabled}
                   />
                 </td>
-                {canEdit && <td className="py-2.5 text-right">{actions(item)}</td>}
+                {showActions && <td className="py-2.5 text-right">{actions(item)}</td>}
               </tr>
             ))}
           </tbody>
@@ -249,7 +261,7 @@ export function OperationsTable(props: OperationsTableProps) {
                   Добавил: {authorLabel(item.createdBy)}
                 </div>
               </div>
-              {canEdit && actions(item)}
+              {actions(item)}
             </div>
           </li>
         ))}

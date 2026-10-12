@@ -28,14 +28,16 @@ import {
   rangeLabel,
 } from '../model/operations.ts';
 
-/** Cards a record can be moved to: only those in the same currency (the server rejects the rest). */
+/**
+ * Cards a record can be moved to: those the user may add to (the cards list is already limited for a member)
+ * and in the same currency (the server rejects the rest).
+ */
 function cardsForEditing(
   item: OperationItem,
   cards: { name: string; currency: string }[] | undefined,
-  known: { value: string }[],
   reporting: string,
 ): string[] {
-  if (!cards) return known.map((card) => card.value);
+  if (!cards) return [];
   const own = item.currency || reporting;
   return cards.filter((card) => card.currency === own).map((card) => card.name);
 }
@@ -144,7 +146,7 @@ export default function OperationsPage() {
         )}
       </div>
 
-      {!canEdit && (
+      {!canEdit && !items.some((item) => item.editable) && (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           Режим просмотра: править и удалять записи может только редактор.
         </p>
@@ -181,7 +183,7 @@ export default function OperationsPage() {
           sort={sort}
           direction={direction}
           onSort={changeSort}
-          canEdit={canEdit}
+          canRestore={canEdit}
           excelEnabled={excelEnabled}
           authorLabel={authorLabel}
           busyId={busyId}
@@ -229,7 +231,7 @@ export default function OperationsPage() {
       {editing && (
         <EditExpenseDialog
           item={editing}
-          cards={cardsForEditing(editing, cards.data, options.cards, currency)}
+          cards={cardsForEditing(editing, cards.data, currency)}
           categories={options.categories.map((category) => category.value)}
           currency={editing.currency || currency}
           baseCurrency={baseCurrency}

@@ -42,6 +42,8 @@ export interface GroupOverview {
     reportingCurrency: string;
     timezone: string;
     disabled: boolean;
+    /** How long a member may edit or delete their own record: 0 (never), 15, 60, 1440 or 10080 minutes */
+    memberEditMinutes?: number;
   };
   /** Currencies allowed for cards and for the reporting currency */
   currencies: string[];
@@ -112,3 +114,6 @@ export const setReportingCurrency = async (currency: string) =>
       ...json({ currency }),
     })
   ).data;
+
+export const setMemberEditMinutes = (minutes: number) =>
+  apiRequest('/group/member-edit', { method: 'PUT', ...json({ minutes }) });

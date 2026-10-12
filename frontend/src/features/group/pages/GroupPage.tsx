@@ -5,6 +5,7 @@ import { CardsSection } from '../components/CardsSection.tsx';
 import { CategoriesSection } from '../components/CategoriesSection.tsx';
 import { GroupNameSection } from '../components/GroupNameSection.tsx';
 import { InvitationsSection } from '../components/InvitationsSection.tsx';
+import { MemberEditSection } from '../components/MemberEditSection.tsx';
 import { MembersSection } from '../components/MembersSection.tsx';
 import { ReportingCurrencySection } from '../components/ReportingCurrencySection.tsx';
 import { useGroup } from '../hooks/useGroup.ts';
@@ -35,6 +36,7 @@ function GroupContent({ currentUsername }: { currentUsername: string }) {
     <div className="space-y-4">
       <h2 className="text-xl font-bold">Группа</h2>
       <GroupNameSection name={data.group.name} />
+      <MemberEditSection minutes={data.group.memberEditMinutes ?? 10080} />
       <ReportingCurrencySection
         current={data.group.reportingCurrency}
         currencies={data.currencies ?? []}

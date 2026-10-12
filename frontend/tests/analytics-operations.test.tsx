@@ -30,6 +30,8 @@ const item = (n: number, overrides: Partial<OperationItem> = {}): OperationItem 
   amount: 1000 * n,
   currency: 'AMD',
   original: null,
+  editable: true,
+  editableUntil: null,
   createdBy: 'misha',
   source: 'app',
   excelState: 'synced',
@@ -312,7 +314,7 @@ describe('сортировка и страницы', () => {
 
 describe('права', () => {
   it('без права редактирования действий нет, показан режим просмотра', async () => {
-    serve();
+    serve([item(1, { editable: false }), item(2, { editable: false })]);
     harness.handlers['/api/auth/me'] = () =>
       ok({ user: { username: 'nastya', displayName: 'Настя', card: 'Настя', canEdit: false } });
     renderAnalytics(OPS);
@@ -753,5 +755,165 @@ describe('скачивание в Excel', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Больше 50 000 операций');
     expect(clicks).toBe(0);
+  });
+});
+
+describe('правка участником своих трат', () => {
+  const member = () =>
+    (harness.handlers['/api/auth/me'] = () =>
+      ok({ user: { username: 'nastya', displayName: 'Настя', card: 'Настя', canEdit: false } }));
+
+  it('действия только у своей правимой записи, у чужой нет ни кнопок, ни режима просмотра', async () => {
+    member();
+    serve([
+      item(1, { name: 'Моя', editable: true, editableUntil: '2026-10-17T10:30:00.000Z' }),
+      item(2, { name: 'Чужая', editable: false }),
+    ]);
+    renderAnalytics(OPS);
+    await waitFor(() => rowOf('Моя'));
+
+    expect(
+      within(rowOf('Моя')).getByRole('button', { name: 'Изменить запись: Моя' }),
+    ).toBeInTheDocument();
+    expect(
+      within(rowOf('Моя')).getByRole('button', { name: 'Удалить запись: Моя' }),
+    ).toBeInTheDocument();
+    expect(within(rowOf('Чужая')).queryByRole('button')).toBeNull();
+    expect(screen.queryByText(/Режим просмотра/)).toBeNull();
+  });
+
+  it('подсказка с сроком правки — только в title кнопок', async () => {
+    member();
+    serve([item(1, { name: 'Моя', editable: true, editableUntil: '2026-10-17T10:30:00.000Z' })]);
+    renderAnalytics(OPS);
+    await waitFor(() => rowOf('Моя'));
+
+    const d = new Date('2026-10-17T10:30:00.000Z');
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const expected = `Можно исправить до ${pad(d.getDate())}.${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const edit = within(rowOf('Моя')).getByRole('button', { name: 'Изменить запись: Моя' });
+    expect(edit).toHaveAttribute('title', expected);
+    expect(
+      within(rowOf('Моя')).getByRole('button', { name: 'Удалить запись: Моя' }),
+    ).toHaveAttribute('title', expected);
+    expect(rowOf('Моя')).not.toHaveTextContent('Можно исправить');
+  });
+
+  it('у владельца title нет (срока у него нет)', async () => {
+    serve([item(1, { editable: true, editableUntil: null })]);
+    renderAnalytics(OPS);
+    await waitFor(() => rowOf('Позиция 1'));
+
+    expect(
+      within(rowOf('Позиция 1')).getByRole('button', { name: 'Изменить запись: Позиция 1' }),
+    ).not.toHaveAttribute('title');
+  });
+
+  it('удалённая запись: «Вернуть» только у владельца', async () => {
+    const deleted = item(1, {
+      name: 'Удалённая',
+      editable: false,
+      deletedAt: '2026-10-11T10:00:00.000Z',
+      deletedReason: 'app',
+    });
+    serve([deleted]);
+    renderAnalytics(`${OPS}?deleted=1`);
+    await waitFor(() => rowOf('Удалённая'));
+    expect(
+      within(rowOf('Удалённая')).getByRole('button', { name: /^Вернуть запись/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('участник не видит «Вернуть» у удалённой записи', async () => {
+    member();
+    serve([
+      item(1, {
+        name: 'Удалённая',
+        editable: false,
+        deletedAt: '2026-10-11T10:00:00.000Z',
+        deletedReason: 'app',
+      }),
+    ]);
+    renderAnalytics(`${OPS}?deleted=1`);
+    await waitFor(() => rowOf('Удалённая'));
+
+    expect(within(rowOf('Удалённая')).queryByRole('button')).toBeNull();
+  });
+
+  it('в окне правки только карты, куда участнику можно добавлять, и той же валюты', async () => {
+    member();
+    harness.handlers['/api/cards'] = () =>
+      ok([
+        { name: 'Настя', currency: 'AMD' },
+        { name: 'Общая', currency: 'AMD' },
+        { name: 'Доллары', currency: 'USD' },
+      ]);
+    serve([
+      item(1, {
+        name: 'Моя',
+        card: 'Настя',
+        editable: true,
+        editableUntil: '2026-10-17T10:30:00.000Z',
+      }),
+    ]);
+    const user = renderAnalytics(OPS);
+    await waitFor(() => rowOf('Моя'));
+    await user.click(within(rowOf('Моя')).getByRole('button', { name: 'Изменить запись: Моя' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Изменить запись' });
+
+    const options = within(within(dialog).getByLabelText('Карта')).getAllByRole('option');
+    expect(options.map((o) => o.textContent)).toEqual(['Настя', 'Общая']);
+  });
+
+  it('ошибка 403 «срок истёк» показывается в окне правки', async () => {
+    member();
+    serve([item(1, { name: 'Моя', editable: true, editableUntil: '2026-10-17T10:30:00.000Z' })]);
+    harness.handlers['PATCH /api/expenses/:id'] = () =>
+      json(
+        {
+          success: false,
+          error: {
+            code: 'EDIT_WINDOW_CLOSED',
+            message: 'Срок, когда эту трату можно исправить, истёк',
+          },
+        },
+        403,
+      );
+    const user = renderAnalytics(OPS);
+    await waitFor(() => rowOf('Моя'));
+    await user.click(within(rowOf('Моя')).getByRole('button', { name: 'Изменить запись: Моя' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Изменить запись' });
+
+    await user.clear(within(dialog).getByLabelText('Наименование'));
+    await user.type(within(dialog).getByLabelText('Наименование'), 'Новое');
+    await user.click(within(dialog).getByRole('button', { name: 'Сохранить' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Срок, когда эту трату можно исправить, истёк',
+    );
+  });
+
+  it('ошибка 403 при удалении показывается на странице', async () => {
+    member();
+    serve([item(1, { name: 'Моя', editable: true, editableUntil: '2026-10-17T10:30:00.000Z' })]);
+    harness.handlers['DELETE /api/expenses/:id'] = () =>
+      json(
+        {
+          success: false,
+          error: {
+            code: 'MEMBER_EDIT_OFF',
+            message: 'Исправлять и удалять траты может только владелец группы',
+          },
+        },
+        403,
+      );
+    const user = renderAnalytics(OPS);
+    await waitFor(() => rowOf('Моя'));
+    await user.click(within(rowOf('Моя')).getByRole('button', { name: 'Удалить запись: Моя' }));
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Удалить' }),
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('может только владелец группы');
   });
 });

@@ -102,6 +102,8 @@ chunk, so the expense form stays light. To run the development mode against a di
 
 - `/admin` starts with the "Бэкап базы" block (`GET /api/admin/backup`, read-only status of the nightly dump); the "Админ" link in the header gets a small red dot when the backup is `stale` or `failed` (requested only for application admins, no polling).
 
+- A member sees "Изменить"/"Удалить" only on their own records that the server marks `editable` (window set by the owner on `/group`, "Правка своих трат участниками"); the tooltip shows the deadline. Nothing else changes for a member.
+
 ## Structure
 
 ```
