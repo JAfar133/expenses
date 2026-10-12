@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { HelpHint } from '../../../shared/ui/HelpHint.tsx';
 import { Notice } from '../../../shared/ui/Notice.tsx';
 import { ConfirmDialog } from '../../analytics/components/ConfirmDialog.tsx';
 import { ErrorNotice } from '../../group/components/ErrorNotice.tsx';
@@ -56,7 +57,7 @@ export function GroupsSection() {
             <div className="text-xs text-zinc-500 dark:text-zinc-400">
               {group.reportingCurrency} · владельцев: {group.owners} · участников: {group.members}
             </div>
-            <div className="flex flex-wrap">
+            <div className="flex flex-wrap items-center">
               <button
                 type="button"
                 aria-label={`Ссылка для владельца: ${group.name}`}
@@ -66,6 +67,9 @@ export function GroupsSection() {
               >
                 Ссылка для владельца
               </button>
+              <HelpHint>
+                Новая одноразовая ссылка для владельца группы (если первая потерялась или истекла).
+              </HelpHint>
               {group.disabled ? (
                 <button
                   type="button"
@@ -84,6 +88,12 @@ export function GroupsSection() {
                 >
                   Отключить
                 </button>
+              )}
+              {!group.disabled && (
+                <HelpHint>
+                  Участники отключённой группы не смогут ничего видеть и добавлять. Данные остаются,
+                  группу можно включить обратно.
+                </HelpHint>
               )}
             </div>
             {link?.groupId === group.id && (

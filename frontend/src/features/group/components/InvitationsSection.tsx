@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { HelpHint } from '../../../shared/ui/HelpHint.tsx';
 import { SettingsSection } from '../../settings/components/SettingsSection.tsx';
 import {
   createInvitation,
@@ -31,7 +32,10 @@ export function InvitationsSection({ invitations }: { invitations: GroupInvitati
   const revoke = useGroupMutation(revokeInvitation);
 
   return (
-    <SettingsSection title="Приглашения">
+    <SettingsSection
+      title="Приглашения"
+      hint="Ссылка одноразовая и действует 7 дней. Человек сам выбирает логин и пароль. Показывается только сразу после создания: потом её не восстановить, но можно отозвать и создать новую. Новый участник получает доступ ко всем текущим картам, потом вы можете сузить его."
+    >
       <div className="flex flex-wrap items-center gap-2">
         <select
           aria-label="Роль приглашённого"
@@ -42,6 +46,7 @@ export function InvitationsSection({ invitations }: { invitations: GroupInvitati
           <option value="member">Участник</option>
           <option value="owner">Владелец</option>
         </select>
+        {role === 'owner' && <HelpHint>Второй владелец получает те же права, что и вы.</HelpHint>}
         <button
           type="button"
           disabled={create.isPending}

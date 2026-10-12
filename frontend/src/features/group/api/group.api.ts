@@ -76,8 +76,10 @@ export const setCardAccess = (id: number, access: Record<string, AccessLevel>) =
 export const createCategory = (name: string) =>
   apiRequest('/group/categories', { method: 'POST', ...json({ name }) });
 
-export const updateCategory = (id: number, patch: { name?: string; archived?: boolean }) =>
-  apiRequest(`/group/categories/${id}`, { method: 'PATCH', ...json(patch) });
+export const updateCategory = (
+  id: number,
+  patch: { name?: string; archived?: boolean; mergeInto?: number },
+) => apiRequest(`/group/categories/${id}`, { method: 'PATCH', ...json(patch) });
 
 export const createInvitation = async (role: MemberRole) =>
   (await apiRequest<IssuedLink>('/group/invitations', { method: 'POST', ...json({ role }) })).data;

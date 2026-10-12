@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
+import { HelpHint } from '../../../shared/ui/HelpHint.tsx';
 import { useRates } from '../../expenses/hooks/useRates.ts';
 import { ErrorNotice } from '../../group/components/ErrorNotice.tsx';
 import { LinkPanel } from '../../group/components/LinkPanel.tsx';
@@ -33,7 +34,13 @@ export function NewGroupForm() {
 
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-semibold">Новая группа</h3>
+      <div className="flex items-center gap-1">
+        <h3 className="text-sm font-semibold">Новая группа</h3>
+        <HelpHint>
+          Создаёт пустую группу и ссылку для её владельца (действует 7 дней). Вы не увидите траты
+          этой группы.
+        </HelpHint>
+      </div>
       <form onSubmit={submit} className="flex flex-wrap gap-2">
         <input
           aria-label="Название новой группы"

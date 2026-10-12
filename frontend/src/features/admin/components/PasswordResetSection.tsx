@@ -29,7 +29,10 @@ export function PasswordResetSection() {
   const notFound = create.error instanceof ApiError && create.error.status === 404;
 
   return (
-    <SettingsSection title="Сброс пароля">
+    <SettingsSection
+      title="Сброс пароля"
+      hint="Одноразовая ссылка для любого пользователя, который забыл пароль и которому не может помочь владелец группы."
+    >
       <form onSubmit={submit} className="flex flex-wrap gap-2">
         <input
           aria-label="Логин пользователя"

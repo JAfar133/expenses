@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -255,6 +255,76 @@ describe('категории', () => {
     await person.click(categories.getByText('Архив категорий (1)'));
     await person.click(categories.getByRole('button', { name: 'Вернуть: Игры' }));
     expect(sent('PATCH', '/api/group/categories/21')).toEqual({ archived: false });
+  });
+});
+
+describe('объединение категорий', () => {
+  it('отправляет mergeInto и убирает категорию из списка после обновления', async () => {
+    let categories = [
+      { id: 20, name: 'Еда', archived: false },
+      { id: 22, name: 'Продукты', archived: false },
+    ];
+    override = (method, url) => {
+      if (method === 'GET' && url === '/api/group') return ok({ ...overview(), categories });
+      if (method === 'PATCH' && url === '/api/group/categories/22') {
+        categories = categories.filter((c) => c.id !== 22);
+        return ok({});
+      }
+      return undefined;
+    };
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: 'Категории' });
+    const list = within(section('Категории'));
+
+    await person.click(list.getByRole('button', { name: 'Объединить: Продукты' }));
+    const dialog = screen.getByRole('dialog');
+    expect(
+      within(dialog).getByText(/Все траты категории «Продукты» перейдут в «Еда»/),
+    ).toBeInTheDocument();
+    await person.click(within(dialog).getByRole('button', { name: 'Объединить' }));
+
+    expect(sent('PATCH', '/api/group/categories/22')).toEqual({ mergeInto: 20 });
+    await waitFor(() => expect(list.queryByText('Продукты')).toBeNull());
+  });
+
+  it('с единственной категорией «Объединить» не предлагается', async () => {
+    override = (method, url) =>
+      method === 'GET' && url === '/api/group'
+        ? ok({ ...overview(), categories: [{ id: 20, name: 'Еда', archived: false }] })
+        : undefined;
+    await renderGroup();
+    await screen.findByRole('heading', { name: 'Категории' });
+
+    expect(screen.queryByRole('button', { name: /^Объединить:/ })).toBeNull();
+  });
+});
+
+describe('подсказки', () => {
+  it('раздел «Карты» и «Убрать» показывают текст после нажатия', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: 'Карты' });
+
+    const [cardsHint] = within(
+      screen.getByRole('heading', { name: 'Карты' }).parentElement!,
+    ).getAllByRole('button', { name: 'Подсказка' });
+    await person.click(cardsHint!);
+    expect(screen.getAllByText(/Владельцы видят все карты/).length).toBeGreaterThan(0);
+
+    const row = screen.getByText('Настя', { selector: 'div' }).closest('li')!;
+    const hints = within(row).getAllByRole('button', { name: 'Подсказка' });
+    await person.click(hints.at(-1)!);
+    expect(
+      within(row).getByText(/Вернуть его можно только новым приглашением/),
+    ).toBeInTheDocument();
+  });
+
+  it('у участника из настроек сервера подсказки про «Убрать» нет', async () => {
+    await renderGroup();
+    await screen.findByRole('heading', { name: 'Участники' });
+    const row = screen.getByText('Петя', { selector: 'div' }).closest('li')!;
+
+    // Only the password reset hint remains
+    expect(within(row).getAllByRole('button', { name: 'Подсказка' })).toHaveLength(1);
   });
 });
 

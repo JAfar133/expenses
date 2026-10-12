@@ -9,7 +9,7 @@ export function GroupNameSection({ name }: { name: string }) {
   const rename = useGroupMutation(renameGroup);
 
   return (
-    <SettingsSection title="Название группы">
+    <SettingsSection title="Название группы" hint="Название видят все участники группы.">
       <EditableName name={name} onRename={(next) => rename.mutateAsync(next)} />
       <ErrorNotice mutations={[rename]} />
     </SettingsSection>

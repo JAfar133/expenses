@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { HelpHint } from '../../../shared/ui/HelpHint.tsx';
 import { SettingsSection } from '../../settings/components/SettingsSection.tsx';
 import { ConfirmDialog } from '../../analytics/components/ConfirmDialog.tsx';
 import {
@@ -44,7 +45,10 @@ export function MembersSection({ members, currentUsername }: MembersSectionProps
   }
 
   return (
-    <SettingsSection title="Участники">
+    <SettingsSection
+      title="Участники"
+      hint="Владелец видит все карты группы, добавляет, правит и удаляет траты и управляет группой. Участник видит только карты, к которым ему дан доступ, и добавляет траты на карты с доступом «добавлять»."
+    >
       <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
         {members.map((member) => (
           <li key={member.userId} className="space-y-2 py-3">
@@ -83,6 +87,10 @@ export function MembersSection({ members, currentUsername }: MembersSectionProps
                 >
                   Ссылка для сброса пароля
                 </button>
+                <HelpHint>
+                  Одноразовая ссылка на 7 дней: человек сам задаст новый пароль. Старый пароль
+                  перестанет работать, его активные входы закроются.
+                </HelpHint>
                 {!member.fromEnv && (
                   <button
                     type="button"
@@ -92,6 +100,13 @@ export function MembersSection({ members, currentUsername }: MembersSectionProps
                   >
                     Убрать
                   </button>
+                )}
+                {!member.fromEnv && (
+                  <HelpHint>
+                    Человек больше не сможет войти. Его прошлые траты останутся в группе, автором
+                    по-прежнему будет он. Вернуть его можно только новым приглашением (с другим
+                    логином).
+                  </HelpHint>
                 )}
               </div>
             )}
