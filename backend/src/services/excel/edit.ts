@@ -41,6 +41,10 @@ const keyOf = (e: Expense) => JSON.stringify([e.date, e.card, e.category, e.name
  *
  * Before returning, the file is read again and checked against the expected content of the whole table.
  * On any mismatch an error is thrown and there is nothing to upload.
+ *
+ * @deprecated Since v2 the Excel report (`GET /api/expenses/export.xlsx`) replaces the two-way sync. This code is kept
+ * for the installation that still works with its Excel file, can be switched off in the app (SyncSwitch) and is not
+ * extended: new features (cards, currencies, access) do not go into it.
  */
 export async function applyEditsToBuffer(
   source: Buffer,

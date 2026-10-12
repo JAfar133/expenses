@@ -17,6 +17,8 @@ The detailed deployment, pipeline and planning guides live in `docs/` and are wr
 
 ## Status
 
+> v2 (branch `v2`): groups, cards in different currencies, an Excel report instead of the sync (the sync is deprecated and can be switched off). The spec is in [docs/V2_SPEC.md](docs/V2_SPEC.md) (in Russian).
+
 MVP v0.1, work in progress. Done: writing to PostgreSQL and Excel, a queue for when Excel is open, synchronization
 on a timer and on a button, OneDrive via rclone, the form, duplicate protection, backups, Docker Compose.
 Login with a username and password (users Misha and Nastya, a session valid for a day and refreshed for up to a week) is also done. History of operations (with editing and deleting) and analytics are done as well.

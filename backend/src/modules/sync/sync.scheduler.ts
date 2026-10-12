@@ -13,6 +13,10 @@ export interface SyncSchedulerOptions {
 /**
  * Runs the sync on a timer. After each run (by timer or manual)
  * the timer starts over, so the user sees a single clear countdown.
+ *
+ * @deprecated Since v2 the Excel report (`GET /api/expenses/export.xlsx`) replaces the two-way sync. This code is kept
+ * for the installation that still works with its Excel file, can be switched off in the app (SyncSwitch) and is not
+ * extended: new features (cards, currencies, access) do not go into it.
  */
 export class SyncScheduler {
   private timer?: NodeJS.Timeout;

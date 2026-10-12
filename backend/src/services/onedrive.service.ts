@@ -34,6 +34,10 @@ export interface RcloneOneDriveOptions {
  * File version is a hash of its content. The version of a downloaded copy is computed from the downloaded
  * bytes, so it always matches exactly what we modify, even if the file on
  * OneDrive changed right during the download.
+ *
+ * @deprecated Since v2 the Excel report (`GET /api/expenses/export.xlsx`) replaces the two-way sync. This code is kept
+ * for the installation that still works with its Excel file, can be switched off in the app (SyncSwitch) and is not
+ * extended: new features (cards, currencies, access) do not go into it.
  */
 export class RcloneOneDriveService implements OneDriveService {
   private readonly client: RcloneClient;

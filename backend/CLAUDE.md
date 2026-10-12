@@ -25,6 +25,7 @@ Before finishing work: `typecheck`, `test`, `format`.
 
 ## Rules
 
+- **The Excel sync is deprecated (v2) and frozen**: do not add features to it (`modules/sync`, `services/excel*`, `services/onedrive*`); it only serves the first group, can be switched off by the administrator (`SyncSwitch`) and the Excel _report_ (`modules/reports`) is the way to get data into Excel.
 - **PostgreSQL is the primary store, Excel is a mirror and is optional** (`ONEDRIVE_FILE_PATH` is empty: `SyncService.enabled === false`).
   Any code that deals with Excel must work when Excel is disabled and when it is unavailable, and must not crash.
 - An expense is written to the DB together with the idempotency key in one transaction, then a write to Excel is attempted.

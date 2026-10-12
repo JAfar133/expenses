@@ -17,6 +17,10 @@ export type { ExcelOptions, ExcelWriteResult, Expense } from './excel/types.ts';
  *
  * Only the sheet XML and the table XML are changed. The other parts of the workbook (charts, styles,
  * calcChain, metadata) stay untouched — ExcelJS loses them on re-save.
+ *
+ * @deprecated Since v2 the Excel report (`GET /api/expenses/export.xlsx`) replaces the two-way sync. This code is kept
+ * for the installation that still works with its Excel file, can be switched off in the app (SyncSwitch) and is not
+ * extended: new features (cards, currencies, access) do not go into it.
  */
 export async function appendExpenseToBuffer(
   source: Buffer,

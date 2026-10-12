@@ -39,6 +39,10 @@ export interface ExcelTable extends ExcelExpenses {
 /**
  * Reads all operations from the structured table together with row numbers. Empty rows are ignored,
  * while partially filled or invalid ones are skipped and listed in `skipped`.
+ *
+ * @deprecated Since v2 the Excel report (`GET /api/expenses/export.xlsx`) replaces the two-way sync. This code is kept
+ * for the installation that still works with its Excel file, can be switched off in the app (SyncSwitch) and is not
+ * extended: new features (cards, currencies, access) do not go into it.
  */
 export async function readExcelTable(
   source: Uint8Array,

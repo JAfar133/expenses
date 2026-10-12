@@ -61,6 +61,10 @@ const MAX_CONFLICT_ATTEMPTS = 2;
  *
  * Only one cycle runs at a time. Requests that arrive while a cycle is running are merged into one
  * next cycle: it starts after the request, so it sees all records added before it.
+ *
+ * @deprecated Since v2 the Excel report (`GET /api/expenses/export.xlsx`) replaces the two-way sync. This code is kept
+ * for the installation that still works with its Excel file, can be switched off in the app (SyncSwitch) and is not
+ * extended: new features (cards, currencies, access) do not go into it.
  */
 export class SyncService {
   private running?: Promise<SyncResult>;
