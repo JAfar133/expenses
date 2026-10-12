@@ -1,5 +1,5 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildPatch } from '../src/features/analytics/components/EditExpenseDialog.tsx';
 import type { OperationItem } from '../src/features/analytics/api/operations.api.ts';
 import {
@@ -671,5 +671,87 @@ describe('валюты карт', () => {
 
     expect(buildPatch(base, values, false).patch).toEqual({ amount: 12.75 });
     expect(buildPatch(base, values).errors.amount).toBe('Введите целое число');
+  });
+});
+
+describe('скачивание в Excel', () => {
+  const xlsx = () =>
+    new Response('xlsx', {
+      status: 200,
+      headers: { 'Content-Disposition': 'attachment; filename="expenses.xlsx"' },
+    });
+  const exportRequests = () =>
+    harness.requests.filter((r) => r.startsWith('/api/expenses/export.xlsx'));
+  let clicks: number;
+
+  beforeEach(() => {
+    clicks = 0;
+    URL.createObjectURL = vi.fn(() => 'blob:report');
+    URL.revokeObjectURL = vi.fn();
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {
+      clicks += 1;
+    });
+  });
+
+  it('кнопка есть, запрашивает отчёт с текущими фильтрами и валютой, без страниц и сортировки', async () => {
+    serve();
+    harness.handlers['/api/expenses/export.xlsx'] = xlsx;
+    const user = renderAnalytics(`${OPS}?card=${encodeURIComponent('Настя')}`);
+    await waitFor(() => rowOf('Позиция 1'));
+
+    const button = screen.getByRole('button', { name: 'Скачать Excel' });
+    expect(button).toHaveAttribute('title', 'Скачать Excel');
+    await user.click(button);
+
+    await waitFor(() => expect(exportRequests()).toHaveLength(1));
+    const url = decodeURIComponent(exportRequests()[0]!);
+    expect(url).toBe(
+      '/api/expenses/export.xlsx?from=2026-10-01&to=2026-10-31&cards=Настя&currency=AMD',
+    );
+    await waitFor(() => expect(clicks).toBe(1));
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:report');
+  });
+
+  it('пока файл скачивается, кнопка занята и второй запрос не уходит', async () => {
+    serve();
+    let release!: () => void;
+    harness.handlers['/api/expenses/export.xlsx'] = () =>
+      new Promise<Response>((resolve) => {
+        release = () => resolve(xlsx());
+      }) as unknown as Response;
+    const user = renderAnalytics(OPS);
+    await waitFor(() => rowOf('Позиция 1'));
+
+    await user.click(screen.getByRole('button', { name: 'Скачать Excel' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Скачать Excel' })).toBeDisabled(),
+    );
+    await user.click(screen.getByRole('button', { name: 'Скачать Excel' }));
+    expect(exportRequests()).toHaveLength(1);
+
+    release();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Скачать Excel' })).toBeEnabled(),
+    );
+  });
+
+  it('ошибка 422 показывается сообщением сервера, файл не сохраняется', async () => {
+    serve();
+    harness.handlers['/api/expenses/export.xlsx'] = () =>
+      json(
+        {
+          success: false,
+          error: { code: 'EXPORT_TOO_LARGE', message: 'Больше 50 000 операций: сузьте фильтры' },
+        },
+        422,
+      );
+    const user = renderAnalytics(OPS);
+    await waitFor(() => rowOf('Позиция 1'));
+
+    await user.click(screen.getByRole('button', { name: 'Скачать Excel' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Больше 50 000 операций');
+    expect(clicks).toBe(0);
   });
 });

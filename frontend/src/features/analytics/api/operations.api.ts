@@ -1,4 +1,4 @@
-import { apiRequest } from '../../../shared/api/http.ts';
+import { apiRequest, downloadFile } from '../../../shared/api/http.ts';
 import { toSearch, type AnalyticsFilters } from './analytics.api.ts';
 
 /**
@@ -90,3 +90,7 @@ export const deleteExpense = async (id: string) =>
 
 export const restoreExpense = async (id: string) =>
   (await apiRequest<EditedExpense>(`/expenses/${id}/restore`, { method: 'POST' })).data;
+
+/** The report for the same filters and display currency as the list (no paging or sorting), as an .xlsx download. */
+export const downloadExport = (filters: AnalyticsFilters) =>
+  downloadFile(`/expenses/export.xlsx${toSearch(filters)}`, 'expenses.xlsx');

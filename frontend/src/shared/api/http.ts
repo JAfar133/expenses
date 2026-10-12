@@ -29,10 +29,9 @@ export function onSessionLost(handler: (() => void) | undefined): void {
   sessionLostHandler = handler;
 }
 
-async function execute<T>(path: string, init: RequestInit): Promise<ApiSuccess<T>> {
-  let response: Response;
+async function send(path: string, init: RequestInit): Promise<Response> {
   try {
-    response = await fetch(`/api${path}`, {
+    return await fetch(`/api${path}`, {
       ...init,
       // Header only for requests with a body: Fastify answers 400 to a JSON request without a body
       headers: {
@@ -43,16 +42,25 @@ async function execute<T>(path: string, init: RequestInit): Promise<ApiSuccess<T
   } catch {
     throw new ApiError(0, NETWORK_ERROR_CODE, 'Нет соединения с сервером');
   }
+}
 
+/** The usual JSON error of the server as an `ApiError`. */
+function toApiError(
+  response: Response,
+  body: { error?: { code?: string; message?: string } } | null,
+) {
+  return new ApiError(
+    response.status,
+    body?.error?.code ?? 'UNKNOWN',
+    body?.error?.message ?? 'Неизвестная ошибка сервера',
+  );
+}
+
+async function execute<T>(path: string, init: RequestInit): Promise<ApiSuccess<T>> {
+  const response = await send(path, init);
   const body = await response.json().catch(() => null);
 
-  if (!response.ok || body?.success === false) {
-    throw new ApiError(
-      response.status,
-      body?.error?.code ?? 'UNKNOWN',
-      body?.error?.message ?? 'Неизвестная ошибка сервера',
-    );
-  }
+  if (!response.ok || body?.success === false) throw toApiError(response, body);
   return body as ApiSuccess<T>;
 }
 
@@ -87,4 +95,69 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     await refreshSession();
     return execute<T>(path, init);
   }
+}
+
+/** A file received from the server. */
+interface Download {
+  blob: Blob;
+  fileName: string;
+}
+
+/**
+ * File name from Content-Disposition: `filename*=UTF-8''…` (decoded) first, then `filename="…"`,
+ * otherwise the fallback.
+ */
+export function parseFileName(header: string | null, fallback: string): string {
+  if (!header) return fallback;
+  const star = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(header)?.[1];
+  if (star) {
+    try {
+      return decodeURIComponent(star.trim());
+    } catch {
+      // A malformed encoding: try the plain form
+    }
+  }
+  const plain =
+    /filename\s*=\s*"([^"]+)"/i.exec(header)?.[1] ?? /filename\s*=\s*([^;]+)/i.exec(header)?.[1];
+  return plain?.trim() || fallback;
+}
+
+async function executeDownload(path: string, fallbackName: string): Promise<Download> {
+  const response = await send(path, {});
+  if (!response.ok) {
+    throw toApiError(response, await response.json().catch(() => null));
+  }
+  return {
+    blob: await response.blob(),
+    fileName: parseFileName(response.headers.get('Content-Disposition'), fallbackName),
+  };
+}
+
+/** Saves a blob as a file through a temporary link. */
+function saveBlob({ blob, fileName }: Download): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Downloads a file from the API (cookie authentication, the same refresh-and-retry on 401 as `apiRequest`)
+ * and offers it to the browser. A JSON error of the server becomes an `ApiError`.
+ */
+export async function downloadFile(path: string, fallbackName: string): Promise<void> {
+  let file: Download;
+  try {
+    file = await executeDownload(path, fallbackName);
+  } catch (error) {
+    if (!(error instanceof ApiError && error.status === 401)) throw error;
+    // The access token expired: quietly get a new one and retry once
+    await refreshSession();
+    file = await executeDownload(path, fallbackName);
+  }
+  saveBlob(file);
 }

@@ -125,3 +125,11 @@ export const CrownOffIcon = () => (
     <path d="M4 3l16 18" />
   </Icon>
 );
+
+/** Download a file */
+export const DownloadIcon = () => (
+  <Icon>
+    <path d="M12 4v11M7.5 10.5L12 15l4.5-4.5" />
+    <path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2" />
+  </Icon>
+);

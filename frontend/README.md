@@ -98,6 +98,8 @@ chunk, so the expense form stays light. To run the development mode against a di
 - `/admin` also has the "Синхронизация с Excel" switch (`GET/PUT /api/admin/sync`, with a confirmation): while it is off the header sync icon is not rendered at all and `/api/sync/status` is no longer polled; switching it refetches the status.
 - The UI of a regular member (role `member`) is unchanged: these links and pages are not rendered for them.
 
+- The "Операции" tab has a "Скачать Excel" icon button: it downloads `/api/expenses/export.xlsx` for exactly the current filters, period and display currency (`downloadFile` in `shared/api/http.ts`: cookie auth, refresh on 401, file name from `Content-Disposition`).
+
 ## Structure
 
 ```
