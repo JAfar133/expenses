@@ -232,6 +232,7 @@ describe('лимиты на вкладке «Обзор»', () => {
 
   const categoryCard = () =>
     screen.getByRole('heading', { name: 'Расход по категориям' }).closest('section')!;
+  const overall = () => screen.findByRole('region', { name: 'Общий бюджет' });
 
   it('при валюте показа USD запрос идёт с currency=USD, числа сервера показаны без пересчёта', async () => {
     harness.handlers['/api/rates'] = () =>
@@ -249,11 +250,11 @@ describe('лимиты на вкладке «Обзор»', () => {
       ]);
     renderAnalytics();
 
-    const bar = await screen.findByRole('progressbar', { name: 'Лимит: Всего' });
-    const row = bar.closest('li')!;
-    expect(row).toHaveTextContent(/41%\s*· осталось 59,50 USD/);
-    expect(row).toHaveAttribute('title', 'лимит 100,00 USD · 01.10–31.10');
-    expect(row).not.toHaveTextContent('AMD');
+    const block = within(await overall());
+    expect(block.getByText('40,50 USD')).toBeInTheDocument();
+    expect(block.getByText(/\/ 100,00 USD/)).toBeInTheDocument();
+    expect(block.getByText('41%')).toBeInTheDocument();
+    expect(block.getByText('Осталось 59,50 USD до конца периода')).toBeInTheDocument();
     expect(harness.requests).toContain('/api/budgets?currency=USD');
   });
 
@@ -271,58 +272,171 @@ describe('лимиты на вкладке «Обзор»', () => {
           : budget(),
       ]);
     const user = renderAnalytics();
-    await screen.findByRole('progressbar', { name: 'Лимит: Всего' });
+    await overall();
     expect(harness.requests).toContain('/api/budgets?currency=AMD');
 
     await user.click(await screen.findByRole('radio', { name: /RUB/ }));
 
     await waitFor(() => expect(harness.requests).toContain('/api/budgets?currency=RUB'));
     expect(
-      (await screen.findByRole('progressbar', { name: 'Лимит: Всего' })).closest('li'),
-    ).toHaveTextContent(/осталось 3 444,00 RUB/);
+      await within(await overall()).findByText('Осталось 3 444,00 RUB до конца периода'),
+    ).toBeInTheDocument();
   });
 
-  it('полоски внутри карточки «Расход по категориям», отдельной карточки нет', async () => {
+  it('с лимитами в карточке две вкладки; по умолчанию «Бюджет и лимиты», отдельной карточки нет', async () => {
     harness.handlers['/api/budgets'] = () => analyticsOk([budget()]);
     renderAnalytics();
-    await screen.findByRole('heading', { name: 'Расход по категориям' });
+    await overall();
 
-    const bar = await within(categoryCard()).findByRole('progressbar', { name: 'Лимит: Всего' });
-    const region = screen.getByRole('region', { name: 'Лимиты' });
-    expect(categoryCard()).toContainElement(region);
-    expect(screen.getAllByRole('region', { name: 'Лимиты' })).toHaveLength(1);
-    // Under the card's header and switches, above the chart; «Всего» is the first row
-    expect(within(region).getAllByRole('progressbar')[0]).toBe(bar);
+    const tabs = within(categoryCard()).getByRole('radiogroup', { name: 'Раздел' });
+    expect(
+      within(tabs)
+        .getAllByRole('radio')
+        .map((r) => r.textContent),
+    ).toEqual(['Бюджет и лимиты', 'Структура расходов']);
+    expect(within(tabs).getByRole('radio', { name: 'Бюджет и лимиты' })).toBeChecked();
+    expect(categoryCard()).toContainElement(screen.getByRole('region', { name: 'Общий бюджет' }));
+    // On the limits tab there is no chart view switch
+    expect(within(categoryCard()).queryByRole('radiogroup', { name: 'Вид графика' })).toBeNull();
   });
 
-  it('только «Всего» остаётся первой строкой, дальше категории по порядку', async () => {
-    harness.handlers['/api/budgets'] = () =>
-      analyticsOk([budget(), budget({ id: 'c', categoryId: '3', category: 'Игры' })]);
+  it('«Структура расходов»: вкладки выше переключателя видов, ровно три вида; выбор вкладки сохраняется', async () => {
+    harness.handlers['/api/budgets'] = () => analyticsOk([budget()]);
+    const user = renderAnalytics();
+    await overall();
+
+    await user.click(screen.getByRole('radio', { name: 'Структура расходов' }));
+
+    expect(await screen.findByText(/Всего расходов/)).toHaveTextContent('Всего расходов 2 100 AMD');
+    const kinds = within(categoryCard()).getByRole('radiogroup', { name: 'Вид графика' });
+    const tabs = within(categoryCard()).getByRole('radiogroup', { name: 'Раздел' });
+    expect(tabs.compareDocumentPosition(kinds) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      within(kinds)
+        .getAllByRole('radio')
+        .map((r) => r.textContent),
+    ).toEqual(['Полосы', 'Кольцо', 'Круг']);
+    expect(screen.queryByRole('region', { name: 'Общий бюджет' })).toBeNull();
+    // The choice is saved in the user's settings, like the chart view
+    await waitFor(() => {
+      const index = harness.requests.findIndex((r) => r === 'PUT /api/preferences');
+      expect(harness.bodies[index]).toEqual({ 'category.tab': 'structure' });
+    });
+  });
+
+  it('сохранённая вкладка «Структура расходов» открывается сразу', async () => {
+    harness.handlers['/api/preferences'] = () => analyticsOk({ 'category.tab': 'structure' });
+    harness.handlers['/api/budgets'] = () => analyticsOk([budget()]);
     renderAnalytics();
 
-    const region = await screen.findByRole('region', { name: 'Лимиты' });
-    const names = within(region)
-      .getAllByRole('progressbar')
-      .map((bar) => bar.getAttribute('aria-label'));
-    expect(names).toEqual(['Лимит: Всего', 'Лимит: Игры']);
+    expect(await screen.findByText(/Всего расходов/)).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Общий бюджет' })).toBeNull();
   });
 
-  it('без лимитов карточка категорий без изменений', async () => {
+  it('категории по группам: превышен, близко, остальные, без лимита (свёрнута)', async () => {
+    harness.handlers['/api/budgets'] = () =>
+      analyticsOk([
+        budget(),
+        budget({
+          id: 'a',
+          categoryId: '1',
+          category: 'продукты',
+          level: 'over',
+          percent: 120,
+          spent: 1200,
+          limit: 1000,
+          remaining: -200,
+        }),
+        budget({
+          id: 'b',
+          categoryId: '2',
+          category: 'Транспорт',
+          level: 'warn',
+          percent: 85,
+          spent: 850,
+          limit: 1000,
+          remaining: 150,
+        }),
+        budget({
+          id: 'c',
+          categoryId: '3',
+          category: 'Игры',
+          level: 'ok',
+          percent: 10,
+          spent: 100,
+          limit: 1000,
+          remaining: 900,
+        }),
+      ]);
+    renderAnalytics();
+    await overall();
+
+    const group = (title: string) => screen.getByText(title).closest('details')!;
+    expect(within(group('Превышен лимит')).getByText('1 категория')).toBeInTheDocument();
+    expect(within(group('Превышен лимит')).getByText('продукты')).toBeInTheDocument();
+    expect(within(group('Превышен лимит')).getByText(/превышение 200 AMD/)).toBeInTheDocument();
+    expect(within(group('Близко к лимиту')).getByText('Транспорт')).toBeInTheDocument();
+    expect(
+      within(group('Близко к лимиту')).getByText(/85% · осталось 150 AMD/),
+    ).toBeInTheDocument();
+    expect(within(group('Остальные категории')).getByText('Игры')).toBeInTheDocument();
+    // Categories with spending but no limit; collapsed by default
+    const unlimited = group('Без лимита');
+    expect(within(unlimited).getByText('кафе')).toBeInTheDocument();
+    expect(unlimited).not.toHaveAttribute('open');
+    expect(group('Превышен лимит')).toHaveAttribute('open');
+  });
+
+  it('группа сворачивается и разворачивается по заголовку', async () => {
+    harness.handlers['/api/budgets'] = () =>
+      analyticsOk([
+        budget(),
+        budget({
+          id: 'c',
+          categoryId: '3',
+          category: 'Игры',
+          level: 'ok',
+          percent: 10,
+          remaining: 900,
+        }),
+      ]);
+    const user = renderAnalytics();
+    await overall();
+    const details = screen.getByText('Остальные категории').closest('details')!;
+    expect(details).toHaveAttribute('open');
+
+    await user.click(screen.getByText('Остальные категории'));
+    expect(details).not.toHaveAttribute('open');
+    await user.click(screen.getByText('Остальные категории'));
+    expect(details).toHaveAttribute('open');
+  });
+
+  it('без общего лимита блока «Общий бюджет» нет, группы остаются', async () => {
+    harness.handlers['/api/budgets'] = () =>
+      analyticsOk([
+        budget({
+          id: 'c',
+          categoryId: '3',
+          category: 'Игры',
+          level: 'ok',
+          percent: 10,
+          remaining: 900,
+        }),
+      ]);
+    renderAnalytics();
+
+    expect(await screen.findByText('Остальные категории')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Общий бюджет' })).toBeNull();
+  });
+
+  it('без лимитов вкладок нет, карточка как структура', async () => {
     harness.handlers['/api/budgets'] = () => analyticsOk([]);
     renderAnalytics();
     await screen.findByRole('heading', { name: 'Расход по категориям' });
 
-    expect(screen.queryByRole('region', { name: 'Лимиты' })).toBeNull();
+    expect(screen.queryByRole('radiogroup', { name: 'Раздел' })).toBeNull();
     expect(screen.queryByRole('progressbar')).toBeNull();
-  });
-
-  it('вверху обзора отдельной карточки с лимитами нет', async () => {
-    harness.handlers['/api/budgets'] = () => analyticsOk([budget()]);
-    renderAnalytics();
-    await screen.findByRole('progressbar', { name: 'Лимит: Всего' });
-
-    const region = screen.getByRole('region', { name: 'Лимиты' });
-    expect(region.parentElement?.closest('section')).toBe(categoryCard());
+    expect(await screen.findByText(/Всего расходов/)).toBeInTheDocument();
   });
 
   it('на других вкладках полосок нет', async () => {

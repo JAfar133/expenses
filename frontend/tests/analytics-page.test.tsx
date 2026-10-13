@@ -158,7 +158,7 @@ describe('вид графиков', () => {
     expect(localStorage.getItem('analytics.daily.type')).toBe('line');
   });
 
-  it('у категорий четыре вида, среди них кольцо и круг', async () => {
+  it('у категорий три вида: полосы, кольцо и круг', async () => {
     renderAnalytics();
     const switches = await screen.findAllByRole('radiogroup', { name: 'Вид графика' });
 
@@ -166,7 +166,7 @@ describe('вид графиков', () => {
       .getAllByRole('radio')
       .map((r) => r.textContent);
 
-    expect(kinds).toEqual(['Полосы', 'Столбики', 'Кольцо', 'Круг']);
+    expect(kinds).toEqual(['Полосы', 'Кольцо', 'Круг']);
   });
 
   it('кольцо показывает легенду с долями и суммами и общий итог', async () => {
@@ -191,6 +191,21 @@ describe('вид графиков', () => {
 
     expect(within(switches[1]!).getByRole('radio', { name: 'Круг' })).toBeChecked();
     expect(screen.queryByText('Всего')).toBeNull();
+  });
+
+  it('старое сохранённое «Столбики» (columns) превращается в «Полосы»', async () => {
+    localStorage.setItem('analytics.category.type', 'columns');
+    renderAnalytics();
+
+    const switches = await screen.findAllByRole('radiogroup', { name: 'Вид графика' });
+
+    expect(within(switches[1]!).getByRole('radio', { name: 'Полосы' })).toBeChecked();
+  });
+
+  it('над графиком категорий показано «Всего расходов» с суммой', async () => {
+    renderAnalytics();
+
+    expect(await screen.findByText(/Всего расходов/)).toHaveTextContent('Всего расходов 2 100 AMD');
   });
 
   it('неизвестное сохранённое значение игнорируется', async () => {

@@ -4,6 +4,7 @@ import { readStored, writeStored } from '../../../shared/utils/storage.ts';
 import { fetchPreferences, savePreferences } from '../api/preferences.api.ts';
 import {
   isAllowed,
+  migrateLegacy,
   PREFERENCE_KEYS,
   PREFERENCES,
   sanitizePreferences,
@@ -19,7 +20,7 @@ const SAVE_KEY = ['preferences', 'save'];
 const localKey = (key: PreferenceKey) => `analytics.${key}`;
 
 const readLocal = (key: PreferenceKey): string | undefined => {
-  const value = readStored(localKey(key));
+  const value = migrateLegacy(key, readStored(localKey(key)));
   return isAllowed(key, value) ? value : undefined;
 };
 

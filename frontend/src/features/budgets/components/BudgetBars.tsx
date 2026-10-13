@@ -65,14 +65,12 @@ function BudgetRow({ budget, baseCurrency }: { budget: Budget; baseCurrency: str
 
 interface BudgetBarsProps {
   className?: string;
-  /** `card`: a card of its own (the add page); `inline`: a block inside another card (the category chart) */
-  variant?: 'card' | 'inline';
   /** Currency to show amounts in (asked from the server); by default the group's reporting currency */
   currency?: string;
 }
 
 /** Progress of the group's limits. Renders nothing when there are none: a group without limits looks as before. */
-export function BudgetBars({ className = '', variant = 'card', currency }: BudgetBarsProps) {
+export function BudgetBars({ className = '', currency }: BudgetBarsProps) {
   // The server sums in the requested currency: the numbers are shown as they come
   const budgets = useBudgets(currency).data;
   const config = useConfig().data;
@@ -85,17 +83,6 @@ export function BudgetBars({ className = '', variant = 'card', currency }: Budge
       ))}
     </ul>
   );
-
-  if (variant === 'inline') {
-    return (
-      <section
-        aria-label="Лимиты"
-        className={`mb-4 border-b border-zinc-100 pb-4 dark:border-zinc-800 ${className}`}
-      >
-        {list}
-      </section>
-    );
-  }
 
   return (
     <section

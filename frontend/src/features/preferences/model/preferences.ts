@@ -44,9 +44,17 @@ export const PREFERENCES = {
     fallback: 'donut',
     options: [
       { value: 'bars', label: 'Полосы' },
-      { value: 'columns', label: 'Столбики' },
       { value: 'donut', label: 'Кольцо' },
       { value: 'pie', label: 'Круг' },
+    ],
+  }),
+  'category.tab': define({
+    label: 'Категории: раздел',
+    description: 'Что показывать в карточке «Расход по категориям», если в группе есть лимиты',
+    fallback: 'limits',
+    options: [
+      { value: 'limits', label: 'Бюджет и лимиты' },
+      { value: 'structure', label: 'Структура расходов' },
     ],
   }),
   'matrix.type': define({
@@ -106,12 +114,21 @@ export const isAllowed = <K extends PreferenceKey>(
 export const defaultPreferences = (): Preferences =>
   Object.fromEntries(PREFERENCE_KEYS.map((key) => [key, PREFERENCES[key].fallback])) as Preferences;
 
+/** Values that no longer exist and what they became: an old saved choice keeps working. */
+const LEGACY_VALUES: Partial<Record<PreferenceKey, Record<string, string>>> = {
+  'category.type': { columns: 'bars' },
+};
+
+/** A removed value is replaced by its successor; everything else is returned as is. */
+export const migrateLegacy = (key: PreferenceKey, value: unknown): unknown =>
+  typeof value === 'string' ? (LEGACY_VALUES[key]?.[value] ?? value) : value;
+
 /** Keeps only known keys with allowed values: server responses and old records are not trusted blindly. */
 export function sanitizePreferences(raw: unknown): Preferences {
   const clean: Record<string, string> = {};
   if (raw && typeof raw === 'object') {
     for (const key of PREFERENCE_KEYS) {
-      const value = (raw as Record<string, unknown>)[key];
+      const value = migrateLegacy(key, (raw as Record<string, unknown>)[key]);
       if (isAllowed(key, value)) clean[key] = value;
     }
   }

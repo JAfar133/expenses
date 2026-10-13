@@ -1,7 +1,6 @@
 import {
   Bar,
   BarChart,
-  CartesianGrid,
   Cell,
   LabelList,
   Pie,
@@ -16,14 +15,10 @@ import { formatAmount, formatMoney } from '../../../shared/utils/money.ts';
 import type { BreakdownRow } from '../api/analytics.api.ts';
 import { usePreference } from '../../preferences/hooks/usePreferences.ts';
 import { PREFERENCES } from '../../preferences/model/preferences.ts';
-import {
-  assignColors,
-  compactNumber,
-  seriesColor,
-  toSlices,
-  type Slice,
-} from '../model/chart-data.ts';
-import { BudgetBars } from '../../budgets/components/BudgetBars.tsx';
+import { assignColors, seriesColor, toSlices, type Slice } from '../model/chart-data.ts';
+import { pluralCategories } from '../../budgets/model/plural.ts';
+import { BudgetsTab } from '../../budgets/components/BudgetsTab.tsx';
+import { useBudgets } from '../../budgets/hooks/useBudgets.ts';
 import { ChartCard, ChartMessage, DataTable } from './ChartCard.tsx';
 import { ChartTooltip } from './ChartTooltip.tsx';
 import { ChartTypeSwitch } from './ChartTypeSwitch.tsx';
@@ -42,7 +37,15 @@ interface CategoryChartProps {
   loading?: boolean;
 }
 
-/** Which categories take the most money: bars, columns, donut or pie. The view is remembered. */
+const TABS = [
+  { value: 'limits', label: 'Бюджет и лимиты' },
+  { value: 'structure', label: 'Структура расходов' },
+] as const;
+
+/**
+ * Which categories take the most money. With limits the card has two tabs, «Бюджет и лимиты» and
+ * «Структура расходов» (the choice is remembered); without limits it is just the structure.
+ */
 export function CategoryChart({
   rows,
   currency,
@@ -51,22 +54,31 @@ export function CategoryChart({
   loading = false,
 }: CategoryChartProps) {
   const [type, setType] = usePreference('category.type');
+  const [tab, setTab] = usePreference('category.tab');
+  const { digits } = useDisplayCurrency();
+  const budgets = useBudgets(currency).data;
+  const hasLimits = !!budgets && budgets.length > 0;
+  const showLimits = hasLimits && tab === 'limits';
   const total = rows?.reduce((sum, row) => sum + row.total, 0) ?? 0;
   const slices = toSlices(rows ?? []);
+
+  const viewSwitch = (
+    <ChartTypeSwitch
+      label="Вид графика"
+      options={PREFERENCES['category.type'].options}
+      mobileColumns={3}
+      value={type}
+      onChange={setType}
+    />
+  );
 
   return (
     <ChartCard
       title="Расход по категориям"
-      actions={
-        <ChartTypeSwitch
-          label="Вид графика"
-          options={PREFERENCES['category.type'].options}
-          mobileColumns={4}
-          value={type}
-          onChange={setType}
-        />
-      }
+      // Without limits there are no tabs: the view switch stays in the header
+      actions={!hasLimits && viewSwitch}
       table={
+        !showLimits &&
         rows &&
         total > 0 && (
           <DataTable
@@ -81,27 +93,46 @@ export function CategoryChart({
         )
       }
     >
-      <BudgetBars variant="inline" currency={currency} />
-      {loading && !rows ? (
+      {/* Tabs always come first; the view switch is under them and only on the structure tab */}
+      {hasLimits && (
+        <div className="mb-4 space-y-3">
+          <ChartTypeSwitch
+            label="Раздел"
+            options={TABS}
+            value={tab}
+            onChange={setTab}
+            mobileColumns={2}
+          />
+          {!showLimits && viewSwitch}
+        </div>
+      )}
+      {showLimits ? (
+        <BudgetsTab budgets={budgets} rows={rows} onSelect={onSelect} />
+      ) : loading && !rows ? (
         <ChartMessage>Загрузка…</ChartMessage>
       ) : !rows || total === 0 ? (
         <ChartMessage>За выбранный период расходов нет</ChartMessage>
-      ) : type === 'donut' || type === 'pie' ? (
-        <ShareChart
-          slices={slices}
-          total={total}
-          currency={currency}
-          categoryOrder={categoryOrder}
-          donut={type === 'donut'}
-          onSelect={onSelect}
-        />
       ) : (
-        <BarsChart
-          rows={rows}
-          currency={currency}
-          horizontal={type === 'bars'}
-          onSelect={onSelect}
-        />
+        <>
+          <p className="mb-3 text-sm text-zinc-500 dark:text-zinc-400">
+            Всего расходов{' '}
+            <strong className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
+              {formatAmount(total, digits)} {currency}
+            </strong>
+          </p>
+          {type === 'bars' ? (
+            <BarsChart rows={rows} currency={currency} onSelect={onSelect} />
+          ) : (
+            <ShareChart
+              slices={slices}
+              total={total}
+              currency={currency}
+              categoryOrder={categoryOrder}
+              donut={type === 'donut'}
+              onSelect={onSelect}
+            />
+          )}
+        </>
       )}
     </ChartCard>
   );
@@ -110,12 +141,10 @@ export function CategoryChart({
 function BarsChart({
   rows,
   currency,
-  horizontal,
   onSelect,
 }: {
   rows: BreakdownRow[];
   currency: string;
-  horizontal: boolean;
   onSelect?: (category: string) => void;
 }) {
   const { digits } = useDisplayCurrency();
@@ -149,96 +178,45 @@ function BarsChart({
     />
   );
 
-  if (horizontal) {
-    return (
-      <div
-        style={{ height: Math.max(160, rows.length * ROW_HEIGHT + 16) }}
-        role="img"
-        aria-label="Категории по сумме расходов"
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            data={rows}
-            layout="vertical"
-            margin={{ top: 4, right: 72, bottom: 4, left: 0 }}
-          >
-            <XAxis type="number" hide />
-            <YAxis
-              type="category"
-              dataKey="key"
-              width={104}
-              tick={{ ...axisTick, fill: 'var(--chart-axis)' }}
-              tickLine={false}
-              axisLine={false}
-              interval={0}
-            />
-            {tooltip}
-            <Bar
-              dataKey="total"
-              fill={SERIES_COLOR}
-              maxBarSize={24}
-              radius={[0, 4, 4, 0]}
-              isAnimationActive={false}
-              className={onSelect ? 'cursor-pointer' : undefined}
-              onClick={select}
-            >
-              <LabelList
-                dataKey="total"
-                position="right"
-                formatter={(value: unknown) => formatMoney(Number(value))}
-                style={{ fill: 'var(--chart-axis)', fontSize: 12 }}
-              />
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    );
-  }
-
   return (
-    <div style={{ height: 260 }} role="img" aria-label="Категории по сумме расходов">
+    <div
+      style={{ height: Math.max(160, rows.length * ROW_HEIGHT + 16) }}
+      role="img"
+      aria-label="Категории по сумме расходов"
+    >
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
-          <XAxis
-            dataKey="key"
-            tick={axisTick}
-            tickLine={false}
-            axisLine={{ stroke: 'var(--chart-grid)' }}
-            interval={0}
-            tickFormatter={(value: string) => (value.length > 9 ? `${value.slice(0, 8)}…` : value)}
-          />
+        <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 72, bottom: 4, left: 0 }}>
+          <XAxis type="number" hide />
           <YAxis
-            width={44}
-            tickFormatter={compactNumber}
-            tick={axisTick}
+            type="category"
+            dataKey="key"
+            width={104}
+            tick={{ ...axisTick, fill: 'var(--chart-axis)' }}
             tickLine={false}
             axisLine={false}
+            interval={0}
           />
           {tooltip}
           <Bar
             dataKey="total"
             fill={SERIES_COLOR}
             maxBarSize={24}
-            radius={[4, 4, 0, 0]}
+            radius={[0, 4, 4, 0]}
             isAnimationActive={false}
             className={onSelect ? 'cursor-pointer' : undefined}
             onClick={select}
-          />
+          >
+            <LabelList
+              dataKey="total"
+              position="right"
+              formatter={(value: unknown) => formatMoney(Number(value))}
+              style={{ fill: 'var(--chart-axis)', fontSize: 12 }}
+            />
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
   );
-}
-
-/** Category count with a Russian plural form: 1, 2 and 5 categories. */
-function pluralCategories(count: number): string {
-  const lastTwo = count % 100;
-  const last = count % 10;
-  if (lastTwo >= 11 && lastTwo <= 14) return 'категорий';
-  if (last === 1) return 'категория';
-  if (last >= 2 && last <= 4) return 'категории';
-  return 'категорий';
 }
 
 /** Shares: donut or pie. Up to 7 slices, small categories are merged into "Other"; a legend with shares and amounts sits beside it. */

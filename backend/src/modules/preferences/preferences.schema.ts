@@ -10,8 +10,10 @@ export const preferencesSchema = z
     'daily.type': z.enum(['bars', 'line', 'area']),
     /** Per day or cumulative */
     'daily.mode': z.enum(['daily', 'cumulative']),
-    /** Spending by category: strips, bars, ring, pie */
-    'category.type': z.enum(['bars', 'columns', 'donut', 'pie']),
+    /** Spending by category: bars, ring, pie (a stored legacy "columns" falls back to bars in the UI) */
+    'category.type': z.enum(['bars', 'donut', 'pie']),
+    /** Category card tab: limits or spending structure */
+    'category.tab': z.enum(['limits', 'structure']),
     /** Categories by month: stacked or lines */
     'matrix.type': z.enum(['stacked', 'lines']),
     /** How many months to show in the comparison */
