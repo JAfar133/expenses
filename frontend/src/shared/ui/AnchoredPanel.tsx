@@ -81,9 +81,9 @@ export function AnchoredPanel({
           <div
             role="dialog"
             aria-label={label}
-            className={`fixed inset-x-0 bottom-0 z-40 max-h-[90dvh] overflow-y-auto overscroll-contain rounded-t-2xl bg-white p-4 pb-[calc(env(safe-area-inset-bottom)+4rem)] shadow-xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-0 sm:top-full sm:mt-2 sm:max-h-[75dvh] sm:rounded-2xl sm:pb-4 sm:border sm:border-zinc-200 sm:shadow-lg dark:bg-zinc-900 sm:dark:border-zinc-700 ${widthClass}`}
+            className={`fixed inset-x-0 bottom-0 z-40 flex max-h-[90dvh] flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-0 sm:top-full sm:mt-2 sm:max-h-[75dvh] sm:rounded-2xl sm:border sm:border-zinc-200 sm:shadow-lg dark:bg-zinc-900 sm:dark:border-zinc-700 ${widthClass}`}
           >
-            <div className="mb-2 flex items-center justify-between gap-2">
+            <div className="flex shrink-0 items-center justify-between gap-2 bg-white px-4 pt-3 pb-1 dark:bg-zinc-900">
               <h3 className="text-base font-semibold">{title ?? label}</h3>
               <button
                 type="button"
@@ -95,7 +95,9 @@ export function AnchoredPanel({
                 <CloseIcon />
               </button>
             </div>
-            {children}
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+4rem)] sm:pb-4">
+              {children}
+            </div>
           </div>
         </>
       )}

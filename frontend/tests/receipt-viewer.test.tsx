@@ -12,6 +12,7 @@ import {
   zoomOut,
 } from '../src/features/receipts/model/zoom.ts';
 import { useScrollLock } from '../src/shared/hooks/useScrollLock.ts';
+import { AnchoredPanel } from '../src/shared/ui/AnchoredPanel.tsx';
 import { Modal } from '../src/shared/ui/Modal.tsx';
 
 function Host() {
@@ -177,5 +178,41 @@ describe('масштаб', () => {
     expect(zoomIn(FIT, 300, 200).scale).toBe(1.5);
     expect(toggleZoom(FIT).scale).toBe(2.5);
     expect(toggleZoom({ scale: 2.5, x: 5, y: 5 })).toEqual(FIT);
+  });
+});
+
+describe('шапка окон не прокручивается', () => {
+  it('Modal: заголовок вне прокручиваемого тела', () => {
+    render(
+      <Modal title="Окно" onClose={() => undefined}>
+        <p>Содержимое</p>
+      </Modal>,
+    );
+    const heading = screen.getByRole('heading', { name: 'Окно' });
+    const body = screen.getByText('Содержимое').parentElement!;
+
+    expect(body).toHaveClass('overflow-y-auto', 'flex-1', 'min-h-0');
+    expect(body.contains(heading)).toBe(false);
+    expect(heading).toHaveClass('shrink-0', 'bg-white');
+    expect(screen.getByRole('dialog')).toHaveClass('flex', 'flex-col', 'overflow-hidden');
+  });
+
+  it('AnchoredPanel: шапка с крестиком вне прокручиваемого тела', async () => {
+    render(
+      <AnchoredPanel
+        label="Панель"
+        open
+        onOpenChange={() => undefined}
+        trigger={(props) => <button {...props}>Открыть</button>}
+      >
+        <p>Содержимое</p>
+      </AnchoredPanel>,
+    );
+    const close = screen.getByRole('button', { name: 'Закрыть' });
+    const body = screen.getByText('Содержимое').parentElement!;
+
+    expect(body).toHaveClass('overflow-y-auto', 'flex-1', 'min-h-0');
+    expect(body.contains(close)).toBe(false);
+    expect(close.parentElement).toHaveClass('shrink-0');
   });
 });

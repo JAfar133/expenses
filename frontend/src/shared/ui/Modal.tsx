@@ -42,10 +42,14 @@ export function Modal({ title, onClose, children }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="max-h-dvh w-full max-w-md overflow-y-auto overscroll-contain rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl dark:bg-zinc-900"
+        className="flex max-h-dvh w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:rounded-2xl dark:bg-zinc-900"
       >
-        <h2 className="mb-4 text-lg font-semibold">{title}</h2>
-        {children}
+        <h2 className="shrink-0 bg-white px-5 pt-5 pb-3 text-lg font-semibold dark:bg-zinc-900">
+          {title}
+        </h2>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+          {children}
+        </div>
       </div>
     </div>
   );
