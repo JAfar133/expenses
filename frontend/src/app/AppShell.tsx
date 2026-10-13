@@ -3,14 +3,27 @@ import { NavLink, Outlet, useLocation } from 'react-router';
 import type { AuthUser } from '../features/auth/api/auth.api.ts';
 import { UserBar } from '../features/auth/components/UserBar.tsx';
 import { SyncIndicator } from '../features/sync/components/SyncIndicator.tsx';
+import { PlusIcon } from '../shared/ui/icons.tsx';
 
-const linkClass = ({ isActive }: { isActive: boolean }) =>
-  'rounded-full px-4 py-2 text-sm font-medium transition ' +
+/** «Добавить» is the main action: a filled button. */
+const addClass = ({ isActive }: { isActive: boolean }) =>
+  'inline-flex h-10 items-center gap-1.5 rounded-full bg-indigo-600 px-4 text-sm font-semibold text-white ' +
+  'transition hover:bg-indigo-500 ' +
   (isActive
-    ? 'bg-indigo-600 text-white'
-    : 'text-zinc-600 hover:bg-zinc-200/70 dark:text-zinc-300 dark:hover:bg-zinc-800');
+    ? 'ring-2 ring-indigo-300 ring-offset-2 ring-offset-zinc-100 dark:ring-offset-zinc-950'
+    : '');
 
-/** Common page frame: title, sync indicator, navigation and the signed-in user. */
+/** «Аналитика» is a calm section: text, the active one is indigo with a thin line below. */
+const sectionClass = ({ isActive }: { isActive: boolean }) =>
+  'inline-flex h-10 items-center border-b-2 px-1 text-sm font-medium transition ' +
+  (isActive
+    ? 'border-indigo-600 text-indigo-700 dark:border-indigo-400 dark:text-indigo-300'
+    : 'border-transparent text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-50');
+
+/**
+ * Common page frame. Line 1: the title, on a wide screen the main navigation, the sync icon and the user menu.
+ * On a phone the navigation moves to its own second line.
+ */
 export function AppShell({ user }: { user: AuthUser }) {
   // The form fits a narrow column; the analytics page uses the full width
   const { pathname } = useLocation();
@@ -23,21 +36,25 @@ export function AppShell({ user }: { user: AuthUser }) {
         wide ? 'max-w-5xl' : medium ? 'max-w-2xl' : 'max-w-[560px]'
       }`}
     >
-      <header className="mb-4 flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">💳 Мои расходы</h1>
-        <SyncIndicator />
+      <header className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <h1 className="order-1 text-2xl font-bold">💳 Мои расходы</h1>
+        <div className="order-2 ml-auto flex items-center gap-2 sm:order-3">
+          <SyncIndicator />
+          <UserBar user={user} />
+        </div>
+        <nav
+          aria-label="Разделы"
+          className="order-3 flex w-full items-center gap-5 sm:order-2 sm:w-auto"
+        >
+          <NavLink to="/" end className={addClass}>
+            <PlusIcon />
+            Добавить
+          </NavLink>
+          <NavLink to="/analytics" className={sectionClass}>
+            Аналитика
+          </NavLink>
+        </nav>
       </header>
-
-      <nav aria-label="Разделы" className="mb-4 flex gap-2">
-        <NavLink to="/" end className={linkClass}>
-          Добавить
-        </NavLink>
-        <NavLink to="/analytics" className={linkClass}>
-          Анализ
-        </NavLink>
-      </nav>
-
-      <UserBar user={user} />
 
       <Suspense
         fallback={

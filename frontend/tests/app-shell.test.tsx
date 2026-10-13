@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -63,19 +63,20 @@ function renderShell(path: string, current: AuthUser = user) {
 }
 
 describe('AppShell', () => {
-  it('показывает заголовок, навигацию и кто вошёл', () => {
+  it('показывает заголовок, навигацию и меню пользователя', () => {
     renderShell('/');
 
     expect(screen.getByRole('heading', { name: /Мои расходы/ })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Разделы' })).toBeInTheDocument();
-    expect(screen.getByText('Вы вошли как', { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Меню пользователя: Миша' })).toBeInTheDocument();
+    expect(screen.queryByText('Вы вошли как', { exact: false })).toBeNull();
     expect(screen.getByText('Страница формы')).toBeInTheDocument();
   });
 
   it('отмечает текущий раздел и переключает страницы', async () => {
     const person = renderShell('/');
     const form = screen.getByRole('link', { name: 'Добавить' });
-    const analysis = screen.getByRole('link', { name: 'Анализ' });
+    const analysis = screen.getByRole('link', { name: 'Аналитика' });
     expect(form).toHaveAttribute('aria-current', 'page');
     expect(analysis).not.toHaveAttribute('aria-current');
 
@@ -98,33 +99,122 @@ describe('AppShell', () => {
     expect(screen.getByRole('main')).toHaveClass('max-w-[560px]');
   });
 
-  it('рядом с «Выйти» есть ссылка на настройки; страница настроек средней ширины', async () => {
+  it('«Добавить» — заметная кнопка, «Аналитика» — текст; активная аналитика с линией, не закрашена', async () => {
     const person = renderShell('/');
+    const add = screen.getByRole('link', { name: 'Добавить' });
+    const analytics = screen.getByRole('link', { name: 'Аналитика' });
+    expect(add).toHaveClass('bg-indigo-600', 'text-white');
+    expect(analytics).not.toHaveClass('bg-indigo-600');
+    expect(analytics).toHaveClass('border-transparent');
 
-    await person.click(screen.getByRole('link', { name: 'Настройки' }));
+    await person.click(analytics);
 
-    expect(await screen.findByText('Страница настроек')).toBeInTheDocument();
-    expect(screen.getByRole('main')).toHaveClass('max-w-2xl');
+    expect(analytics).toHaveClass('border-indigo-600', 'text-indigo-700');
+    expect(analytics).not.toHaveClass('bg-indigo-600');
   });
 
-  it('участник не видит ссылок «Группа» и «Админ»', () => {
+  it('навигация одна и стоит в шапке рядом с названием (на телефоне уходит на вторую строку)', () => {
     renderShell('/');
 
-    expect(screen.queryByRole('link', { name: 'Группа' })).toBeNull();
-    expect(screen.queryByRole('link', { name: 'Админ' })).toBeNull();
+    const nav = screen.getByRole('navigation', { name: 'Разделы' });
+    expect(nav.closest('header')).toContainElement(
+      screen.getByRole('heading', { name: /Мои расходы/ }),
+    );
+    expect(nav).toHaveClass('w-full', 'sm:w-auto');
   });
 
-  it('владелец видит «Группа», но не «Админ»', () => {
-    renderShell('/', { ...user, role: 'owner' });
+  describe('меню пользователя', () => {
+    const open = async (person: ReturnType<typeof userEvent.setup>) => {
+      await person.click(screen.getByRole('button', { name: /Меню пользователя/ }));
+      return screen.getByRole('menu');
+    };
+    const items = () => screen.getAllByRole('menuitem').map((item) => item.textContent?.trim());
 
-    expect(screen.getByRole('link', { name: 'Группа' })).toHaveAttribute('href', '/group');
-    expect(screen.queryByRole('link', { name: 'Админ' })).toBeNull();
-  });
+    it('закрыто по умолчанию; открывается кликом, закрывается повторным кликом', async () => {
+      const person = renderShell('/');
+      const button = screen.getByRole('button', { name: /Меню пользователя/ });
+      expect(button).toHaveAttribute('aria-haspopup', 'menu');
+      expect(button).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.queryByRole('menu')).toBeNull();
 
-  it('администратор видит «Админ», но не «Группа»', () => {
-    renderShell('/', { ...user, isAdmin: true });
+      await person.click(button);
+      expect(button).toHaveAttribute('aria-expanded', 'true');
+      expect(screen.getByRole('menu')).toBeInTheDocument();
 
-    expect(screen.getByRole('link', { name: 'Админ' })).toHaveAttribute('href', '/admin');
-    expect(screen.queryByRole('link', { name: 'Группа' })).toBeNull();
+      await person.click(button);
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('Escape закрывает меню и возвращает фокус на кнопку', async () => {
+      const person = renderShell('/');
+      const button = screen.getByRole('button', { name: /Меню пользователя/ });
+      await open(person);
+
+      await person.keyboard('{Escape}');
+
+      expect(screen.queryByRole('menu')).toBeNull();
+      expect(button).toHaveFocus();
+    });
+
+    it('клик вне меню закрывает его', async () => {
+      const person = renderShell('/');
+      await open(person);
+
+      await person.click(screen.getByText('Страница формы'));
+
+      expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('смена маршрута закрывает меню', async () => {
+      const person = renderShell('/');
+      await open(person);
+
+      await person.click(screen.getByRole('menuitem', { name: 'Настройки' }));
+
+      expect(await screen.findByText('Страница настроек')).toBeInTheDocument();
+      expect(screen.queryByRole('menu')).toBeNull();
+      expect(screen.getByRole('main')).toHaveClass('max-w-2xl');
+    });
+
+    it('участник: имя, роль «Участник», только «Настройки» и «Выйти»', async () => {
+      const person = renderShell('/');
+      const menu = await open(person);
+
+      expect(within(menu).getByText('Миша')).toBeInTheDocument();
+      expect(within(menu).getByText('Участник')).toBeInTheDocument();
+      expect(items()).toEqual(['Настройки', 'Выйти']);
+    });
+
+    it('владелец: «Управление группой» ведёт на /group, роль «Владелец», «Админ» нет', async () => {
+      const person = renderShell('/', { ...user, role: 'owner' });
+      const menu = await open(person);
+
+      expect(within(menu).getByText('Владелец')).toBeInTheDocument();
+      expect(items()).toEqual(['Управление группой', 'Настройки', 'Выйти']);
+      expect(screen.getByRole('menuitem', { name: 'Управление группой' })).toHaveAttribute(
+        'href',
+        '/group',
+      );
+    });
+
+    it('администратор: «Админ» ведёт на /admin, роль «Администратор», группы нет', async () => {
+      const person = renderShell('/', { ...user, isAdmin: true });
+      const menu = await open(person);
+
+      expect(within(menu).getByText('Администратор')).toBeInTheDocument();
+      expect(items()).toEqual(['Админ', 'Настройки', 'Выйти']);
+      expect(screen.getByRole('menuitem', { name: 'Админ' })).toHaveAttribute('href', '/admin');
+    });
+
+    it('при открытии фокус на первом пункте; стрелки переходят по пунктам', async () => {
+      const person = renderShell('/', { ...user, role: 'owner' });
+      await open(person);
+      expect(screen.getByRole('menuitem', { name: 'Управление группой' })).toHaveFocus();
+
+      await person.keyboard('{ArrowDown}');
+      expect(screen.getByRole('menuitem', { name: 'Настройки' })).toHaveFocus();
+      await person.keyboard('{ArrowUp}');
+      expect(screen.getByRole('menuitem', { name: 'Управление группой' })).toHaveFocus();
+    });
   });
 });

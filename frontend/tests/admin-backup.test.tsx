@@ -234,7 +234,7 @@ describe('раздел «Бэкап базы»', () => {
   });
 });
 
-describe('красная точка у ссылки «Админ»', () => {
+describe('красная точка у меню пользователя и пункта «Админ»', () => {
   const renderBar = (user: AuthUser) =>
     render(
       <QueryClientProvider client={client()}>
@@ -250,8 +250,12 @@ describe('красная точка у ссылки «Админ»', () => {
       current = backup({ state });
       renderBar(ADMIN);
 
-      expect(await screen.findByText('есть проблема с бэкапом')).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: /Админ/ })).toHaveTextContent(
+      const button = await screen.findByRole('button', { name: /Меню пользователя/ });
+      await waitFor(() => expect(button).toHaveTextContent('есть проблема с бэкапом'));
+
+      // The same dot sits on the «Админ» item inside the menu
+      await userEvent.setup().click(button);
+      expect(screen.getByRole('menuitem', { name: /Админ/ })).toHaveTextContent(
         'есть проблема с бэкапом',
       );
     },
@@ -272,6 +276,6 @@ describe('красная точка у ссылки «Админ»', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(requests).not.toContain('/api/admin/backup');
     expect(screen.queryByText('есть проблема с бэкапом')).toBeNull();
-    expect(screen.queryByRole('link', { name: /Админ/ })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /Админ/ })).toBeNull();
   });
 });

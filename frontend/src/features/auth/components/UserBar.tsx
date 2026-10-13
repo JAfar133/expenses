@@ -1,89 +1,165 @@
-import { Link } from 'react-router';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { Link, useLocation } from 'react-router';
+import {
+  ChevronDownIcon,
+  LogoutIcon,
+  SettingsIcon,
+  ShieldIcon,
+  UsersIcon,
+} from '../../../shared/ui/icons.tsx';
 import { hasBackupProblem, useAdminBackup } from '../../admin/hooks/useAdminBackup.ts';
 import type { AuthUser } from '../api/auth.api.ts';
 import { useLogout } from '../hooks/useAuth.ts';
 
-/** Who is signed in, and the sign-out button. */
-export function UserBar({ user }: { user: AuthUser }) {
-  const logout = useLogout();
-  // Only an application admin asks about the backup: nobody else ever requests the endpoint
-  const backup = useAdminBackup(user.isAdmin);
+const roleLabel = (user: AuthUser) =>
+  user.isAdmin ? 'Администратор' : user.role === 'owner' ? 'Владелец' : 'Участник';
 
+const itemClass =
+  'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-zinc-700 ' +
+  'hover:bg-zinc-100 focus-visible:bg-zinc-100 focus-visible:outline-none disabled:opacity-60 ' +
+  'dark:text-zinc-200 dark:hover:bg-zinc-800 dark:focus-visible:bg-zinc-800';
+
+/** A red dot on a control: something needs the administrator's attention. */
+function ProblemDot({ className }: { className: string }) {
   return (
-    <div className="mb-4 flex items-center justify-between text-sm text-zinc-500 dark:text-zinc-400">
-      <span>
-        Вы вошли как{' '}
-        <strong className="font-semibold text-zinc-800 dark:text-zinc-100">
-          {user.displayName}
-        </strong>
-      </span>
-      <div className="flex items-center gap-3">
-        {logout.isError && (
-          <span role="alert" className="text-red-600 dark:text-red-400">
-            Не удалось выйти
-          </span>
-        )}
-        {user.role === 'owner' && <BarLink to="/group" label="Группа" />}
-        {user.isAdmin && (
-          <BarLink to="/admin" label="Админ" alert={hasBackupProblem(backup.data?.state)} />
-        )}
-        <Link
-          to="/settings"
-          aria-label="Настройки"
-          title="Настройки"
-          className="flex size-9 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-200/60 hover:text-indigo-600 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-indigo-400"
-        >
-          <GearIcon />
-        </Link>
-        <button
-          type="button"
-          onClick={() => logout.mutate()}
-          disabled={logout.isPending}
-          className="rounded-lg px-2 py-1.5 font-medium text-indigo-600 hover:bg-zinc-200/60 disabled:opacity-60 dark:text-indigo-400 dark:hover:bg-zinc-800"
-        >
-          Выйти
-        </button>
-      </div>
-    </div>
+    <>
+      <span aria-hidden="true" className={`absolute size-2 rounded-full bg-red-500 ${className}`} />
+      <span className="sr-only">есть проблема с бэкапом</span>
+    </>
   );
 }
 
-/** A small text link for owner/admin pages: members never see these. */
-function BarLink({ to, label, alert = false }: { to: string; label: string; alert?: boolean }) {
+function MenuItem({ to, icon, children }: { to: string; icon: ReactNode; children: ReactNode }) {
   return (
-    <Link
-      to={to}
-      className="relative rounded-lg px-2 py-1.5 font-medium text-zinc-600 hover:bg-zinc-200/60 hover:text-indigo-600 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-indigo-400"
-    >
-      {label}
-      {alert && (
-        <>
-          <span
-            aria-hidden="true"
-            className="absolute right-0.5 top-0.5 size-2 rounded-full bg-red-500"
-          />
-          <span className="sr-only">есть проблема с бэкапом</span>
-        </>
-      )}
+    <Link to={to} role="menuitem" className={itemClass}>
+      <span className="text-zinc-500 dark:text-zinc-400">{icon}</span>
+      {children}
     </Link>
   );
 }
 
-/** Gear (outline icon), color is taken from the text. */
-function GearIcon() {
+/**
+ * The user menu: the name (a letter on a phone) with a dropdown: role, group management (owner), administration
+ * (admin), settings and sign-out. Closes on Escape, on a click outside and on a route change.
+ */
+export function UserBar({ user }: { user: AuthUser }) {
+  const logout = useLogout();
+  // Only an application admin asks about the backup: nobody else ever requests the endpoint
+  const backup = useAdminBackup(user.isAdmin);
+  const problem = user.isAdmin && hasBackupProblem(backup.data?.state);
+  const { pathname } = useLocation();
+
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+
+  const close = (restoreFocus = false) => {
+    setOpen(false);
+    if (restoreFocus) button.current?.focus();
+  };
+
+  // A new page: the menu is not needed any more
+  useEffect(() => setOpen(false), [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    const items = () =>
+      root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])');
+    items()?.[0]?.focus();
+    const onPointer = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointer);
+    return () => document.removeEventListener('pointerdown', onPointer);
+  }, [open]);
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') return close(true);
+    const keys = ['ArrowDown', 'ArrowUp', 'Home', 'End'];
+    if (!keys.includes(event.key)) return;
+    const items = [...(root.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    if (items.length === 0) return;
+    event.preventDefault();
+    const index = items.indexOf(document.activeElement as HTMLElement);
+    const next =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? items.length - 1
+          : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+    items[next]?.focus();
+  };
+
   return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="size-5"
-    >
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
+    <div ref={root} className="relative" onKeyDown={onKeyDown}>
+      <button
+        ref={button}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Меню пользователя: ${user.displayName}`}
+        onClick={() => (open ? close() : setOpen(true))}
+        className="relative flex h-10 items-center gap-1.5 rounded-full px-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-200/60 sm:px-3 dark:text-zinc-200 dark:hover:bg-zinc-800"
+      >
+        <span
+          aria-hidden="true"
+          className="flex size-8 items-center justify-center rounded-full bg-indigo-100 text-sm font-semibold text-indigo-700 sm:hidden dark:bg-indigo-950 dark:text-indigo-300"
+        >
+          {user.displayName.trim().charAt(0).toUpperCase()}
+        </span>
+        <span aria-hidden="true" className="hidden max-w-40 truncate sm:inline">
+          {user.displayName}
+        </span>
+        <ChevronDownIcon />
+        {problem && <ProblemDot className="right-0.5 top-1" />}
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          aria-label="Меню пользователя"
+          className="absolute right-0 z-40 mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-zinc-200 bg-white p-1.5 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+        >
+          <div className="px-3 py-2">
+            <div className="truncate font-semibold">{user.displayName}</div>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400">{roleLabel(user)}</div>
+          </div>
+          <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
+          {user.role === 'owner' && (
+            <MenuItem to="/group" icon={<UsersIcon />}>
+              Управление группой
+            </MenuItem>
+          )}
+          {user.isAdmin && (
+            <MenuItem to="/admin" icon={<ShieldIcon />}>
+              <span className="relative">
+                Админ
+                {problem && <ProblemDot className="-right-3 top-0" />}
+              </span>
+            </MenuItem>
+          )}
+          <MenuItem to="/settings" icon={<SettingsIcon />}>
+            Настройки
+          </MenuItem>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => logout.mutate()}
+            disabled={logout.isPending}
+            className={itemClass}
+          >
+            <span className="text-zinc-500 dark:text-zinc-400">
+              <LogoutIcon />
+            </span>
+            Выйти
+          </button>
+          {logout.isError && (
+            <p role="alert" className="px-3 py-2 text-xs text-red-600 dark:text-red-400">
+              Не удалось выйти
+            </p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

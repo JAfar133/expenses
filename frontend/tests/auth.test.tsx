@@ -132,7 +132,7 @@ describe('вход при открытии приложения', () => {
     const server = installFakeServer({ access: 'expired', refreshWorks: true });
     render(<App />);
 
-    expect(await screen.findByText('Вы вошли как', { exact: false })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /Меню пользователя/ })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Вход' })).not.toBeInTheDocument();
     expect(server.calls.slice(0, 3)).toEqual([
       'GET /auth/me',
@@ -170,7 +170,7 @@ describe('карта по умолчанию у вошедшего пользо�
 
     await screen.findByRole('button', { name: 'Добавить расход' });
     expect(screen.getByRole('radio', { name: /Миша/ })).toBeChecked();
-    expect(screen.getByText('Миша', { selector: 'strong' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Меню пользователя: Миша' })).toBeInTheDocument();
   });
 
   it('Настя: карта «Настя»', async () => {
@@ -391,14 +391,20 @@ describe('тихое обновление входа во время работ�
   });
 });
 
+/** Sign-out lives in the user menu: open it, then press the item. */
+async function signOut(person: ReturnType<typeof userEvent.setup>) {
+  await person.click(screen.getByRole('button', { name: /Меню пользователя/ }));
+  await person.click(screen.getByRole('menuitem', { name: 'Выйти' }));
+}
+
 describe('выход', () => {
-  it('кнопка «Выйти» завершает сессию и показывает форму входа', async () => {
+  it('пункт «Выйти» в меню завершает сессию и показывает форму входа', async () => {
     const server = installFakeServer({ access: 'valid' });
     const person = userEvent.setup();
     render(<App />);
     await screen.findByRole('button', { name: 'Добавить расход' });
 
-    await person.click(screen.getByRole('button', { name: 'Выйти' }));
+    await signOut(person);
 
     expect(await screen.findByRole('heading', { name: 'Вход' })).toBeInTheDocument();
     expect(server.count('POST /auth/logout')).toBe(1);
@@ -409,7 +415,7 @@ describe('выход', () => {
     const person = userEvent.setup();
     render(<App />);
     await screen.findByRole('radio', { name: /Миша/ });
-    await person.click(screen.getByRole('button', { name: 'Выйти' }));
+    await signOut(person);
     await screen.findByRole('heading', { name: 'Вход' });
 
     server.user = NASTYA;
@@ -418,7 +424,7 @@ describe('выход', () => {
     await person.click(screen.getByRole('button', { name: 'Войти' }));
 
     await waitFor(() => expect(screen.getByRole('radio', { name: /Настя/ })).toBeChecked());
-    expect(screen.getByText('Настя', { selector: 'strong' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Меню пользователя: Настя' })).toBeInTheDocument();
   });
 
   it('если выйти не удалось, пользователь остаётся и видит ошибку', async () => {
@@ -432,7 +438,7 @@ describe('выход', () => {
       return original(url, init);
     });
 
-    await person.click(screen.getByRole('button', { name: 'Выйти' }));
+    await signOut(person);
 
     expect(await screen.findByText('Не удалось выйти')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Добавить расход' })).toBeInTheDocument();

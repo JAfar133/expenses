@@ -10,10 +10,10 @@ import { useFilterState } from '../hooks/useFilterState.ts';
 import { toApiFilters } from '../model/filter-state.ts';
 
 const tabClass = ({ isActive }: { isActive: boolean }) =>
-  'border-b-2 px-3 py-2 text-sm font-medium transition ' +
+  '-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition ' +
   (isActive
     ? 'border-indigo-600 text-indigo-700 dark:border-indigo-400 dark:text-indigo-300'
-    : 'border-transparent text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100');
+    : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:text-zinc-100');
 
 /** Frame of the "Analytics" section: tabs, currency picker and the shared filter panel. Filters persist when switching tabs. */
 export default function AnalyticsLayout() {
