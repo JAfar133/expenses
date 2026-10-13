@@ -1,11 +1,9 @@
 import { useCurrentUser } from '../../auth/hooks/useAuth.ts';
-import { AccountSection } from '../components/AccountSection.tsx';
-import { AnalyticsSection } from '../components/AnalyticsSection.tsx';
-import { PasswordSection } from '../components/PasswordSection.tsx';
+import { AccountCard } from '../components/AccountCard.tsx';
+import { AnalyticsSettingsCard } from '../components/AnalyticsSettingsCard.tsx';
+import { SecurityCard } from '../components/SecurityCard.tsx';
 
-/**
- * User settings. The page is built from independent blocks: a new setting is a new block in the list.
- */
+/** User settings: three cards, the account, security and the analytics display. */
 export default function SettingsPage() {
   const { data: user } = useCurrentUser();
   if (!user) return null;
@@ -13,9 +11,9 @@ export default function SettingsPage() {
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-bold">Настройки</h2>
-      <AccountSection user={user} />
-      <PasswordSection />
-      <AnalyticsSection />
+      <AccountCard user={user} />
+      <SecurityCard />
+      <AnalyticsSettingsCard />
     </div>
   );
 }

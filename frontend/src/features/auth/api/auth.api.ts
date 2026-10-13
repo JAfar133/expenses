@@ -9,6 +9,8 @@ export interface AuthUser {
   canEdit: boolean;
   /** User time zone (IANA): "today" is determined by it */
   timezone: string;
+  /** The time zone from the server configuration: what "default" means in the account settings */
+  defaultTimezone?: string;
   /** Role in the group; null for an account without a group */
   role: 'owner' | 'member' | null;
   /** Application administrator */

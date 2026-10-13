@@ -69,6 +69,7 @@ describe('POST /api/auth/login', () => {
           card: 'Настя',
           canEdit: false,
           timezone: 'Asia/Yerevan',
+          defaultTimezone: 'Asia/Yerevan',
           role: 'member',
           isAdmin: false,
         },
@@ -219,6 +220,7 @@ describe('защита маршрутов', () => {
       card: 'Миша',
       canEdit: true,
       timezone: 'Asia/Yerevan',
+      defaultTimezone: 'Asia/Yerevan',
       role: 'owner',
       isAdmin: true,
     });

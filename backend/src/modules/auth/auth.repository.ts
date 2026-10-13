@@ -28,6 +28,7 @@ interface UserRow {
   card: string;
   can_edit: boolean;
   timezone: string;
+  timezone_default: string;
   group_id: string | null;
   group_role: GroupRole | null;
   is_admin: boolean;
@@ -44,6 +45,7 @@ interface SessionRow {
   card: string;
   can_edit: boolean;
   timezone: string;
+  timezone_default: string;
   group_id: string | null;
   group_role: GroupRole | null;
   is_admin: boolean;
@@ -61,6 +63,7 @@ const toAuthUser = (row: UserRow): AuthUser => ({
   card: row.card,
   canEdit: row.can_edit,
   timezone: row.timezone,
+  defaultTimezone: row.timezone_default,
   groupId: row.group_id,
   role: row.group_role,
   isAdmin: row.is_admin,
@@ -80,6 +83,7 @@ const EFFECTIVE_USER_COLUMNS = `
   -- The right to edit and delete is the owner role in the group
   COALESCE((SELECT m.role = 'owner' FROM memberships m WHERE m.user_id = u.id), false) AS can_edit,
   COALESCE(u.custom_timezone, u.timezone_default) AS timezone,
+  u.timezone_default AS timezone_default,
   (SELECT m.group_id FROM memberships m JOIN groups g ON g.id = m.group_id AND g.disabled_at IS NULL
     WHERE m.user_id = u.id) AS group_id,
   (SELECT m.role FROM memberships m JOIN groups g ON g.id = m.group_id AND g.disabled_at IS NULL
@@ -102,6 +106,7 @@ const toSession = (row: SessionRow): StoredSession => ({
     card: row.card,
     canEdit: row.can_edit,
     timezone: row.timezone,
+    defaultTimezone: row.timezone_default,
     groupId: row.group_id,
     role: row.group_role,
     isAdmin: row.is_admin,

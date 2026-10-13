@@ -340,6 +340,7 @@ const publicUser = (user: AuthUser): AuthUser => ({
   card: user.card,
   canEdit: user.canEdit,
   timezone: user.timezone,
+  defaultTimezone: user.defaultTimezone,
   groupId: user.groupId,
   role: user.role,
   isAdmin: user.isAdmin,

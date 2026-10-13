@@ -1,21 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
-import { setAppTimezone } from '../../../shared/utils/date.ts';
 import { Button } from '../../../shared/ui/Button.tsx';
 import { Field, inputClassName } from '../../../shared/ui/Field.tsx';
 import { Notice } from '../../../shared/ui/Notice.tsx';
+import { SelectBox, selectPadding } from '../../../shared/ui/SelectBox.tsx';
+import { setAppTimezone } from '../../../shared/utils/date.ts';
+import { ANALYTICS_KEY } from '../../analytics/hooks/useAnalytics.ts';
 import { updateProfile, type AuthUser } from '../../auth/api/auth.api.ts';
 import { CURRENT_USER_KEY } from '../../auth/hooks/useAuth.ts';
-import { ANALYTICS_KEY } from '../../analytics/hooks/useAnalytics.ts';
 import { fetchCards } from '../../expenses/api/expenses.api.ts';
 import { toSaveErrorMessage } from '../../expenses/api/save-error-message.ts';
-import { deviceTimezone, timezoneOptions } from '../model/timezones.ts';
+import { DEFAULT_CHOICE, DEVICE_CHOICE, timezoneChoices } from '../model/popular-timezones.ts';
+import { deviceTimezone } from '../model/timezones.ts';
 import { SettingsSection } from './SettingsSection.tsx';
 
 const fieldClass = `${inputClassName} h-11`;
 
-/** Account: name, default card and time zone are editable; login and permissions are shown for reference. */
-export function AccountSection({ user }: { user: AuthUser }) {
+/** What the time zone choice means for the account: «default» resets it, «device» takes the zone of this device. */
+function timezoneTarget(choice: string): string | null {
+  if (choice === DEFAULT_CHOICE) return null;
+  return choice === DEVICE_CHOICE ? deviceTimezone() : choice;
+}
+
+/** Account: the name, the default card and the time zone are editable; the login is shown as plain text. */
+export function AccountCard({ user }: { user: AuthUser }) {
   const queryClient = useQueryClient();
   const cards = useQuery({ queryKey: ['cards'], queryFn: fetchCards, staleTime: Infinity });
 
@@ -50,10 +58,12 @@ export function AccountSection({ user }: { user: AuthUser }) {
   };
 
   const name = values.displayName.trim();
+  const target = timezoneTarget(values.timezone);
   const changes = {
     ...(name !== user.displayName && name ? { displayName: name } : {}),
     ...(values.card !== user.card ? { card: values.card } : {}),
-    ...(values.timezone !== user.timezone ? { timezone: values.timezone } : {}),
+    // «default» is always a change (it clears the personal zone); another choice only if it differs
+    ...(target === null || target !== user.timezone ? { timezone: target } : {}),
   };
   const nameError = !name ? 'Введите имя' : undefined;
 
@@ -63,15 +73,12 @@ export function AccountSection({ user }: { user: AuthUser }) {
     save.mutate(changes);
   };
 
-  const options = timezoneOptions(values.timezone);
   const cardNames = cards.data?.map((card) => card.name) ?? [];
   const cardOptions = cardNames.includes(values.card) ? cardNames : [values.card, ...cardNames];
+  const zones = timezoneChoices(user.timezone, deviceTimezone(), user.defaultTimezone);
 
   return (
-    <SettingsSection
-      title="Аккаунт"
-      description="Имя, карта по умолчанию и часовой пояс можно менять. Логин не меняется"
-    >
+    <SettingsSection title="Аккаунт" compact>
       <form onSubmit={submit} noValidate className="space-y-4">
         <Field label="Имя" htmlFor="profile-name" error={nameError}>
           <input
@@ -86,63 +93,46 @@ export function AccountSection({ user }: { user: AuthUser }) {
           />
         </Field>
 
-        <Field label="Логин" htmlFor="profile-login">
-          <input
-            id="profile-login"
-            type="text"
-            readOnly
-            className={`${fieldClass} bg-zinc-50 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400`}
-            value={user.username}
-          />
-        </Field>
+        <div className="space-y-1.5">
+          <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Логин</div>
+          <div className="text-base">{user.username}</div>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">Не изменяется</p>
+        </div>
 
         <Field label="Карта по умолчанию" htmlFor="profile-card">
-          <select
-            id="profile-card"
-            className={fieldClass}
-            value={values.card}
-            onChange={(event) => set('card')(event.target.value)}
-          >
-            {cardOptions.map((card) => (
-              <option key={card} value={card}>
-                {card}
-              </option>
-            ))}
-          </select>
+          <SelectBox>
+            <select
+              id="profile-card"
+              className={`${fieldClass} ${selectPadding}`}
+              value={values.card}
+              onChange={(event) => set('card')(event.target.value)}
+            >
+              {cardOptions.map((card) => (
+                <option key={card} value={card}>
+                  {card}
+                </option>
+              ))}
+            </select>
+          </SelectBox>
         </Field>
 
         <Field label="Часовой пояс" htmlFor="profile-timezone">
-          <select
-            id="profile-timezone"
-            className={fieldClass}
-            value={values.timezone}
-            onChange={(event) => set('timezone')(event.target.value)}
-          >
-            {options.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <div className="flex flex-wrap gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => set('timezone')(deviceTimezone())}
-              className="h-9 rounded-lg border border-zinc-300 px-3 text-sm hover:border-indigo-400 dark:border-zinc-700"
+          <SelectBox>
+            <select
+              id="profile-timezone"
+              className={`${fieldClass} ${selectPadding}`}
+              value={values.timezone}
+              onChange={(event) => set('timezone')(event.target.value)}
             >
-              Как на этом устройстве
-            </button>
-            <button
-              type="button"
-              disabled={save.isPending}
-              onClick={() => save.mutate({ timezone: null })}
-              className="h-9 rounded-lg border border-zinc-300 px-3 text-sm hover:border-indigo-400 disabled:opacity-60 dark:border-zinc-700"
-            >
-              По умолчанию
-            </button>
-          </div>
+              {zones.map((zone) => (
+                <option key={zone.value} value={zone.value}>
+                  {zone.label}
+                </option>
+              ))}
+            </select>
+          </SelectBox>
           <p className="pt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            По нему определяется «сегодня» в анализе и в форме расхода
+            Сегодня определяется по этому часовому поясу
           </p>
         </Field>
 

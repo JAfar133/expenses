@@ -49,6 +49,7 @@ describe('профиль: имя, карта, часовой пояс', () => {
       card: 'Миша',
       canEdit: true,
       timezone: 'Asia/Yerevan',
+      defaultTimezone: 'Asia/Yerevan',
       role: 'owner',
       isAdmin: true,
     });

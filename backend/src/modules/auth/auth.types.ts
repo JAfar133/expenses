@@ -9,6 +9,8 @@ export interface AuthUser {
   canEdit: boolean;
   /** User's time zone (IANA): it determines what "today" is */
   timezone: string;
+  /** The time zone from the configuration: what "default" means in the account settings */
+  defaultTimezone: string;
   /** The group the user belongs to; null while the user is in no group (sees nothing) */
   groupId: string | null;
   /** Role in the group: the owner sees every card and edits records */

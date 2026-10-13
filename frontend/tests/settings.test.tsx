@@ -3,8 +3,9 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PREFERENCES, PREFERENCE_KEYS } from '../src/features/preferences/model/preferences.ts';
-import { validatePassword } from '../src/features/settings/components/PasswordSection.tsx';
+import { PREFERENCE_KEYS } from '../src/features/preferences/model/preferences.ts';
+import { validatePassword } from '../src/features/settings/components/ChangePasswordDialog.tsx';
+import { timezoneChoices } from '../src/features/settings/model/popular-timezones.ts';
 import SettingsPage from '../src/features/settings/pages/SettingsPage.tsx';
 
 const json = (body: unknown, status = 200) =>
@@ -93,13 +94,12 @@ const puts = () => requests.filter((r) => r.method === 'PUT' && r.url === '/api/
 const section = (name: string) => screen.getByRole('heading', { name }).closest('section')!;
 
 describe('страница настроек', () => {
-  it('состоит из блоков: аккаунт, пароль, анализ; блока прав пользователей больше нет', async () => {
+  it('три карточки: аккаунт, безопасность, настройки аналитики; прав пользователей нет', async () => {
     renderSettings();
 
     expect(await screen.findByRole('heading', { name: 'Настройки' })).toBeInTheDocument();
-    for (const name of ['Аккаунт', 'Пароль', 'Анализ']) {
-      expect(screen.getByRole('heading', { name })).toBeInTheDocument();
-    }
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+    expect(headings).toEqual(['Настройки', 'Аккаунт', 'Безопасность', 'Настройки аналитики']);
     expect(screen.queryByRole('heading', { name: 'Права пользователей' })).toBeNull();
     expect(requests.some((r) => r.url === '/api/users')).toBe(false);
   });
@@ -111,23 +111,49 @@ describe('страница настроек', () => {
     await screen.findByRole('heading', { name: 'Аккаунт' });
     expect(screen.queryByText('Права')).toBeNull();
     expect(screen.queryByText(/Просмотр/)).toBeNull();
-    expect(requests.some((r) => r.url === '/api/users')).toBe(false);
   });
 });
 
 describe('аккаунт', () => {
   const account = () => within(section('Аккаунт'));
 
-  it('имя, логин, карта и часовой пояс показаны в полях; логин только для чтения', async () => {
+  it('имя — поле; логин — обычный текст с подписью «Не изменяется»; карта и пояс — селекты', async () => {
     renderSettings();
     await screen.findByRole('heading', { name: 'Аккаунт' });
 
     expect(account().getByLabelText('Имя')).toHaveValue('Миша');
-    expect(account().getByLabelText('Логин')).toHaveValue('misha');
-    expect(account().getByLabelText('Логин')).toHaveAttribute('readonly');
+    expect(account().getByText('misha')).toBeInTheDocument();
+    expect(account().queryByLabelText('Логин')).toBeNull();
+    expect(account().getByText('Не изменяется')).toBeInTheDocument();
     await waitFor(() => expect(account().getByLabelText('Карта по умолчанию')).toHaveValue('Миша'));
+    expect(
+      account().getByLabelText('Карта по умолчанию').parentElement?.querySelector('svg'),
+    ).not.toBeNull();
     expect(account().getByLabelText('Часовой пояс')).toHaveValue('Asia/Yerevan');
-    expect(screen.queryByText('Права')).toBeNull();
+    expect(account().getByText('Сегодня определяется по этому часовому поясу')).toBeInTheDocument();
+  });
+
+  it('часовой пояс — один селект: «По умолчанию», «Как на этом устройстве (…)», затем популярные зоны со смещением', async () => {
+    renderSettings();
+    await screen.findByRole('heading', { name: 'Аккаунт' });
+
+    const labels = within(account().getByLabelText('Часовой пояс'))
+      .getAllByRole('option')
+      .map((option) => option.textContent);
+    expect(labels[0]).toBe('По умолчанию');
+    expect(labels[1]).toMatch(/^Как на этом устройстве \(.+\)$/);
+    expect(labels).toContain('Asia/Yerevan (UTC+4)');
+    expect(labels).toContain('Europe/Moscow (UTC+3)');
+    expect(labels).toContain('UTC (UTC)');
+    expect(account().queryByRole('button', { name: 'Как на этом устройстве' })).toBeNull();
+    expect(account().queryByRole('button', { name: 'По умолчанию' })).toBeNull();
+  });
+
+  it('зона из аккаунта, которой нет в популярных, всё равно есть в списке', () => {
+    const labels = timezoneChoices('Pacific/Auckland', 'Asia/Yerevan').map((c) => c.value);
+    const withDefault = timezoneChoices('Asia/Yerevan', 'Europe/Moscow', 'Asia/Yerevan');
+    expect(withDefault[0]!.label).toBe('По умолчанию (Asia/Yerevan (UTC+4))');
+    expect(labels).toContain('Pacific/Auckland');
   });
 
   it('«Сохранить» недоступно, пока ничего не менялось; при правке отправляются только изменённые поля', async () => {
@@ -147,11 +173,13 @@ describe('аккаунт', () => {
     expect(call.body).not.toHaveProperty('timezone');
   });
 
-  it('часовой пояс: выбор из списка с указанием смещения', async () => {
+  it('выбор зоны не сохраняется сам: «Сохранить» активна только после изменения', async () => {
     const person = renderSettings();
     await screen.findByRole('heading', { name: 'Аккаунт' });
 
     await person.selectOptions(account().getByLabelText('Часовой пояс'), 'Europe/Moscow');
+    expect(requests.some((r) => r.url === '/api/auth/profile')).toBe(false);
+    expect(account().getByRole('button', { name: 'Сохранить' })).toBeEnabled();
     await person.click(account().getByRole('button', { name: 'Сохранить' }));
 
     await waitFor(() =>
@@ -159,28 +187,42 @@ describe('аккаунт', () => {
         timezone: 'Europe/Moscow',
       }),
     );
-    const option = within(account().getByLabelText('Часовой пояс')).getByRole('option', {
-      name: /Europe\/Moscow/,
-    });
-    expect(option).toHaveTextContent('UTC+3');
   });
 
-  it('«Как на этом устройстве» подставляет пояс устройства, но не сохраняет без «Сохранить»', async () => {
+  it('возврат к прежней зоне снова отключает «Сохранить»', async () => {
+    const person = renderSettings();
+    await screen.findByRole('heading', { name: 'Аккаунт' });
+
+    await person.selectOptions(account().getByLabelText('Часовой пояс'), 'Europe/Moscow');
+    await person.selectOptions(account().getByLabelText('Часовой пояс'), 'Asia/Yerevan');
+
+    expect(account().getByRole('button', { name: 'Сохранить' })).toBeDisabled();
+  });
+
+  it('«Как на этом устройстве» сохраняет зону устройства (не динамическую)', async () => {
     const person = renderSettings();
     await screen.findByRole('heading', { name: 'Аккаунт' });
     const device = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-    await person.click(account().getByRole('button', { name: 'Как на этом устройстве' }));
-
-    expect(account().getByLabelText('Часовой пояс')).toHaveValue(device);
+    await person.selectOptions(account().getByLabelText('Часовой пояс'), 'device');
     expect(requests.some((r) => r.url === '/api/auth/profile')).toBe(false);
+    if (device !== 'Asia/Yerevan') {
+      await person.click(account().getByRole('button', { name: 'Сохранить' }));
+      await waitFor(() =>
+        expect(requests.find((r) => r.url === '/api/auth/profile')?.body).toEqual({
+          timezone: device,
+        }),
+      );
+    }
   });
 
-  it('«По умолчанию» сразу возвращает часовой пояс по умолчанию (null)', async () => {
+  it('«По умолчанию» сохраняется как null по кнопке «Сохранить»', async () => {
     const person = renderSettings();
     await screen.findByRole('heading', { name: 'Аккаунт' });
 
-    await person.click(account().getByRole('button', { name: 'По умолчанию' }));
+    await person.selectOptions(account().getByLabelText('Часовой пояс'), 'default');
+    expect(requests.some((r) => r.url === '/api/auth/profile')).toBe(false);
+    await person.click(account().getByRole('button', { name: 'Сохранить' }));
 
     await waitFor(() =>
       expect(requests.find((r) => r.url === '/api/auth/profile')?.body).toEqual({ timezone: null }),
@@ -223,21 +265,49 @@ describe('аккаунт', () => {
   });
 });
 
-describe('смена пароля', () => {
+describe('безопасность: смена пароля', () => {
+  const security = () => within(section('Безопасность'));
+  const dialog = () => within(screen.getByRole('dialog'));
+
+  const open = async (person: ReturnType<typeof userEvent.setup>) => {
+    await screen.findByRole('heading', { name: 'Безопасность' });
+    await person.click(security().getByRole('button', { name: 'Изменить пароль' }));
+  };
   const fill = async (
     person: ReturnType<typeof userEvent.setup>,
     values: { current?: string; next?: string; repeat?: string },
   ) => {
-    const password = within(section('Пароль'));
     if (values.current !== undefined)
-      await person.type(password.getByLabelText('Текущий пароль'), values.current);
+      await person.type(dialog().getByLabelText('Текущий пароль'), values.current);
     if (values.next !== undefined)
-      await person.type(password.getByLabelText('Новый пароль'), values.next);
+      await person.type(dialog().getByLabelText('Новый пароль'), values.next);
     if (values.repeat !== undefined)
-      await person.type(password.getByLabelText('Повторите новый пароль'), values.repeat);
+      await person.type(dialog().getByLabelText('Повторите новый пароль'), values.repeat);
   };
   const submit = (person: ReturnType<typeof userEvent.setup>) =>
-    person.click(within(section('Пароль')).getByRole('button', { name: 'Сменить пароль' }));
+    person.click(dialog().getByRole('button', { name: 'Сохранить новый пароль' }));
+
+  it('карточка: строка «Пароль» и кнопка; постоянных полей нет; даты последнего изменения нет', async () => {
+    renderSettings();
+    await screen.findByRole('heading', { name: 'Безопасность' });
+
+    expect(security().getByText('Пароль')).toBeInTheDocument();
+    expect(security().getByRole('button', { name: 'Изменить пароль' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Текущий пароль')).toBeNull();
+    expect(screen.queryByText(/Последнее изменение/)).toBeNull();
+  });
+
+  it('кнопка открывает окно с тремя полями; «Отмена» закрывает', async () => {
+    const person = renderSettings();
+    await open(person);
+
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Изменить пароль');
+    for (const label of ['Текущий пароль', 'Новый пароль', 'Повторите новый пароль']) {
+      expect(dialog().getByLabelText(label)).toBeInTheDocument();
+    }
+    await person.click(dialog().getByRole('button', { name: 'Отмена' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
 
   it('validatePassword: все проверки', () => {
     expect(validatePassword({ current: '', next: '', repeat: '' })).toEqual({
@@ -262,18 +332,18 @@ describe('смена пароля', () => {
 
   it('пустая форма: ошибки и ни одного запроса', async () => {
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Пароль' });
+    await open(person);
 
     await submit(person);
 
-    expect(await screen.findByText('Введите текущий пароль')).toBeInTheDocument();
-    expect(screen.getByText('Введите новый пароль')).toBeInTheDocument();
+    expect(await dialog().findByText('Введите текущий пароль')).toBeInTheDocument();
+    expect(dialog().getByText('Введите новый пароль')).toBeInTheDocument();
     expect(requests.some((r) => r.url === '/api/auth/password')).toBe(false);
   });
 
   it('пароли не совпадают: ошибка, запроса нет', async () => {
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Пароль' });
+    await open(person);
     await fill(person, {
       current: 'old-password',
       next: 'new-password-1',
@@ -282,13 +352,13 @@ describe('смена пароля', () => {
 
     await submit(person);
 
-    expect(await screen.findByText('Пароли не совпадают')).toBeInTheDocument();
+    expect(await dialog().findByText('Пароли не совпадают')).toBeInTheDocument();
     expect(requests.some((r) => r.url === '/api/auth/password')).toBe(false);
   });
 
-  it('успех: запрос с текущим и новым паролем, поля очищаются, сообщение об успехе', async () => {
+  it('успех: запрос с текущим и новым паролем, окно закрывается, в карточке «Пароль изменён»', async () => {
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Пароль' });
+    await open(person);
     await fill(person, {
       current: 'old-password',
       next: 'new-password-1',
@@ -297,21 +367,24 @@ describe('смена пароля', () => {
 
     await submit(person);
 
-    expect(await screen.findByText(/Пароль изменён/)).toBeInTheDocument();
+    expect(await security().findByText(/Пароль изменён/)).toBeInTheDocument();
+    expect(security().getByText(/На других устройствах вход завершён/)).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).toBeNull();
     const call = requests.find((r) => r.url === '/api/auth/password')!;
     expect(call).toMatchObject({
       method: 'POST',
       body: { currentPassword: 'old-password', newPassword: 'new-password-1' },
     });
-    expect(within(section('Пароль')).getByLabelText('Текущий пароль')).toHaveValue('');
-    expect(within(section('Пароль')).getByLabelText('Новый пароль')).toHaveValue('');
+    // The next opening starts with empty fields
+    await person.click(security().getByRole('button', { name: 'Изменить пароль' }));
+    expect(dialog().getByLabelText('Текущий пароль')).toHaveValue('');
   });
 
-  it('ошибка сервера показывается, поля остаются', async () => {
+  it('ошибка сервера в окне, поля остаются, окно не закрывается', async () => {
     passwordResponse = () =>
       failure('INVALID_CURRENT_PASSWORD', 'Текущий пароль указан неверно', 422);
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Пароль' });
+    await open(person);
     await fill(person, {
       current: 'wrong-password',
       next: 'new-password-1',
@@ -320,8 +393,8 @@ describe('смена пароля', () => {
 
     await submit(person);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Текущий пароль указан неверно');
-    expect(within(section('Пароль')).getByLabelText('Новый пароль')).toHaveValue('new-password-1');
+    expect(await dialog().findByRole('alert')).toHaveTextContent('Текущий пароль указан неверно');
+    expect(dialog().getByLabelText('Новый пароль')).toHaveValue('new-password-1');
     expect(screen.queryByText(/Пароль изменён/)).toBeNull();
   });
 
@@ -329,7 +402,7 @@ describe('смена пароля', () => {
     passwordResponse = () =>
       failure('TOO_MANY_ATTEMPTS', 'Слишком много попыток. Повторите через 15 мин.', 429);
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Пароль' });
+    await open(person);
     await fill(person, {
       current: 'old-password',
       next: 'new-password-1',
@@ -338,14 +411,14 @@ describe('смена пароля', () => {
 
     await submit(person);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Повторите через 15 мин.');
+    expect(await dialog().findByRole('alert')).toHaveTextContent('Повторите через 15 мин.');
   });
 
   it('кнопка недоступна, пока идёт сохранение: двойное нажатие даёт один запрос', async () => {
     let release!: (response: Response) => void;
     passwordResponse = () => new Promise<Response>((resolve) => (release = resolve));
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Пароль' });
+    await open(person);
     await fill(person, {
       current: 'old-password',
       next: 'new-password-1',
@@ -353,97 +426,170 @@ describe('смена пароля', () => {
     });
 
     await submit(person);
-    const button = within(section('Пароль')).getByRole('button', { name: 'Сохраняем…' });
-    expect(button).toBeDisabled();
+    expect(dialog().getByRole('button', { name: 'Сохраняем…' })).toBeDisabled();
     release(json({ success: true }));
 
-    expect(await screen.findByText(/Пароль изменён/)).toBeInTheDocument();
+    expect(await security().findByText(/Пароль изменён/)).toBeInTheDocument();
     expect(requests.filter((r) => r.url === '/api/auth/password')).toHaveLength(1);
   });
 
-  it('«Показать пароли» переключает тип полей; пароль в адрес и хранилище не попадает', async () => {
+  it('«Показать пароли» переключает тип всех полей; пароль в адрес и хранилище не попадает', async () => {
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Пароль' });
+    await open(person);
     await fill(person, { current: 'old-password' });
-    const field = within(section('Пароль')).getByLabelText('Текущий пароль');
+    const field = dialog().getByLabelText('Текущий пароль');
     expect(field).toHaveAttribute('type', 'password');
 
-    await person.click(
-      within(section('Пароль')).getByRole('checkbox', { name: 'Показать пароли' }),
-    );
+    await person.click(dialog().getByRole('checkbox', { name: 'Показать пароли' }));
 
     expect(field).toHaveAttribute('type', 'text');
+    expect(dialog().getByLabelText('Новый пароль')).toHaveAttribute('type', 'text');
+    expect(dialog().getByLabelText('Повторите новый пароль')).toHaveAttribute('type', 'text');
     expect(JSON.stringify(localStorage)).not.toContain('old-password');
   });
 });
 
-describe('настройки анализа', () => {
-  const analytics = () => within(section('Анализ'));
+describe('настройки аналитики', () => {
+  const analytics = () => within(section('Настройки аналитики'));
+  const sectionButton = (name: string) =>
+    analytics().getByRole('button', { name: new RegExp(`^${name}`) });
 
-  it('для каждой настройки есть переключатель со всеми вариантами и текущим выбором', async () => {
-    server = { 'category.type': 'donut' };
+  it('сверху одна подпись; общие настройки видны сразу и без длинных пояснений', async () => {
     renderSettings();
-    await screen.findByRole('heading', { name: 'Анализ' });
+    await screen.findByRole('heading', { name: 'Настройки аналитики' });
 
-    for (const key of PREFERENCE_KEYS) {
-      const group = analytics().getByRole('radiogroup', { name: PREFERENCES[key].label });
-      expect(
-        within(group)
-          .getAllByRole('radio')
-          .map((r) => r.textContent),
-      ).toEqual(PREFERENCES[key].options.map((o) => o.label));
-    }
-    await waitFor(() =>
-      expect(
-        within(analytics().getByRole('radiogroup', { name: 'Расход по категориям' })).getByRole(
-          'radio',
-          {
-            name: 'Кольцо',
-          },
-        ),
-      ).toBeChecked(),
-    );
+    expect(
+      analytics().getByText(
+        'Настройки отображения сохраняются в вашем аккаунте и действуют на всех устройствах',
+      ),
+    ).toBeInTheDocument();
+    const currency = analytics().getByRole('radiogroup', { name: 'Валюта отображения' });
+    expect(
+      within(currency)
+        .getAllByRole('radio')
+        .map((r) => r.textContent),
+    ).toEqual(['🇦🇲 AMD', '🇷🇺 RUB', '🇺🇸 USD', '🇪🇺 EUR']);
+    const panel = analytics().getByRole('radiogroup', { name: 'Панель фильтров' });
+    expect(within(panel).getByRole('radio', { name: 'Свёрнута' })).toBeChecked();
+    expect(analytics().queryByText(/Раскрыта или свёрнута/)).toBeNull();
+    expect(analytics().queryByText(/Суммы хранятся в драммах/)).toBeNull();
   });
 
-  it('без сохранённого выбора отмечены значения по умолчанию', async () => {
+  it('аккордеон: три секции закрыты, под заголовком текущие значения, aria-expanded/aria-controls', async () => {
+    server = { 'category.type': 'pie', 'category.tab': 'structure' };
     renderSettings();
-    await screen.findByRole('heading', { name: 'Анализ' });
+    await screen.findByRole('heading', { name: 'Настройки аналитики' });
 
-    const daily = analytics().getByRole('radiogroup', { name: 'График по времени' });
-    expect(within(daily).getByRole('radio', { name: 'Столбики' })).toBeChecked();
+    for (const name of ['Динамика расходов', 'Расходы по категориям', 'Сравнение месяцев']) {
+      const button = sectionButton(name);
+      expect(button).toHaveAttribute('aria-expanded', 'false');
+      expect(button).toHaveAttribute('aria-controls');
+    }
+    expect(sectionButton('Динамика расходов')).toHaveTextContent('Столбики · За день');
+    await waitFor(() =>
+      expect(sectionButton('Расходы по категориям')).toHaveTextContent('Круг · Структура расходов'),
+    );
+    expect(sectionButton('Сравнение месяцев')).toHaveTextContent('12 мес. · С накоплением');
+    expect(analytics().queryByRole('radiogroup', { name: 'Тип графика' })).toBeNull();
+  });
+
+  it('можно открыть несколько секций одновременно; у открытой сводки под заголовком нет', async () => {
+    const person = renderSettings();
+    await screen.findByRole('heading', { name: 'Настройки аналитики' });
+
+    await person.click(sectionButton('Динамика расходов'));
+    await person.click(sectionButton('Сравнение месяцев'));
+
+    expect(sectionButton('Динамика расходов')).toHaveAttribute('aria-expanded', 'true');
+    expect(sectionButton('Сравнение месяцев')).toHaveAttribute('aria-expanded', 'true');
+    expect(sectionButton('Расходы по категориям')).toHaveAttribute('aria-expanded', 'false');
+    expect(sectionButton('Динамика расходов')).not.toHaveTextContent('Столбики · За день');
+    const region = document.getElementById(
+      sectionButton('Динамика расходов').getAttribute('aria-controls')!,
+    )!;
+    expect(region).toHaveAttribute('role', 'region');
+    expect(within(region).getByRole('radiogroup', { name: 'Тип графика' })).toBeInTheDocument();
+    expect(within(region).getByRole('radiogroup', { name: 'Отображение' })).toBeInTheDocument();
+
+    await person.click(sectionButton('Динамика расходов'));
+    expect(sectionButton('Динамика расходов')).toHaveAttribute('aria-expanded', 'false');
+    expect(sectionButton('Сравнение месяцев')).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('все настройки на месте: в открытых секциях есть переключатели всех ключей', async () => {
+    const person = renderSettings();
+    await screen.findByRole('heading', { name: 'Настройки аналитики' });
+    for (const name of ['Динамика расходов', 'Расходы по категориям', 'Сравнение месяцев']) {
+      await person.click(sectionButton(name));
+    }
+
+    const labels = analytics()
+      .getAllByRole('radiogroup')
+      .map((g) => g.getAttribute('aria-label'));
+    expect(labels).toEqual([
+      'Валюта отображения',
+      'Панель фильтров',
+      'Тип графика',
+      'Отображение',
+      'Тип графика',
+      'Раздел',
+      'Период',
+      'Тип графика',
+    ]);
+    expect(labels).toHaveLength(PREFERENCE_KEYS.length);
   });
 
   it('выбор сразу сохраняется на сервере (только изменённая настройка)', async () => {
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Анализ' });
+    await screen.findByRole('heading', { name: 'Настройки аналитики' });
+    await person.click(sectionButton('Динамика расходов'));
 
-    await person.click(
-      within(analytics().getByRole('radiogroup', { name: 'График по времени' })).getByRole(
-        'radio',
-        {
-          name: 'Линия',
-        },
-      ),
-    );
+    const type = analytics().getAllByRole('radiogroup', { name: 'Тип графика' })[0]!;
+    await person.click(within(type).getByRole('radio', { name: 'Линия' }));
 
     await waitFor(() => expect(puts().at(-1)?.body).toEqual({ 'daily.type': 'line' }));
-    expect(
-      within(analytics().getByRole('radiogroup', { name: 'График по времени' })).getByRole(
-        'radio',
-        {
-          name: 'Линия',
-        },
-      ),
-    ).toBeChecked();
+    expect(within(type).getByRole('radio', { name: 'Линия' })).toBeChecked();
     expect(localStorage.getItem('analytics.daily.type')).toBe('line');
   });
 
-  it('«Сбросить к стандартным» отправляет значения по умолчанию для всех настроек', async () => {
+  it('общая настройка «Панель фильтров» сохраняется без аккордеона', async () => {
+    const person = renderSettings();
+    await screen.findByRole('heading', { name: 'Настройки аналитики' });
+
+    await person.click(
+      within(analytics().getByRole('radiogroup', { name: 'Панель фильтров' })).getByRole('radio', {
+        name: 'Раскрыта',
+      }),
+    );
+
+    await waitFor(() => expect(puts().at(-1)?.body).toEqual({ 'filters.panel': 'open' }));
+  });
+
+  it('«Сбросить настройки аналитики» просит подтверждение; «Отмена» ничего не отправляет', async () => {
+    server = { 'daily.type': 'area' };
+    const person = renderSettings();
+    await screen.findByRole('heading', { name: 'Настройки аналитики' });
+
+    await person.click(analytics().getByRole('button', { name: 'Сбросить настройки аналитики' }));
+    const dialog = within(screen.getByRole('dialog'));
+    expect(screen.getByRole('dialog')).toHaveTextContent(
+      'Вернуть стандартные настройки отображения аналитики? Ваши расходы и бюджеты не изменятся.',
+    );
+    await person.click(dialog.getByRole('button', { name: 'Отмена' }));
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(puts()).toHaveLength(0);
+  });
+
+  it('подтверждённый сброс отправляет значения по умолчанию для всех настроек', async () => {
     server = { 'daily.type': 'area', 'category.type': 'pie' };
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Анализ' });
+    await screen.findByRole('heading', { name: 'Настройки аналитики' });
 
-    await person.click(analytics().getByRole('button', { name: 'Сбросить к стандартным' }));
+    await person.click(analytics().getByRole('button', { name: 'Сбросить настройки аналитики' }));
+    await person.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Сбросить' }),
+    );
 
     await waitFor(() => {
       const body = puts().at(-1)?.body as Record<string, string>;
@@ -451,21 +597,17 @@ describe('настройки анализа', () => {
       expect(body['daily.type']).toBe('bars');
       expect(body['category.type']).toBe('donut');
     });
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('сервер не принял: выбор остаётся в этом браузере и показано предупреждение', async () => {
     preferencesPut = () => failure('X', 'сбой', 500);
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Анализ' });
+    await screen.findByRole('heading', { name: 'Настройки аналитики' });
+    await person.click(sectionButton('Динамика расходов'));
 
-    await person.click(
-      within(analytics().getByRole('radiogroup', { name: 'График по времени' })).getByRole(
-        'radio',
-        {
-          name: 'Область',
-        },
-      ),
-    );
+    const type = analytics().getAllByRole('radiogroup', { name: 'Тип графика' })[0]!;
+    await person.click(within(type).getByRole('radio', { name: 'Область' }));
 
     expect(await analytics().findByRole('alert')).toHaveTextContent(
       'сохранён только в этом браузере',

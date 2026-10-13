@@ -25,6 +25,7 @@ const publicUser = ({
   card,
   canEdit,
   timezone,
+  defaultTimezone,
   role,
   isAdmin,
 }: AuthUser) => ({
@@ -34,6 +35,7 @@ const publicUser = ({
   /** Whether the user can edit and delete records */
   canEdit,
   timezone,
+  defaultTimezone,
   role,
   isAdmin,
 });
