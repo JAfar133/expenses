@@ -85,15 +85,6 @@ export const PREFERENCES = {
       { value: 'EUR', label: '🇪🇺 EUR' },
     ],
   }),
-  'filters.panel': define({
-    label: 'Панель фильтров',
-    description: 'Раскрыта или свёрнута при открытии анализа',
-    fallback: 'closed',
-    options: [
-      { value: 'closed', label: 'Свёрнута' },
-      { value: 'open', label: 'Раскрыта' },
-    ],
-  }),
 } as const;
 
 export type PreferenceKey = keyof typeof PREFERENCES;

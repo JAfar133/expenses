@@ -20,8 +20,6 @@ export const preferencesSchema = z
     'compare.months': z.enum(['6', '12', '24']),
     /** Currency in which to show amounts on the analytics page (everything is stored in drams) */
     'analytics.currency': z.enum(['AMD', 'RUB', 'USD', 'EUR']),
-    /** Filter panel expanded or collapsed */
-    'filters.panel': z.enum(['open', 'closed']),
   })
   .partial()
   .strict();

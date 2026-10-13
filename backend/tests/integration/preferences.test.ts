@@ -39,11 +39,11 @@ describe('настройки пользователя', () => {
   });
 
   it('новый запрос меняет только указанные ключи, остальные остаются', async () => {
-    await put({ 'daily.type': 'line', 'filters.panel': 'open' });
+    await put({ 'daily.type': 'line', 'matrix.type': 'lines' });
 
     const merged = await put({ 'daily.type': 'area' });
 
-    expect(merged.json().data).toEqual({ 'daily.type': 'area', 'filters.panel': 'open' });
+    expect(merged.json().data).toEqual({ 'daily.type': 'area', 'matrix.type': 'lines' });
   });
 
   it('у каждого пользователя свои настройки', async () => {
@@ -99,7 +99,6 @@ describe('настройки пользователя', () => {
       'category.type': 'pie',
       'matrix.type': 'lines',
       'compare.months': '24',
-      'filters.panel': 'open',
       'analytics.currency': 'USD',
     };
 

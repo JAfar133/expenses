@@ -81,7 +81,7 @@ describe('описание настроек', () => {
         'daily.mode': 'radar',
         'compare.months': '6',
         password: 'x',
-        'filters.panel': 5,
+        'category.type': 5,
       }),
     ).toEqual({ 'daily.type': 'line', 'compare.months': '6' });
     expect(sanitizePreferences(null)).toEqual({});

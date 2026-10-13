@@ -469,9 +469,7 @@ describe('настройки аналитики', () => {
         .getAllByRole('radio')
         .map((r) => r.textContent),
     ).toEqual(['🇦🇲 AMD', '🇷🇺 RUB', '🇺🇸 USD', '🇪🇺 EUR']);
-    const panel = analytics().getByRole('radiogroup', { name: 'Панель фильтров' });
-    expect(within(panel).getByRole('radio', { name: 'Свёрнута' })).toBeChecked();
-    expect(analytics().queryByText(/Раскрыта или свёрнута/)).toBeNull();
+    expect(analytics().queryByRole('radiogroup', { name: 'Панель фильтров' })).toBeNull();
     expect(analytics().queryByText(/Суммы хранятся в драммах/)).toBeNull();
   });
 
@@ -528,7 +526,6 @@ describe('настройки аналитики', () => {
       .map((g) => g.getAttribute('aria-label'));
     expect(labels).toEqual([
       'Валюта отображения',
-      'Панель фильтров',
       'Тип графика',
       'Отображение',
       'Тип графика',
@@ -550,19 +547,6 @@ describe('настройки аналитики', () => {
     await waitFor(() => expect(puts().at(-1)?.body).toEqual({ 'daily.type': 'line' }));
     expect(within(type).getByRole('radio', { name: 'Линия' })).toBeChecked();
     expect(localStorage.getItem('analytics.daily.type')).toBe('line');
-  });
-
-  it('общая настройка «Панель фильтров» сохраняется без аккордеона', async () => {
-    const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Настройки аналитики' });
-
-    await person.click(
-      within(analytics().getByRole('radiogroup', { name: 'Панель фильтров' })).getByRole('radio', {
-        name: 'Раскрыта',
-      }),
-    );
-
-    await waitFor(() => expect(puts().at(-1)?.body).toEqual({ 'filters.panel': 'open' }));
   });
 
   it('«Сбросить настройки аналитики» просит подтверждение; «Отмена» ничего не отправляет', async () => {

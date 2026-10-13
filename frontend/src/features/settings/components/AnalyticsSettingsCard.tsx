@@ -18,7 +18,6 @@ export function AnalyticsSettingsCard() {
         Настройки отображения сохраняются в вашем аккаунте и действуют на всех устройствах
       </p>
       <PreferenceSwitch prefKey="analytics.currency" label="Валюта отображения" />
-      <PreferenceSwitch prefKey="filters.panel" label="Панель фильтров" />
       <AnalyticsAccordion />
 
       <div className="flex flex-wrap items-center gap-3">
