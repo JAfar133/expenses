@@ -1,4 +1,6 @@
+import { useRef } from 'react';
 import { useSearchParams } from 'react-router';
+import { scrollToElement } from '../../../shared/utils/scroll.ts';
 import { Notice } from '../../../shared/ui/Notice.tsx';
 import { formatAmount, formatMoney } from '../../../shared/utils/money.ts';
 import { CategoryChart } from '../components/CategoryChart.tsx';
@@ -41,6 +43,13 @@ export default function OverviewPage() {
       },
       { replace: true },
     );
+
+  // Choosing a category in a chart or in the limits list opens its names far below: bring the block into view
+  const namesBlock = useRef<HTMLDivElement>(null);
+  const selectFromChart = (category: string) => {
+    selectCategory(category);
+    scrollToElement(namesBlock.current);
+  };
 
   const current = summary.data?.current;
   const previous = summary.data?.previous ?? undefined;
@@ -97,18 +106,21 @@ export default function OverviewPage() {
         rows={categories.data && categories.data}
         currency={currency}
         categoryOrder={categoryOrder}
-        onSelect={selectCategory}
+        onSelect={selectFromChart}
+        selected={drill}
         loading={categories.isPending}
       />
-      <CategoryNames
-        categories={categories.data ?? []}
-        selected={drill}
-        onSelect={selectCategory}
-        names={drill ? names.data && names.data : []}
-        categoryOrder={categoryOrder}
-        currency={currency}
-        loading={names.isPending && drill !== undefined}
-      />
+      <div ref={namesBlock} id="category-names" className="scroll-mt-4">
+        <CategoryNames
+          categories={categories.data ?? []}
+          selected={drill}
+          onSelect={selectCategory}
+          names={drill ? names.data && names.data : []}
+          categoryOrder={categoryOrder}
+          currency={currency}
+          loading={names.isPending && drill !== undefined}
+        />
+      </div>
     </div>
   );
 }

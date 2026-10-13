@@ -34,6 +34,8 @@ interface CategoryChartProps {
   categoryOrder: string[];
   /** Clicking a category (bar, slice or legend row) opens its names */
   onSelect?: (category: string) => void;
+  /** The category open in the names block: highlighted in the limits list */
+  selected?: string;
   loading?: boolean;
 }
 
@@ -51,6 +53,7 @@ export function CategoryChart({
   currency,
   categoryOrder,
   onSelect,
+  selected,
   loading = false,
 }: CategoryChartProps) {
   const [type, setType] = usePreference('category.type');
@@ -111,7 +114,7 @@ export function CategoryChart({
         </div>
       )}
       {showLimits ? (
-        <BudgetsTab budgets={budgets} rows={rows} onSelect={onSelect} />
+        <BudgetsTab budgets={budgets} rows={rows} onSelect={onSelect} selected={selected} />
       ) : loading && !rows ? (
         <ChartMessage>Загрузка…</ChartMessage>
       ) : !rows || total === 0 ? (
@@ -336,6 +339,7 @@ function ShareChart({
             </>
           );
           const rowClass = 'flex w-full items-center gap-2 rounded-md px-1 py-0.5';
+          const clickable = 'cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800';
           return (
             <li key={slice.key}>
               {onSelect && !slice.isOther ? (
@@ -343,7 +347,7 @@ function ShareChart({
                   type="button"
                   onClick={() => onSelect(slice.key)}
                   aria-label={`${slice.key}: показать наименования`}
-                  className={`${rowClass} hover:bg-zinc-100 dark:hover:bg-zinc-800`}
+                  className={`${rowClass} ${clickable}`}
                 >
                   {row}
                 </button>

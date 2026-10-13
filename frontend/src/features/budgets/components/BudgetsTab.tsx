@@ -102,10 +102,12 @@ function CategoryRow({
   budget,
   format,
   onSelect,
+  selected = false,
 }: {
   budget: Budget;
   format: Format;
   onSelect?: (category: string) => void;
+  selected?: boolean;
 }) {
   const over = budget.remaining < 0;
   const name = budget.category ?? '';
@@ -125,7 +127,10 @@ function CategoryRow({
           / {format.num(budget.limit)}
         </span>
       </span>
-      <span aria-hidden="true" className="row-span-3 text-zinc-400">
+      <span
+        aria-hidden="true"
+        className="row-span-3 text-zinc-400 transition group-hover/row:translate-x-0.5 group-hover/row:text-zinc-700 dark:group-hover/row:text-zinc-200"
+      >
         {onSelect && <ChevronRightIcon />}
       </span>
       <div className="col-span-2 flex items-center justify-between gap-2 whitespace-nowrap text-[11px] tabular-nums text-zinc-500 dark:text-zinc-400">
@@ -159,7 +164,12 @@ function CategoryRow({
           type="button"
           onClick={() => onSelect(name)}
           aria-label={`${name}: открыть наименования`}
-          className="block w-full text-left"
+          aria-current={selected || undefined}
+          className={`group/row -mx-2 block w-[calc(100%+1rem)] cursor-pointer rounded-lg px-2 py-1.5 text-left transition hover:bg-zinc-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50 active:bg-zinc-200/70 dark:hover:bg-zinc-800/60 dark:active:bg-zinc-800 ${
+            selected
+              ? 'bg-indigo-50 ring-1 ring-indigo-200 dark:bg-indigo-950/40 dark:ring-indigo-900'
+              : ''
+          }`}
         >
           {content}
         </button>
@@ -233,10 +243,12 @@ interface BudgetsTabProps {
   /** Spending by category: the ones without a limit are listed from here */
   rows: BreakdownRow[] | undefined;
   onSelect?: (category: string) => void;
+  /** The category open in the names block */
+  selected?: string;
 }
 
 /** «Бюджет и лимиты»: the overall limit on top, categories grouped by how close they are to their limit. */
-export function BudgetsTab({ budgets, rows, onSelect }: BudgetsTabProps) {
+export function BudgetsTab({ budgets, rows, onSelect, selected }: BudgetsTabProps) {
   const config = useConfig().data;
   if (!config) return null;
 
@@ -255,7 +267,13 @@ export function BudgetsTab({ budgets, rows, onSelect }: BudgetsTabProps) {
 
   const list = (items: Budget[]) =>
     items.map((budget) => (
-      <CategoryRow key={budget.id} budget={budget} format={format} onSelect={onSelect} />
+      <CategoryRow
+        key={budget.id}
+        budget={budget}
+        format={format}
+        onSelect={onSelect}
+        selected={selected === budget.category}
+      />
     ));
 
   return (

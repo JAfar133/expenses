@@ -420,6 +420,86 @@ describe('лимиты на вкладке «Обзор»', () => {
     expect(row.querySelector('.bg-red-100')).not.toBeNull();
   });
 
+  describe('выбор категории', () => {
+    let scroll: ReturnType<typeof vi.fn>;
+    beforeEach(() => {
+      scroll = vi.fn();
+      Element.prototype.scrollIntoView =
+        scroll as unknown as typeof Element.prototype.scrollIntoView;
+      harness.handlers['/api/budgets'] = () =>
+        analyticsOk([
+          budget(),
+          budget({
+            id: 'a',
+            categoryId: '1',
+            category: 'продукты',
+            level: 'ok',
+            percent: 10,
+            remaining: 900,
+          }),
+        ]);
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('после клика страница плавно прокручивается к блоку наименований, и при повторном клике тоже', async () => {
+      const user = renderAnalytics();
+      await overall();
+      const row = screen.getByRole('button', { name: 'продукты: открыть наименования' });
+
+      await user.click(row);
+      await user.click(row);
+
+      expect(scroll).toHaveBeenCalledTimes(2);
+      expect(scroll).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+      const target = scroll.mock.contexts[0] as HTMLElement;
+      expect(target.id).toBe('category-names');
+      expect(target).toContainElement(
+        screen.getByRole('heading', { name: 'Наименования в категории' }),
+      );
+    });
+
+    it('при prefers-reduced-motion без анимации', async () => {
+      vi.stubGlobal('matchMedia', (query: string) => ({
+        matches: query.includes('reduce'),
+        media: query,
+      }));
+      const user = renderAnalytics();
+      await overall();
+
+      await user.click(screen.getByRole('button', { name: 'продукты: открыть наименования' }));
+
+      expect(scroll).toHaveBeenCalledWith({ behavior: 'auto', block: 'start' });
+    });
+
+    it('строка выглядит кликабельной; выбранная подсвечена', async () => {
+      const user = renderAnalytics();
+      await overall();
+      const row = screen.getByRole('button', { name: 'продукты: открыть наименования' });
+      expect(row).toHaveClass('cursor-pointer');
+      expect(row.className).toMatch(/hover:bg-/);
+      expect(row).not.toHaveAttribute('aria-current');
+
+      await user.click(row);
+
+      await waitFor(() => expect(row).toHaveAttribute('aria-current', 'true'));
+      expect(row).toHaveClass('bg-indigo-50');
+    });
+
+    it('в структуре: строка легенды кольца кликабельна и тоже прокручивает', async () => {
+      localStorage.setItem('analytics.category.tab', 'structure');
+      harness.handlers['/api/preferences'] = () => analyticsOk({ 'category.tab': 'structure' });
+      const user = renderAnalytics();
+      const legend = await screen.findByRole('button', { name: 'кафе: показать наименования' });
+      expect(legend).toHaveClass('cursor-pointer');
+
+      await user.click(legend);
+
+      expect(scroll).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('клик по строке категории открывает её наименования', async () => {
     harness.handlers['/api/budgets'] = () =>
       analyticsOk([
