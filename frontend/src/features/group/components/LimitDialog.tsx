@@ -52,9 +52,7 @@ export function LimitDialog({
 }: LimitDialogProps) {
   const queryClient = useQueryClient();
   const formatAmount = (value: string) =>
-    digits === 0
-      ? formatAmountInput(value)
-      : formatDecimalInput(value, { maxDecimals: 2, group: true });
+    formatDecimalInput(value, { maxDecimals: 2, group: true });
 
   const [amount, setAmount] = useState(
     budget ? formatAmount(String(budget.limit).replace('.', ',')) : '',
@@ -123,7 +121,7 @@ export function LimitDialog({
             <input
               id="limit-amount"
               type="text"
-              inputMode={digits === 0 ? 'numeric' : 'decimal'}
+              inputMode="decimal"
               autoComplete="off"
               value={amount}
               onChange={(event) => setAmount(formatAmount(event.target.value))}

@@ -61,7 +61,7 @@ function rememberedChoice(key: string, options: string[]): string | undefined {
  */
 function amountPayload(values: ExpenseFormValues, base: string, cardCurrency: string) {
   const isBase = values.currency === base;
-  const amount = isBase ? parseAmount(values.amount)! : parseDecimal(values.amount)!;
+  const amount = parseDecimal(values.amount)!;
   if (values.currency === cardCurrency) return { amount };
   if (isBase) return { amount, currency: values.currency };
   return { amount, currency: values.currency, rate: parseDecimal(values.rate)! };
@@ -179,12 +179,9 @@ export function ExpenseForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft]);
 
-  // A new card: the typed currency goes back to the card's one, the rate and fractional part are not needed
+  // A new card: the typed currency goes back to the card's one, the rate is not needed
   const resetCurrencyFor = (cardName: string) => {
     const next = cardCurrencyOf(cardName);
-    if (next === baseCurrency) {
-      setValue('amount', formatAmountInput(getValues('amount').split(/[.,]/)[0] ?? ''));
-    }
     setValue('currency', next);
     setValue('rate', '');
   };

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { parseAmount, parseDecimal } from '../../../shared/utils/money.ts';
+import { parseDecimal } from '../../../shared/utils/money.ts';
 
 /**
  * The form depends on the base currency (drams: a whole amount, no rate) and on the card currencies:
@@ -23,7 +23,7 @@ export function createExpenseFormSchema(
     .superRefine((values, context) => {
       const isBase = values.currency === baseCurrency;
 
-      const amountMessage = validateAmount(values.amount, isBase);
+      const amountMessage = validateAmount(values.amount);
       if (amountMessage)
         context.addIssue({ code: 'custom', path: ['amount'], message: amountMessage });
 
@@ -35,14 +35,15 @@ export function createExpenseFormSchema(
 
 export type ExpenseFormValues = z.infer<ReturnType<typeof createExpenseFormSchema>>;
 
-function validateAmount(value: string, isBase: boolean): string | null {
+function validateAmount(value: string): string | null {
   if (!value.trim()) {
     return 'Введите стоимость';
   }
 
-  const amount = isBase ? parseAmount(value) : parseDecimal(value);
+  // Every currency, drams included, takes up to two decimals
+  const amount = parseDecimal(value);
   if (amount === null) {
-    return isBase ? 'Введите целое число' : 'Введите число';
+    return 'Введите число';
   }
   return amount > 0 ? null : 'Стоимость должна быть больше нуля';
 }

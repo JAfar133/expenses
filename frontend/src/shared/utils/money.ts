@@ -76,8 +76,18 @@ export function formatMoney(value: number, maxFractionDigits = 2): string {
     .replace(/[\s ]/g, ' ');
 }
 
-/** An amount of money with exactly `digits` decimals (the precision of its currency: 0 for drams, 2 for the rest). */
+/**
+ * An amount of money: other currencies always have `digits` (2) decimals; drams (0) only if the amount is fractional
+ * (`1 234`, but `1 234,50`).
+ */
 export function formatAmount(value: number, digits: number): string {
+  // Drams (0 digits) may be fractional now: the cents are shown only when the amount really has them
+  const fractional = digits === 0 && Math.abs(value * 100 - Math.round(value) * 100) >= 0.5;
+  return formatRounded(value, fractional ? 2 : digits);
+}
+
+/** The number with exactly `digits` decimals (for derived values such as averages, which are rounded). */
+export function formatRounded(value: number, digits: number): string {
   return new Intl.NumberFormat('ru-RU', {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,

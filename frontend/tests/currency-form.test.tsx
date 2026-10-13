@@ -161,9 +161,9 @@ describe('валюта по карте', () => {
     expect(posted[0]).not.toHaveProperty('rate');
   });
 
-  it('проверка суммы по валюте ввода: в драммах только целое, в долларах копейки', async () => {
+  it('проверка суммы: и в драммах, и в долларах до двух знаков после запятой', async () => {
     const person = await renderForm();
-    // AMD card: fractional input is cut to digits and a whole amount is required
+    // AMD card: the amount takes cents as well, only a positive amount is required
     await person.type(screen.getByLabelText('Стоимость'), '0');
     await submit(person);
     expect(await screen.findByText('Стоимость должна быть больше нуля')).toBeInTheDocument();
@@ -172,6 +172,11 @@ describe('валюта по карте', () => {
     await person.clear(screen.getByLabelText('Стоимость'));
     await person.type(screen.getByLabelText('Стоимость'), '12,345');
     expect(screen.getByLabelText('Стоимость')).toHaveValue('12,34');
+
+    await person.selectOptions(screen.getByLabelText('Карта'), 'Миша');
+    await person.clear(screen.getByLabelText('Стоимость'));
+    await person.type(screen.getByLabelText('Стоимость'), '7,505');
+    expect(screen.getByLabelText('Стоимость')).toHaveValue('7,50');
   });
 
   it('в списке карт у каждой флаг, название и код валюты, в том числе когда все карты в драммах', async () => {

@@ -6,6 +6,7 @@ import {
   formatAmountInput,
   formatDecimalInput,
   formatMoney,
+  formatRounded,
   parseAmount,
   parseDecimal,
 } from '../src/shared/utils/money.ts';
@@ -101,6 +102,34 @@ describe('formatMoney', () => {
     expect(formatMoney(1000.3)).toBe('1 000,30');
     expect(formatMoney(12.5, 1)).toBe('12,5');
     expect(formatMoney(380.123456, 6)).toBe('380,123456');
+  });
+});
+
+describe('formatAmount для драм', () => {
+  it('знаки после запятой только у дробной суммы: 1 234 остаётся 1 234, 1 234,5 → 1 234,50', () => {
+    expect(formatAmount(1234, 0)).toBe('1 234');
+    expect(formatAmount(1234.5, 0)).toBe('1 234,50');
+    expect(formatAmount(1234.56, 0)).toBe('1 234,56');
+    expect(formatAmount(0.5, 0)).toBe('0,50');
+    expect(formatAmount(-1234.5, 0)).toBe('-1 234,50');
+  });
+
+  it('шум плавающей точки не делает целую сумму дробной', () => {
+    expect(formatAmount(1234.0000001, 0)).toBe('1 234');
+    expect(formatAmount(0.1 + 0.2 + 99.7, 0)).toBe('100');
+  });
+
+  it('другие валюты как раньше: всегда два знака', () => {
+    expect(formatAmount(1234, 2)).toBe('1 234,00');
+    expect(formatAmount(1234.5, 2)).toBe('1 234,50');
+  });
+});
+
+describe('formatRounded', () => {
+  it('ровно столько знаков, сколько передано (для средних значений)', () => {
+    expect(formatRounded(1234.567, 0)).toBe('1 235');
+    expect(formatRounded(1234.5, 0)).toBe('1 235');
+    expect(formatRounded(1234.567, 2)).toBe('1 234,57');
   });
 });
 

@@ -1,4 +1,4 @@
-import { formatAmountInput, formatDecimalInput } from '../../../shared/utils/money.ts';
+import { formatDecimalInput } from '../../../shared/utils/money.ts';
 import type { ExpenseFormValues } from '../../expenses/schemas/expense-form.schema.ts';
 import type { QueuedExpense } from './queue-types.ts';
 
@@ -9,10 +9,7 @@ export function draftToFormValues(
   cardCurrency: string,
 ): ExpenseFormValues {
   const currency = expense.currency ?? cardCurrency;
-  const amount =
-    currency === baseCurrency
-      ? formatAmountInput(String(expense.amount))
-      : formatDecimalInput(String(expense.amount), { maxDecimals: 2, group: true });
+  const amount = formatDecimalInput(String(expense.amount), { maxDecimals: 2, group: true });
   return {
     date: expense.date,
     card: expense.card,

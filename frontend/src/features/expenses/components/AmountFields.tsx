@@ -2,7 +2,6 @@ import type { UseFormReturn } from 'react-hook-form';
 import { Field, inputClassName } from '../../../shared/ui/Field.tsx';
 import { currencyLabel } from '../../../shared/utils/currency-flags.ts';
 import {
-  formatAmountInput,
   formatDecimalInput,
   caretAfterFormat,
   formatAmount,
@@ -46,7 +45,7 @@ export function convertedAmount(
 
 /**
  * Cost, currency and (when needed) rate with conversion into the card currency.
- * The currency starts as the card's one. In drams the amount is a whole number, in others decimals can be entered.
+ * The currency starts as the card's one. The amount takes up to two decimals in any currency, drams included.
  */
 export function AmountFields({ form, base, cards, rates }: AmountFieldsProps) {
   const { register, setValue, getValues, watch, formState } = form;
@@ -63,11 +62,6 @@ export function AmountFields({ form, base, cards, rates }: AmountFieldsProps) {
   const currencyField = register('currency');
 
   const changeCurrency = (next: string) => {
-    // A fractional amount in drams is impossible: keep the integer part
-    if (next === base) {
-      const whole = getValues('amount').split(/[.,]/)[0] ?? '';
-      setValue('amount', formatAmountInput(whole));
-    }
     const rateNeeded = next !== base && next !== cardCurrency;
     setValue('rate', rateNeeded ? rateText(rates, next) : '', { shouldValidate: false });
   };
@@ -76,7 +70,7 @@ export function AmountFields({ form, base, cards, rates }: AmountFieldsProps) {
   const cardRate = crossRate(rates?.rates, cardCurrency, base, base);
   const converted =
     currency !== cardCurrency && inputRate !== null && cardRate !== undefined
-      ? convertedAmount(amount, inputRate, cardRate, currencyDigits(cardCurrency, base))
+      ? convertedAmount(amount, inputRate, cardRate, AMOUNT_DECIMALS)
       : null;
 
   return (
@@ -86,7 +80,7 @@ export function AmountFields({ form, base, cards, rates }: AmountFieldsProps) {
           <input
             id="amount"
             type="text"
-            inputMode={isBase ? 'numeric' : 'decimal'}
+            inputMode="decimal"
             autoComplete="off"
             // The most visible field of the form: big semibold digits
             className={`${inputClassName} h-14 pr-28 text-2xl font-semibold tabular-nums`}
@@ -96,9 +90,10 @@ export function AmountFields({ form, base, cards, rates }: AmountFieldsProps) {
               const input = event.target;
               const raw = input.value;
               const caret = input.selectionStart ?? raw.length;
-              const formatted = isBase
-                ? formatAmountInput(raw)
-                : formatDecimalInput(raw, { maxDecimals: AMOUNT_DECIMALS, group: true });
+              const formatted = formatDecimalInput(raw, {
+                maxDecimals: AMOUNT_DECIMALS,
+                group: true,
+              });
               if (formatted !== raw) {
                 input.value = formatted;
                 // Keep the caret where the person is typing, not at the end

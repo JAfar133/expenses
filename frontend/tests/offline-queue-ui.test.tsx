@@ -207,6 +207,12 @@ describe('значения формы из записи очереди', () => {
     ).toEqual({ ...base, currency: 'AMD', amount: '25 890', rate: '' });
   });
 
+  it('драммы: дробная сумма попадает в форму с запятой', () => {
+    expect(
+      draftToFormValues(queued('1', { expense: { ...base, amount: 1234.5 } }), 'AMD', 'AMD'),
+    ).toMatchObject({ currency: 'AMD', amount: '1 234,5' });
+  });
+
   it('другая валюта: сумма с запятой и курс', () => {
     expect(
       draftToFormValues(

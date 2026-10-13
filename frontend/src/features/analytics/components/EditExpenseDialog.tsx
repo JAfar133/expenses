@@ -18,7 +18,7 @@ interface EditExpenseDialogProps {
   categories: string[];
   /** Currency of the record's card: the amount is edited in it */
   currency: string;
-  /** Drams: their amounts are whole, other currencies have cents */
+  /** Drams: no note about the card currency under the amount */
   baseCurrency?: string;
   /** Saving in progress */
   saving: boolean;
@@ -34,7 +34,6 @@ interface EditExpenseDialogProps {
 export function buildPatch(
   item: OperationItem,
   values: { date: string; card: string; category: string; name: string; amount: string },
-  whole = true,
 ): { patch: ExpensePatch; errors: Partial<Record<keyof typeof values, string>> } {
   const errors: Partial<Record<keyof typeof values, string>> = {};
   const patch: ExpensePatch = {};
@@ -52,9 +51,9 @@ export function buildPatch(
   if (!name) errors.name = 'Введите наименование';
   else if (name !== item.name) patch.name = name;
 
-  const amount = whole ? parseAmount(values.amount) : parseDecimal(values.amount);
+  const amount = parseDecimal(values.amount);
   if (!values.amount.trim()) errors.amount = 'Введите стоимость';
-  else if (amount === null) errors.amount = whole ? 'Введите целое число' : 'Введите число';
+  else if (amount === null) errors.amount = 'Введите число';
   else if (amount <= 0) errors.amount = 'Стоимость должна быть больше нуля';
   else if (amount !== item.amount) patch.amount = amount;
 
@@ -74,9 +73,8 @@ export function EditExpenseDialog({
   onSave,
   onClose,
 }: EditExpenseDialogProps) {
-  const whole = currency === baseCurrency;
   const formatAmount = (value: string) =>
-    whole ? formatAmountInput(value) : formatDecimalInput(value, { maxDecimals: 2, group: true });
+    formatDecimalInput(value, { maxDecimals: 2, group: true });
   const [values, setValues] = useState({
     date: item.date,
     card: item.card,
@@ -86,7 +84,7 @@ export function EditExpenseDialog({
   });
   const [submitted, setSubmitted] = useState(false);
 
-  const { patch, errors } = buildPatch(item, values, whole);
+  const { patch, errors } = buildPatch(item, values);
   const changed = Object.keys(patch).length > 0;
   const invalid = Object.keys(errors).length > 0;
   const shown = submitted ? errors : {};
@@ -164,14 +162,14 @@ export function EditExpenseDialog({
           <input
             id="edit-amount"
             type="text"
-            inputMode={whole ? 'numeric' : 'decimal'}
+            inputMode="decimal"
             autoComplete="off"
             className={inputClassName}
             value={values.amount}
             aria-invalid={!!shown.amount}
             onChange={(event) => set('amount')(formatAmount(event.target.value))}
           />
-          {!whole && (
+          {currency !== baseCurrency && (
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
               Карта в {currency}: сумма указывается в этой валюте, до двух знаков после запятой
             </p>

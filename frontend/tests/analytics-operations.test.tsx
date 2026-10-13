@@ -388,6 +388,22 @@ describe('правка', () => {
     await waitFor(() => expect(listRequests().length).toBeGreaterThan(before));
   });
 
+  it('драммы: форма показывает дробную сумму, принимает запятую и точку и отправляет дробное число', async () => {
+    harness.handlers['PATCH /api/expenses/:id'] = () => ok(edited);
+    const { user, dialog } = await openEditor([item(1, { amount: 1234.5 })]);
+    const amount = within(dialog).getByLabelText('Стоимость, AMD');
+    expect(amount).toHaveValue('1 234,5');
+
+    await user.clear(amount);
+    await user.type(amount, '99.999');
+    expect(amount).toHaveValue('99,99');
+    await user.click(within(dialog).getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() =>
+      expect(harness.bodies.some((b) => (b as { amount?: number })?.amount === 99.99)).toBe(true),
+    );
+  });
+
   it('проверка полей: пустое наименование и нулевая стоимость', async () => {
     const { user, dialog } = await openEditor();
 
@@ -662,7 +678,7 @@ describe('валюты карт', () => {
     expect(cards.map((option) => option.textContent)).toEqual(['Доллары', 'Запас']);
   });
 
-  it('buildPatch: для карты не в драммах принимает копейки', () => {
+  it('buildPatch: копейки принимаются для любой валюты, в том числе для драмов', () => {
     const base = usd();
     const values = {
       date: base.date,
@@ -672,8 +688,9 @@ describe('валюты карт', () => {
       amount: '12,75',
     };
 
-    expect(buildPatch(base, values, false).patch).toEqual({ amount: 12.75 });
-    expect(buildPatch(base, values).errors.amount).toBe('Введите целое число');
+    expect(buildPatch(base, values).patch).toEqual({ amount: 12.75 });
+    expect(buildPatch(base, { ...values, amount: '1 234,5' }).patch).toEqual({ amount: 1234.5 });
+    expect(buildPatch(base, { ...values, amount: '12,7x' }).errors.amount).toBe('Введите число');
   });
 });
 

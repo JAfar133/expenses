@@ -130,7 +130,7 @@ describe('отображение формы', () => {
     expect(screen.getByLabelText('Карта')).not.toHaveValue('Настя');
     expect(screen.getByLabelText('Категория')).toHaveValue('');
     expect(screen.getByLabelText('Наименование')).toBeInTheDocument();
-    expect(screen.getByLabelText('Стоимость')).toHaveAttribute('inputmode', 'numeric');
+    expect(screen.getByLabelText('Стоимость')).toHaveAttribute('inputmode', 'decimal');
     expect(screen.getByText('🇦🇲 AMD')).toBeInTheDocument();
   });
 
@@ -329,7 +329,7 @@ describe('валюта', () => {
     });
   });
 
-  it('при возврате в драммы копейки отбрасываются', async () => {
+  it('при возврате в драммы копейки сохраняются: драммы тоже дробные', async () => {
     withRates();
     const user = await renderPage();
     const select = await currencySelect();
@@ -338,8 +338,35 @@ describe('валюта', () => {
 
     await user.selectOptions(select, 'AMD');
 
-    expect(screen.getByLabelText('Стоимость')).toHaveValue('1 234');
+    expect(screen.getByLabelText('Стоимость')).toHaveValue('1 234,56');
     expect(screen.queryByLabelText(/Курс/)).toBeNull();
+  });
+
+  it('дробная сумма в драммах уходит как есть: запятая и точка, не больше двух знаков', async () => {
+    const user = await renderPage();
+    await user.selectOptions(screen.getByLabelText('Категория'), 'продукты');
+    await user.type(screen.getByLabelText('Наименование'), 'Хлеб');
+    await user.type(screen.getByLabelText('Стоимость'), '1234.567');
+    expect(screen.getByLabelText('Стоимость')).toHaveValue('1 234,56');
+
+    await submit(user);
+
+    await screen.findByText('Расход успешно добавлен');
+    expect(postExpense.mock.calls[0]![0]).toMatchObject({ amount: 1234.56 });
+    expect(postExpense.mock.calls[0]![0]).not.toHaveProperty('currency');
+  });
+
+  it('драммы: ноль и не число отклоняются понятным сообщением, а не про «целое»', async () => {
+    const user = await renderPage();
+    await user.selectOptions(screen.getByLabelText('Категория'), 'продукты');
+    await user.type(screen.getByLabelText('Наименование'), 'Хлеб');
+    await user.type(screen.getByLabelText('Стоимость'), '0,00');
+
+    await submit(user);
+
+    expect(await screen.findByText('Стоимость должна быть больше нуля')).toBeInTheDocument();
+    expect(screen.queryByText('Введите целое число')).toBeNull();
+    expect(postExpense).not.toHaveBeenCalled();
   });
 
   it('если курса нет, просит ввести его вручную и не отправляет без него', async () => {
