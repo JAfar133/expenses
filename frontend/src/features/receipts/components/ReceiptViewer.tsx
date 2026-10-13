@@ -18,7 +18,17 @@ const distance = (a: { x: number; y: number }, b: { x: number; y: number }) =>
  * with the buttons, a double click, Ctrl + wheel (desktop); a zoomed photo is dragged with a finger or the mouse.
  * Zoom is handled here with Pointer Events (`touch-action: none`), the page itself is not zoomed.
  */
-export function ReceiptViewer({ expenseId, onClose }: { expenseId: string; onClose: () => void }) {
+export function ReceiptViewer({
+  expenseId,
+  src,
+  onClose,
+}: {
+  /** A receipt saved on the server */
+  expenseId?: string;
+  /** Or any image address, e.g. a local blob URL of the photo just chosen */
+  src?: string;
+  onClose: () => void;
+}) {
   const [view, setView] = useState<View>(FIT);
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -162,7 +172,7 @@ export function ReceiptViewer({ expenseId, onClose }: { expenseId: string; onClo
       >
         <img
           ref={image}
-          src={receiptUrl(expenseId)}
+          src={src ?? receiptUrl(expenseId ?? '')}
           alt="Фото чека"
           draggable={false}
           data-scale={view.scale.toFixed(2)}

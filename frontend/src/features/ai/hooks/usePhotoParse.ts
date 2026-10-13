@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { ApiError } from '../../../shared/api/http.ts';
 import { parseReceiptPhoto, type PhotoParse } from '../api/ai.api.ts';
 import { parseFailureMessage } from '../model/parse-runner.ts';
 
@@ -6,7 +7,7 @@ export type PhotoParseState =
   | { status: 'idle' }
   | { status: 'running' }
   | { status: 'done'; result: PhotoParse }
-  | { status: 'error'; message: string };
+  | { status: 'error'; message: string; reason: string };
 
 /**
  * Parsing of the attached photo before the expense is saved. `onResult` is called as soon as the answer comes
@@ -34,7 +35,11 @@ export function usePhotoParse(onResult: (result: PhotoParse) => void) {
       setState({ status: 'done', result });
     } catch (error) {
       if (mine !== token.current) return;
-      setState({ status: 'error', message: parseFailureMessage(error) });
+      setState({
+        status: 'error',
+        message: parseFailureMessage(error),
+        reason: error instanceof ApiError ? error.message : '',
+      });
     }
     settle();
   }, []);

@@ -9,6 +9,7 @@ import {
   renderAnalytics,
   setupAnalyticsHarness,
 } from './helpers/analytics-harness.tsx';
+import { chooseAction } from './helpers/operation-menu.ts';
 
 setupAnalyticsHarness();
 
@@ -58,7 +59,7 @@ async function openEditor(op: OperationItem, available = false) {
   serve(op, available);
   const user = renderAnalytics(OPS);
   await waitFor(() => within(table()).getByText(op.name));
-  await user.click(within(table()).getByRole('button', { name: `Изменить запись: ${op.name}` }));
+  await chooseAction(user, table(), 'Изменить');
   const dialog = await screen.findByRole('dialog', { name: 'Изменить запись' });
   return { user, dialog };
 }
@@ -240,7 +241,7 @@ describe('карточка записи: раздел «Позиции»', () =>
     itemsOnServer = lines.map((line) => ({ ...line, source: 'manual' }));
     const user = renderAnalytics(OPS);
     await waitFor(() => within(table()).getByText('Супермаркет'));
-    await user.click(within(table()).getByRole('button', { name: /^Изменить запись/ }));
+    await chooseAction(user, table(), 'Изменить');
     const dialog = await screen.findByRole('dialog', { name: 'Изменить запись' });
     const section = await within(dialog).findByRole('region', { name: 'Позиции' });
 
@@ -370,8 +371,8 @@ describe('раскрытые позиции в списке', () => {
 
     const cell = list.closest('td')!;
     expect(cell).toHaveAttribute('colspan');
-    expect(list.parentElement!.className).toContain('bg-zinc-50');
-    expect(list.parentElement!.className).toContain('dark:bg-zinc-800/40');
+    expect(list.closest<HTMLElement>('.rounded-xl')!.className).toContain('bg-zinc-50');
+    expect(list.closest<HTMLElement>('.rounded-xl')!.className).toContain('dark:bg-zinc-800/40');
   });
 
   it('строка: название слева, количество под ним мелко, цена справа с двумя знаками у дробной', async () => {
@@ -381,7 +382,7 @@ describe('раскрытые позиции в списке', () => {
     expect(bread).toHaveTextContent('Хлеб');
     expect(bread).toHaveTextContent('120,50');
     expect(bread).not.toHaveTextContent('×');
-    expect(cheese).toHaveTextContent('× 0,35');
+    expect(cheese).toHaveTextContent('0,35 × 34 914,29');
     expect(cheese).toHaveTextContent('12 220');
     expect(within(cheese!).getByText('12 220').className).toContain('tabular-nums');
   });
@@ -389,8 +390,8 @@ describe('раскрытые позиции в списке', () => {
   it('внизу сумма позиций и приглушённое расхождение с суммой операции', async () => {
     const { list } = await open(operation({ itemsCount: 2, amount: 12460.5 }));
 
-    const footer = list.parentElement!;
-    expect(within(footer).getByText('Сумма позиций 12 340,50')).toBeInTheDocument();
+    const footer = list.closest<HTMLElement>('.rounded-xl')!;
+    expect(within(footer).getByText('Сумма позиций 12 340,50 AMD')).toBeInTheDocument();
     const note = within(footer).getByText('Сумма позиций 12 340,50, на 120 меньше суммы операции');
     expect(note.className).not.toContain('red');
   });
@@ -398,8 +399,12 @@ describe('раскрытые позиции в списке', () => {
   it('расхождение меньше единицы не показывается, сумма позиций остаётся', async () => {
     const { list } = await open(operation({ itemsCount: 2, amount: 12340.9 }));
 
-    expect(within(list.parentElement!).getByText('Сумма позиций 12 340,50')).toBeInTheDocument();
-    expect(within(list.parentElement!).queryByText(/меньше суммы|больше суммы/)).toBeNull();
+    expect(
+      within(list.closest<HTMLElement>('.rounded-xl')!).getByText('Сумма позиций 12 340,50 AMD'),
+    ).toBeInTheDocument();
+    expect(
+      within(list.closest<HTMLElement>('.rounded-xl')!).queryByText(/меньше суммы|больше суммы/),
+    ).toBeNull();
   });
 });
 
@@ -424,5 +429,40 @@ describe('«Разобрать чек заново» и категории ИИ'
         within(section).getByRole('button', { name: 'Разобрать чек заново' }),
       ).toBeInTheDocument(),
     );
+  });
+});
+
+describe('раскрытые позиции: вид как в форме', () => {
+  async function open(op: OperationItem) {
+    serve(op);
+    const user = renderAnalytics(OPS);
+    await waitFor(() => within(table()).getByText('Супермаркет'));
+    await user.click(within(table()).getByRole('button', { name: '2 позиции' }));
+    return screen.findByRole('list', { name: 'Позиции' });
+  }
+
+  it('«кол-во × цена за единицу» под названием, если количество не 1', async () => {
+    const list = await open(operation({ itemsCount: 2 }));
+
+    const [bread, cheese] = within(list).getAllByRole('listitem');
+    expect(bread).not.toHaveTextContent('×');
+    expect(cheese).toHaveTextContent('0,35 × 34 914,29');
+  });
+
+  it('на десктопе блок прокручивается внутри (до 320px), на телефоне нет', async () => {
+    const list = await open(operation({ itemsCount: 2 }));
+
+    expect(list.parentElement!.className).toContain('md:max-h-80');
+    expect(list.parentElement!.className).toContain('md:overflow-y-auto');
+    expect(list.parentElement!.className).not.toMatch(/(^|\s)overflow-y-auto/);
+  });
+
+  it('внизу жирно «Сумма позиций N AMD»', async () => {
+    const list = await open(operation({ itemsCount: 2 }));
+
+    const total = within(list.closest<HTMLElement>('.rounded-xl')!).getByText(
+      'Сумма позиций 12 340,50 AMD',
+    );
+    expect(total.className).toContain('font-semibold');
   });
 });

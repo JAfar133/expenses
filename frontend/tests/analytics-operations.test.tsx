@@ -16,6 +16,7 @@ import {
   renderAnalytics,
   setupAnalyticsHarness,
 } from './helpers/analytics-harness.tsx';
+import { chooseAction } from './helpers/operation-menu.ts';
 
 setupAnalyticsHarness();
 
@@ -197,22 +198,40 @@ describe('список операций', () => {
 });
 
 describe('состояние записи относительно Excel', () => {
-  const cases: [OperationItem['excelState'], string, string?][] = [
-    ['synced', 'Совпадает с Excel'],
+  const pending: [OperationItem['excelState'], string][] = [
     ['pending-add', 'В очереди: нет в Excel'],
     ['pending-update', 'Отличается от Excel'],
     ['pending-remove', 'В очереди: удалить из Excel'],
-    ['removed', 'Удалена, из Excel убрана'],
-    ['missing', 'Удалена: строки нет в Excel'],
   ];
 
-  it.each(cases)('%s → «%s»', async (state, label) => {
-    serve([item(1, { excelState: state, deletedAt: state === 'synced' ? null : null })]);
+  it.each(pending)('%s → маленький чип «%s»', async (state, label) => {
+    serve([item(1, { excelState: state })]);
     renderAnalytics(OPS);
 
     const row = await waitFor(() => rowOf('Позиция 1'));
 
     expect(row).toHaveTextContent(label);
+  });
+
+  it.each(['synced', 'removed', 'missing'] as const)(
+    'обычное состояние %s: чипа нет, колонки Excel тоже',
+    async (state) => {
+      serve([item(1, { excelState: state })]);
+      renderAnalytics(OPS);
+
+      const row = await waitFor(() => rowOf('Позиция 1'));
+
+      expect(row).not.toHaveTextContent('Excel');
+      expect(within(table()).queryByRole('columnheader', { name: 'Excel' })).toBeNull();
+    },
+  );
+
+  it('колонка «Карта» остаётся', async () => {
+    serve([item(1)]);
+    renderAnalytics(OPS);
+    await waitFor(() => rowOf('Позиция 1'));
+
+    expect(within(table()).getByRole('columnheader', { name: /Карта/ })).toBeInTheDocument();
   });
 
   it('для записей в очереди указана причина', async () => {
@@ -233,7 +252,7 @@ describe('состояние записи относительно Excel', () =>
     expect(row).not.toHaveTextContent('Причина');
   });
 
-  it('если Excel отключён, вместо состояний написано об этом', async () => {
+  it('если Excel отключён, нет ни «Excel отключён», ни чипа очереди', async () => {
     serve([item(1, { excelState: 'pending-add' })]);
     harness.handlers['/api/sync/status'] = () =>
       ok({
@@ -245,8 +264,10 @@ describe('состояние записи относительно Excel', () =>
         serverTime: '',
       });
     renderAnalytics(OPS);
+    await waitFor(() => rowOf('Позиция 1'));
+    await new Promise((resolve) => setTimeout(resolve, 30));
 
-    await waitFor(() => expect(rowOf('Позиция 1')).toHaveTextContent('Excel отключён'));
+    expect(rowOf('Позиция 1')).not.toHaveTextContent('Excel отключён');
     expect(rowOf('Позиция 1')).not.toHaveTextContent('В очереди');
   });
 });
@@ -321,20 +342,61 @@ describe('права', () => {
     renderAnalytics(OPS);
     await waitFor(() => rowOf('Позиция 1'));
 
-    expect(screen.queryByRole('button', { name: /^Изменить запись/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: /^Удалить запись/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Действия' })).toBeNull();
     expect(within(table()).queryByRole('columnheader', { name: 'Действия' })).toBeNull();
     expect(screen.getByText(/Режим просмотра/)).toBeInTheDocument();
   });
 
-  it('у редактора есть «Изменить» и «Удалить» у каждой записи', async () => {
+  it('у редактора в каждой записи кнопка «Действия» (⋯) с пунктами «Изменить» и «Удалить» (красный)', async () => {
     serve([item(1), item(2)]);
+    const user = renderAnalytics(OPS);
+    await waitFor(() => rowOf('Позиция 1'));
+
+    expect(within(table()).getAllByRole('button', { name: 'Действия' })).toHaveLength(2);
+    expect(screen.queryByText(/Режим просмотра/)).toBeNull();
+    // The old text buttons are gone from the row
+    expect(
+      within(rowOf('Позиция 1')).queryByRole('button', { name: /Изменить|Удалить/ }),
+    ).toBeNull();
+
+    await user.click(within(rowOf('Позиция 1')).getByRole('button', { name: 'Действия' }));
+    const items = screen.getAllByRole('menuitem');
+    expect(items.map((i) => i.textContent)).toEqual(['Изменить', 'Удалить']);
+    expect(screen.getByRole('menuitem', { name: 'Удалить' }).className).toContain('text-red-600');
+  });
+
+  it('«Посмотреть чек» в меню только у записи с фото', async () => {
+    serve([item(1, { hasReceipt: true }), item(2)]);
+    const user = renderAnalytics(OPS);
+    await waitFor(() => rowOf('Позиция 1'));
+
+    await user.click(within(rowOf('Позиция 1')).getByRole('button', { name: 'Действия' }));
+    expect(screen.getByRole('menuitem', { name: 'Посмотреть чек' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.click(within(rowOf('Позиция 2')).getByRole('button', { name: 'Действия' }));
+
+    expect(screen.queryByRole('menuitem', { name: 'Посмотреть чек' })).toBeNull();
+  });
+
+  it('«Посмотреть чек» открывает фото', async () => {
+    serve([item(1, { hasReceipt: true })]);
+    const user = renderAnalytics(OPS);
+    await waitFor(() => rowOf('Позиция 1'));
+
+    await chooseAction(user, rowOf('Позиция 1'), 'Посмотреть чек');
+
+    expect(await screen.findByRole('dialog', { name: 'Фото чека' })).toBeInTheDocument();
+  });
+
+  it('кнопка меню всегда видна: 44px на телефоне, без зависимости от hover', async () => {
+    serve([item(1)]);
     renderAnalytics(OPS);
     await waitFor(() => rowOf('Позиция 1'));
 
-    expect(within(table()).getAllByRole('button', { name: /^Изменить запись/ })).toHaveLength(2);
-    expect(within(table()).getAllByRole('button', { name: /^Удалить запись/ })).toHaveLength(2);
-    expect(screen.queryByText(/Режим просмотра/)).toBeNull();
+    const button = within(rowOf('Позиция 1')).getByRole('button', { name: 'Действия' });
+    expect(button.className).toContain('size-11');
+    expect(button.className).not.toContain('invisible');
+    expect(button.className).not.toContain('group-hover');
   });
 });
 
@@ -345,9 +407,7 @@ describe('правка', () => {
     serve(items);
     const user = renderAnalytics(OPS);
     await waitFor(() => rowOf(items[0]!.name));
-    await user.click(
-      within(table()).getByRole('button', { name: `Изменить запись: ${items[0]!.name}` }),
-    );
+    await chooseAction(user, rowOf(items[0]!.name), 'Изменить');
     return { user, dialog: await screen.findByRole('dialog', { name: 'Изменить запись' }) };
   }
 
@@ -458,7 +518,7 @@ describe('правка', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Отмена' }));
     expect(screen.queryByRole('dialog')).toBeNull();
 
-    await user.click(within(table()).getByRole('button', { name: /^Изменить запись/ }));
+    await chooseAction(user, table(), 'Изменить');
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(harness.requests.some((r) => r.startsWith('PATCH '))).toBe(false);
@@ -480,13 +540,13 @@ describe('удаление и возврат', () => {
     const user = renderAnalytics(OPS);
     await waitFor(() => rowOf('Позиция 1'));
 
-    await user.click(within(table()).getByRole('button', { name: 'Удалить запись: Позиция 1' }));
+    await chooseAction(user, rowOf('Позиция 1'), 'Удалить');
     const dialog = await screen.findByRole('dialog', { name: 'Удалить запись?' });
     expect(dialog).toHaveTextContent('Позиция 1');
     await user.click(within(dialog).getByRole('button', { name: 'Отмена' }));
     expect(harness.requests.some((r) => r.startsWith('DELETE '))).toBe(false);
 
-    await user.click(within(table()).getByRole('button', { name: 'Удалить запись: Позиция 1' }));
+    await chooseAction(user, rowOf('Позиция 1'), 'Удалить');
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Удалить' }),
     );
@@ -509,7 +569,7 @@ describe('удаление и возврат', () => {
     const user = renderAnalytics(OPS);
     await waitFor(() => rowOf('Позиция 1'));
 
-    await user.click(within(table()).getByRole('button', { name: /^Удалить запись/ }));
+    await chooseAction(user, table(), 'Удалить');
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Удалить' }),
     );
@@ -533,13 +593,15 @@ describe('удаление и возврат', () => {
     const user = renderAnalytics(`${OPS}?deleted=1`);
     await waitFor(() => rowOf('Позиция 1'));
 
-    expect(within(table()).queryByRole('button', { name: /^Изменить запись/ })).toBeNull();
-    expect(within(table()).getByRole('rowheader', { name: 'Позиция 1' })).toHaveClass(
+    await user.click(within(table()).getByRole('button', { name: 'Действия' }));
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Вернуть']);
+    await user.keyboard('{Escape}');
+    expect(within(table()).getByRole('rowheader', { name: /^Позиция 1/ })).toHaveClass(
       'line-through',
     );
     expect(lastList()).toContain('includeDeleted=true');
 
-    await user.click(within(table()).getByRole('button', { name: 'Вернуть запись: Позиция 1' }));
+    await chooseAction(user, rowOf('Позиция 1'), 'Вернуть');
 
     expect(await screen.findByText('Запись «Позиция 1» возвращена')).toBeInTheDocument();
     expect(harness.requests).toContain(`POST /api/expenses/${ID(1)}/restore`);
@@ -667,7 +729,7 @@ describe('валюты карт', () => {
     serve([usd()]);
     const user = renderAnalytics(OPS);
     await waitFor(() => rowOf('Walmart'));
-    await user.click(within(table()).getByRole('button', { name: 'Изменить запись: Walmart' }));
+    await chooseAction(user, rowOf('Walmart'), 'Изменить');
     const dialog = await screen.findByRole('dialog', { name: 'Изменить запись' });
 
     const amount = within(dialog).getByLabelText('Стоимость, USD');
@@ -790,17 +852,12 @@ describe('правка участником своих трат', () => {
     renderAnalytics(OPS);
     await waitFor(() => rowOf('Моя'));
 
-    expect(
-      within(rowOf('Моя')).getByRole('button', { name: 'Изменить запись: Моя' }),
-    ).toBeInTheDocument();
-    expect(
-      within(rowOf('Моя')).getByRole('button', { name: 'Удалить запись: Моя' }),
-    ).toBeInTheDocument();
+    expect(within(rowOf('Моя')).getByRole('button', { name: 'Действия' })).toBeInTheDocument();
     expect(within(rowOf('Чужая')).queryByRole('button')).toBeNull();
     expect(screen.queryByText(/Режим просмотра/)).toBeNull();
   });
 
-  it('подсказка с сроком правки — только в title кнопок', async () => {
+  it('подсказка с сроком правки — только в title кнопки «Действия»', async () => {
     member();
     serve([item(1, { name: 'Моя', editable: true, editableUntil: '2026-10-17T10:30:00.000Z' })]);
     renderAnalytics(OPS);
@@ -809,11 +866,10 @@ describe('правка участником своих трат', () => {
     const d = new Date('2026-10-17T10:30:00.000Z');
     const pad = (n: number) => String(n).padStart(2, '0');
     const expected = `Можно исправить до ${pad(d.getDate())}.${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    const edit = within(rowOf('Моя')).getByRole('button', { name: 'Изменить запись: Моя' });
-    expect(edit).toHaveAttribute('title', expected);
-    expect(
-      within(rowOf('Моя')).getByRole('button', { name: 'Удалить запись: Моя' }),
-    ).toHaveAttribute('title', expected);
+    expect(within(rowOf('Моя')).getByRole('button', { name: 'Действия' })).toHaveAttribute(
+      'title',
+      expected,
+    );
     expect(rowOf('Моя')).not.toHaveTextContent('Можно исправить');
   });
 
@@ -822,9 +878,10 @@ describe('правка участником своих трат', () => {
     renderAnalytics(OPS);
     await waitFor(() => rowOf('Позиция 1'));
 
-    expect(
-      within(rowOf('Позиция 1')).getByRole('button', { name: 'Изменить запись: Позиция 1' }),
-    ).not.toHaveAttribute('title');
+    expect(within(rowOf('Позиция 1')).getByRole('button', { name: 'Действия' })).toHaveAttribute(
+      'title',
+      'Действия',
+    );
   });
 
   it('удалённая запись: «Вернуть» только у владельца', async () => {
@@ -835,11 +892,10 @@ describe('правка участником своих трат', () => {
       deletedReason: 'app',
     });
     serve([deleted]);
-    renderAnalytics(`${OPS}?deleted=1`);
+    const user = renderAnalytics(`${OPS}?deleted=1`);
     await waitFor(() => rowOf('Удалённая'));
-    expect(
-      within(rowOf('Удалённая')).getByRole('button', { name: /^Вернуть запись/ }),
-    ).toBeInTheDocument();
+    await user.click(within(rowOf('Удалённая')).getByRole('button', { name: 'Действия' }));
+    expect(screen.getByRole('menuitem', { name: 'Вернуть' })).toBeInTheDocument();
   });
 
   it('участник не видит «Вернуть» у удалённой записи', async () => {
@@ -876,7 +932,7 @@ describe('правка участником своих трат', () => {
     ]);
     const user = renderAnalytics(OPS);
     await waitFor(() => rowOf('Моя'));
-    await user.click(within(rowOf('Моя')).getByRole('button', { name: 'Изменить запись: Моя' }));
+    await chooseAction(user, rowOf('Моя'), 'Изменить');
     const dialog = await screen.findByRole('dialog', { name: 'Изменить запись' });
 
     const options = within(within(dialog).getByLabelText('Карта')).getAllByRole('option');
@@ -899,7 +955,7 @@ describe('правка участником своих трат', () => {
       );
     const user = renderAnalytics(OPS);
     await waitFor(() => rowOf('Моя'));
-    await user.click(within(rowOf('Моя')).getByRole('button', { name: 'Изменить запись: Моя' }));
+    await chooseAction(user, rowOf('Моя'), 'Изменить');
     const dialog = await screen.findByRole('dialog', { name: 'Изменить запись' });
 
     await user.clear(within(dialog).getByLabelText('Наименование'));
@@ -927,7 +983,7 @@ describe('правка участником своих трат', () => {
       );
     const user = renderAnalytics(OPS);
     await waitFor(() => rowOf('Моя'));
-    await user.click(within(rowOf('Моя')).getByRole('button', { name: 'Удалить запись: Моя' }));
+    await chooseAction(user, rowOf('Моя'), 'Удалить');
     await user.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Удалить' }),
     );

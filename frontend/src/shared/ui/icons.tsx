@@ -342,3 +342,10 @@ export const SparkIcon = ({ size = 14 }: { size?: number }) => (
     <path d="M19 15l.7 1.8L21.5 17.5l-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7L19 15z" />
   </Icon>
 );
+
+export const InfoIcon = ({ size = 14 }: { size?: number }) => (
+  <Icon size={size}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5M12 8h.01" />
+  </Icon>
+);

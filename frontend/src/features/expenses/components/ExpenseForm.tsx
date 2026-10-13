@@ -344,9 +344,22 @@ export function ExpenseForm({
           </SelectBox>
         </Field>
 
-        {receiptAllowed && <ReceiptPicker photo={photo} onChange={setPhoto} />}
+        {receiptAllowed && (
+          <ReceiptPicker
+            photo={photo}
+            onChange={setPhoto}
+            status={
+              aiHere && photo && !ai.needsNotice ? (
+                <PhotoParseStatus
+                  state={ai.state}
+                  onRetry={ai.retry}
+                  fallbackCurrency={typedCurrency}
+                />
+              ) : undefined
+            }
+          />
+        )}
         {aiHere && photo && ai.needsNotice && <AiNotice onConfirm={ai.confirmNotice} />}
-        {aiHere && photo && <PhotoParseStatus state={ai.state} onRetry={ai.retry} />}
 
         <Field
           label={
@@ -385,7 +398,14 @@ export function ExpenseForm({
       )}
       {category && <CategoryLimitHint category={category} projected={projected} />}
       <div aria-busy={parsing} className={parsing ? 'animate-pulse' : undefined}>
-        <ReceiptItemsField value={items} onChange={setItems} error={itemsError} />
+        <ReceiptItemsField
+          value={items}
+          onChange={setItems}
+          error={itemsError}
+          amount={parseDecimal(typedAmount)}
+          currency={typedCurrency}
+          baseCurrency={baseCurrency}
+        />
       </div>
 
       {state.status === 'sent' &&

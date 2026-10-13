@@ -14,7 +14,16 @@ export interface MenuAction {
  * the items are `menuitem`s; it closes on Escape (the focus returns to the button), on a click outside and after
  * a choice; arrows, Home and End move between the items.
  */
-export function ActionMenu({ label, actions }: { label: string; actions: MenuAction[] }) {
+export function ActionMenu({
+  label,
+  actions,
+  title,
+}: {
+  label: string;
+  actions: MenuAction[];
+  /** A tooltip of the button, when it should say more than the label */
+  title?: string;
+}) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -62,9 +71,9 @@ export function ActionMenu({ label, actions }: { label: string; actions: MenuAct
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={label}
-        title={label}
+        title={title ?? label}
         onClick={() => (open ? close() : setOpen(true))}
-        className="flex size-10 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 sm:size-9 dark:text-zinc-400 dark:hover:bg-zinc-800"
+        className="flex size-11 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 sm:size-9 dark:text-zinc-400 dark:hover:bg-zinc-800"
       >
         <MoreIcon />
       </button>

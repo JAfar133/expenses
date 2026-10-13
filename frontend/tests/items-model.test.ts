@@ -8,8 +8,9 @@ import {
   itemsToDrafts,
   type DraftItem,
 } from '../src/features/items/model/draft-items.ts';
+import { quantityLine, unitPrice } from '../src/features/items/model/unit-price.ts';
 import { discrepancyNote, sumItems } from '../src/features/items/model/items-sum.ts';
-import { itemsLabel } from '../src/features/items/model/plural.ts';
+import { goodsLabel, itemsLabel } from '../src/features/items/model/plural.ts';
 import { sanitizePreferences } from '../src/features/preferences/model/preferences.ts';
 import { parseFailureMessage } from '../src/features/ai/model/parse-runner.ts';
 import { ApiError } from '../src/shared/api/http.ts';
@@ -148,5 +149,33 @@ describe('мелкие правила', () => {
       'Не удалось разобрать чек, заполните вручную. ИИ временно недоступен',
     );
     expect(parseFailureMessage(new Error('x'))).toBe('Не удалось разобрать чек, заполните вручную');
+  });
+});
+
+describe('цена за единицу', () => {
+  it('цена позиции — стоимость строки: делится на количество, округление до 2 знаков', () => {
+    expect(unitPrice(465.66, 0.234)).toBe(1990);
+    expect(unitPrice(100, 3)).toBe(33.33);
+    expect(unitPrice(250, 2)).toBe(125);
+  });
+
+  it('строка «количество × цена за единицу»', () => {
+    expect(quantityLine(465.66, 0.234)).toBe('0,234 × 1 990');
+    expect(quantityLine(100, 3)).toBe('3 × 33,33');
+    expect(quantityLine(12220, 0.35)).toBe('0,35 × 34 914,29');
+  });
+
+  it('количество 1 — строки нет', () => {
+    expect(quantityLine(500, 1)).toBeNull();
+  });
+
+  it('«товар» по-русски', () => {
+    expect([1, 2, 5, 11, 21].map(goodsLabel)).toEqual([
+      '1 товар',
+      '2 товара',
+      '5 товаров',
+      '11 товаров',
+      '21 товар',
+    ]);
   });
 });

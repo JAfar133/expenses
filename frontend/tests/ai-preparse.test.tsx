@@ -14,6 +14,7 @@ import {
   setOnLine,
   setupOfflineHarness,
   submit,
+  type Person,
 } from './helpers/offline-harness.tsx';
 
 setupOfflineHarness();
@@ -28,6 +29,12 @@ async function ready(confirmed = true) {
   allowPhotos();
   if (confirmed) server.preferences = { 'ai.noticeSeen': true };
   return renderApp();
+}
+
+/** Unfolds the positions card; `edit` also switches it to the editing view. */
+async function openItems(person: Person, edit = false) {
+  await person.click(await screen.findByRole('button', { name: /^Позиции чека \(/ }));
+  if (edit) await person.click(screen.getByRole('radio', { name: 'Редактирование' }));
 }
 
 const labelOf = (text: string) => screen.getByText(text, { selector: 'label' });
@@ -73,14 +80,14 @@ describe('разбор чека при выборе фото', () => {
     expect(screen.queryByText(NOTICE)).toBeNull();
   });
 
-  it('пока идёт разбор: «ИИ читает чек…», форму можно заполнять, «Добавить» остаётся', async () => {
+  it('пока идёт разбор: «Распознаём чек…», форму можно заполнять, «Добавить» остаётся', async () => {
     let finish: (response: Response) => void = () => undefined;
     server.parsePhoto = () => new Promise<Response>((resolve) => (finish = resolve));
     const { person } = await ready();
 
     await pickPhoto(person);
 
-    expect(await screen.findByText('ИИ читает чек…')).toBeInTheDocument();
+    expect(await screen.findByText('Распознаём чек…')).toBeInTheDocument();
     expect(screen.getByLabelText('Наименование')).toHaveClass('animate-pulse');
     await person.type(screen.getByLabelText('Стоимость'), '1500');
     expect(screen.getByLabelText('Стоимость')).toHaveValue('1 500');
@@ -97,7 +104,7 @@ describe('разбор чека при выборе фото', () => {
       }),
     );
 
-    await waitFor(() => expect(screen.queryByText('ИИ читает чек…')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Распознаём чек…')).toBeNull());
   });
 
   it('результат заполняет название, дату и позиции с пометкой AI; сумма не трогается', async () => {
@@ -108,8 +115,15 @@ describe('разбор чека при выборе фото', () => {
 
     expect(await screen.findByDisplayValue('Кофейня')).toBeInTheDocument();
     expect(screen.getByLabelText('Дата')).toHaveValue('2026-09-30');
-    expect(screen.getByLabelText('Название позиции 1')).toHaveValue('Латте');
-    expect(screen.getByLabelText('Цена позиции 1')).toHaveValue('1 500');
+    // The positions come as a folded card with the count and the sum; unfolded, the simple view is the default
+    const card = screen.getByRole('button', { name: /^Позиции чека \(1\)/ });
+    expect(card).toHaveAttribute('aria-expanded', 'false');
+    expect(card).toHaveTextContent('1 500 AMD');
+    await person.click(card);
+    const row = within(screen.getByRole('list', { name: 'Позиции' })).getByRole('listitem');
+    expect(row).toHaveTextContent('Латте');
+    expect(row).toHaveTextContent('1 500');
+    expect(within(row).getByRole('img', { name: AI })).toBeInTheDocument();
     expect(screen.getByLabelText('Стоимость')).toHaveValue('1 500');
     expect(within(labelOf('Наименование')).getByRole('img', { name: AI })).toBeInTheDocument();
     expect(within(labelOf('Дата')).getByRole('img', { name: AI })).toBeInTheDocument();
@@ -125,6 +139,12 @@ describe('разбор чека при выборе фото', () => {
     expect(within(labelOf('Наименование')).queryByRole('img', { name: AI })).toBeNull();
     expect(within(labelOf('Дата')).getByRole('img', { name: AI })).toBeInTheDocument();
 
+    await openItems(person, true);
+    expect(
+      within(screen.getByLabelText('Название позиции 1').closest('li')!).getByRole('img', {
+        name: AI,
+      }),
+    ).toBeInTheDocument();
     await person.type(screen.getByLabelText('Название позиции 1'), 'ы');
     expect(
       within(screen.getByLabelText('Название позиции 1').closest('li')!).queryByRole('img', {
@@ -150,7 +170,7 @@ describe('разбор чека при выборе фото', () => {
 
     await pickPhoto(person);
     await waitFor(() => expect(server.photoParses()).toHaveLength(1));
-    await waitFor(() => expect(screen.queryByText('ИИ читает чек…')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Распознаём чек…')).toBeNull());
 
     expect(screen.getByLabelText('Наименование')).toHaveValue('Моё название');
     expect(screen.getByLabelText('Дата')).toHaveValue('2026-10-02');
@@ -164,7 +184,7 @@ describe('разбор чека при выборе фото', () => {
 
     await pickPhoto(person);
 
-    expect(await screen.findByText(/На чеке 1 500,50 AMD/)).toBeInTheDocument();
+    expect(await screen.findByText(/По чеку: 1 500,50 AMD/)).toBeInTheDocument();
     expect(screen.getByLabelText('Стоимость')).toHaveValue('1 000');
   });
 
@@ -185,7 +205,7 @@ describe('разбор чека при выборе фото', () => {
     await pickPhoto(person);
     await screen.findByDisplayValue('Кофейня');
 
-    expect(screen.queryByText(/На чеке /)).toBeNull();
+    expect(screen.queryByText(/По чеку: /)).toBeNull();
   });
 });
 
@@ -217,7 +237,7 @@ describe('сохранение после разбора', () => {
     const { person } = await ready();
     await person.type(screen.getByLabelText('Стоимость'), '1500');
     await pickPhoto(person);
-    await screen.findByText('ИИ читает чек…');
+    await screen.findByText('Распознаём чек…');
 
     await submit(person);
 
@@ -314,7 +334,10 @@ describe('сохранение после разбора', () => {
     await pickPhoto(person);
 
     expect(await screen.findByDisplayValue('Пекарня')).toBeInTheDocument();
-    expect(screen.getByLabelText('Название позиции 1')).toHaveValue('Хлеб');
+    await openItems(person);
+    expect(
+      within(screen.getByRole('list', { name: 'Позиции' })).getByRole('listitem'),
+    ).toHaveTextContent('Хлеб');
     expect(server.photoParses()).toHaveLength(2);
   });
 });
@@ -388,7 +411,7 @@ describe('заполнение формы без лишнего', () => {
     await fillForm(person, 'Ручное', '2000');
     await pickPhoto(person);
     await waitFor(() => expect(server.photoParses()).toHaveLength(1));
-    await waitFor(() => expect(screen.queryByText('ИИ читает чек…')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('Распознаём чек…')).toBeNull());
 
     await submit(person);
 
@@ -418,7 +441,7 @@ describe('сумма из чека', () => {
 
     await waitFor(() => expect(amount()).toHaveValue('1 500,5'));
     expect(within(labelOf('Стоимость')).getByRole('img', { name: AI })).toBeInTheDocument();
-    expect(screen.queryByText(/На чеке /)).toBeNull();
+    expect(screen.queryByText(/По чеку: /)).toBeNull();
   });
 
   it('итога нет: подставляется сумма позиций, в том числе дробная 2095,66', async () => {
@@ -434,7 +457,7 @@ describe('сумма из чека', () => {
 
     await waitFor(() => expect(amount()).toHaveValue('2 095,66'));
     // The hint is only for a total that came from the receipt
-    expect(screen.queryByText(/На чеке /)).toBeNull();
+    expect(screen.queryByText(/По чеку: /)).toBeNull();
   });
 
   it('нет ни итога, ни позиций: сумма остаётся пустой', async () => {
@@ -454,7 +477,7 @@ describe('сумма из чека', () => {
 
     await pickPhoto(person);
 
-    expect(await screen.findByText(/На чеке 1 500,50 AMD/)).toBeInTheDocument();
+    expect(await screen.findByText(/По чеку: 1 500,50 AMD/)).toBeInTheDocument();
     expect(amount()).toHaveValue('1 000');
     expect(within(labelOf('Стоимость')).queryByRole('img', { name: AI })).toBeNull();
   });
@@ -465,7 +488,7 @@ describe('сумма из чека', () => {
 
     await pickPhoto(person);
 
-    expect(await screen.findByText(/На чеке 12,50 USD/)).toBeInTheDocument();
+    expect(await screen.findByText(/По чеку: 12,50 USD/)).toBeInTheDocument();
     expect(amount()).toHaveValue('');
   });
 
@@ -484,6 +507,7 @@ describe('сумма из чека', () => {
     await pickPhoto(person);
     await waitFor(() => expect(amount()).toHaveValue('1 500,5'));
 
+    await openItems(person, true);
     const price = screen.getByLabelText('Цена позиции 1');
     await person.clear(price);
     await person.type(price, '99');
@@ -523,17 +547,17 @@ describe('сумма из чека', () => {
 
 describe('подсказка про итог под полем суммы', () => {
   const amount = () => screen.getByLabelText('Стоимость');
-  const hintOf = () => screen.getByText(/На чеке 1 500,50 AMD/).closest('p')!;
+  const hintOf = () => screen.getByText(/По чеку: 1 500,50 AMD/).closest('p')!;
 
-  it('под полем суммы, а не под фото: «На чеке 1 500,50 AMD» и ссылка «Подставить»', async () => {
+  it('под полем суммы, а не под фото: «По чеку: 1 500,50 AMD» и ссылка «Подставить»', async () => {
     const { person } = await ready();
     await person.type(amount(), '1000');
 
     await pickPhoto(person);
-    await screen.findByText(/На чеке 1 500,50 AMD/);
+    await screen.findByText(/По чеку: 1 500,50 AMD/);
 
     expect(within(hintOf()).getByRole('button', { name: 'Подставить' })).toBeInTheDocument();
-    expect(screen.getAllByText(/На чеке /)).toHaveLength(1);
+    expect(screen.getAllByText(/По чеку: /)).toHaveLength(1);
     expect(hintOf().className).toContain('text-zinc-500');
     expect(hintOf().className).not.toContain('red');
   });
@@ -542,13 +566,13 @@ describe('подсказка про итог под полем суммы', () =
     const { person } = await ready();
     await person.type(amount(), '1000');
     await pickPhoto(person);
-    await screen.findByText(/На чеке 1 500,50 AMD/);
+    await screen.findByText(/По чеку: 1 500,50 AMD/);
 
     await person.click(screen.getByRole('button', { name: 'Подставить' }));
 
     expect(amount()).toHaveValue('1 500,5');
     expect(within(labelOf('Стоимость')).getByRole('img', { name: AI })).toBeInTheDocument();
-    expect(screen.queryByText(/На чеке /)).toBeNull();
+    expect(screen.queryByText(/По чеку: /)).toBeNull();
   });
 
   it('разница меньше единицы или сумма уже равна: строки нет', async () => {
@@ -558,7 +582,7 @@ describe('подсказка про итог под полем суммы', () =
     await pickPhoto(person);
     await screen.findByDisplayValue('Кофейня');
 
-    expect(screen.queryByText(/На чеке /)).toBeNull();
+    expect(screen.queryByText(/По чеку: /)).toBeNull();
   });
 
   it('другая валюта: валюта в строке, ссылки «Подставить» нет', async () => {
@@ -576,7 +600,7 @@ describe('подсказка про итог под полем суммы', () =
 
     await pickPhoto(person);
 
-    expect(await screen.findByText(/На чеке 12,50 USD/)).toBeInTheDocument();
+    expect(await screen.findByText(/По чеку: 12,50 USD/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Подставить' })).toBeNull();
   });
 
@@ -597,7 +621,7 @@ describe('подсказка про итог под полем суммы', () =
     await pickPhoto(person);
     await screen.findByDisplayValue('Кофейня');
 
-    expect(screen.queryByText(/На чеке /)).toBeNull();
+    expect(screen.queryByText(/По чеку: /)).toBeNull();
   });
 });
 
@@ -624,7 +648,7 @@ describe('ИИ по категориям', () => {
     expect(screen.getByAltText('Фото чека')).toBeInTheDocument();
     expect(server.photoParses()).toHaveLength(0);
     expect(screen.queryByText(/Gemini/)).toBeNull();
-    expect(screen.queryByText('ИИ читает чек…')).toBeNull();
+    expect(screen.queryByText('Распознаём чек…')).toBeNull();
   });
 
   it('категория без ИИ: название обязательно, расход уходит с фото без разбора', async () => {
@@ -683,7 +707,7 @@ describe('ИИ по категориям', () => {
 
     expect(screen.getByLabelText('Наименование')).toHaveValue('Кофейня');
     expect(server.photoParses()).toHaveLength(1);
-    expect(screen.queryByText('ИИ читает чек…')).toBeNull();
+    expect(screen.queryByText('Распознаём чек…')).toBeNull();
     await person.type(screen.getByLabelText('Стоимость'), '5000');
     await submit(person);
     await screen.findByText('Расход успешно добавлен');

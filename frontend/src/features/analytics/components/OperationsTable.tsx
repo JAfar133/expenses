@@ -1,5 +1,4 @@
 import { Fragment, useState } from 'react';
-import { formatShortDateTime } from '../../admin/model/backup.ts';
 import { currencyDigits } from '../../../shared/utils/conversion.ts';
 import { formatAmount, formatMoney } from '../../../shared/utils/money.ts';
 import type { OperationItem, SortColumn, SortDirection } from '../api/operations.api.ts';
@@ -8,6 +7,9 @@ import { ParsingBadge } from '../../ai/components/ParsingBadge.tsx';
 import { ItemsCount } from '../../items/components/ItemsCount.tsx';
 import { ItemsPanel } from '../../items/components/ItemsPanel.tsx';
 import { ReceiptBadge } from '../../receipts/components/ReceiptBadge.tsx';
+import { formatShortDateTime } from '../../admin/model/backup.ts';
+import { ActionMenu, type MenuAction } from '../../../shared/ui/ActionMenu.tsx';
+import { CameraIcon, PencilIcon, TrashIcon, UndoIcon } from '../../../shared/ui/icons.tsx';
 import { ExcelStateBadge } from './ExcelStateBadge.tsx';
 
 interface OperationsTableProps {
@@ -94,54 +96,44 @@ function Actions({
   onEdit,
   onDelete,
   onRestore,
-}: Pick<OperationsTableProps, 'onEdit' | 'onDelete' | 'onRestore'> & {
+  onViewReceipt,
+}: Pick<OperationsTableProps, 'onEdit' | 'onDelete' | 'onRestore' | 'onViewReceipt'> & {
   item: OperationItem;
   busy: boolean;
 }) {
+  const actions: MenuAction[] = item.deletedAt
+    ? [{ label: 'Вернуть', icon: <UndoIcon />, disabled: busy, onSelect: () => onRestore(item) }]
+    : [
+        ...(item.editable
+          ? [
+              {
+                label: 'Изменить',
+                icon: <PencilIcon />,
+                disabled: busy,
+                onSelect: () => onEdit(item),
+              },
+            ]
+          : []),
+        ...(item.hasReceipt && onViewReceipt
+          ? [{ label: 'Посмотреть чек', icon: <CameraIcon />, onSelect: () => onViewReceipt(item) }]
+          : []),
+        ...(item.editable
+          ? [
+              {
+                label: 'Удалить',
+                icon: <TrashIcon />,
+                tone: 'danger' as const,
+                disabled: busy,
+                onSelect: () => onDelete(item),
+              },
+            ]
+          : []),
+      ];
   // A member's record can be edited until a deadline: shown as a tooltip only, to keep the screen simple
   const hint = item.editableUntil
     ? `Можно исправить до ${formatShortDateTime(item.editableUntil)}`
     : undefined;
-  const className =
-    'h-9 rounded-lg px-3 text-sm font-medium hover:bg-zinc-100 disabled:opacity-50 dark:hover:bg-zinc-800';
-
-  if (item.deletedAt) {
-    return (
-      <button
-        type="button"
-        className={`${className} text-indigo-600 dark:text-indigo-400`}
-        disabled={busy}
-        onClick={() => onRestore(item)}
-        aria-label={`Вернуть запись: ${item.name}`}
-      >
-        Вернуть
-      </button>
-    );
-  }
-  return (
-    <span className="inline-flex gap-1">
-      <button
-        type="button"
-        className={`${className} text-indigo-600 dark:text-indigo-400`}
-        disabled={busy}
-        onClick={() => onEdit(item)}
-        aria-label={`Изменить запись: ${item.name}`}
-        title={hint}
-      >
-        Изменить
-      </button>
-      <button
-        type="button"
-        className={`${className} text-red-600 dark:text-red-400`}
-        disabled={busy}
-        onClick={() => onDelete(item)}
-        aria-label={`Удалить запись: ${item.name}`}
-        title={hint}
-      >
-        Удалить
-      </button>
-    </span>
-  );
+  return <ActionMenu label="Действия" title={hint} actions={actions} />;
 }
 
 /** Which rows have their positions opened. The table and the phone cards keep their own state. */
@@ -161,14 +153,21 @@ function RowExtras({
   item,
   open,
   onToggle,
+  excelEnabled,
 }: {
   item: OperationItem;
   open: boolean;
   onToggle: () => void;
+  excelEnabled: boolean;
 }) {
   return (
     <>
       <ParsingBadge expenseId={item.id} />
+      <ExcelStateBadge
+        state={item.excelState}
+        error={item.excelError}
+        excelEnabled={excelEnabled}
+      />
       {!!item.itemsCount && <ItemsCount count={item.itemsCount} open={open} onToggle={onToggle} />}
     </>
   );
@@ -202,7 +201,8 @@ export function OperationsTable(props: OperationsTableProps) {
     />
   );
   // Actions follow the server's verdict per record: `editable` (live records), restore only for the owner
-  const hasActions = (item: OperationItem) => (item.deletedAt ? canRestore : item.editable);
+  const hasActions = (item: OperationItem) =>
+    item.deletedAt ? canRestore : item.editable || (!!item.hasReceipt && !!props.onViewReceipt);
   const showActions = items.some(hasActions);
   const actions = (item: OperationItem) =>
     hasActions(item) && (
@@ -212,12 +212,13 @@ export function OperationsTable(props: OperationsTableProps) {
         onEdit={props.onEdit}
         onDelete={props.onDelete}
         onRestore={props.onRestore}
+        onViewReceipt={props.onViewReceipt}
       />
     );
 
   return (
     <>
-      <div className="hidden overflow-x-auto md:block">
+      <div className="hidden overflow-x-auto pb-24 md:block">
         <table
           aria-label="Операции"
           className="w-full min-w-[56rem] border-collapse text-left text-sm"
@@ -246,9 +247,6 @@ export function OperationsTable(props: OperationsTableProps) {
                   </th>
                 );
               })}
-              <th scope="col" className="py-2 pr-4 font-medium">
-                Excel
-              </th>
               {showActions && (
                 <th scope="col" className="py-2 text-right font-medium">
                   Действия
@@ -279,24 +277,18 @@ export function OperationsTable(props: OperationsTableProps) {
                       item={item}
                       open={tableRows.open.has(item.id)}
                       onToggle={() => tableRows.toggle(item.id)}
+                      excelEnabled={excelEnabled}
                     />
                   </th>
                   <td className="py-2.5 pr-4 text-right whitespace-nowrap">
                     <Amount item={item} currency={currency} baseCurrency={baseCurrency} />
                   </td>
                   <td className="py-2.5 pr-4">{authorLabel(item.createdBy)}</td>
-                  <td className="py-2.5 pr-4">
-                    <ExcelStateBadge
-                      state={item.excelState}
-                      error={item.excelError}
-                      excelEnabled={excelEnabled}
-                    />
-                  </td>
                   {showActions && <td className="py-2.5 text-right">{actions(item)}</td>}
                 </tr>
                 {tableRows.open.has(item.id) && (
                   <tr className="border-b border-zinc-100 dark:border-zinc-800">
-                    <td colSpan={COLUMNS.length + 1 + (showActions ? 1 : 0)} className="pb-3">
+                    <td colSpan={COLUMNS.length + (showActions ? 1 : 0)} className="pb-3">
                       {panelOf(item)}
                     </td>
                   </tr>
@@ -326,17 +318,13 @@ export function OperationsTable(props: OperationsTableProps) {
                   item={item}
                   open={cardRows.open.has(item.id)}
                   onToggle={() => cardRows.toggle(item.id)}
+                  excelEnabled={excelEnabled}
                 />
               </div>
               <Amount item={item} currency={currency} baseCurrency={baseCurrency} />
             </div>
             <div className="mt-2 flex flex-wrap items-end justify-between gap-2">
               <div className="space-y-1">
-                <ExcelStateBadge
-                  state={item.excelState}
-                  error={item.excelError}
-                  excelEnabled={excelEnabled}
-                />
                 <div className="text-xs text-zinc-500 dark:text-zinc-400">
                   Добавил: {authorLabel(item.createdBy)}
                 </div>

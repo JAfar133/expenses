@@ -13,6 +13,7 @@ import {
   renderAnalytics,
   setupAnalyticsHarness,
 } from './helpers/analytics-harness.tsx';
+import { chooseAction } from './helpers/operation-menu.ts';
 
 const jsonResponse = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -288,7 +289,7 @@ describe('фото в «Операциях»', () => {
   const OPS = '/analytics/operations';
 
   async function openEditor(user: ReturnType<typeof renderAnalytics>) {
-    await user.click(await within(row()).findByRole('button', { name: 'Изменить запись: Кофе' }));
+    await chooseAction(user, row(), 'Изменить');
     return within(await screen.findByRole('dialog', { name: 'Изменить запись' }));
   }
 

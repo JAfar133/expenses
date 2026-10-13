@@ -242,6 +242,8 @@ describe('ИИ и очередь без сети', () => {
       }),
     );
 
+    await person.click(await screen.findByRole('button', { name: /^Позиции чека \(1\)/ }));
+    await person.click(screen.getByRole('radio', { name: 'Редактирование' }));
     await waitFor(() => expect(screen.getByLabelText('Название позиции 1')).toHaveValue('Хлеб'));
     expect(screen.getByLabelText('Цена позиции 1')).toHaveValue('1 249,5');
   });
