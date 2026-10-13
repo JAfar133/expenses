@@ -44,6 +44,15 @@ export function ActiveFilters({ state, authors, onChange, onReset }: ActiveFilte
       clear: { currencies: [] },
     });
   }
+  const exceptions: [string, string[], Partial<FilterState>][] = [
+    ['exceptCards', state.excludeCards, { excludeCards: [] }],
+    ['exceptCategories', state.excludeCategories, { excludeCategories: [] }],
+    ['exceptCreatedBy', state.excludeCreatedBy.map(authorLabel), { excludeCreatedBy: [] }],
+    ['exceptCurrencies', state.excludeCurrencies, { excludeCurrencies: [] }],
+  ];
+  for (const [id, values, clear] of exceptions) {
+    if (values.length) chips.push({ id, text: `Кроме: ${values.join(', ')}`, clear });
+  }
   if (state.q) chips.push({ id: 'q', text: `Поиск: «${state.q}»`, clear: { q: '' } });
   if (state.minAmount !== undefined || state.maxAmount !== undefined) {
     const from = state.minAmount === undefined ? '' : `от ${formatMoney(state.minAmount)}`;

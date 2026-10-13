@@ -22,6 +22,15 @@ export function describeFilters(
     parts.push(`добавил: ${filters.createdBy.map((v) => authorLabels.get(v) ?? v).join(', ')}`);
   }
   if (filters.currencies.length) parts.push(`валюта ввода: ${filters.currencies.join(', ')}`);
+  const except = (label: string, values: string[] | undefined) =>
+    values?.length && parts.push(`${label}: все, кроме ${values.join(', ')}`);
+  except('карты', filters.excludeCards);
+  except('категории', filters.excludeCategories);
+  except(
+    'добавил',
+    filters.excludeCreatedBy?.map((v) => authorLabels.get(v) ?? v),
+  );
+  except('валюта ввода', filters.excludeCurrencies);
   if (filters.q) parts.push(`поиск: «${filters.q}»`);
   if (filters.minAmount !== undefined) parts.push(`от ${filters.minAmount}`);
   if (filters.maxAmount !== undefined) parts.push(`до ${filters.maxAmount}`);

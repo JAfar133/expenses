@@ -87,6 +87,14 @@ export function buildWhere(
   if (filters.categories.length) {
     conditions.push(`category = ANY(${param(filters.categories)}::text[])`);
   }
+  const without = (column: () => string, values: string[] | undefined) => {
+    if (!values?.length) return;
+    conditions.push(`COALESCE(${column()}, '') <> ALL(${param(values)}::text[])`);
+  };
+  without(() => CARD_NAME_SQL, filters.excludeCards);
+  without(() => 'category', filters.excludeCategories);
+  without(() => 'created_by', filters.excludeCreatedBy);
+  without(() => CURRENCY_SQL(param(baseCurrency)), filters.excludeCurrencies);
   // Archived cards and categories are left out unless the user picked them in the filter or asked for the archive
   if (filters.excludeArchived) {
     if (!filters.cards.length) conditions.push('card_archived IS NOT TRUE');

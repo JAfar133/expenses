@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   activeFilterCount,
+  categoryPasses,
   granularityFor,
   parseFilterState,
   periodRange,
@@ -23,6 +24,10 @@ describe('parseFilterState', () => {
       categories: [],
       createdBy: [],
       currencies: [],
+      excludeCards: [],
+      excludeCategories: [],
+      excludeCreatedBy: [],
+      excludeCurrencies: [],
       q: '',
       minAmount: undefined,
       maxAmount: undefined,
@@ -193,5 +198,61 @@ describe('архив в состоянии фильтров', () => {
     const state = parse('archive=1');
     expect(activeFilterCount(state)).toBe(1);
     expect(withoutFilters(state).includeArchived).toBe(false);
+  });
+});
+
+describe('исключения в состоянии фильтров', () => {
+  const query =
+    'exclude_cards=Настя&exclude_categories=кафе&exclude_categories=еда&exclude_by=nastya&exclude_cur=USD';
+
+  it('читаются из адреса, пишутся обратно и уходят в запросы', () => {
+    const state = parse(query);
+    expect(state).toMatchObject({
+      excludeCards: ['Настя'],
+      excludeCategories: ['кафе', 'еда'],
+      excludeCreatedBy: ['nastya'],
+      excludeCurrencies: ['USD'],
+    });
+    expect(serializeFilterState(state, TODAY).toString()).toBe(
+      new URLSearchParams(query).toString(),
+    );
+    expect(toApiFilters(state, TODAY)).toMatchObject({
+      excludeCards: ['Настя'],
+      excludeCategories: ['кафе', 'еда'],
+      excludeCreatedBy: ['nastya'],
+      excludeCurrencies: ['USD'],
+    });
+  });
+
+  it('каждый непустой список — один фильтр в счётчике; сброс очищает все', () => {
+    const state = parse(query);
+    expect(activeFilterCount(state)).toBe(4);
+    const reset = withoutFilters(state);
+    expect(reset.excludeCards).toEqual([]);
+    expect(reset.excludeCategories).toEqual([]);
+    expect(reset.excludeCreatedBy).toEqual([]);
+    expect(reset.excludeCurrencies).toEqual([]);
+  });
+});
+
+describe('categoryPasses', () => {
+  const archived = new Set(['старая']);
+  const pass = (query: string, name: string) => categoryPasses(parse(query), archived, name);
+
+  it('по умолчанию проходят живые категории, архивные нет', () => {
+    expect(pass('', 'кафе')).toBe(true);
+    expect(pass('', 'старая')).toBe(false);
+  });
+
+  it('исключённая не проходит, даже выбранная или при показе архива', () => {
+    expect(pass('exclude_categories=кафе', 'кафе')).toBe(false);
+    expect(pass('archive=1&exclude_categories=старая', 'старая')).toBe(false);
+  });
+
+  it('при выборе проходят только выбранные; архивная — если выбрана или включён архив', () => {
+    expect(pass('category=еда', 'кафе')).toBe(false);
+    expect(pass('category=старая', 'старая')).toBe(true);
+    expect(pass('archive=1', 'старая')).toBe(true);
+    expect(pass('archive=1&category=кафе', 'старая')).toBe(false);
   });
 });

@@ -9,11 +9,16 @@ import { DailyChart } from '../components/DailyChart.tsx';
 import { StatTile } from '../components/StatTile.tsx';
 import { useAnalyticsReference } from '../hooks/useAnalyticsReference.ts';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency.tsx';
-import { useBreakdown, useSummary, useTimeseries } from '../hooks/useAnalytics.ts';
+import {
+  useBreakdown,
+  useFilterCategories,
+  useSummary,
+  useTimeseries,
+} from '../hooks/useAnalytics.ts';
 import { useFilterState } from '../hooks/useFilterState.ts';
 import { changePercent } from '../model/chart-data.ts';
 import { pickDrillCategory } from '../model/drill.ts';
-import { granularityFor, toApiFilters } from '../model/filter-state.ts';
+import { categoryPasses, granularityFor, toApiFilters } from '../model/filter-state.ts';
 
 /** Overview of the selected period with all filters applied: metrics, dynamics over time and categories. */
 export default function OverviewPage() {
@@ -23,6 +28,15 @@ export default function OverviewPage() {
   const { code: currency, digits } = useDisplayCurrency();
   // The server sums in the display currency: exact for records kept in it, converted for the rest
   const filters = { ...toApiFilters(state, today), currency };
+
+  // The limits list is not filtered by the server: it follows the category filters on the client
+  const filterCategories = useFilterCategories().data;
+  const archivedCategories = new Set(
+    (filterCategories ?? [])
+      .filter((category) => category.archived)
+      .map((category) => category.name),
+  );
+  const categoryVisible = (name: string) => categoryPasses(state, archivedCategories, name);
 
   const summary = useSummary(filters);
   const series = useTimeseries(filters, granularity);
@@ -108,6 +122,7 @@ export default function OverviewPage() {
         categoryOrder={categoryOrder}
         onSelect={selectFromChart}
         selected={drill}
+        categoryVisible={categoryVisible}
         loading={categories.isPending}
       />
       <div ref={namesBlock} id="category-names" className="scroll-mt-4">

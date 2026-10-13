@@ -85,7 +85,10 @@ export function FilterPanel({
               label="Карты"
               options={options.cards}
               selected={state.cards}
-              onChange={(cards) => onChange({ cards })}
+              excluded={state.excludeCards}
+              onChange={({ selected, excluded }) =>
+                onChange({ cards: selected, excludeCards: excluded })
+              }
             />
           </FieldGroup>
           <FieldGroup label="Кто добавил">
@@ -93,7 +96,10 @@ export function FilterPanel({
               label="Кто добавил"
               options={options.authors}
               selected={state.createdBy}
-              onChange={(createdBy) => onChange({ createdBy })}
+              excluded={state.excludeCreatedBy}
+              onChange={({ selected, excluded }) =>
+                onChange({ createdBy: selected, excludeCreatedBy: excluded })
+              }
             />
           </FieldGroup>
           <div className="sm:col-span-2">
@@ -102,7 +108,10 @@ export function FilterPanel({
                 label="Категории"
                 options={options.categories}
                 selected={state.categories}
-                onChange={(categories) => onChange({ categories })}
+                excluded={state.excludeCategories}
+                onChange={({ selected, excluded }) =>
+                  onChange({ categories: selected, excludeCategories: excluded })
+                }
               />
             </FieldGroup>
           </div>
@@ -111,7 +120,10 @@ export function FilterPanel({
               label="Валюта ввода"
               options={options.currencies}
               selected={state.currencies}
-              onChange={(currencies) => onChange({ currencies })}
+              excluded={state.excludeCurrencies}
+              onChange={({ selected, excluded }) =>
+                onChange({ currencies: selected, excludeCurrencies: excluded })
+              }
             />
           </FieldGroup>
           <FieldGroup label="Наименование содержит">

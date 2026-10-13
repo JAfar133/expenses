@@ -90,3 +90,21 @@ describe('архив в анализе', () => {
     ]);
   });
 });
+
+describe('исключение значений («все, кроме»)', () => {
+  it('исключённые карта, категория и автор не считаются', async () => {
+    expect(await totalOf(`?excludeCategories=${encodeURIComponent('кафе')}`)).toBe(500);
+    expect(await totalOf(`?excludeCards=${encodeURIComponent('Настя')}`)).toBe(700);
+    expect(await totalOf('?excludeCreatedBy=misha')).toBe(0);
+    expect(await totalOf('?excludeCurrencies=USD')).toBe(1000);
+    expect(await totalOf('?excludeCurrencies=AMD')).toBe(0);
+  });
+
+  it('исключение сочетается с выбором и действует на список операций', async () => {
+    const query = `?cards=${encodeURIComponent('Миша')}&excludeCategories=${encodeURIComponent('кафе')}`;
+    expect(await totalOf(query)).toBe(200);
+
+    const list = (await get('/api/expenses?limit=50&excludeCards=%D0%9C%D0%B8%D1%88%D0%B0')).json();
+    expect(list.data.items.map((item: { name: string }) => item.name)).toEqual(['Молоко']);
+  });
+});

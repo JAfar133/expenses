@@ -588,3 +588,118 @@ describe('лимиты на вкладке «Обзор»', () => {
     expect(screen.queryByRole('progressbar')).toBeNull();
   });
 });
+
+describe('лимиты и фильтры категорий', () => {
+  setupAnalyticsHarness();
+
+  const limits = () =>
+    analyticsOk([
+      budget(),
+      budget({
+        id: 'a',
+        categoryId: '1',
+        category: 'кафе',
+        level: 'over',
+        percent: 120,
+        spent: 1200,
+        limit: 1000,
+        remaining: -200,
+      }),
+      budget({
+        id: 'b',
+        categoryId: '2',
+        category: 'продукты',
+        level: 'ok',
+        percent: 10,
+        spent: 100,
+        limit: 1000,
+        remaining: 900,
+      }),
+      budget({
+        id: 'c',
+        categoryId: '3',
+        category: 'старая',
+        level: 'warn',
+        percent: 85,
+        spent: 850,
+        limit: 1000,
+        remaining: 150,
+      }),
+    ]);
+  const archived = () =>
+    (harness.handlers['/api/analytics/categories'] = () =>
+      analyticsOk([
+        { name: 'кафе', archived: false },
+        { name: 'продукты', archived: false },
+        { name: 'старая', archived: true },
+      ]));
+  const bar = (name: string) => screen.queryByRole('progressbar', { name: `Лимит: ${name}` });
+
+  it('исключённая категория скрыта, общий бюджет и остальные на месте; пустая группа не показывается', async () => {
+    harness.handlers['/api/budgets'] = limits;
+    archived();
+    renderAnalytics(`/analytics?exclude_categories=${encodeURIComponent('кафе')}&archive=1`);
+    await screen.findByRole('region', { name: 'Общий бюджет' });
+
+    expect(bar('Всего')).not.toBeNull();
+    expect(bar('кафе')).toBeNull();
+    expect(bar('продукты')).not.toBeNull();
+    // «Превышен лимит» had only кафе: the group is gone
+    expect(screen.queryByText('Превышен лимит')).toBeNull();
+    expect(screen.getByText('Близко к лимиту')).toBeInTheDocument();
+  });
+
+  it('если выбраны категории, остальные скрыты', async () => {
+    harness.handlers['/api/budgets'] = limits;
+    archived();
+    renderAnalytics(`/analytics?category=${encodeURIComponent('продукты')}`);
+    await screen.findByRole('region', { name: 'Общий бюджет' });
+
+    expect(bar('продукты')).not.toBeNull();
+    expect(bar('кафе')).toBeNull();
+    expect(bar('старая')).toBeNull();
+    expect(screen.getByText('Остальные категории').closest('details')).toHaveTextContent(
+      '1 категория',
+    );
+    expect(screen.queryByText('Близко к лимиту')).toBeNull();
+  });
+
+  it('архивная категория скрыта по умолчанию', async () => {
+    harness.handlers['/api/budgets'] = limits;
+    archived();
+    renderAnalytics();
+    await screen.findByRole('region', { name: 'Общий бюджет' });
+    await waitFor(() => expect(bar('старая')).toBeNull());
+
+    expect(bar('кафе')).not.toBeNull();
+    expect(screen.queryByText('Близко к лимиту')).toBeNull();
+  });
+
+  it('архивная категория видна с «Показывать архив»', async () => {
+    harness.handlers['/api/budgets'] = limits;
+    archived();
+    renderAnalytics('/analytics?archive=1');
+
+    expect(await screen.findByRole('progressbar', { name: 'Лимит: старая' })).toBeInTheDocument();
+    expect(screen.getByText('Близко к лимиту')).toBeInTheDocument();
+  });
+
+  it('архивная категория, выбранная явно, видна и без переключателя', async () => {
+    harness.handlers['/api/budgets'] = limits;
+    archived();
+    renderAnalytics(`/analytics?category=${encodeURIComponent('старая')}`);
+
+    expect(await screen.findByRole('progressbar', { name: 'Лимит: старая' })).toBeInTheDocument();
+    expect(bar('кафе')).toBeNull();
+  });
+
+  it('исключённая архивная категория скрыта даже с «Показывать архив»', async () => {
+    harness.handlers['/api/budgets'] = limits;
+    archived();
+    renderAnalytics(`/analytics?archive=1&exclude_categories=${encodeURIComponent('старая')}`);
+    await screen.findByRole('region', { name: 'Общий бюджет' });
+
+    expect(bar('старая')).toBeNull();
+    expect(bar('кафе')).not.toBeNull();
+  });
+});

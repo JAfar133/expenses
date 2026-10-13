@@ -36,6 +36,8 @@ interface CategoryChartProps {
   onSelect?: (category: string) => void;
   /** The category open in the names block: highlighted in the limits list */
   selected?: string;
+  /** Whether a category passes the shared filters (the limits list is filtered on the client) */
+  categoryVisible?: (category: string) => boolean;
   loading?: boolean;
 }
 
@@ -54,6 +56,7 @@ export function CategoryChart({
   categoryOrder,
   onSelect,
   selected,
+  categoryVisible,
   loading = false,
 }: CategoryChartProps) {
   const [type, setType] = usePreference('category.type');
@@ -114,7 +117,13 @@ export function CategoryChart({
         </div>
       )}
       {showLimits ? (
-        <BudgetsTab budgets={budgets} rows={rows} onSelect={onSelect} selected={selected} />
+        <BudgetsTab
+          budgets={budgets}
+          rows={rows}
+          onSelect={onSelect}
+          selected={selected}
+          isVisible={categoryVisible}
+        />
       ) : loading && !rows ? (
         <ChartMessage>Загрузка…</ChartMessage>
       ) : !rows || total === 0 ? (

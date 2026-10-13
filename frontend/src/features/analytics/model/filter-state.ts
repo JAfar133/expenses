@@ -16,6 +16,11 @@ export interface FilterState {
   categories: string[];
   createdBy: string[];
   currencies: string[];
+  /** «All except»: a value is never in both a list and its exclude list */
+  excludeCards: string[];
+  excludeCategories: string[];
+  excludeCreatedBy: string[];
+  excludeCurrencies: string[];
   q: string;
   minAmount?: number;
   maxAmount?: number;
@@ -72,6 +77,10 @@ export function parseFilterState(params: URLSearchParams, today: string): Filter
     categories: unique(params.getAll('category')),
     createdBy: unique(params.getAll('by')),
     currencies: unique(params.getAll('cur')),
+    excludeCards: unique(params.getAll('exclude_cards')),
+    excludeCategories: unique(params.getAll('exclude_categories')),
+    excludeCreatedBy: unique(params.getAll('exclude_by')),
+    excludeCurrencies: unique(params.getAll('exclude_cur')),
     q: (params.get('q') ?? '').slice(0, 100),
     minAmount,
     maxAmount:
@@ -100,6 +109,10 @@ export function serializeFilterState(state: FilterState, today: string): URLSear
   state.categories.forEach((value) => params.append('category', value));
   state.createdBy.forEach((value) => params.append('by', value));
   state.currencies.forEach((value) => params.append('cur', value));
+  state.excludeCards.forEach((value) => params.append('exclude_cards', value));
+  state.excludeCategories.forEach((value) => params.append('exclude_categories', value));
+  state.excludeCreatedBy.forEach((value) => params.append('exclude_by', value));
+  state.excludeCurrencies.forEach((value) => params.append('exclude_cur', value));
   if (state.q) params.set('q', state.q);
   if (state.minAmount !== undefined) params.set('min', String(state.minAmount));
   if (state.maxAmount !== undefined) params.set('max', String(state.maxAmount));
@@ -138,6 +151,10 @@ export function toApiFilters(
     categories: state.categories,
     createdBy: state.createdBy,
     currencies: state.currencies,
+    excludeCards: state.excludeCards,
+    excludeCategories: state.excludeCategories,
+    excludeCreatedBy: state.excludeCreatedBy,
+    excludeCurrencies: state.excludeCurrencies,
     q: state.q || undefined,
     minAmount: state.minAmount,
     maxAmount: state.maxAmount,
@@ -166,6 +183,10 @@ export function activeFilterCount(state: FilterState): number {
     (state.categories.length ? 1 : 0) +
     (state.createdBy.length ? 1 : 0) +
     (state.currencies.length ? 1 : 0) +
+    (state.excludeCards.length ? 1 : 0) +
+    (state.excludeCategories.length ? 1 : 0) +
+    (state.excludeCreatedBy.length ? 1 : 0) +
+    (state.excludeCurrencies.length ? 1 : 0) +
     (state.q ? 1 : 0) +
     (state.minAmount !== undefined || state.maxAmount !== undefined ? 1 : 0) +
     (state.includeDeleted ? 1 : 0) +
@@ -180,6 +201,10 @@ export const withoutFilters = (state: FilterState): FilterState => ({
   categories: [],
   createdBy: [],
   currencies: [],
+  excludeCards: [],
+  excludeCategories: [],
+  excludeCreatedBy: [],
+  excludeCurrencies: [],
   q: '',
   minAmount: undefined,
   maxAmount: undefined,
@@ -197,6 +222,10 @@ const FILTER_KEYS = [
   'category',
   'by',
   'cur',
+  'exclude_cards',
+  'exclude_categories',
+  'exclude_by',
+  'exclude_cur',
   'q',
   'min',
   'max',
@@ -214,4 +243,19 @@ export function mergeFilterParams(
   FILTER_KEYS.forEach((key) => merged.delete(key));
   serializeFilterState(state, today).forEach((value, key) => merged.append(key, value));
   return merged;
+}
+
+/**
+ * Whether a category passes the shared filters, for views that are not filtered by the server (the limits list):
+ * not excluded; chosen if some are chosen; an archived one only with «Показывать архив» or when chosen explicitly.
+ */
+export function categoryPasses(
+  state: FilterState,
+  archived: ReadonlySet<string>,
+  name: string,
+): boolean {
+  if (state.excludeCategories.includes(name)) return false;
+  const chosen = state.categories.includes(name);
+  if (state.categories.length > 0 && !chosen) return false;
+  return !archived.has(name) || state.includeArchived || chosen;
 }

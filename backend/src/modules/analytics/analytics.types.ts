@@ -16,6 +16,11 @@ export interface AnalyticsFilters {
   q?: string;
   minAmount?: number;
   maxAmount?: number;
+  /** "Everything except": values to leave out (the user crossed them out in the filter) */
+  excludeCards?: string[];
+  excludeCategories?: string[];
+  excludeCreatedBy?: string[];
+  excludeCurrencies?: string[];
   includeDeleted: boolean;
   /**
    * Leave out expenses of archived cards and categories (unless that card or category is chosen in the filter).

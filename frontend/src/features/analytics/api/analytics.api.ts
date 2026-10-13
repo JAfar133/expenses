@@ -9,6 +9,11 @@ export interface AnalyticsFilters {
   categories?: string[];
   createdBy?: string[];
   currencies?: string[];
+  /** «All except»: values left out; can be combined with the lists above */
+  excludeCards?: string[];
+  excludeCategories?: string[];
+  excludeCreatedBy?: string[];
+  excludeCurrencies?: string[];
   q?: string;
   minAmount?: number;
   maxAmount?: number;

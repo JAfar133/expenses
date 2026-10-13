@@ -245,10 +245,12 @@ interface BudgetsTabProps {
   onSelect?: (category: string) => void;
   /** The category open in the names block */
   selected?: string;
+  /** Whether a category passes the shared filters; the overall limit is always shown */
+  isVisible?: (category: string) => boolean;
 }
 
 /** «Бюджет и лимиты»: the overall limit on top, categories grouped by how close they are to their limit. */
-export function BudgetsTab({ budgets, rows, onSelect, selected }: BudgetsTabProps) {
+export function BudgetsTab({ budgets, rows, onSelect, selected, isVisible }: BudgetsTabProps) {
   const config = useConfig().data;
   if (!config) return null;
 
@@ -258,12 +260,18 @@ export function BudgetsTab({ budgets, rows, onSelect, selected }: BudgetsTabProp
   const format: Format = { num, money: (value) => `${num(value)} ${currency}`, currency };
 
   const overall = budgets.find((budget) => budget.categoryId === null);
-  const limited = budgets.filter((budget) => budget.categoryId !== null);
+  const shown = (name: string | null) => !isVisible || name === null || isVisible(name);
+  const limited = budgets.filter((budget) => budget.categoryId !== null && shown(budget.category));
   const over = limited.filter((budget) => budget.level === 'over');
   const warn = limited.filter((budget) => budget.level === 'warn');
   const rest = limited.filter((budget) => budget.level === 'ok');
-  const names = new Set(limited.map((budget) => budget.category));
-  const unlimited = (rows ?? []).filter((row) => row.total > 0 && !names.has(row.key));
+  // Categories that have a limit (visible or hidden by the filters) are not «without a limit»
+  const names = new Set(
+    budgets.filter((budget) => budget.categoryId !== null).map((budget) => budget.category),
+  );
+  const unlimited = (rows ?? []).filter(
+    (row) => row.total > 0 && !names.has(row.key) && shown(row.key),
+  );
 
   const list = (items: Budget[]) =>
     items.map((budget) => (

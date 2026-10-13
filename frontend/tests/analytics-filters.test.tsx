@@ -225,7 +225,7 @@ describe('панель фильтров', () => {
 
     const names = (group: string) =>
       within(screen.getByRole('group', { name: group }))
-        .getAllByRole('button')
+        .getAllByRole('button', { name: (name) => !name.startsWith('Исключить') })
         .map((b) => b.textContent);
     await waitFor(() => expect(names('Карты')).toEqual(['Миша', 'Настя']));
     expect(names('Кто добавил')).toEqual(['Миша', 'Настя']);
@@ -246,7 +246,7 @@ describe('панель фильтров', () => {
     await waitFor(() =>
       expect(
         within(screen.getByRole('group', { name: 'Карты' }))
-          .getAllByRole('button')
+          .getAllByRole('button', { name: (name) => !name.startsWith('Исключить') })
           .map((b) => b.textContent),
       ).toEqual(['Миша', 'Новая', 'Старая (архив)']),
     );
@@ -490,7 +490,7 @@ describe('архив', () => {
     await waitFor(() =>
       expect(
         within(group)
-          .getAllByRole('button')
+          .getAllByRole('button', { name: (name) => !name.startsWith('Исключить') })
           .map((b) => b.textContent),
       ).toEqual(['кафе', 'продукты', 'старая (архив)']),
     );
@@ -520,6 +520,147 @@ describe('архив', () => {
         harness.requests.some(
           (r) => r.startsWith('/api/expenses/export.xlsx') && r.includes('includeArchived=true'),
         ),
+      ).toBe(true),
+    );
+  });
+});
+
+describe('исключение («все, кроме»)', () => {
+  const chip = (group: string, name: string) =>
+    within(screen.getByRole('group', { name: group })).getByRole('button', { name });
+  const exclude = (group: string, name: string) => chip(group, `Исключить: ${name}`);
+  const summaryHas = (part: string) => decodeURIComponent(lastSummary()).includes(part);
+
+  it('у каждого чипа в четырёх группах есть крестик «Исключить: …» с title', async () => {
+    const user = renderAnalytics();
+    await openPanel(user);
+    await screen.findByRole('button', { name: 'Исключить: кафе' });
+
+    for (const [group, name] of [
+      ['Карты', 'Миша'],
+      ['Кто добавил', 'Настя'],
+      ['Категории', 'кафе'],
+      ['Валюта ввода', 'USD'],
+    ] as const) {
+      expect(exclude(group, name)).toHaveAttribute('title', 'Исключить');
+    }
+  });
+
+  it('исключение категории: excludeCategories в запросах и в адресе, чип «Кроме», счётчик', async () => {
+    const user = renderAnalytics();
+    await openPanel(user);
+
+    await user.click(await screen.findByRole('button', { name: 'Исключить: кафе' }));
+
+    await waitFor(() => expect(summaryHas('excludeCategories=кафе')).toBe(true));
+    expect(location()).toHaveTextContent('exclude_categories=');
+    expect(screen.getByRole('button', { name: 'Убрать фильтр: Кроме: кафе' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Фильтры/ })).toHaveTextContent('1');
+    for (const path of ['timeseries', 'breakdown']) {
+      const last = harness.requests.filter((r) => r.startsWith(`/api/analytics/${path}`)).at(-1)!;
+      expect(decodeURIComponent(last)).toContain('excludeCategories=кафе');
+    }
+  });
+
+  it('исключённый чип красный и зачёркнутый, «Вернуть» возвращает значение', async () => {
+    const user = renderAnalytics();
+    await openPanel(user);
+    await user.click(await screen.findByRole('button', { name: 'Исключить: продукты' }));
+
+    const back = await screen.findByRole('button', { name: 'Вернуть: продукты' });
+    expect(back).toHaveAttribute('title', 'Вернуть');
+    expect(back).toHaveClass('border-red-300', 'text-red-700');
+    expect(within(back).getByText('продукты')).toHaveClass('line-through');
+    expect(screen.queryByRole('button', { name: 'Исключить: продукты' })).toBeNull();
+
+    await user.click(back);
+
+    await waitFor(() => expect(location()).not.toHaveTextContent('exclude_categories'));
+    expect(screen.getByRole('button', { name: 'Исключить: продукты' })).toBeInTheDocument();
+  });
+
+  it('значение не бывает выбранным и исключённым сразу', async () => {
+    const user = renderAnalytics();
+    await openPanel(user);
+
+    await user.click(await screen.findByRole('button', { name: 'кафе' }));
+    await waitFor(() => expect(summaryHas('categories=кафе')).toBe(true));
+
+    // Excluding a selected value drops the selection
+    await user.click(screen.getByRole('button', { name: 'Исключить: кафе' }));
+    await waitFor(() => expect(summaryHas('excludeCategories=кафе')).toBe(true));
+    expect(location()).not.toHaveTextContent('category=');
+
+    // Returning it leaves it neutral; selecting again works
+    await user.click(screen.getByRole('button', { name: 'Вернуть: кафе' }));
+    await user.click(screen.getByRole('button', { name: 'кафе' }));
+    await waitFor(() => expect(location()).toHaveTextContent('category='));
+    expect(location()).not.toHaveTextContent('exclude_categories');
+  });
+
+  it('можно сочетать выбор и исключение в разных группах', async () => {
+    const user = renderAnalytics();
+    await openPanel(user);
+
+    await user.click(
+      await within(await screen.findByRole('group', { name: 'Карты' })).findByRole('button', {
+        name: 'Миша',
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Исключить: кафе' }));
+
+    await waitFor(() => expect(summaryHas('cards=Миша')).toBe(true));
+    expect(summaryHas('excludeCategories=кафе')).toBe(true);
+    expect(screen.getByRole('button', { name: /^Фильтры/ })).toHaveTextContent('2');
+  });
+
+  it('архивные опции тоже можно исключить', async () => {
+    harness.handlers['/api/analytics/categories'] = () =>
+      ok([
+        { name: 'кафе', archived: false },
+        { name: 'старая', archived: true },
+      ]);
+    const user = renderAnalytics();
+    await openPanel(user);
+
+    await user.click(await screen.findByRole('button', { name: 'Исключить: старая (архив)' }));
+
+    await waitFor(() => expect(summaryHas('excludeCategories=старая')).toBe(true));
+  });
+
+  it('чип «Кроме» убирает исключение, «Сбросить всё» — все исключения', async () => {
+    const user = renderAnalytics(
+      `/analytics?exclude_categories=${encodeURIComponent('кафе')}&exclude_cur=USD`,
+    );
+    expect(
+      await screen.findByRole('button', { name: 'Убрать фильтр: Кроме: кафе' }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Убрать фильтр: Кроме: кафе' }));
+    await waitFor(() => expect(location()).not.toHaveTextContent('exclude_categories'));
+    expect(location()).toHaveTextContent('exclude_cur=USD');
+
+    await user.click(screen.getByRole('button', { name: 'Сбросить всё' }));
+    await waitFor(() => expect(location()).not.toHaveTextContent('exclude_cur'));
+  });
+
+  it('скачивание отчёта получает исключения', async () => {
+    harness.handlers['/api/expenses/export.xlsx'] = () =>
+      new Response('x', { headers: { 'Content-Disposition': 'attachment; filename="a.xlsx"' } });
+    URL.createObjectURL = () => 'blob:x';
+    URL.revokeObjectURL = () => undefined;
+    const user = renderAnalytics(`/analytics?exclude_cards=${encodeURIComponent('Настя')}`);
+    await screen.findByRole('button', { name: 'Скачать Excel' });
+
+    await user.click(screen.getByRole('button', { name: 'Скачать Excel' }));
+
+    await waitFor(() =>
+      expect(
+        harness.requests
+          .map(decodeURIComponent)
+          .some(
+            (r) => r.startsWith('/api/expenses/export.xlsx') && r.includes('excludeCards=Настя'),
+          ),
       ).toBe(true),
     );
   });

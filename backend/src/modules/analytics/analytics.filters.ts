@@ -35,6 +35,11 @@ const filtersShape = {
   categories: list,
   createdBy: list,
   currencies: list,
+  /** The same lists turned around: everything except these values */
+  excludeCards: list,
+  excludeCategories: list,
+  excludeCreatedBy: list,
+  excludeCurrencies: list,
   q: optional(z.string().trim().max(100)),
   minAmount: optional(amountBound),
   maxAmount: optional(amountBound),
