@@ -16,19 +16,19 @@ export type PhotoParseState =
 export function usePhotoParse(onResult: (result: PhotoParse) => void) {
   const [state, setState] = useState<PhotoParseState>({ status: 'idle' });
   const token = useRef(0);
-  const last = useRef<Blob | null>(null);
+  const last = useRef<{ photo: Blob; category: string } | null>(null);
   const waiters = useRef<(() => void)[]>([]);
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
 
   const settle = () => waiters.current.splice(0).forEach((resolve) => resolve());
 
-  const start = useCallback(async (photo: Blob) => {
+  const start = useCallback(async (photo: Blob, category: string) => {
     const mine = ++token.current;
-    last.current = photo;
+    last.current = { photo, category };
     setState({ status: 'running' });
     try {
-      const result = await parseReceiptPhoto(photo);
+      const result = await parseReceiptPhoto(photo, category);
       if (mine !== token.current) return;
       onResultRef.current(result);
       setState({ status: 'done', result });
@@ -46,9 +46,13 @@ export function usePhotoParse(onResult: (result: PhotoParse) => void) {
     settle();
   }, []);
 
-  const retry = useCallback(() => {
-    if (last.current) void start(last.current);
-  }, [start]);
+  const retry = useCallback(
+    (category?: string) => {
+      // The category may have changed since: the caller passes the current one
+      if (last.current) void start(last.current.photo, category ?? last.current.category);
+    },
+    [start],
+  );
 
   const wait = useCallback(() => new Promise<void>((resolve) => waiters.current.push(resolve)), []);
 

@@ -402,3 +402,27 @@ describe('раскрытые позиции в списке', () => {
     expect(within(list.parentElement!).queryByText(/меньше суммы|больше суммы/)).toBeNull();
   });
 });
+
+describe('«Разобрать чек заново» и категории ИИ', () => {
+  it('категория выключена для ИИ: кнопки нет', async () => {
+    harness.handlers['/api/receipts/settings'] = () =>
+      ok({ enabled: true, categories: ['кафе'], aiCategories: ['продукты'] });
+    const { dialog } = await openEditor(operation({ hasReceipt: true }), true);
+    const section = await within(dialog).findByRole('region', { name: 'Позиции' });
+
+    expect(within(section).queryByRole('button', { name: 'Разобрать чек заново' })).toBeNull();
+  });
+
+  it('категория разрешена для ИИ: кнопка есть', async () => {
+    harness.handlers['/api/receipts/settings'] = () =>
+      ok({ enabled: true, categories: ['кафе'], aiCategories: ['кафе'] });
+    const { dialog } = await openEditor(operation({ hasReceipt: true }), true);
+    const section = await within(dialog).findByRole('region', { name: 'Позиции' });
+
+    await waitFor(() =>
+      expect(
+        within(section).getByRole('button', { name: 'Разобрать чек заново' }),
+      ).toBeInTheDocument(),
+    );
+  });
+});

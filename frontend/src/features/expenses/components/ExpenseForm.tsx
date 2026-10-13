@@ -30,7 +30,7 @@ import { CardSelect } from './CardSelect.tsx';
 import { CategoryLimitHint } from '../../budgets/components/CategoryLimitHint.tsx';
 import { ReceiptPicker } from '../../receipts/components/ReceiptPicker.tsx';
 import { useReceiptAllowed } from '../../receipts/hooks/useReceiptSettings.ts';
-import { useAiAvailable } from '../../ai/hooks/useAiStatus.ts';
+import { useAiInCategory } from '../../ai/hooks/useAiInCategory.ts';
 import { AiMark } from '../../ai/components/AiMark.tsx';
 import { AiNotice } from '../../ai/components/AiNotice.tsx';
 import { ReceiptTotalHint } from '../../ai/components/ReceiptTotalHint.tsx';
@@ -118,7 +118,6 @@ export function ExpenseForm({
   onDraftApplied,
 }: ExpenseFormProps) {
   const { state, submit: submitExpense, reset: resetState } = useSubmitExpense();
-  const aiAvailable = useAiAvailable();
   // The date counts as typed by a person only when they changed it: the AI may replace the default
   const dateTouched = useRef(false);
   const nameOptional = useRef(false);
@@ -178,13 +177,16 @@ export function ExpenseForm({
   });
   const projected = amountInReporting(typedAmount, typedCurrency, currency, baseCurrency, rates);
   const receiptAllowed = useReceiptAllowed(category);
+  // The AI reads the receipt only where the owner allowed it
+  const aiHere = useAiInCategory(category);
   // A receipt photo for the AI: the name may be left empty
-  nameOptional.current = aiAvailable && receiptAllowed && photo !== null;
+  nameOptional.current = aiHere && photo !== null;
   const attachedPhoto = receiptAllowed ? photo : null;
   const ai = useReceiptPreparse({
     form,
     photo: attachedPhoto,
-    eligible: aiAvailable && receiptAllowed,
+    eligible: aiHere,
+    category,
     items,
     setItems,
     dateTouched,
@@ -233,7 +235,7 @@ export function ExpenseForm({
     setItemsError(undefined);
 
     // With a photo and the AI on, the sources tell the AI what it may replace
-    const forAi = aiAvailable && attached !== null;
+    const forAi = aiHere && attached !== null;
     const typedName = values.name.trim();
     const expense = {
       date: values.date,
@@ -343,8 +345,8 @@ export function ExpenseForm({
         </Field>
 
         {receiptAllowed && <ReceiptPicker photo={photo} onChange={setPhoto} />}
-        {receiptAllowed && photo && ai.needsNotice && <AiNotice onConfirm={ai.confirmNotice} />}
-        {receiptAllowed && photo && <PhotoParseStatus state={ai.state} onRetry={ai.retry} />}
+        {aiHere && photo && ai.needsNotice && <AiNotice onConfirm={ai.confirmNotice} />}
+        {aiHere && photo && <PhotoParseStatus state={ai.state} onRetry={ai.retry} />}
 
         <Field
           label={

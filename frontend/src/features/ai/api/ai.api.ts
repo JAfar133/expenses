@@ -52,9 +52,9 @@ export interface PhotoParse {
 }
 
 /** The photo is sent as it is (already compressed by the client). */
-export const parseReceiptPhoto = async (photo: Blob) =>
+export const parseReceiptPhoto = async (photo: Blob, category: string) =>
   (
-    await apiRequest<PhotoParse>('/ai/receipt/parse', {
+    await apiRequest<PhotoParse>(`/ai/receipt/parse?category=${encodeURIComponent(category)}`, {
       method: 'POST',
       headers: { 'Content-Type': photo.type || 'image/jpeg' },
       body: photo,

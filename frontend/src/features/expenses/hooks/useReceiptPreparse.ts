@@ -19,8 +19,10 @@ interface Options {
   form: UseFormReturn<ExpenseFormValues>;
   /** The photo that will be saved with the expense (null when none or not allowed) */
   photo: Blob | null;
-  /** The AI is on and the category allows a photo */
+  /** The AI is on and may read receipts of the chosen category */
   eligible: boolean;
+  /** The category chosen in the form: the server checks that the AI is allowed there */
+  category: string;
   items: DraftItem[];
   setItems: Dispatch<SetStateAction<DraftItem[]>>;
   /** The person changed the date by hand: the AI must not replace it */
@@ -39,6 +41,7 @@ export function useReceiptPreparse({
   form,
   photo,
   eligible,
+  category,
   items,
   setItems,
   dateTouched,
@@ -92,7 +95,9 @@ export function useReceiptPreparse({
   useEffect(() => {
     if (!photo || !eligible) return reset();
     // Nothing leaves the device before the person has seen where the photo goes
-    if (notice.ready && notice.seen) void start(photo);
+    if (notice.ready && notice.seen) void start(photo, category);
+    // A new category alone does not read the receipt again; allowing the AI there does (`eligible`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photo, eligible, notice.ready, notice.seen, start, reset]);
 
   const result = parse.state.status === 'done' ? parse.state.result : undefined;
@@ -117,7 +122,7 @@ export function useReceiptPreparse({
 
   return {
     state: parse.state,
-    retry: parse.retry,
+    retry: () => parse.retry(category),
     /** The photo is attached, the AI is on, but the person has not yet seen where it goes */
     needsNotice: eligible && photo !== null && notice.ready && !notice.seen,
     confirmNotice: notice.confirm,

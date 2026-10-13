@@ -4,6 +4,8 @@ export interface ReceiptSettings {
   enabled: boolean;
   /** Names of the categories where a photo may be attached */
   categories: string[];
+  /** Names of the categories where the AI may read the receipt (it also needs the photo to be allowed there) */
+  aiCategories?: string[];
 }
 
 export const fetchReceiptSettings = async () =>

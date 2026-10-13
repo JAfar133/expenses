@@ -4,6 +4,7 @@ import { toSaveErrorMessage } from '../../expenses/api/save-error-message.ts';
 import { parseDecimal } from '../../../shared/utils/money.ts';
 import { acceptAi, parseReceipt } from '../../ai/api/ai.api.ts';
 import { useAiAvailable } from '../../ai/hooks/useAiStatus.ts';
+import { useReceiptSettings } from '../../receipts/hooks/useReceiptSettings.ts';
 import { ITEMS_KEY, parseFailureMessage } from '../../ai/model/parse-runner.ts';
 import { ANALYTICS_KEY } from '../../analytics/hooks/useAnalytics.ts';
 import type { OperationItem } from '../../analytics/api/operations.api.ts';
@@ -44,7 +45,11 @@ function ItemsForm({
   onChanged,
 }: ItemsSectionProps & { saved: ExpenseItem[] }) {
   const queryClient = useQueryClient();
-  const aiAvailable = useAiAvailable();
+  // The AI reads receipts only in the categories the owner allowed it in
+  const aiSettings = useReceiptSettings().data;
+  const aiAvailable =
+    useAiAvailable() &&
+    (aiSettings?.aiCategories === undefined || aiSettings.aiCategories.includes(item.category));
   const [drafts, setDrafts] = useState<DraftItem[]>(() => itemsToDrafts(saved));
   const [problem, setProblem] = useState<string>();
   const [offered, setOffered] = useState(false);

@@ -8,6 +8,7 @@ import {
   fillForm,
   ok,
   pickPhoto,
+  stubImaging,
   renderApp,
   server,
   setOnLine,
@@ -597,5 +598,121 @@ describe('подсказка про итог под полем суммы', () =
     await screen.findByDisplayValue('Кофейня');
 
     expect(screen.queryByText(/На чеке /)).toBeNull();
+  });
+});
+
+describe('ИИ по категориям', () => {
+  /** Photos are allowed in «кафе» and «продукты», the AI only in «продукты». */
+  async function readyWithAiOnlyInGroceries() {
+    enableAi();
+    server.receiptSettings = {
+      enabled: true,
+      categories: ['кафе', 'продукты'],
+      aiCategories: ['продукты'],
+    };
+    server.preferences = { 'ai.noticeSeen': true };
+    stubImaging();
+    return renderApp();
+  }
+
+  it('категория без ИИ: фото прикрепляется, но нет плашки, запроса и индикатора', async () => {
+    const { person } = await readyWithAiOnlyInGroceries();
+
+    await pickPhoto(person);
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    expect(screen.getByAltText('Фото чека')).toBeInTheDocument();
+    expect(server.photoParses()).toHaveLength(0);
+    expect(screen.queryByText(/Gemini/)).toBeNull();
+    expect(screen.queryByText('ИИ читает чек…')).toBeNull();
+  });
+
+  it('категория без ИИ: название обязательно, расход уходит с фото без разбора', async () => {
+    const { person } = await readyWithAiOnlyInGroceries();
+    await pickPhoto(person);
+    await person.type(screen.getByLabelText('Стоимость'), '5000');
+
+    await submit(person);
+    expect(await screen.findByText('Введите наименование')).toBeInTheDocument();
+    await person.type(screen.getByLabelText('Наименование'), 'Кофе');
+    await submit(person);
+
+    await screen.findByText('Расход успешно добавлен');
+    expect(lastPost()).not.toHaveProperty('aiParseId');
+    expect(lastPost()).not.toHaveProperty('nameSource');
+    expect(server.puts()).toHaveLength(1);
+    expect(server.parses()).toHaveLength(0);
+  });
+
+  it('категория с ИИ: разбор идёт, в запросе ?category= с названием категории', async () => {
+    const { person } = await readyWithAiOnlyInGroceries();
+    await person.selectOptions(screen.getByLabelText('Категория'), 'продукты');
+    await person.upload(
+      await screen.findByLabelText('Выбрать фото чека'),
+      new File(['img'], 'check.jpg', { type: 'image/jpeg' }),
+    );
+
+    await waitFor(() => expect(server.photoParses()).toHaveLength(1));
+    expect(server.photoParses()[0]!.url).toBe(
+      `/api/ai/receipt/parse?category=${encodeURIComponent('продукты')}`,
+    );
+  });
+
+  it('смена категории на разрешённую: разбор запускается для уже прикреплённого фото', async () => {
+    const { person } = await readyWithAiOnlyInGroceries();
+    await pickPhoto(person);
+    expect(server.photoParses()).toHaveLength(0);
+
+    await person.selectOptions(screen.getByLabelText('Категория'), 'продукты');
+
+    await waitFor(() => expect(server.photoParses()).toHaveLength(1));
+    expect(server.photoParses()[0]!.url).toContain(encodeURIComponent('продукты'));
+    expect(await screen.findByDisplayValue('Кофейня')).toBeInTheDocument();
+  });
+
+  it('смена на запрещённую категорию: прежние значения ИИ остаются, нового разбора нет, aiParseId не уходит', async () => {
+    const { person } = await readyWithAiOnlyInGroceries();
+    await person.selectOptions(screen.getByLabelText('Категория'), 'продукты');
+    await person.upload(
+      await screen.findByLabelText('Выбрать фото чека'),
+      new File(['img'], 'check.jpg', { type: 'image/jpeg' }),
+    );
+    await screen.findByDisplayValue('Кофейня');
+
+    await person.selectOptions(screen.getByLabelText('Категория'), 'кафе');
+
+    expect(screen.getByLabelText('Наименование')).toHaveValue('Кофейня');
+    expect(server.photoParses()).toHaveLength(1);
+    expect(screen.queryByText('ИИ читает чек…')).toBeNull();
+    await person.type(screen.getByLabelText('Стоимость'), '5000');
+    await submit(person);
+    await screen.findByText('Расход успешно добавлен');
+    expect(lastPost()).not.toHaveProperty('aiParseId');
+  });
+
+  it('категория выключена после выбора фото (409 AI_CATEGORY_OFF): мягкая плашка, сохранение не блокируется', async () => {
+    server.parsePhoto = () =>
+      failure(
+        409,
+        'Для этой категории разбор чеков с помощью ИИ выключен владельцем группы',
+        'AI_CATEGORY_OFF',
+      );
+    const { person } = await ready();
+
+    await pickPhoto(person);
+
+    expect(
+      await screen.findByText(/разбор чеков с помощью ИИ выключен владельцем группы/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Добавить расход' })).toBeEnabled();
+  });
+
+  it('сервер без списка aiCategories считается «ИИ везде»', async () => {
+    const { person } = await ready();
+
+    await pickPhoto(person);
+
+    await waitFor(() => expect(server.photoParses()).toHaveLength(1));
   });
 });

@@ -34,7 +34,11 @@ export interface Recorded {
 export const server = {
   network: true,
   requests: [] as Recorded[],
-  receiptSettings: { enabled: false, categories: [] as string[] },
+  receiptSettings: { enabled: false, categories: [] } as {
+    enabled: boolean;
+    categories: string[];
+    aiCategories?: string[];
+  },
   postExpense: (_body: Record<string, unknown>, _headers: Headers): Response | Promise<Response> =>
     ok({ id: 'srv', excelStatus: 'synced', original: null }, 201),
   putReceipt: (_url: string): Response | Promise<Response> => ok({}),
@@ -63,10 +67,10 @@ export const server = {
       currency: 'AMD',
       dropped: 0,
     }),
-  photoParses: () => server.requests.filter((r) => r.url === '/api/ai/receipt/parse'),
+  photoParses: () => server.requests.filter((r) => r.url.startsWith('/api/ai/receipt/parse')),
   parses: () =>
     server.requests.filter(
-      (r) => r.url.endsWith('/receipt/parse') && r.url !== '/api/ai/receipt/parse',
+      (r) => r.url.endsWith('/receipt/parse') && !r.url.startsWith('/api/ai/'),
     ),
   posts: () => server.requests.filter((r) => r.method === 'POST' && r.url === '/api/expenses'),
   puts: () => server.requests.filter((r) => r.method === 'PUT'),
@@ -149,7 +153,7 @@ export function setupOfflineHarness() {
           server.preferences = { ...server.preferences, ...JSON.parse(String(init?.body)) };
           return ok(server.preferences);
         }
-        if (url === '/api/ai/receipt/parse' && method === 'POST')
+        if (url.startsWith('/api/ai/receipt/parse') && method === 'POST')
           return server.parsePhoto(init?.body);
         if (url.endsWith('/receipt/parse') && method === 'POST') {
           return server.parseReceipt(url, JSON.parse(String(init?.body)));

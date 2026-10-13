@@ -21,7 +21,7 @@ export function GroupSettingsCard({ group, currencies, categories }: GroupSettin
         <ReportingCurrencyRow current={group.reportingCurrency} currencies={currencies} />
         <MemberEditRow minutes={group.memberEditMinutes ?? 10080} />
         <ReceiptsRow categories={categories} />
-        <GroupAiRow />
+        <GroupAiRow categories={categories} />
       </div>
     </SettingsSection>
   );
