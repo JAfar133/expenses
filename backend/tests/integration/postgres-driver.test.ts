@@ -76,6 +76,7 @@ describe('драйвер pg', () => {
       '0018_receipts.sql',
       '0019_items_and_ai.sql',
       '0020_ai_usage_result.sql',
+      '0021_category_ai.sql',
     ]);
   });
 

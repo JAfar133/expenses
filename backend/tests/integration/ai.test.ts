@@ -520,11 +520,11 @@ describe('когда разбор невозможен', () => {
 describe('разбор фото до сохранения траты', () => {
   beforeEach(enableAi);
 
-  const draft = (body: Buffer = JPEG, as = 'misha') =>
+  const draft = (body: Buffer = JPEG, as = 'misha', category = 'кафе') =>
     t.inject(
       {
         method: 'POST',
-        url: '/api/ai/receipt/parse',
+        url: `/api/ai/receipt/parse?category=${encodeURIComponent(category)}`,
         headers: { 'content-type': 'image/jpeg' },
         payload: body,
       },
@@ -631,5 +631,66 @@ describe('разбор фото до сохранения траты', () => {
     await draft();
 
     expect((await draft()).statusCode).toBe(429);
+  });
+});
+
+describe('категории, где ИИ разрешён', () => {
+  beforeEach(async () => {
+    await enableAi();
+    await call('PUT', '/api/group/receipts', {
+      enabled: true,
+      categories: ['кафе', 'продукты'],
+      aiCategories: ['кафе'],
+    });
+  });
+
+  it('настройка читается всеми и сохраняется владельцем; без поля остаётся как была', async () => {
+    const settings = await dataOf(call('GET', '/api/receipts/settings', undefined, 'nastya'));
+    expect(settings.aiCategories).toEqual(['кафе']);
+
+    await call('PUT', '/api/group/receipts', { enabled: true, categories: ['кафе', 'продукты'] });
+
+    expect((await dataOf(call('GET', '/api/receipts/settings'))).aiCategories).toEqual(['кафе']);
+  });
+
+  it('по умолчанию ИИ разрешён во всех категориях', async () => {
+    await database.exec('UPDATE categories SET ai_allowed = true');
+
+    const settings = await dataOf(call('GET', '/api/receipts/settings'));
+
+    expect(settings.aiCategories).toEqual(expect.arrayContaining(['кафе', 'продукты']));
+  });
+
+  it('разбор до сохранения: в запрещённой категории 409 и в модель ничего не уходит', async () => {
+    const response = await t.inject({
+      method: 'POST',
+      url: '/api/ai/receipt/parse?category=' + encodeURIComponent('продукты'),
+      headers: { 'content-type': 'image/jpeg' },
+      payload: JPEG,
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error.code).toBe('AI_CATEGORY_OFF');
+    expect(t.llmProvider.calls).toHaveLength(0);
+  });
+
+  it('категория обязательна', async () => {
+    const response = await t.inject({
+      method: 'POST',
+      url: '/api/ai/receipt/parse',
+      headers: { 'content-type': 'image/jpeg' },
+      payload: JPEG,
+    });
+
+    expect(response.statusCode).toBe(422);
+  });
+
+  it('разбор сохранённой траты в запрещённой категории тоже отклоняется, а фото прикрепить можно', async () => {
+    const id = await withPhoto({ category: 'продукты' });
+
+    const response = await parse(id);
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error.code).toBe('AI_CATEGORY_OFF');
   });
 });

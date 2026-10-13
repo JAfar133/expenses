@@ -27,11 +27,16 @@ export const expenseAiRoutes =
      * Reads a receipt photo while the "Add" form is open (raw image body). Nothing is saved: the answer fills the form,
      * and `parseId` goes back with the new expense so that the server knows which values came from the AI.
      */
+    // ?category=<name>: the category chosen in the form (the owner turns the AI on and off per category)
     app.post('/ai/receipt/parse', { bodyLimit: MAX_RECEIPT_BYTES + 1024 }, async (request) => {
       if (!Buffer.isBuffer(request.body)) {
         throw validationError('INVALID_RECEIPT', 'Нужна фотография в формате JPEG, PNG или WebP');
       }
-      const data = await drafts.parse(request.user!, request.body);
+      const { category } = request.query as { category?: string };
+      if (typeof category !== 'string' || !category) {
+        throw validationError('INVALID_REQUEST', 'Укажите категорию (?category=)');
+      }
+      const data = await drafts.parse(request.user!, request.body, category);
       request.log.info(
         { operation: 'ai.receipt.draft', userId: request.user!.username },
         'Operation completed',

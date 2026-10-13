@@ -33,6 +33,12 @@ export interface LlmProvider {
 /** Errors that are safe to show to the client (never contain the key). */
 export const aiDisabled = () =>
   new AppError(409, 'AI_DISABLED', 'Разбор чеков с помощью ИИ выключен');
+export const aiCategoryOff = () =>
+  new AppError(
+    409,
+    'AI_CATEGORY_OFF',
+    'Для этой категории разбор чеков с помощью ИИ выключен владельцем группы',
+  );
 export const aiKeyMissing = () =>
   new AppError(409, 'AI_KEY_MISSING', 'API-ключ ИИ не задан администратором');
 export const aiKeyInvalid = () =>

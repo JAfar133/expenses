@@ -5,6 +5,8 @@ import type { AuthUser } from '../auth/auth.types.ts';
 import type { ExpenseEditor } from '../expenses/expense-editor.ts';
 import type { ItemsRepository } from '../items/items.repository.ts';
 import type { LlmService } from '../llm/llm.service.ts';
+import { aiCategoryOff } from '../llm/llm.types.ts';
+import type { ReceiptsRepository } from '../receipts/receipts.repository.ts';
 import type { ReceiptsService } from '../receipts/receipts.service.ts';
 import type { ExpenseAiRepository } from './expense-ai.repository.ts';
 import { planReceipt } from './plan-receipt.ts';
@@ -12,6 +14,8 @@ import { planReceipt } from './plan-receipt.ts';
 export interface ReceiptAnalysisOptions {
   llm: Pick<LlmService, 'parseReceipt'>;
   receipts: Pick<ReceiptsService, 'readForChange'>;
+  /** Which categories the owner allowed the AI for */
+  categories: Pick<ReceiptsRepository, 'aiAllowed'>;
   expenses: Pick<ExpenseRepository, 'recordChange'>;
   items: ItemsRepository;
   repository: ExpenseAiRepository;
@@ -44,6 +48,9 @@ export class ReceiptAnalysisService {
   ): Promise<AnalysisResult> {
     const { llm, receipts, items, repository, expenses, editor } = this.options;
     const { expense, image } = await receipts.readForChange(user, expenseId);
+    if (!(await this.options.categories.aiAllowed(expense.groupId, expense.category))) {
+      throw aiCategoryOff();
+    }
     const today = todayIn(user.timezone, this.options.now?.());
 
     // The slow call to the model happens outside of any transaction

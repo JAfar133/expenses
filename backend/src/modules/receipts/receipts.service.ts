@@ -28,23 +28,27 @@ export class ReceiptsService {
   constructor(private readonly options: ReceiptsServiceOptions) {}
 
   settings(user: AuthUser): Promise<ReceiptSettings> {
-    if (!user.groupId) return Promise.resolve({ enabled: false, categories: [] });
+    if (!user.groupId) return Promise.resolve({ enabled: false, categories: [], aiCategories: [] });
     return this.options.repository.settings(user.groupId);
   }
 
   async saveSettings(user: AuthUser, input: unknown): Promise<void> {
     if (user.role !== 'owner' || !user.groupId) throw forbiddenError();
     const body = input as Partial<ReceiptSettings> | null;
+    const isNames = (value: unknown): value is string[] =>
+      Array.isArray(value) && value.every((name) => typeof name === 'string');
     if (
       typeof body?.enabled !== 'boolean' ||
-      !Array.isArray(body.categories) ||
-      !body.categories.every((name) => typeof name === 'string')
+      !isNames(body.categories) ||
+      (body.aiCategories !== undefined && !isNames(body.aiCategories))
     ) {
       throw validationError('INVALID_RECEIPT_SETTINGS', 'Некорректные настройки фото чеков');
     }
     await this.options.repository.saveSettings(user.groupId, {
       enabled: body.enabled,
       categories: body.categories,
+      // Left as it was when the client does not send it
+      aiCategories: body.aiCategories,
     });
   }
 

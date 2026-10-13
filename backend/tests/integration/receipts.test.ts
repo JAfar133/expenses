@@ -73,7 +73,11 @@ describe('настройки', () => {
     const settings = (
       await t.inject({ method: 'GET', url: '/api/receipts/settings' }, 'nastya')
     ).json();
-    expect(settings.data).toEqual({ enabled: true, categories: ['кафе'] });
+    expect(settings.data).toEqual({
+      enabled: true,
+      categories: ['кафе'],
+      aiCategories: expect.arrayContaining(['кафе']),
+    });
   });
 
   it('участник не меняет настройки', async () => {

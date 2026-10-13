@@ -74,10 +74,16 @@ export function createAiModule(options: AiModuleOptions): AiModule {
       expenses,
       items,
       repository: marks,
+      categories: receiptsRepository,
       editor,
       now: options.now,
     }),
-    drafts: new ReceiptDraftService({ llm, repository: llmRepository, now: options.now }),
+    drafts: new ReceiptDraftService({
+      llm,
+      repository: llmRepository,
+      categories: receiptsRepository,
+      now: options.now,
+    }),
     aiParse: { claims: new ParseClaims(llmRepository), marks },
   };
 }

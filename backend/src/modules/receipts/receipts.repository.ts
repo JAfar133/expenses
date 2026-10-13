@@ -4,6 +4,8 @@ export interface ReceiptSettings {
   enabled: boolean;
   /** Names of the categories where a photo may be attached */
   categories: string[];
+  /** Names of the categories where the AI may read receipts (it also needs the photo to be allowed there) */
+  aiCategories: string[];
 }
 
 /** What the permission check needs to know about an expense. */
@@ -36,14 +38,32 @@ export class ReceiptsRepository {
         WHERE group_id = $1 AND receipts_allowed AND archived_at IS NULL ORDER BY position, name`,
       [groupId],
     );
+    const aiCategories = await db.query<{ name: string }>(
+      `SELECT name FROM categories
+        WHERE group_id = $1 AND ai_allowed AND archived_at IS NULL ORDER BY position, name`,
+      [groupId],
+    );
     return {
       enabled: group?.receipts_enabled ?? false,
       categories: categories.map((row) => row.name),
+      aiCategories: aiCategories.map((row) => row.name),
     };
   }
 
+  /** Whether the AI may read receipts of this category (a category the group does not have: no). */
+  async aiAllowed(groupId: string, category: string, db: SqlExecutor = this.database) {
+    const rows = await db.query(
+      'SELECT 1 FROM categories WHERE group_id = $1 AND name = $2 AND ai_allowed',
+      [groupId, category],
+    );
+    return rows.length > 0;
+  }
+
   /** Turns the feature on or off and sets the allowed categories (by name; unknown names are ignored). */
-  async saveSettings(groupId: string, settings: ReceiptSettings): Promise<void> {
+  async saveSettings(
+    groupId: string,
+    settings: Omit<ReceiptSettings, 'aiCategories'> & { aiCategories?: string[] },
+  ): Promise<void> {
     await this.database.transaction(async (tx) => {
       await tx.query('UPDATE groups SET receipts_enabled = $2 WHERE id = $1', [
         groupId,
@@ -53,6 +73,12 @@ export class ReceiptsRepository {
         'UPDATE categories SET receipts_allowed = (name = ANY($2::text[])) WHERE group_id = $1',
         [groupId, settings.categories],
       );
+      if (settings.aiCategories) {
+        await tx.query(
+          'UPDATE categories SET ai_allowed = (name = ANY($2::text[])) WHERE group_id = $1',
+          [groupId, settings.aiCategories],
+        );
+      }
     });
   }
 

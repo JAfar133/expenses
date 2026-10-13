@@ -2,6 +2,8 @@ import { AppError, validationError } from '../../errors/app-error.ts';
 import { todayIn } from '../analytics/date-math.ts';
 import type { AuthUser } from '../auth/auth.types.ts';
 import type { LlmRepository } from '../llm/llm.repository.ts';
+import { aiCategoryOff } from '../llm/llm.types.ts';
+import type { ReceiptsRepository } from '../receipts/receipts.repository.ts';
 import type { LlmService } from '../llm/llm.service.ts';
 import type { ParsedItem } from '../llm/receipt-parser.ts';
 import { detectReceiptType } from '../receipts/receipt-file.ts';
@@ -24,6 +26,8 @@ export interface ReceiptDraft {
 export interface ReceiptDraftOptions {
   llm: Pick<LlmService, 'status' | 'parseReceipt'>;
   repository: Pick<LlmRepository, 'saveResult'>;
+  /** Which categories the owner allowed the AI for */
+  categories: Pick<ReceiptsRepository, 'aiAllowed'>;
   now?: () => Date;
 }
 
@@ -31,8 +35,10 @@ export interface ReceiptDraftOptions {
 export class ReceiptDraftService {
   constructor(private readonly options: ReceiptDraftOptions) {}
 
-  async parse(user: AuthUser, bytes: Buffer): Promise<ReceiptDraft> {
+  /** `category`: the category chosen in the form; the owner may have turned the AI off for it. */
+  async parse(user: AuthUser, bytes: Buffer, category: string): Promise<ReceiptDraft> {
     if (!user.groupId) throw validationError('NO_GROUP', 'Вы не состоите в группе');
+    if (!(await this.options.categories.aiAllowed(user.groupId, category))) throw aiCategoryOff();
     if (bytes.length === 0) throw validationError('EMPTY_RECEIPT', 'Файл пустой');
     if (bytes.length > MAX_RECEIPT_BYTES) {
       throw new AppError(413, 'RECEIPT_TOO_LARGE', 'Фото слишком большое');
