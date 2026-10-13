@@ -571,16 +571,16 @@ describe('отправка', () => {
 
   it('повторная отправка после ошибки использует тот же Idempotency-Key', async () => {
     postExpense.mockImplementationOnce(() =>
-      json(503, {
+      json(409, {
         success: false,
-        error: { code: 'STORAGE_UNAVAILABLE', message: 'OneDrive недоступен. Попробуйте позже' },
+        error: { code: 'CONFLICT', message: 'Запись уже обрабатывается. Попробуйте позже' },
       }),
     );
     const user = await renderPage();
     await fillForm(user);
 
     await submit(user);
-    await screen.findByText('OneDrive недоступен. Попробуйте позже');
+    await screen.findByText('Запись уже обрабатывается. Попробуйте позже');
     await submit(user);
     await screen.findByText('Расход успешно добавлен');
 
@@ -640,7 +640,7 @@ describe('ошибки', () => {
     expect(screen.getByLabelText('Наименование')).toHaveValue('Erevan City');
   });
 
-  it('просит проверить запись, если ответ не получен', async () => {
+  it('если ответ не получен, расход уходит в очередь на устройстве, а не показывается ошибкой', async () => {
     postExpense.mockImplementation(() => {
       throw new TypeError('Failed to fetch');
     });
@@ -649,7 +649,10 @@ describe('ошибки', () => {
 
     await submit(user);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Проверьте, добавился ли расход');
+    expect(
+      await screen.findByText('Сохранено на устройстве, отправится при появлении сети'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('показывает общее сообщение при внутренней ошибке', async () => {

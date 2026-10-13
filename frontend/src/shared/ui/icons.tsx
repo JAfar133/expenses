@@ -328,3 +328,9 @@ export const CreditCardIcon = () => (
     <path d="M3 10h18M7 15h4" />
   </Icon>
 );
+
+export const TrashIcon = () => (
+  <Icon>
+    <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6" />
+  </Icon>
+);

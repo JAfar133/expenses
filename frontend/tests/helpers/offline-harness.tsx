@@ -1,0 +1,148 @@
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes } from 'react-router';
+import { afterEach, beforeEach, vi } from 'vitest';
+import { AppShell } from '../../src/app/AppShell.tsx';
+import type { AuthUser } from '../../src/features/auth/api/auth.api.ts';
+import { AddExpensePage } from '../../src/pages/AddExpensePage.tsx';
+
+export const json = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+export const ok = (data: unknown, status = 200) => json(status, { success: true, data });
+export const failure = (status: number, message: string, code = 'ERROR') =>
+  json(status, { success: false, error: { code, message } });
+
+export const USER: AuthUser = {
+  username: 'misha',
+  displayName: 'Миша',
+  card: 'Миша',
+  canEdit: true,
+  role: 'member',
+  isAdmin: false,
+  timezone: 'Asia/Yerevan',
+};
+
+export interface Recorded {
+  method: string;
+  url: string;
+  headers: Headers;
+  body?: unknown;
+}
+
+/** A programmable server for the offline tests; `network = false` makes every request fail like a dead connection. */
+export const server = {
+  network: true,
+  requests: [] as Recorded[],
+  receiptSettings: { enabled: false, categories: [] as string[] },
+  postExpense: (_body: Record<string, unknown>, _headers: Headers): Response | Promise<Response> =>
+    ok({ id: 'srv', excelStatus: 'synced', original: null }, 201),
+  putReceipt: (_url: string): Response | Promise<Response> => ok({}),
+  posts: () => server.requests.filter((r) => r.method === 'POST' && r.url === '/api/expenses'),
+  puts: () => server.requests.filter((r) => r.method === 'PUT'),
+};
+
+function resetServer() {
+  server.network = true;
+  server.requests = [];
+  server.receiptSettings = { enabled: false, categories: [] };
+  let counter = 0;
+  server.postExpense = () =>
+    ok({ id: `srv-${++counter}`, excelStatus: 'synced', original: null }, 201);
+  server.putReceipt = () => ok({});
+}
+
+export function setOnLine(value: boolean) {
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value });
+  act(() => {
+    window.dispatchEvent(new Event(value ? 'online' : 'offline'));
+  });
+}
+
+/** Call in a test file: a fake server and a clean browser state for each test. */
+export function setupOfflineHarness() {
+  beforeEach(() => {
+    resetServer();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        if (!server.network) throw new TypeError('Failed to fetch');
+        server.requests.push({
+          method,
+          url,
+          headers: new Headers(init?.headers),
+          body: typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body,
+        });
+        if (url === '/api/cards') {
+          return ok([
+            { name: 'Миша', currency: 'AMD' },
+            { name: 'Настя', currency: 'AMD' },
+          ]);
+        }
+        if (url === '/api/auth/refresh') return failure(401, 'Сессия истекла', 'UNAUTHORIZED');
+        if (url === '/api/categories') return ok(['кафе', 'продукты']);
+        if (url === '/api/config') return ok({ currency: 'AMD', baseCurrency: 'AMD' });
+        if (url === '/api/rates') return failure(500, 'x');
+        if (url === '/api/name-suggestions' || url === '/api/budgets') return ok([]);
+        if (url === '/api/receipts/settings') return ok(server.receiptSettings);
+        if (url === '/api/sync/status') {
+          return ok({
+            enabled: false,
+            queued: 0,
+            running: false,
+            intervalMs: 1,
+            nextRunAt: null,
+            serverTime: '',
+          });
+        }
+        if (url.startsWith('/api/analytics/')) return failure(500, 'no analytics');
+        if (url === '/api/expenses' && method === 'POST') {
+          return server.postExpense(JSON.parse(String(init?.body)), new Headers(init?.headers));
+        }
+        if (/^\/api\/expenses\/[^/]+\/receipt$/.test(url) && method === 'PUT') {
+          return server.putReceipt(url);
+        }
+        throw new Error(`Unexpected request: ${method} ${url}`);
+      }),
+    );
+  });
+
+  afterEach(() => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
+    // React Query keeps its own online flag fed by the events
+    onlineManager.setOnline(true);
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+}
+
+export type Person = ReturnType<typeof userEvent.setup>;
+
+/** The whole page inside the app shell: banner, queue sender, queue block and the form. */
+export async function renderApp(): Promise<{ person: Person; client: QueryClient }> {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <Routes>
+          <Route element={<AppShell user={USER} />}>
+            <Route index element={<AddExpensePage user={USER} />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await screen.findByRole('button', { name: 'Добавить расход' });
+  return { person: userEvent.setup(), client };
+}
+
+export async function fillForm(person: Person, name = 'Кофе', amount = '1000') {
+  await person.selectOptions(screen.getByLabelText('Категория'), 'кафе');
+  await person.type(screen.getByLabelText('Наименование'), name);
+  await person.type(screen.getByLabelText('Стоимость'), amount);
+}
+
+export const submit = (person: Person) =>
+  person.click(screen.getByRole('button', { name: 'Добавить расход' }));

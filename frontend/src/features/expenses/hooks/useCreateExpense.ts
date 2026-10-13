@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { SYNC_STATE_KEY } from '../../sync/hooks/useSyncState.ts';
 import { createExpense, type CreateExpenseRequest } from '../api/expenses.api.ts';
 import { BUDGETS_KEY } from '../../budgets/hooks/useBudgets.ts';
@@ -10,6 +10,18 @@ interface CreateExpenseVariables {
   idempotencyKey: string;
 }
 
+/** After an expense is saved: the lists, totals, limits and suggestions that depend on it are stale. */
+export function invalidateAfterCreate(queryClient: QueryClient): void {
+  // A new category may have appeared in the reference data, and the Excel queue may have changed
+  void queryClient.invalidateQueries({ queryKey: ['categories'] });
+  void queryClient.invalidateQueries({ queryKey: NAME_SUGGESTIONS_KEY });
+  void queryClient.invalidateQueries({ queryKey: ANALYTICS_KEY });
+  void queryClient.invalidateQueries({ queryKey: SYNC_STATE_KEY });
+  // Limits show how much is spent: a new expense moves the bars
+  void queryClient.invalidateQueries({ queryKey: BUDGETS_KEY });
+  void queryClient.invalidateQueries({ queryKey: ['expenses'] });
+}
+
 export function useCreateExpense() {
   const queryClient = useQueryClient();
 
@@ -18,14 +30,6 @@ export function useCreateExpense() {
     retry: false,
     mutationFn: ({ expense, idempotencyKey }: CreateExpenseVariables) =>
       createExpense(expense, idempotencyKey),
-    onSuccess: () => {
-      // A new category may have appeared in the reference data, and the Excel queue may have changed
-      void queryClient.invalidateQueries({ queryKey: ['categories'] });
-      void queryClient.invalidateQueries({ queryKey: NAME_SUGGESTIONS_KEY });
-      void queryClient.invalidateQueries({ queryKey: ANALYTICS_KEY });
-      void queryClient.invalidateQueries({ queryKey: SYNC_STATE_KEY });
-      // Limits show how much is spent: a new expense moves the bars
-      void queryClient.invalidateQueries({ queryKey: BUDGETS_KEY });
-    },
+    onSuccess: () => invalidateAfterCreate(queryClient),
   });
 }

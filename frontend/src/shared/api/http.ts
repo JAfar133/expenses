@@ -1,3 +1,5 @@
+import { reportNetwork } from './network-state.ts';
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -31,7 +33,7 @@ export function onSessionLost(handler: (() => void) | undefined): void {
 
 async function send(path: string, init: RequestInit): Promise<Response> {
   try {
-    return await fetch(`/api${path}`, {
+    const response = await fetch(`/api${path}`, {
       ...init,
       // Header only for requests with a body: Fastify answers 400 to a JSON request without a body
       headers: {
@@ -39,7 +41,10 @@ async function send(path: string, init: RequestInit): Promise<Response> {
         ...init.headers,
       },
     });
+    reportNetwork(true);
+    return response;
   } catch {
+    reportNetwork(false);
     throw new ApiError(0, NETWORK_ERROR_CODE, 'Нет соединения с сервером');
   }
 }

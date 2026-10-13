@@ -18,8 +18,9 @@ import {
 import { newRequestId } from '../../../shared/utils/request-id.ts';
 import { readStored, writeStored } from '../../../shared/utils/storage.ts';
 import type { Card, CreatedExpense, NameSuggestion, RatesResponse } from '../api/expenses.api.ts';
-import { toSaveErrorMessage } from '../api/save-error-message.ts';
-import { useCreateExpense } from '../hooks/useCreateExpense.ts';
+import { QUEUED_MESSAGE, useSubmitExpense } from '../hooks/useSubmitExpense.ts';
+import type { QueuedExpense } from '../../offline-queue/model/queue-types.ts';
+import { draftToFormValues } from '../../offline-queue/model/draft.ts';
 import { useNameSuggestions } from '../hooks/useNameSuggestions.ts';
 import { useRates } from '../hooks/useRates.ts';
 import { createExpenseFormSchema, type ExpenseFormValues } from '../schemas/expense-form.schema.ts';
@@ -28,7 +29,6 @@ import { AmountFields } from './AmountFields.tsx';
 import { CardSelect } from './CardSelect.tsx';
 import { CategoryLimitHint } from '../../budgets/components/CategoryLimitHint.tsx';
 import { ReceiptPicker } from '../../receipts/components/ReceiptPicker.tsx';
-import { uploadReceipt } from '../../receipts/api/receipts.api.ts';
 import { useReceiptAllowed } from '../../receipts/hooks/useReceiptSettings.ts';
 import { NameSuggestions } from './NameSuggestions.tsx';
 
@@ -44,6 +44,9 @@ interface ExpenseFormProps {
   /** Drams: rates are quoted against it */
   baseCurrency: string;
   user: AuthUser;
+  /** An expense taken back from the offline queue to be corrected: its values go into the form */
+  draft?: QueuedExpense;
+  onDraftApplied?: () => void;
 }
 
 /** The user's last choice, if it is still in the reference data. */
@@ -88,8 +91,16 @@ function amountInReporting(
   return rate === undefined ? null : value * rate;
 }
 
-export function ExpenseForm({ cards, categories, currency, baseCurrency, user }: ExpenseFormProps) {
-  const createExpense = useCreateExpense();
+export function ExpenseForm({
+  cards,
+  categories,
+  currency,
+  baseCurrency,
+  user,
+  draft,
+  onDraftApplied,
+}: ExpenseFormProps) {
+  const { state, submit: submitExpense, reset: resetState } = useSubmitExpense();
   // One key per attempt: resubmitting the same operation will not create a duplicate
   const idempotencyKey = useRef(newRequestId());
 
@@ -135,7 +146,6 @@ export function ExpenseForm({ cards, categories, currency, baseCurrency, user }:
 
   // An optional photo of the receipt, only for the categories the owner chose
   const [photo, setPhoto] = useState<Blob | null>(null);
-  const [photoFailed, setPhotoFailed] = useState(false);
 
   const { data: knownNames = [] } = useNameSuggestions();
   const [category, name, typedAmount, typedCurrency] = useWatch({
@@ -153,10 +163,21 @@ export function ExpenseForm({ cards, categories, currency, baseCurrency, user }:
 
   // The success message disappears on its own
   useEffect(() => {
-    if (!createExpense.isSuccess) return;
-    const timer = setTimeout(createExpense.reset, SUCCESS_VISIBLE_MS);
+    if (state.status !== 'sent' && state.status !== 'queued') return;
+    const timer = setTimeout(resetState, SUCCESS_VISIBLE_MS);
     return () => clearTimeout(timer);
-  }, [createExpense.isSuccess, createExpense.reset]);
+  }, [state, resetState]);
+
+  // An expense taken back from the queue: its values go into the form to be corrected and sent again
+  useEffect(() => {
+    if (!draft) return;
+    reset(draftToFormValues(draft, baseCurrency, cardCurrencyOf(draft.expense.card)));
+    setPhoto(draft.photo ?? null);
+    resetState();
+    onDraftApplied?.();
+    // Only a new draft matters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft]);
 
   // A new card: the typed currency goes back to the card's one, the rate and fractional part are not needed
   const resetCurrencyFor = (cardName: string) => {
@@ -168,11 +189,8 @@ export function ExpenseForm({ cards, categories, currency, baseCurrency, user }:
     setValue('rate', '');
   };
 
-  const submit = handleSubmit((values) => {
-    if (createExpense.isPending) return;
-    setPhotoFailed(false);
+  const submit = handleSubmit(async (values) => {
     const attached = receiptAllowed ? photo : null;
-
     const expense = {
       date: values.date,
       card: values.card,
@@ -181,24 +199,17 @@ export function ExpenseForm({ cards, categories, currency, baseCurrency, user }:
       ...amountPayload(values, baseCurrency, cardCurrencyOf(values.card)),
     };
 
-    createExpense.mutate(
-      { expense, idempotencyKey: idempotencyKey.current },
-      {
-        onSuccess: (created) => {
-          // The expense is already saved: a failed upload must not undo or block anything
-          if (attached) {
-            uploadReceipt(created.id, attached).catch(() => setPhotoFailed(true));
-          }
-          setPhoto(null);
-          writeStored(lastCategoryKey(user.username), values.category);
-          idempotencyKey.current = newRequestId();
+    const result = await submitExpense(expense, idempotencyKey.current, attached);
+    if (result !== 'sent' && result !== 'queued') return;
 
-          // Date, card and category are kept for quick entry of the next expense
-          reset({ ...getValues(), name: '', amount: '' });
-          setFocus('name');
-        },
-      },
-    );
+    setPhoto(null);
+    writeStored(lastCategoryKey(user.username), values.category);
+    // The next expense is a new operation: a new key (the old one lives on in the queue record)
+    idempotencyKey.current = newRequestId();
+
+    // Date, card and category are kept for quick entry of the next expense
+    reset({ ...getValues(), name: '', amount: '' });
+    setFocus('name');
   });
 
   return (
@@ -264,27 +275,24 @@ export function ExpenseForm({ cards, categories, currency, baseCurrency, user }:
       <AmountFields form={form} base={baseCurrency} cards={cards} rates={rates} />
       {category && <CategoryLimitHint category={category} projected={projected} />}
 
-      {createExpense.isSuccess &&
-        (createExpense.data.excelStatus !== 'queued' ? (
-          <Notice variant="success">
-            {successMessage(createExpense.data, currency, baseCurrency)}
-          </Notice>
+      {state.status === 'sent' &&
+        (state.created.excelStatus !== 'queued' ? (
+          <Notice variant="success">{successMessage(state.created, currency, baseCurrency)}</Notice>
         ) : (
           <Notice variant="info">
             Расход сохранён. В Excel он появится позже, когда файл освободится
           </Notice>
         ))}
-      {photoFailed && (
+      {state.status === 'queued' && <Notice variant="info">{QUEUED_MESSAGE}</Notice>}
+      {state.status === 'sent' && state.photoFailed && (
         <Notice variant="info">
           Расход сохранён, но фото не загрузилось. Его можно прикрепить позже в «Операциях».
         </Notice>
       )}
-      {createExpense.isError && (
-        <Notice variant="error">{toSaveErrorMessage(createExpense.error)}</Notice>
-      )}
+      {state.status === 'error' && <Notice variant="error">{state.message}</Notice>}
 
-      <Button type="submit" loading={createExpense.isPending}>
-        {createExpense.isPending ? 'Сохраняем…' : 'Добавить расход'}
+      <Button type="submit" loading={state.status === 'pending'}>
+        {state.status === 'pending' ? 'Сохраняем…' : 'Добавить расход'}
       </Button>
     </form>
   );

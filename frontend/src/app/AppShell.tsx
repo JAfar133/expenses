@@ -3,6 +3,8 @@ import { NavLink, Outlet, useLocation } from 'react-router';
 import type { AuthUser } from '../features/auth/api/auth.api.ts';
 import { UserBar } from '../features/auth/components/UserBar.tsx';
 import { SyncIndicator } from '../features/sync/components/SyncIndicator.tsx';
+import { OfflineBanner } from '../features/offline-queue/components/OfflineBanner.tsx';
+import { useQueueSync } from '../features/offline-queue/hooks/useQueueSync.ts';
 import { PlusIcon } from '../shared/ui/icons.tsx';
 
 /** «Добавить» is the main action: a filled button; on its own page it turns into a soft "you are here" pill. */
@@ -24,6 +26,7 @@ const sectionClass = ({ isActive }: { isActive: boolean }) =>
  * On a phone the navigation moves to its own second line.
  */
 export function AppShell({ user }: { user: AuthUser }) {
+  useQueueSync();
   // The form fits a narrow column; the analytics page uses the full width
   const { pathname } = useLocation();
   const wide = pathname.startsWith('/analytics');
@@ -56,6 +59,8 @@ export function AppShell({ user }: { user: AuthUser }) {
           </NavLink>
         </nav>
       </header>
+
+      <OfflineBanner />
 
       <Suspense
         fallback={
