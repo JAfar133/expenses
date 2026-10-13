@@ -111,7 +111,7 @@ export function PeriodMenu({ state, today, onChange }: PeriodMenuProps) {
                 inline={!wide}
                 onChange={(range) => onChange({ period: 'custom', ...range })}
               />
-              <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+3.5rem)] bg-white pt-1 sm:static dark:bg-zinc-900">
+              <div className="sticky bottom-0 bg-white pt-1 sm:static dark:bg-zinc-900">
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
