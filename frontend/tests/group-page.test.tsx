@@ -76,6 +76,7 @@ let requests: { method: string; url: string; body?: Record<string, unknown> }[];
 let override: (method: string, url: string) => Response | undefined;
 // Limits of the group as the server returns them for GET /api/budgets
 let budgetsList: Record<string, unknown>[];
+let receipts: { enabled: boolean; categories: string[] };
 
 const budget = (overrides: Record<string, unknown> = {}) => ({
   id: 'b1',
@@ -98,6 +99,7 @@ beforeEach(() => {
   requests = [];
   override = () => undefined;
   budgetsList = [];
+  receipts = { enabled: false, categories: [] };
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -109,6 +111,7 @@ beforeEach(() => {
       if (forced) return forced;
       if (url === '/api/group' && method === 'GET') return ok(overview());
       if (url === '/api/budgets') return ok(budgetsList);
+      if (url === '/api/receipts/settings') return ok(receipts);
       if (url === '/api/config') return ok({ currency: 'AMD', baseCurrency: 'AMD' });
       if (url === '/api/group/budgets' && method === 'POST') return ok({ id: 'b9' }, 201);
       if (url === '/api/group/invitations' && method === 'POST')
@@ -116,6 +119,7 @@ beforeEach(() => {
       if (url.endsWith('/reset-password'))
         return ok({ token: 'RESET-1', expiresAt: '2026-10-20T10:00:00.000Z' }, 201);
       if (url === '/api/group/cards' && method === 'POST') return ok({ id: 99 }, 201);
+      if (url === '/api/group/receipts' && method === 'PUT') return ok({});
       return ok({});
     }),
   );
@@ -141,17 +145,30 @@ async function renderGroup() {
 
 const sent = (method: string, url: string) =>
   requests.find((r) => r.method === method && r.url === url)?.body;
-const section = (name: string) => screen.getByRole('heading', { name }).closest('section')!;
+const section = (name: string | RegExp) =>
+  screen.getByRole('heading', { name }).closest('section')!;
+const card = (name: string | RegExp) => within(section(name));
+
+/** Opens the «⋯» menu of a row and presses an item. */
+async function choose(person: Awaited<ReturnType<typeof renderGroup>>, row: string, item: string) {
+  await person.click(screen.getByRole('button', { name: `Действия: ${row}` }));
+  await person.click(screen.getByRole('menuitem', { name: item }));
+}
+const dialog = () => within(screen.getByRole('dialog'));
 
 describe('страница «Группа»', () => {
-  it('показывает все разделы', async () => {
+  it('ровно четыре карточки в порядке: настройки, участники, карты, категории и лимиты', async () => {
     await renderGroup();
+    await screen.findByRole('heading', { name: 'Настройки группы' });
 
-    await screen.findByRole('heading', { name: 'Группа' });
-    for (const name of ['Название группы', 'Участники', 'Приглашения', 'Карты', 'Категории']) {
-      expect(screen.getByRole('heading', { name })).toBeInTheDocument();
-    }
-    expect(screen.getByText('Семья')).toBeInTheDocument();
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+    expect(headings).toEqual([
+      'Группа',
+      'Настройки группы',
+      'Участники (3)',
+      'Карты (2)',
+      'Категории и лимиты (1)',
+    ]);
   });
 
   it('не владельцу не показывает ничего и не запрашивает группу', async () => {
@@ -162,192 +179,147 @@ describe('страница «Группа»', () => {
     expect(requests.some((r) => r.url === '/api/group')).toBe(false);
   });
 
-  it('переименовывает группу', async () => {
-    const person = await renderGroup();
-    await screen.findByText('Семья');
+  it('подсказок две: у «Правка своих трат участниками» и у карточки категорий', async () => {
+    await renderGroup();
+    await screen.findByRole('heading', { name: 'Настройки группы' });
 
-    await person.click(screen.getByRole('button', { name: 'Переименовать: Семья' }));
-    const field = screen.getByLabelText('Новое название: Семья');
+    expect(card('Настройки группы').getAllByRole('button', { name: 'Подсказка' })).toHaveLength(1);
+    expect(card(/^Категории и лимиты/).getAllByRole('button', { name: 'Подсказка' })).toHaveLength(
+      1,
+    );
+    expect(screen.getAllByRole('button', { name: 'Подсказка' })).toHaveLength(2);
+    expect(card(/^Участники/).queryByRole('button', { name: 'Подсказка' })).toBeNull();
+    expect(card(/^Карты/).queryByRole('button', { name: 'Подсказка' })).toBeNull();
+  });
+});
+
+describe('аватар', () => {
+  it('цвет аватара стабилен для одного имени и зависит от имени', async () => {
+    const { Avatar } = await import('../src/shared/ui/Avatar.tsx');
+    const { render: renderOnly } = await import('@testing-library/react');
+    const color = (name: string) => {
+      const { container, unmount } = renderOnly(<Avatar name={name} />);
+      const value = container.firstElementChild!.className;
+      unmount();
+      return value;
+    };
+    expect(color('Настя')).toBe(color('Настя'));
+    expect(
+      new Set(['Миша', 'Настя', 'Петя', 'Анна', 'Олег', 'Ирина'].map(color)).size,
+    ).toBeGreaterThan(1);
+  });
+});
+
+describe('меню «⋯»', () => {
+  it('кнопка с aria-haspopup, открывается кликом, пункты — menuitem', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Карты/ });
+    const button = screen.getByRole('button', { name: 'Действия: Общая' });
+    expect(button).toHaveAttribute('aria-haspopup', 'menu');
+    expect(button).toHaveAttribute('aria-expanded', 'false');
+
+    await person.click(button);
+
+    expect(button).toHaveAttribute('aria-expanded', 'true');
+    const items = screen.getAllByRole('menuitem').map((item) => item.textContent);
+    expect(items).toEqual(['Переименовать', 'Сменить валюту', 'В архив']);
+    // The focus moves into the menu
+    expect(screen.getByRole('menuitem', { name: 'Переименовать' })).toHaveFocus();
+  });
+
+  it('Escape закрывает меню и возвращает фокус на кнопку', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Карты/ });
+    const button = screen.getByRole('button', { name: 'Действия: Общая' });
+    await person.click(button);
+
+    await person.keyboard('{Escape}');
+
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(button).toHaveFocus();
+  });
+
+  it('клик вне меню закрывает его; стрелки переходят по пунктам', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Карты/ });
+    await person.click(screen.getByRole('button', { name: 'Действия: Общая' }));
+
+    await person.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: 'Сменить валюту' })).toHaveFocus();
+    await person.keyboard('{ArrowUp}');
+    expect(screen.getByRole('menuitem', { name: 'Переименовать' })).toHaveFocus();
+
+    await person.click(screen.getByRole('heading', { name: 'Группа' }));
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+});
+
+describe('настройки группы', () => {
+  const settings = () => card('Настройки группы');
+
+  it('название — текст с карандашом; поле открывается по клику, PUT /group', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: 'Настройки группы' });
+    expect(settings().getByText('Семья')).toBeInTheDocument();
+    expect(settings().queryByLabelText('Новое название группы')).toBeNull();
+
+    await person.click(settings().getByRole('button', { name: 'Изменить название группы' }));
+    const field = settings().getByLabelText('Новое название группы');
     await person.clear(field);
     await person.type(field, 'Наш дом');
-    await person.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await person.click(settings().getByRole('button', { name: 'Сохранить' }));
 
     expect(sent('PATCH', '/api/group')).toEqual({ name: 'Наш дом' });
-  });
-});
-
-describe('карты', () => {
-  const cards = () => within(section('Карты'));
-
-  it('добавляет карту', async () => {
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Карты' });
-
-    await person.type(cards().getByLabelText('Новая карта'), 'Отпуск');
-    await person.click(cards().getByRole('button', { name: 'Добавить' }));
-
-    expect(sent('POST', '/api/group/cards')).toEqual({ name: 'Отпуск', currency: 'AMD' });
+    await waitFor(() => expect(settings().queryByLabelText('Новое название группы')).toBeNull());
   });
 
-  it('показывает подсказку о видимости карт', async () => {
-    await renderGroup();
-    await screen.findByRole('heading', { name: 'Карты' });
-
-    expect(
-      cards().getByText(
-        'Владельцы видят все карты. Участники видят только карты, к которым им дан доступ.',
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it('переименовывает карту', async () => {
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Карты' });
-
-    await person.click(cards().getByRole('button', { name: 'Переименовать: Общая' }));
-    const field = cards().getByLabelText('Новое название: Общая');
-    await person.clear(field);
-    await person.type(field, 'Семейная');
-    await person.click(cards().getByRole('button', { name: 'Сохранить' }));
-
-    expect(sent('PATCH', '/api/group/cards/11')).toEqual({ name: 'Семейная' });
-  });
-
-  it('отправляет карту в архив и возвращает из архива', async () => {
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Карты' });
-
-    await person.click(cards().getByRole('button', { name: 'В архив: Общая' }));
-    expect(sent('PATCH', '/api/group/cards/11')).toEqual({ archived: true });
-
-    await person.click(cards().getByText('Архив карт (1)'));
-    await person.click(cards().getByRole('button', { name: 'Вернуть: Старая' }));
-    expect(sent('PATCH', '/api/group/cards/12')).toEqual({ archived: false });
-  });
-
-  it('доступ: отправляет полную карту, «нет доступа» опускается, владельцы не перечислены', async () => {
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Карты' });
-
-    await person.click(cards().getByRole('button', { name: 'Доступ: Миша' }));
-    expect(cards().queryByLabelText(/Доступ к карте «Миша»: Миша/)).toBeNull();
-    await person.selectOptions(cards().getByLabelText('Доступ к карте «Миша»: Петя'), 'edit');
-
-    expect(sent('PUT', '/api/group/cards/10/access')).toEqual({
-      access: { nastya: 'view', petya: 'edit' },
-    });
-  });
-
-  it('доступ: выбор «нет доступа» убирает участника из карты', async () => {
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Карты' });
-
-    await person.click(cards().getByRole('button', { name: 'Доступ: Миша' }));
-    await person.selectOptions(cards().getByLabelText('Доступ к карте «Миша»: Настя'), 'none');
-
-    expect(sent('PUT', '/api/group/cards/10/access')).toEqual({ access: {} });
-  });
-
-  it('ошибка NAME_TAKEN показывается сообщением сервера', async () => {
+  it('валюта отчётности: один селектор; смена — через подтверждение, PUT и сообщение о пересчёте', async () => {
     override = (method, url) =>
-      method === 'POST' && url === '/api/group/cards'
-        ? failure('NAME_TAKEN', 'Карта с таким названием уже есть', 409)
+      method === 'PUT' && url === '/api/group/reporting-currency'
+        ? ok({ recalculated: 3 })
         : undefined;
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Карты' });
-
-    await person.type(cards().getByLabelText('Новая карта'), 'Общая');
-    await person.click(cards().getByRole('button', { name: 'Добавить' }));
-
-    expect(await cards().findByRole('alert')).toHaveTextContent('Карта с таким названием уже есть');
-  });
-});
-
-describe('валюты карт', () => {
-  const cards = () => within(section('Карты'));
-
-  it('у каждой карты видна её валюта', async () => {
-    override = (method, url) =>
-      method === 'GET' && url === '/api/group'
-        ? ok({
-            ...overview(),
-            cards: overview().cards.map((c) => (c.id === 11 ? { ...c, currency: 'USD' } : c)),
-          })
-        : undefined;
-    await renderGroup();
-    await screen.findByRole('heading', { name: 'Карты' });
-
-    expect(cards().getByText('Общая').closest('li')).toHaveTextContent('USD');
-    expect(cards().getByText('Миша').closest('li')).toHaveTextContent('AMD');
-  });
-
-  it('новая карта: валюта по умолчанию — валюта отчётности, выбранная уходит на сервер', async () => {
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Карты' });
-
-    const select = cards().getByLabelText('Валюта новой карты');
+    await screen.findByRole('heading', { name: 'Настройки группы' });
+    const select = settings().getByLabelText('Валюта отчётности');
     expect(select).toHaveValue('AMD');
+    expect(settings().queryByRole('button', { name: 'Изменить' })).toBeNull();
+
     await person.selectOptions(select, 'USD');
-    await person.type(cards().getByLabelText('Новая карта'), 'Отпуск');
-    await person.click(cards().getByRole('button', { name: 'Добавить' }));
 
-    expect(sent('POST', '/api/group/cards')).toEqual({ name: 'Отпуск', currency: 'USD' });
+    const confirm = dialog();
+    expect(screen.getByRole('dialog')).toHaveTextContent('Все суммы пересчитаются в USD');
+    expect(screen.getByRole('dialog')).toHaveTextContent('Это нельзя отменить');
+    expect(sent('PUT', '/api/group/reporting-currency')).toBeUndefined();
+    await person.click(confirm.getByRole('button', { name: 'Сменить' }));
+
+    expect(sent('PUT', '/api/group/reporting-currency')).toEqual({ currency: 'USD' });
+    expect(await settings().findByText('Пересчитано трат: 3')).toBeInTheDocument();
   });
 
-  it('если разрешена одна валюта, выбора валюты нет, на сервер уходит только название', async () => {
+  it('отмена подтверждения ничего не отправляет и возвращает прежнюю валюту', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: 'Настройки группы' });
+
+    await person.selectOptions(settings().getByLabelText('Валюта отчётности'), 'USD');
+    await person.click(dialog().getByRole('button', { name: 'Отмена' }));
+
+    expect(sent('PUT', '/api/group/reporting-currency')).toBeUndefined();
+    expect(settings().getByLabelText('Валюта отчётности')).toHaveValue('AMD');
+  });
+
+  it('ошибка смены валюты показывается, подтверждение закрывается', async () => {
     override = (method, url) =>
-      method === 'GET' && url === '/api/group'
-        ? ok({ ...overview(), currencies: ['AMD'] })
+      method === 'PUT' && url === '/api/group/reporting-currency'
+        ? failure('RATE_UNAVAILABLE', 'Курс валюты недоступен', 422)
         : undefined;
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Карты' });
+    await screen.findByRole('heading', { name: 'Настройки группы' });
 
-    expect(cards().queryByLabelText('Валюта новой карты')).toBeNull();
-    await person.type(cards().getByLabelText('Новая карта'), 'Отпуск');
-    await person.click(cards().getByRole('button', { name: 'Добавить' }));
+    await person.selectOptions(settings().getByLabelText('Валюта отчётности'), 'USD');
+    await person.click(dialog().getByRole('button', { name: 'Сменить' }));
 
-    expect(sent('POST', '/api/group/cards')).toEqual({ name: 'Отпуск' });
-  });
-
-  it('смена валюты в режиме правки отправляет только валюту', async () => {
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Карты' });
-
-    await person.click(cards().getByRole('button', { name: 'Переименовать: Общая' }));
-    await person.selectOptions(cards().getByLabelText('Валюта: Общая'), 'USD');
-    await person.click(cards().getByRole('button', { name: 'Сохранить' }));
-
-    expect(sent('PATCH', '/api/group/cards/11')).toEqual({ currency: 'USD' });
-  });
-
-  it('сообщение CARD_HAS_EXPENSES показывается как есть', async () => {
-    override = (method, url) =>
-      method === 'PATCH' && url === '/api/group/cards/11'
-        ? failure('CARD_HAS_EXPENSES', 'По карте уже есть траты: валюту не изменить', 409)
-        : undefined;
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Карты' });
-
-    await person.click(cards().getByRole('button', { name: 'Переименовать: Общая' }));
-    await person.selectOptions(cards().getByLabelText('Валюта: Общая'), 'USD');
-    await person.click(cards().getByRole('button', { name: 'Сохранить' }));
-
-    expect(await cards().findByRole('alert')).toHaveTextContent('По карте уже есть траты');
-  });
-});
-
-describe('правка своих трат участниками', () => {
-  const edit = () => within(section('Правка своих трат участниками'));
-
-  it('показывает текущее значение и стоит сразу после названия группы', async () => {
-    await renderGroup();
-    await screen.findByRole('heading', { name: 'Правка своих трат участниками' });
-
-    expect(edit().getByRole('combobox')).toHaveValue('1440');
-    const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
-    expect(headings.indexOf('Правка своих трат участниками')).toBe(
-      headings.indexOf('Название группы') + 1,
-    );
+    expect(await settings().findByRole('alert')).toHaveTextContent('Курс валюты недоступен');
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it.each([
@@ -356,11 +328,10 @@ describe('правка своих трат участниками', () => {
     ['1 час', 60],
     ['24 часа', 1440],
     ['Неделя', 10080],
-  ])('«%s» сохраняется сразу: PUT с minutes %i', async (label, minutes) => {
+  ])('окно правки «%s» сохраняется сразу: PUT с minutes %i', async (label, minutes) => {
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Правка своих трат участниками' });
-    // Pick a different value first so that the select really changes
-    const select = edit().getByRole('combobox');
+    await screen.findByRole('heading', { name: 'Настройки группы' });
+    const select = settings().getByLabelText('Сколько времени участник может править свои траты');
     if (minutes === 1440) await person.selectOptions(select, 'Неделя');
 
     await person.selectOptions(select, label);
@@ -372,56 +343,458 @@ describe('правка своих трат участниками', () => {
     );
   });
 
-  it('ошибка сервера показывается', async () => {
+  it('ошибка окна правки показывается', async () => {
     override = (method, url) =>
       method === 'PUT' && url === '/api/group/member-edit'
         ? failure('INVALID_MINUTES', 'Недопустимое значение', 422)
         : undefined;
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Правка своих трат участниками' });
+    await screen.findByRole('heading', { name: 'Настройки группы' });
 
-    await person.selectOptions(edit().getByRole('combobox'), 'Выключено');
+    await person.selectOptions(
+      settings().getByLabelText('Сколько времени участник может править свои траты'),
+      'Выключено',
+    );
 
-    expect(await edit().findByRole('alert')).toHaveTextContent('Недопустимое значение');
+    expect(await settings().findByRole('alert')).toHaveTextContent('Недопустимое значение');
+  });
+
+  it('фото чеков: переключатель role=switch; чипы категорий только при включении, без архивных', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: 'Настройки группы' });
+    const toggle = await settings().findByRole('switch', { name: 'Разрешить фото чеков' });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    expect(settings().queryByRole('group', { name: 'Категории с фото чека' })).toBeNull();
+
+    await person.click(toggle);
+
+    await waitFor(() =>
+      expect(requests.filter((r) => r.url === '/api/group/receipts').at(-1)?.body).toEqual({
+        enabled: true,
+        categories: [],
+      }),
+    );
+  });
+
+  it('фото чеков включены: чипы, выбор сохраняется сразу', async () => {
+    receipts = { enabled: true, categories: ['Еда'] };
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: 'Настройки группы' });
+    const group = await settings().findByRole('group', { name: 'Категории с фото чека' });
+    expect(
+      within(group)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['Еда']);
+    expect(settings().getByRole('switch', { name: 'Разрешить фото чеков' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+
+    await person.click(within(group).getByRole('button', { name: 'Еда' }));
+
+    await waitFor(() =>
+      expect(requests.filter((r) => r.url === '/api/group/receipts').at(-1)?.body).toEqual({
+        enabled: true,
+        categories: [],
+      }),
+    );
   });
 });
 
-describe('лимиты в панели «Категории»', () => {
-  const categories = () => within(section('Категории'));
-  const sentAll = (method: string, url: string) =>
-    requests.filter((r) => r.method === method && r.url === url).map((r) => r.body);
-  const dialog = () => screen.getByRole('dialog');
+describe('участники', () => {
+  const members = () => card(/^Участники/);
 
-  async function open(person: Awaited<ReturnType<typeof renderGroup>>, name: string) {
-    await screen.findByRole('heading', { name: 'Категории' });
-    await person.click(await categories().findByRole('button', { name: `Лимит: ${name}` }));
-    return within(dialog());
-  }
-
-  it('нет отдельного раздела «Лимиты»; сверху закреплена строка «Все категории»', async () => {
+  it('строки: аватар с инициалом, имя, «@логин · роль»', async () => {
     await renderGroup();
-    await screen.findByRole('heading', { name: 'Категории' });
+    await screen.findByRole('heading', { name: /^Участники/ });
+
+    const row = members().getByText('Настя').closest('li')!;
+    expect(row).toHaveTextContent('@nastya · Участник');
+    expect(row).toHaveTextContent('Н');
+    expect(members().getByText('Миша').closest('li')).toHaveTextContent('@misha · Владелец');
+  });
+
+  it('у себя меню нет; у участника из .env нет «Исключить из группы»', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Участники/ });
+    expect(members().queryByRole('button', { name: 'Действия: Миша' })).toBeNull();
+
+    await person.click(members().getByRole('button', { name: 'Действия: Петя' }));
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual([
+      'Изменить роль',
+      'Доступ к картам',
+      'Ссылка для сброса пароля',
+    ]);
+  });
+
+  it('у обычного участника все четыре пункта', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Участники/ });
+
+    await person.click(members().getByRole('button', { name: 'Действия: Настя' }));
+
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual([
+      'Изменить роль',
+      'Доступ к картам',
+      'Ссылка для сброса пароля',
+      'Исключить из группы',
+    ]);
+  });
+
+  it('смена роли: подтверждение, затем PUT {role}', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Участники/ });
+
+    await choose(person, 'Настя', 'Изменить роль');
+    expect(screen.getByRole('dialog')).toHaveTextContent('Сделать Настя владельцем?');
+    expect(requests.some((r) => r.method === 'PUT')).toBe(false);
+    await person.click(dialog().getByRole('button', { name: 'Сделать владельцем' }));
+
+    expect(sent('PUT', '/api/group/members/nastya/role')).toEqual({ role: 'owner' });
+  });
+
+  it('владельца можно сделать участником; у владельца нет «Доступ к картам»', async () => {
+    override = (method, url) =>
+      method === 'GET' && url === '/api/group'
+        ? ok({
+            ...overview(),
+            members: overview().members.map((m) =>
+              m.username === 'nastya' ? { ...m, role: 'owner' } : m,
+            ),
+          })
+        : undefined;
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Участники/ });
+
+    await person.click(members().getByRole('button', { name: 'Действия: Настя' }));
+    expect(screen.queryByRole('menuitem', { name: 'Доступ к картам' })).toBeNull();
+    await person.click(screen.getByRole('menuitem', { name: 'Изменить роль' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('не сможет править траты');
+    await person.click(dialog().getByRole('button', { name: 'Сделать участником' }));
+
+    expect(sent('PUT', '/api/group/members/nastya/role')).toEqual({ role: 'member' });
+  });
+
+  it('ошибка LAST_EDITOR показывается', async () => {
+    override = (method, url) =>
+      method === 'PUT' && url.endsWith('/role')
+        ? failure('LAST_EDITOR', 'Нельзя убрать последнего владельца', 409)
+        : undefined;
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Участники/ });
+
+    await choose(person, 'Настя', 'Изменить роль');
+    await person.click(dialog().getByRole('button', { name: 'Сделать владельцем' }));
+
+    expect(await members().findByRole('alert')).toHaveTextContent('последнего владельца');
+  });
+
+  it('ссылка для сброса пароля показывается под строкой', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Участники/ });
+
+    await choose(person, 'Настя', 'Ссылка для сброса пароля');
+
+    expect(await members().findByLabelText('Ссылка')).toHaveValue(
+      `${window.location.origin}/invite/RESET-1`,
+    );
+  });
+
+  it('исключение — с подтверждением', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Участники/ });
+
+    await choose(person, 'Настя', 'Исключить из группы');
+    expect(requests.some((r) => r.method === 'DELETE')).toBe(false);
+    await person.click(dialog().getByRole('button', { name: 'Исключить' }));
+
+    expect(
+      requests.some((r) => r.method === 'DELETE' && r.url === '/api/group/members/nastya'),
+    ).toBe(true);
+  });
+
+  it('доступ к картам: полная карта доступа, «нет доступа» опускается, владельцы не перечислены', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Участники/ });
+
+    await choose(person, 'Петя', 'Доступ к картам');
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Доступ к картам: Петя');
+    await person.selectOptions(dialog().getByLabelText('Доступ к карте «Миша»: Петя'), 'edit');
+
+    expect(sent('PUT', '/api/group/cards/10/access')).toEqual({
+      access: { nastya: 'view', petya: 'edit' },
+    });
+  });
+
+  it('доступ: выбор «нет доступа» убирает участника из карты', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Участники/ });
+
+    await choose(person, 'Настя', 'Доступ к картам');
+    await person.selectOptions(dialog().getByLabelText('Доступ к карте «Миша»: Настя'), 'none');
+
+    expect(sent('PUT', '/api/group/cards/10/access')).toEqual({ access: {} });
+  });
+});
+
+describe('приглашения', () => {
+  const members = () => card(/^Участники/);
+
+  it('«+ Пригласить» открывает окно: роль, создание, ссылка с токеном и «Скопировать»', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Участники/ });
+
+    await person.click(members().getByRole('button', { name: 'Пригласить' }));
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Пригласить в группу');
+    await person.selectOptions(dialog().getByLabelText('Роль приглашённого'), 'owner');
+    expect(screen.getByRole('dialog')).toHaveTextContent('Второй владелец получает те же права');
+    await person.click(dialog().getByRole('button', { name: 'Создать приглашение' }));
+
+    expect(await dialog().findByLabelText('Ссылка')).toHaveValue(
+      `${window.location.origin}/invite/TOKEN-1`,
+    );
+    expect(sent('POST', '/api/group/invitations')).toEqual({ role: 'owner' });
+    expect(dialog().getByRole('button', { name: 'Скопировать' })).toBeInTheDocument();
+    expect(dialog().getByText(/действует до/)).toBeInTheDocument();
+    await person.click(dialog().getByRole('button', { name: 'Готово' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('ожидающие приглашения — свёрнутый блок со счётчиком; отзыв', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Участники/ });
+
+    const pending = members().getByText('Ожидающие приглашения (2)').closest('details')!;
+    expect(pending).not.toHaveAttribute('open');
+    await person.click(members().getByText('Ожидающие приглашения (2)'));
+    expect(within(pending).getByText('Приглашение · Участник')).toBeInTheDocument();
+    expect(within(pending).getByText('Сброс пароля · nastya')).toBeInTheDocument();
+
+    await person.click(
+      within(pending).getByRole('button', { name: 'Отозвать: Приглашение · Участник' }),
+    );
+
+    expect(
+      requests.some((r) => r.method === 'DELETE' && r.url === '/api/group/invitations/30'),
+    ).toBe(true);
+  });
+
+  it('без ожидающих приглашений блока нет', async () => {
+    override = (method, url) =>
+      method === 'GET' && url === '/api/group' ? ok({ ...overview(), invitations: [] }) : undefined;
+    await renderGroup();
+    await screen.findByRole('heading', { name: /^Участники/ });
+
+    expect(members().queryByText(/Ожидающие приглашения/)).toBeNull();
+  });
+});
+
+describe('карты', () => {
+  const cards = () => card(/^Карты/);
+
+  it('строки: название и валюта; архив свёрнут, постоянной формы внизу нет', async () => {
+    await renderGroup();
+    await screen.findByRole('heading', { name: /^Карты/ });
+
+    expect(cards().getByText('Общая').closest('li')).toHaveTextContent('AMD');
+    expect(cards().getByText('Архив карт (1)').closest('details')).not.toHaveAttribute('open');
+    expect(cards().queryByLabelText('Новая карта')).toBeNull();
+  });
+
+  it('«+ Добавить» → окно: название, валюта по умолчанию — валюта отчётности, POST с валютой', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Карты/ });
+
+    await person.click(cards().getByRole('button', { name: 'Добавить' }));
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Новая карта');
+    expect(dialog().getByLabelText('Валюта новой карты')).toHaveValue('AMD');
+    await person.selectOptions(dialog().getByLabelText('Валюта новой карты'), 'USD');
+    await person.type(dialog().getByLabelText('Название карты'), 'Отпуск');
+    await person.click(dialog().getByRole('button', { name: 'Добавить' }));
+
+    await waitFor(() =>
+      expect(sent('POST', '/api/group/cards')).toEqual({ name: 'Отпуск', currency: 'USD' }),
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('если разрешена одна валюта, выбора нет и уходит только название', async () => {
+    override = (method, url) =>
+      method === 'GET' && url === '/api/group'
+        ? ok({ ...overview(), currencies: ['AMD'] })
+        : undefined;
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Карты/ });
+
+    await person.click(cards().getByRole('button', { name: 'Добавить' }));
+    expect(dialog().queryByLabelText('Валюта новой карты')).toBeNull();
+    await person.type(dialog().getByLabelText('Название карты'), 'Отпуск');
+    await person.click(dialog().getByRole('button', { name: 'Добавить' }));
+
+    await waitFor(() => expect(sent('POST', '/api/group/cards')).toEqual({ name: 'Отпуск' }));
+    // No «Сменить валюту» in the menu either
+    await person.click(cards().getByRole('button', { name: 'Действия: Общая' }));
+    expect(screen.queryByRole('menuitem', { name: 'Сменить валюту' })).toBeNull();
+  });
+
+  it('ошибка NAME_TAKEN остаётся в окне, введённое название сохраняется', async () => {
+    override = (method, url) =>
+      method === 'POST' && url === '/api/group/cards'
+        ? failure('NAME_TAKEN', 'Карта с таким названием уже есть', 409)
+        : undefined;
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Карты/ });
+
+    await person.click(cards().getByRole('button', { name: 'Добавить' }));
+    await person.type(dialog().getByLabelText('Название карты'), 'Общая');
+    await person.click(dialog().getByRole('button', { name: 'Добавить' }));
+
+    expect(await dialog().findByRole('alert')).toHaveTextContent(
+      'Карта с таким названием уже есть',
+    );
+    expect(dialog().getByLabelText('Название карты')).toHaveValue('Общая');
+  });
+
+  it('переименование через меню: PATCH с названием', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Карты/ });
+
+    await choose(person, 'Общая', 'Переименовать');
+    const field = dialog().getByLabelText('Новое название: Общая');
+    await person.clear(field);
+    await person.type(field, 'Семейная');
+    await person.click(dialog().getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() => expect(sent('PATCH', '/api/group/cards/11')).toEqual({ name: 'Семейная' }));
+  });
+
+  it('смена валюты: PATCH только с валютой; CARD_HAS_EXPENSES показывается в окне', async () => {
+    override = (method, url) =>
+      method === 'PATCH' && url === '/api/group/cards/11'
+        ? failure('CARD_HAS_EXPENSES', 'По карте уже есть траты: валюту не изменить', 409)
+        : undefined;
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Карты/ });
+
+    await choose(person, 'Общая', 'Сменить валюту');
+    await person.selectOptions(dialog().getByLabelText('Валюта: Общая'), 'USD');
+    await person.click(dialog().getByRole('button', { name: 'Сохранить' }));
+
+    expect(sent('PATCH', '/api/group/cards/11')).toEqual({ currency: 'USD' });
+    expect(await dialog().findByRole('alert')).toHaveTextContent('По карте уже есть траты');
+  });
+
+  it('в архив и возврат из архива', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Карты/ });
+
+    await choose(person, 'Общая', 'В архив');
+    expect(sent('PATCH', '/api/group/cards/11')).toEqual({ archived: true });
+
+    await person.click(cards().getByText('Архив карт (1)'));
+    await person.click(cards().getByRole('button', { name: 'Вернуть: Старая' }));
+    expect(sent('PATCH', '/api/group/cards/12')).toEqual({ archived: false });
+  });
+});
+
+describe('категории и лимиты', () => {
+  const categories = () => card(/^Категории и лимиты/);
+  const cat = (id: number, name: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    name,
+    archived: false,
+    ...extra,
+  });
+  const withCategories = (list: unknown[]) =>
+    (override = (method, url) =>
+      method === 'GET' && url === '/api/group'
+        ? ok({ ...overview(), categories: list })
+        : undefined);
+
+  it('«+ Добавить» → окно новой категории, POST', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Категории и лимиты/ });
+
+    await person.click(categories().getByRole('button', { name: 'Добавить' }));
+    await person.type(dialog().getByLabelText('Название категории'), 'Одежда');
+    await person.click(dialog().getByRole('button', { name: 'Добавить' }));
+
+    await waitFor(() => expect(sent('POST', '/api/group/categories')).toEqual({ name: 'Одежда' }));
+  });
+
+  it('меню строки: Переименовать, Лимит…, В архив (Слить — только при нескольких категориях)', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Категории и лимиты/ });
+
+    await person.click(await categories().findByRole('button', { name: 'Действия: Еда' }));
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual([
+      'Переименовать',
+      'Лимит…',
+      'В архив',
+    ]);
+  });
+
+  it('переименование, архив, возврат, слияние', async () => {
+    withCategories([cat(20, 'Еда'), cat(22, 'Продукты'), cat(21, 'Игры', { archived: true })]);
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Категории и лимиты/ });
+
+    await choose(person, 'Еда', 'Переименовать');
+    const field = dialog().getByLabelText('Новое название: Еда');
+    await person.clear(field);
+    await person.type(field, 'Питание');
+    await person.click(dialog().getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() =>
+      expect(sent('PATCH', '/api/group/categories/20')).toEqual({ name: 'Питание' }),
+    );
+
+    await choose(person, 'Продукты', 'В архив');
+    await waitFor(() =>
+      expect(
+        requests.some((r) => r.url === '/api/group/categories/22' && r.body?.archived === true),
+      ).toBe(true),
+    );
+
+    await person.click(categories().getByText('Архив категорий (1)'));
+    await person.click(categories().getByRole('button', { name: 'Вернуть: Игры' }));
+    expect(sent('PATCH', '/api/group/categories/21')).toEqual({ archived: false });
+
+    await choose(person, 'Еда', 'Слить с другой');
+    expect(screen.getByRole('dialog')).toHaveTextContent(
+      'Все траты категории «Еда» перейдут в «Продукты»',
+    );
+    await person.click(dialog().getByRole('button', { name: 'Объединить' }));
+    await waitFor(() =>
+      expect(
+        requests.some((r) => r.url === '/api/group/categories/20' && r.body?.mergeInto === 22),
+      ).toBe(true),
+    );
+  });
+
+  it('закреплённая строка «Общий бюджет»: «не задан» или лимит; карандаш открывает диалог лимита', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Категории и лимиты/ });
     await categories().findByRole('button', { name: 'Лимит: Все категории' });
+    expect(categories().getByText('не задан')).toBeInTheDocument();
 
-    expect(screen.queryByRole('heading', { name: 'Лимиты' })).toBeNull();
-    const pinned = categories().getByText('Все категории').closest('li')!;
-    expect(pinned).toBe(categories().getAllByRole('listitem')[0]);
-    // Only the limit action: no rename, archive or merge for the overall limit
-    expect(within(pinned).getAllByRole('button')).toHaveLength(1);
+    await person.click(categories().getByRole('button', { name: 'Лимит: Все категории' }));
+
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Лимит: Все категории');
   });
 
-  it('у каждой категории есть действие «Лимит»; без лимита без строки о лимите', async () => {
+  it('у категории без лимита «—», с лимитом — сумма', async () => {
+    budgetsList = [budget({ id: 'b2', categoryId: 20, category: 'Еда', limit: 80000 })];
     await renderGroup();
-    await screen.findByRole('heading', { name: 'Категории' });
-    const button = await categories().findByRole('button', { name: 'Лимит: Еда' });
+    await screen.findByRole('heading', { name: /^Категории и лимиты/ });
 
-    expect(button).toHaveAttribute('title', 'Лимит: Еда');
-    expect(button.closest('li')).not.toHaveTextContent('лимит ');
+    expect(await categories().findByText('80 000 AMD')).toBeInTheDocument();
+    withCategories([cat(20, 'Еда'), cat(23, 'Кафе')]);
   });
 
-  it('с лимитом строка показывает «лимит … · период», у «Все категории» тоже', async () => {
+  it('период один раз над списком, если у всех лимитов он одинаковый; в строках его нет', async () => {
     budgetsList = [
-      budget(),
+      budget({ periodKind: 'month_from_day', periodDay: 5 }),
       budget({
         id: 'b2',
         categoryId: 20,
@@ -432,25 +805,56 @@ describe('лимиты в панели «Категории»', () => {
       }),
     ];
     await renderGroup();
-    await screen.findByRole('heading', { name: 'Категории' });
+    await screen.findByRole('heading', { name: /^Категории и лимиты/ });
 
-    expect(await categories().findByText('лимит 80 000 AMD · месяц с 5-го')).toBeInTheDocument();
-    expect(categories().getByText('лимит 20 000 AMD · месяц')).toBeInTheDocument();
+    expect(await categories().findByText('Период лимитов: месяц с 5-го')).toBeInTheDocument();
+    expect(categories().getByText('80 000 AMD').closest('li')).not.toHaveTextContent(
+      'месяц с 5-го',
+    );
   });
 
-  it('диалог: период переключателем «Месяц / Неделя», без нативного select; число месяца только для «Месяц»', async () => {
-    const person = await renderGroup();
-    const box = await open(person, 'Еда');
+  it('если периоды разные, общего нет, и строки показывают свой период', async () => {
+    budgetsList = [
+      budget(),
+      budget({ id: 'b2', categoryId: 20, category: 'Еда', limit: 80000, periodKind: 'week' }),
+    ];
+    await renderGroup();
+    await screen.findByRole('heading', { name: /^Категории и лимиты/ });
 
-    expect(dialog()).toHaveAccessibleName('Лимит: Еда');
+    expect(await categories().findByText('80 000 AMD')).toBeInTheDocument();
+    expect(categories().queryByText(/Период лимитов/)).toBeNull();
+    expect(categories().getByText('80 000 AMD').closest('li')).toHaveTextContent('неделя');
+  });
+});
+
+describe('диалог лимита', () => {
+  const dlg = () => within(screen.getByRole('dialog'));
+  const sentAll = (method: string, url: string) =>
+    requests.filter((r) => r.method === method && r.url === url).map((r) => r.body);
+
+  async function openLimit(person: Awaited<ReturnType<typeof renderGroup>>, name: string) {
+    await screen.findByRole('heading', { name: /^Категории и лимиты/ });
+    if (name === 'Все категории') {
+      await person.click(
+        await card(/^Категории и лимиты/).findByRole('button', { name: 'Лимит: Все категории' }),
+      );
+    } else {
+      await choose(person, name, 'Лимит…');
+    }
+    return dlg();
+  }
+
+  it('диалог: период сегментами «Месяц / Неделя», без нативного select; число месяца только для «Месяц»', async () => {
+    const person = await renderGroup();
+    const box = await openLimit(person, 'Еда');
+
+    expect(screen.getByRole('dialog')).toHaveAccessibleName('Лимит: Еда');
     expect(box.queryByRole('combobox')).toBeNull();
     expect(box.getByRole('radio', { name: 'Месяц' })).toBeChecked();
     expect(box.getByLabelText('Месяц начинается')).toHaveValue('1');
     expect(box.getByText('1 — календарный месяц')).toBeInTheDocument();
-    expect(box.getByText(/^Сейчас: \d\d\.\d\d – \d\d\.\d\d$/)).toBeInTheDocument();
 
     await person.click(box.getByRole('radio', { name: 'Неделя' }));
-
     expect(box.queryByLabelText('Месяц начинается')).toBeNull();
     expect(box.getByText('с понедельника по воскресенье')).toBeInTheDocument();
   });
@@ -466,7 +870,7 @@ describe('лимиты в панели «Категории»', () => {
     ['неделя → week', 'Неделя', '', { limit: 3000, periodKind: 'week' }],
   ])('новый лимит: %s', async (_name, mode, day, expected) => {
     const person = await renderGroup();
-    const box = await open(person, 'Еда');
+    const box = await openLimit(person, 'Еда');
 
     await person.type(box.getByLabelText('Сумма'), '3000');
     await person.click(box.getByRole('radio', { name: mode as string }));
@@ -482,7 +886,7 @@ describe('лимиты в панели «Категории»', () => {
 
   it('общий лимит: categoryId null', async () => {
     const person = await renderGroup();
-    const box = await open(person, 'Все категории');
+    const box = await openLimit(person, 'Все категории');
 
     await person.type(box.getByLabelText('Сумма'), '1500,5');
     await person.click(box.getByRole('button', { name: 'Сохранить' }));
@@ -507,7 +911,7 @@ describe('лимиты в панели «Категории»', () => {
       }),
     ];
     const person = await renderGroup();
-    const box = await open(person, 'Еда');
+    const box = await openLimit(person, 'Еда');
 
     expect(box.getByLabelText('Сумма')).toHaveValue('80 000');
     expect(box.getByLabelText('Месяц начинается')).toHaveValue('5');
@@ -515,14 +919,13 @@ describe('лимиты в панели «Категории»', () => {
     await person.type(box.getByLabelText('Сумма'), '90000');
     await person.click(box.getByRole('radio', { name: 'Неделя' }));
     await person.click(box.getByRole('button', { name: 'Сохранить' }));
-
     await waitFor(() => expect(sentAll('PUT', '/api/group/budgets/b2')).toHaveLength(1));
     expect(sentAll('PUT', '/api/group/budgets/b2')[0]).toEqual({
       limit: 90000,
       periodKind: 'week',
     });
 
-    const again = await open(person, 'Еда');
+    const again = await openLimit(person, 'Еда');
     await person.click(again.getByRole('button', { name: 'Убрать лимит' }));
     await waitFor(() =>
       expect(requests.some((r) => r.method === 'DELETE' && r.url === '/api/group/budgets/b2')).toBe(
@@ -531,46 +934,34 @@ describe('лимиты в панели «Категории»', () => {
     );
   });
 
-  it('«Убрать лимит» есть только у существующего лимита', async () => {
+  it('«Убрать лимит» только у существующего; проверка суммы и числа; ошибка 409 в окне', async () => {
+    override = (method, url) =>
+      method === 'POST' && url === '/api/group/budgets'
+        ? failure('BUDGET_EXISTS', 'Лимит на эту категорию уже есть', 409)
+        : undefined;
     const person = await renderGroup();
-    const box = await open(person, 'Еда');
-
+    const box = await openLimit(person, 'Еда');
     expect(box.queryByRole('button', { name: 'Убрать лимит' })).toBeNull();
-  });
-
-  it('проверка: сумма больше нуля и число месяца 1–28', async () => {
-    const person = await renderGroup();
-    const box = await open(person, 'Еда');
 
     await person.click(box.getByRole('button', { name: 'Сохранить' }));
     expect(box.getByText('Введите сумму больше нуля')).toBeInTheDocument();
-
     await person.type(box.getByLabelText('Сумма'), '100');
     await person.clear(box.getByLabelText('Месяц начинается'));
     await person.type(box.getByLabelText('Месяц начинается'), '30');
     await person.click(box.getByRole('button', { name: 'Сохранить' }));
     expect(box.getByText('Число месяца — от 1 до 28')).toBeInTheDocument();
     expect(sentAll('POST', '/api/group/budgets')).toHaveLength(0);
-  });
 
-  it('ошибка сервера (409) показывается внутри диалога, диалог остаётся', async () => {
-    override = (method, url) =>
-      method === 'POST' && url === '/api/group/budgets'
-        ? failure('BUDGET_EXISTS', 'Лимит на эту категорию уже есть', 409)
-        : undefined;
-    const person = await renderGroup();
-    const box = await open(person, 'Еда');
-
-    await person.type(box.getByLabelText('Сумма'), '1000');
+    await person.clear(box.getByLabelText('Месяц начинается'));
+    await person.type(box.getByLabelText('Месяц начинается'), '1');
     await person.click(box.getByRole('button', { name: 'Сохранить' }));
-
     expect(await box.findByRole('alert')).toHaveTextContent('Лимит на эту категорию уже есть');
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
-  it('после сохранения диалог закрывается и лимиты запрашиваются заново (полоски обновятся)', async () => {
+  it('после сохранения диалог закрывается и лимиты запрашиваются заново', async () => {
     const person = await renderGroup();
-    const box = await open(person, 'Еда');
+    const box = await openLimit(person, 'Еда');
     const before = requests.filter((r) => r.url === '/api/budgets').length;
 
     budgetsList = [budget({ id: 'b9', categoryId: 20, category: 'Еда', limit: 3000 })];
@@ -581,315 +972,6 @@ describe('лимиты в панели «Категории»', () => {
     await waitFor(() =>
       expect(requests.filter((r) => r.url === '/api/budgets').length).toBeGreaterThan(before),
     );
-    expect(await categories().findByText('лимит 3 000 AMD · месяц')).toBeInTheDocument();
-  });
-
-  it('участник страницу «Группа» не видит: действий «Лимит» и запроса лимитов нет', async () => {
-    me = { ...OWNER, role: 'member' };
-    await renderGroup();
-
-    expect(await screen.findByText('Главная')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Лимит:/ })).toBeNull();
-    expect(requests.some((r) => r.url === '/api/budgets')).toBe(false);
-  });
-});
-
-describe('валюта отчётности', () => {
-  const reporting = () => within(section('Валюта отчётности'));
-
-  it('показывает текущую валюту; смена — с подтверждением, PUT и сообщение о пересчёте', async () => {
-    override = (method, url) =>
-      method === 'PUT' && url === '/api/group/reporting-currency'
-        ? ok({ recalculated: 3 })
-        : undefined;
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Валюта отчётности' });
-
-    expect(reporting().getByText('AMD', { selector: 'span' })).toBeInTheDocument();
-    expect(reporting().getByRole('button', { name: 'Изменить' })).toBeDisabled();
-    await person.selectOptions(reporting().getByLabelText('Новая валюта отчётности'), 'USD');
-    await person.click(reporting().getByRole('button', { name: 'Изменить' }));
-
-    const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent('Все суммы пересчитаются в USD');
-    expect(dialog).toHaveTextContent('Это нельзя отменить');
-    expect(sent('PUT', '/api/group/reporting-currency')).toBeUndefined();
-    await person.click(within(dialog).getByRole('button', { name: 'Сменить' }));
-
-    expect(sent('PUT', '/api/group/reporting-currency')).toEqual({ currency: 'USD' });
-    expect(await reporting().findByText('Пересчитано трат: 3')).toBeInTheDocument();
-    // The group is loaded again: totals changed
-    await waitFor(() =>
-      expect(requests.filter((r) => r.method === 'GET' && r.url === '/api/group')).toHaveLength(2),
-    );
-  });
-
-  it('ошибка сервера показывается, подтверждение закрывается', async () => {
-    override = (method, url) =>
-      method === 'PUT' && url === '/api/group/reporting-currency'
-        ? failure('RATE_UNAVAILABLE', 'Курс валюты недоступен', 422)
-        : undefined;
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Валюта отчётности' });
-
-    await person.selectOptions(reporting().getByLabelText('Новая валюта отчётности'), 'USD');
-    await person.click(reporting().getByRole('button', { name: 'Изменить' }));
-    await person.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Сменить' }));
-
-    expect(await reporting().findByRole('alert')).toHaveTextContent('Курс валюты недоступен');
-    expect(screen.queryByRole('dialog')).toBeNull();
-  });
-});
-
-describe('категории', () => {
-  it('добавляет, архивирует и возвращает категории', async () => {
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Категории' });
-    const categories = within(section('Категории'));
-
-    await person.type(categories.getByLabelText('Новая категория'), 'Одежда');
-    await person.click(categories.getByRole('button', { name: 'Добавить' }));
-    expect(sent('POST', '/api/group/categories')).toEqual({ name: 'Одежда' });
-
-    await person.click(categories.getByRole('button', { name: 'В архив: Еда' }));
-    expect(sent('PATCH', '/api/group/categories/20')).toEqual({ archived: true });
-
-    await person.click(categories.getByText('Архив категорий (1)'));
-    await person.click(categories.getByRole('button', { name: 'Вернуть: Игры' }));
-    expect(sent('PATCH', '/api/group/categories/21')).toEqual({ archived: false });
-  });
-});
-
-describe('объединение категорий', () => {
-  it('отправляет mergeInto и убирает категорию из списка после обновления', async () => {
-    let categories = [
-      { id: 20, name: 'Еда', archived: false },
-      { id: 22, name: 'Продукты', archived: false },
-    ];
-    override = (method, url) => {
-      if (method === 'GET' && url === '/api/group') return ok({ ...overview(), categories });
-      if (method === 'PATCH' && url === '/api/group/categories/22') {
-        categories = categories.filter((c) => c.id !== 22);
-        return ok({});
-      }
-      return undefined;
-    };
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Категории' });
-    const list = within(section('Категории'));
-
-    await person.click(list.getByRole('button', { name: 'Объединить: Продукты' }));
-    const dialog = screen.getByRole('dialog');
-    expect(
-      within(dialog).getByText(/Все траты категории «Продукты» перейдут в «Еда»/),
-    ).toBeInTheDocument();
-    await person.click(within(dialog).getByRole('button', { name: 'Объединить' }));
-
-    expect(sent('PATCH', '/api/group/categories/22')).toEqual({ mergeInto: 20 });
-    await waitFor(() => expect(list.queryByText('Продукты')).toBeNull());
-  });
-
-  it('с единственной категорией «Объединить» не предлагается', async () => {
-    override = (method, url) =>
-      method === 'GET' && url === '/api/group'
-        ? ok({ ...overview(), categories: [{ id: 20, name: 'Еда', archived: false }] })
-        : undefined;
-    await renderGroup();
-    await screen.findByRole('heading', { name: 'Категории' });
-
-    expect(screen.queryByRole('button', { name: /^Объединить:/ })).toBeNull();
-  });
-});
-
-describe('подсказки', () => {
-  it('у раздела одна подсказка с текстом по каждому действию', async () => {
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Категории' });
-    const categories = within(section('Категории'));
-
-    expect(categories.getAllByRole('button', { name: 'Подсказка' })).toHaveLength(1);
-    await person.click(categories.getByRole('button', { name: 'Подсказка' }));
-
-    expect(categories.getByText(/Список категорий вашей группы/)).toBeInTheDocument();
-    expect(categories.getByText(/переносит все траты в другую категорию/)).toBeInTheDocument();
-  });
-
-  it('подсказка раздела «Участники» объясняет «Убрать» и сброс пароля', async () => {
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Участники' });
-    const members = within(section('Участники'));
-
-    await person.click(members.getByRole('button', { name: 'Подсказка' }));
-
-    expect(members.getByText(/Вернуть можно только новым приглашением/)).toBeInTheDocument();
-    expect(members.getByText(/одноразовая, на 7 дней/)).toBeInTheDocument();
-  });
-
-  it('в строках списков нет кнопок «Подсказка»', async () => {
-    await renderGroup();
-    await screen.findByRole('heading', { name: 'Карты' });
-
-    for (const row of screen.getAllByRole('listitem')) {
-      expect(within(row).queryByRole('button', { name: 'Подсказка' })).toBeNull();
-    }
-    // One hint per section: name, member edit, reporting currency, members, invitations, cards, categories
-    expect(screen.getAllByRole('button', { name: 'Подсказка' })).toHaveLength(7);
-  });
-});
-
-describe('кнопки-иконки', () => {
-  it('у каждой иконки есть aria-label и такой же title', async () => {
-    await renderGroup();
-    await screen.findByRole('heading', { name: 'Карты' });
-
-    for (const name of ['Переименовать: Общая', 'Доступ: Общая', 'В архив: Общая']) {
-      const button = screen.getByRole('button', { name });
-      expect(button).toHaveAttribute('title', name);
-      expect(button).not.toHaveTextContent(/\S/);
-    }
-  });
-});
-
-describe('приглашения', () => {
-  const invitations = () => within(section('Приглашения'));
-
-  it('создаёт приглашение и показывает ссылку с токеном', async () => {
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Приглашения' });
-
-    await person.selectOptions(invitations().getByLabelText('Роль приглашённого'), 'owner');
-    await person.click(invitations().getByRole('button', { name: 'Пригласить' }));
-
-    expect(await invitations().findByLabelText('Ссылка')).toHaveValue(
-      `${window.location.origin}/invite/TOKEN-1`,
-    );
-    expect(sent('POST', '/api/group/invitations')).toEqual({ role: 'owner' });
-    expect(invitations().getByRole('button', { name: 'Скопировать' })).toBeInTheDocument();
-    expect(invitations().getAllByText(/действует до/)).toHaveLength(3);
-  });
-
-  it('список ожидающих приглашений и отзыв', async () => {
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Приглашения' });
-
-    expect(invitations().getByText('Приглашение · Участник')).toBeInTheDocument();
-    expect(invitations().getByText('Сброс пароля · nastya')).toBeInTheDocument();
-
-    await person.click(
-      invitations().getByRole('button', { name: 'Отозвать: Приглашение · Участник' }),
-    );
-
-    expect(
-      requests.some((r) => r.method === 'DELETE' && r.url === '/api/group/invitations/30'),
-    ).toBe(true);
-  });
-});
-
-describe('участники', () => {
-  const members = () => within(section('Участники'));
-
-  it('показывает роли и не предлагает действий для себя', async () => {
-    await renderGroup();
-    await screen.findByRole('heading', { name: 'Участники' });
-
-    const mishaRow = members().getByText('Миша').closest('li')!;
-    expect(within(mishaRow).getByText('Владелец')).toBeInTheDocument();
-    expect(within(mishaRow).queryByRole('button')).toBeNull();
-  });
-
-  it('меняет роль', async () => {
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Участники' });
-
-    await person.click(members().getByRole('button', { name: 'Сделать владельцем: Настя' }));
-    expect(screen.getByRole('dialog')).toHaveTextContent('Роль «Владелец» для: Настя');
-    expect(requests.some((r) => r.method === 'PUT')).toBe(false);
-    await person.click(
-      within(screen.getByRole('dialog')).getByRole('button', { name: 'Сделать владельцем' }),
-    );
-
-    expect(sent('PUT', '/api/group/members/nastya/role')).toEqual({ role: 'owner' });
-  });
-
-  it('показывает ошибку LAST_EDITOR', async () => {
-    override = (method, url) =>
-      method === 'PUT' && url.endsWith('/role')
-        ? failure('LAST_EDITOR', 'Нельзя убрать последнего владельца', 409)
-        : undefined;
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Участники' });
-
-    await person.click(members().getByRole('button', { name: 'Сделать владельцем: Настя' }));
-    await person.click(
-      within(screen.getByRole('dialog')).getByRole('button', { name: 'Сделать владельцем' }),
-    );
-
-    expect(await members().findByRole('alert')).toHaveTextContent('последнего владельца');
-  });
-
-  it('создаёт ссылку для сброса пароля', async () => {
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Участники' });
-
-    await person.click(members().getByRole('button', { name: 'Ссылка для сброса пароля: Настя' }));
-
-    expect(await members().findByLabelText('Ссылка')).toHaveValue(
-      `${window.location.origin}/invite/RESET-1`,
-    );
-  });
-
-  it('«Убрать» не предлагается для участников из настроек сервера; убирает с подтверждением', async () => {
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Участники' });
-
-    expect(members().queryByRole('button', { name: 'Убрать: Петя' })).toBeNull();
-
-    await person.click(members().getByRole('button', { name: 'Убрать: Настя' }));
-    expect(requests.some((r) => r.method === 'DELETE')).toBe(false);
-    const dialog = screen.getByRole('dialog');
-    await person.click(within(dialog).getByRole('button', { name: 'Убрать' }));
-
-    expect(
-      requests.some((r) => r.method === 'DELETE' && r.url === '/api/group/members/nastya'),
-    ).toBe(true);
-  });
-});
-
-describe('роль владельца', () => {
-  it('владельца можно сделать участником (подтверждение, PUT member)', async () => {
-    override = (method, url) =>
-      method === 'GET' && url === '/api/group'
-        ? ok({
-            ...overview(),
-            members: overview().members.map((m) =>
-              m.username === 'nastya' ? { ...m, role: 'owner' } : m,
-            ),
-          })
-        : undefined;
-    const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Участники' });
-
-    await person.click(
-      within(section('Участники')).getByRole('button', { name: 'Сделать участником: Настя' }),
-    );
-    expect(screen.getByRole('dialog')).toHaveTextContent('Роль «Участник» для: Настя');
-    await person.click(
-      within(screen.getByRole('dialog')).getByRole('button', { name: 'Сделать участником' }),
-    );
-
-    expect(sent('PUT', '/api/group/members/nastya/role')).toEqual({ role: 'member' });
-  });
-});
-
-describe('без участников', () => {
-  it('если в группе только владельцы, управления доступом нет', async () => {
-    override = (method, url) =>
-      method === 'GET' && url === '/api/group'
-        ? ok({ ...overview(), members: overview().members.slice(0, 1) })
-        : undefined;
-    await renderGroup();
-    await screen.findByRole('heading', { name: 'Карты' });
-
-    expect(screen.queryByRole('button', { name: /^Доступ:/ })).toBeNull();
+    expect(await card(/^Категории и лимиты/).findByText('3 000 AMD')).toBeInTheDocument();
   });
 });

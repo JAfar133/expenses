@@ -313,3 +313,18 @@ export const CameraIcon = () => (
     <circle cx="12" cy="13" r="3.5" />
   </Icon>
 );
+
+export const MoreIcon = () => (
+  <Icon>
+    <circle cx="5" cy="12" r="1.3" />
+    <circle cx="12" cy="12" r="1.3" />
+    <circle cx="19" cy="12" r="1.3" />
+  </Icon>
+);
+
+export const CreditCardIcon = () => (
+  <Icon>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="M3 10h18M7 15h4" />
+  </Icon>
+);

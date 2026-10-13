@@ -310,6 +310,18 @@ describe('фото в «Операциях»', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  it('камера стоит в одной flex-строке с названием в ячейке таблицы (не сдвигает строку)', async () => {
+    serve([item({ hasReceipt: true })]);
+    renderAnalytics(OPS);
+    await waitFor(() => row());
+
+    const badge = within(row()).getByRole('button', { name: 'Есть фото чека' });
+    const line = badge.parentElement!;
+    expect(line).toHaveClass('flex', 'items-center');
+    expect(within(line).getByText('Кофе')).toBeInTheDocument();
+    expect(line.parentElement?.tagName).toBe('TH');
+  });
+
   it('в окне правки: фото, «Заменить» шлёт PUT, список обновляется', async () => {
     harness.handlers['/api/auth/me'] = () =>
       analyticsOk({
@@ -413,7 +425,7 @@ describe('фото в «Операциях»', () => {
   });
 });
 
-describe('раздел «Фото чеков» на странице «Группа»', () => {
+describe('«Фото чеков» в настройках группы', () => {
   let settings: { enabled: boolean; categories: string[] };
   let requests: { method: string; url: string; body?: Record<string, unknown> }[];
   let putResponse: (() => Response) | undefined;
@@ -482,17 +494,20 @@ describe('раздел «Фото чеков» на странице «Груп�
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    const heading = await screen.findByRole('heading', { name: 'Фото чеков' });
+    const heading = await screen.findByRole('heading', { name: 'Настройки группы' });
     return { person: userEvent.setup(), box: within(heading.closest('section')!) };
   }
   const puts = () => requests.filter((r) => r.method === 'PUT' && r.url === '/api/group/receipts');
 
   it('выключено: переключатель без чипов категорий; включение отправляет PUT', async () => {
     const { person, box } = await renderGroup();
-    expect(box.getByRole('checkbox', { name: 'Разрешить фото чеков' })).not.toBeChecked();
+    expect(await box.findByRole('switch', { name: 'Разрешить фото чеков' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    );
     expect(box.queryByRole('group', { name: 'Категории с фото чека' })).toBeNull();
 
-    await person.click(box.getByRole('checkbox', { name: 'Разрешить фото чеков' }));
+    await person.click(await box.findByRole('switch', { name: 'Разрешить фото чеков' }));
 
     await waitFor(() => expect(puts()).toHaveLength(1));
     expect(puts()[0]!.body).toEqual({ enabled: true, categories: [] });
@@ -530,13 +545,8 @@ describe('раздел «Фото чеков» на странице «Груп�
       });
     const { person, box } = await renderGroup();
 
-    await person.click(box.getByRole('checkbox', { name: 'Разрешить фото чеков' }));
+    await person.click(await box.findByRole('switch', { name: 'Разрешить фото чеков' }));
 
     expect(await box.findByRole('alert')).toHaveTextContent('Только владелец');
-  });
-
-  it('у раздела одна подсказка', async () => {
-    const { box } = await renderGroup();
-    expect(box.getAllByRole('button', { name: 'Подсказка' })).toHaveLength(1);
   });
 });

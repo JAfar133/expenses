@@ -27,12 +27,14 @@ export function AppShell({ user }: { user: AuthUser }) {
   // The form fits a narrow column; the analytics page uses the full width
   const { pathname } = useLocation();
   const wide = pathname.startsWith('/analytics');
-  const medium = ['/settings', '/group', '/admin'].some((path) => pathname.startsWith(path));
+  const medium = ['/settings', '/admin'].some((path) => pathname.startsWith(path));
+  // The group page has wide rows with menus: a wider column on a desktop
+  const group = pathname.startsWith('/group');
 
   return (
     <main
       className={`mx-auto min-h-dvh w-full px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] ${
-        wide ? 'max-w-5xl' : medium ? 'max-w-2xl' : 'max-w-[560px]'
+        wide ? 'max-w-5xl' : group ? 'max-w-3xl' : medium ? 'max-w-2xl' : 'max-w-[560px]'
       }`}
     >
       <header className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">

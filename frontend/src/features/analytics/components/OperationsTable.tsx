@@ -220,10 +220,14 @@ export function OperationsTable(props: OperationsTableProps) {
                 <td className="py-2.5 pr-4">{item.card}</td>
                 <td className="py-2.5 pr-4">{item.category}</td>
                 <th scope="row" className={`py-2.5 pr-4 font-normal ${nameClass(item)}`}>
-                  {item.name}
-                  {item.hasReceipt && props.onViewReceipt && (
-                    <ReceiptBadge onClick={() => props.onViewReceipt?.(item)} />
-                  )}
+                  {/* The camera sits in a flex line with the name: an inline-flex button in a table cell would sit on the
+                      text baseline and push the row apart */}
+                  <div className="flex items-center gap-1">
+                    <span>{item.name}</span>
+                    {item.hasReceipt && props.onViewReceipt && (
+                      <ReceiptBadge onClick={() => props.onViewReceipt?.(item)} />
+                    )}
+                  </div>
                 </th>
                 <td className="py-2.5 pr-4 text-right whitespace-nowrap">
                   <Amount item={item} currency={currency} baseCurrency={baseCurrency} />

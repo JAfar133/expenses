@@ -1,18 +1,14 @@
 import { Navigate } from 'react-router';
 import { Notice } from '../../../shared/ui/Notice.tsx';
 import { useCurrentUser } from '../../auth/hooks/useAuth.ts';
-import { CardsSection } from '../components/CardsSection.tsx';
-import { CategoriesSection } from '../components/CategoriesSection.tsx';
-import { GroupNameSection } from '../components/GroupNameSection.tsx';
-import { InvitationsSection } from '../components/InvitationsSection.tsx';
-import { MemberEditSection } from '../components/MemberEditSection.tsx';
-import { MembersSection } from '../components/MembersSection.tsx';
-import { ReportingCurrencySection } from '../components/ReportingCurrencySection.tsx';
-import { ReceiptsSection } from '../../receipts/components/ReceiptsSection.tsx';
+import { CardsCard } from '../components/CardsCard.tsx';
+import { CategoriesCard } from '../components/CategoriesCard.tsx';
+import { GroupSettingsCard } from '../components/GroupSettingsCard.tsx';
+import { MembersCard } from '../components/MembersCard.tsx';
 import { useGroup } from '../hooks/useGroup.ts';
 import { toErrorMessage } from '../model/error-message.ts';
 
-/** Owner's page: group name, members, invitations, cards and categories. */
+/** Owner's page: four cards, the group settings, members, cards, and categories with limits. */
 export default function GroupPage() {
   const { data: user } = useCurrentUser();
   if (!user) return null;
@@ -32,26 +28,24 @@ function GroupContent({ currentUsername }: { currentUsername: string }) {
     );
   }
   const { data } = group;
+  const currencies = data.currencies ?? [];
 
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-bold">Группа</h2>
-      <GroupNameSection name={data.group.name} />
-      <MemberEditSection minutes={data.group.memberEditMinutes ?? 10080} />
-      <ReportingCurrencySection
-        current={data.group.reportingCurrency}
-        currencies={data.currencies ?? []}
-      />
-      <MembersSection members={data.members} currentUsername={currentUsername} />
-      <InvitationsSection invitations={data.invitations} />
-      <CardsSection
-        cards={data.cards}
+      <GroupSettingsCard group={data.group} currencies={currencies} categories={data.categories} />
+      <MembersCard
         members={data.members}
-        currencies={data.currencies ?? []}
+        invitations={data.invitations}
+        cards={data.cards}
+        currentUsername={currentUsername}
+      />
+      <CardsCard
+        cards={data.cards}
+        currencies={currencies}
         reportingCurrency={data.group.reportingCurrency}
       />
-      <CategoriesSection categories={data.categories} />
-      <ReceiptsSection categories={data.categories} />
+      <CategoriesCard categories={data.categories} />
     </div>
   );
 }

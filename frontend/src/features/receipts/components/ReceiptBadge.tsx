@@ -8,7 +8,7 @@ export function ReceiptBadge({ onClick }: { onClick: () => void }) {
       aria-label="Есть фото чека"
       title="Фото чека"
       onClick={onClick}
-      className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950/60"
+      className="-my-1.5 inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950/60"
     >
       <CameraIcon />
     </button>

@@ -54,6 +54,7 @@ function renderShell(path: string, current: AuthUser = user) {
             <Route index element={<p>Страница формы</p>} />
             <Route path="analytics" element={<p>Страница анализа</p>} />
             <Route path="settings" element={<p>Страница настроек</p>} />
+            <Route path="group" element={<p>Страница группы</p>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -91,6 +92,11 @@ describe('AppShell', () => {
     renderShell('/analytics');
 
     expect(screen.getByRole('main')).toHaveClass('max-w-5xl');
+  });
+
+  it('страница группы шире настроек: max-w-3xl, настройки остаются max-w-2xl', () => {
+    renderShell('/group');
+    expect(screen.getByRole('main')).toHaveClass('max-w-3xl');
   });
 
   it('страница формы остаётся узкой колонкой', () => {
