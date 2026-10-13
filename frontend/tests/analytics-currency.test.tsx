@@ -257,7 +257,7 @@ describe('выбор валюты на странице анализа', () => {
     await waitFor(() => expect(within(monthsTable).getByText('1 900 USD')).toBeInTheDocument());
     expect(within(monthsTable).getByText('3 800 USD')).toBeInTheDocument();
     for (const request of harness.requests.filter((r) => r.startsWith('/api/analytics/'))) {
-      if (/by=card|\/authors|\/cards/.test(request)) continue;
+      if (/by=card|\/authors|\/cards|\/categories/.test(request)) continue;
       expect(decodeURIComponent(request)).toContain('currency=USD');
     }
   });

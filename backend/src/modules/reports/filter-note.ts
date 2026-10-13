@@ -26,5 +26,6 @@ export function describeFilters(
   if (filters.minAmount !== undefined) parts.push(`от ${filters.minAmount}`);
   if (filters.maxAmount !== undefined) parts.push(`до ${filters.maxAmount}`);
   if (filters.includeDeleted) parts.push('включая удалённые');
+  if (filters.excludeArchived === false) parts.push('включая архив');
   return parts.length ? `Фильтры: ${parts.join('; ')}` : 'Фильтры: без ограничений';
 }

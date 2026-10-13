@@ -13,6 +13,8 @@ export interface AnalyticsFilters {
   minAmount?: number;
   maxAmount?: number;
   includeDeleted?: boolean;
+  /** Also count and list expenses of archived cards and categories (the server's default is to leave them out) */
+  includeArchived?: boolean;
   /** Display currency: the server sums in it (exact for records kept in it, converted for the rest); default is the reporting currency */
   currency?: string;
 }
@@ -109,5 +111,14 @@ export interface FilterCard {
 
 export const fetchFilterCards = async () =>
   (await apiRequest<FilterCard[]>('/analytics/cards')).data;
+
+/** A category for the filter: every category of the group, archived ones last. */
+export interface FilterCategory {
+  name: string;
+  archived: boolean;
+}
+
+export const fetchFilterCategories = async () =>
+  (await apiRequest<FilterCategory[]>('/analytics/categories')).data;
 
 export const fetchAuthors = async () => (await apiRequest<Author[]>('/analytics/authors')).data;

@@ -18,6 +18,11 @@ export interface AnalyticsFilters {
   maxAmount?: number;
   includeDeleted: boolean;
   /**
+   * Leave out expenses of archived cards and categories (unless that card or category is chosen in the filter).
+   * Set by the routes; not set (internal use, limits) means everything counts.
+   */
+  excludeArchived?: boolean;
+  /**
    * What the user may see (group and cards). Set by the routes from the logged-in user, never from the query;
    * without it the query is not limited (internal use and tests).
    */

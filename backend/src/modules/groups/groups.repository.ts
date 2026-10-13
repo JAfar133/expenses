@@ -48,6 +48,18 @@ export class GroupsRepository {
     return rows.map((row) => row.name);
   }
 
+  /** Every category of the group, the archived ones last and marked: the analytics filter can still pick them. */
+  async categoriesWithArchive(
+    groupId: string | null,
+  ): Promise<{ name: string; archived: boolean }[]> {
+    if (!groupId) return [];
+    return this.database.query<{ name: string; archived: boolean }>(
+      `SELECT name, (archived_at IS NOT NULL) AS archived FROM categories
+        WHERE group_id = $1 ORDER BY (archived_at IS NOT NULL), position, name`,
+      [groupId],
+    );
+  }
+
   /** Currencies of a card of the group and of the group's reporting; undefined for an unknown card. */
   async moneyContext(
     groupId: string | null,

@@ -44,6 +44,11 @@ const filtersShape = {
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
+  /** Show expenses of archived cards and categories too (by default they are left out) */
+  includeArchived: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
 };
 
 const withValidRanges = <T extends z.ZodType<AnalyticsFilters>>(schema: T) =>

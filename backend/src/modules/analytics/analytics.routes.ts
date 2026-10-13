@@ -12,7 +12,7 @@ import type { AnalyticsFilters } from './analytics.types.ts';
 
 /** Filters from the parsed query (without service parameters such as `by` and `limit`). */
 function filtersOf(
-  query: AnalyticsFilters,
+  query: AnalyticsFilters & { includeArchived?: boolean },
   user: AuthUser,
   display?: AnalyticsFilters['display'],
 ): AnalyticsFilters {
@@ -30,6 +30,7 @@ function filtersOf(
     minAmount: query.minAmount,
     maxAmount: query.maxAmount,
     includeDeleted: query.includeDeleted,
+    excludeArchived: !query.includeArchived,
   };
 }
 
@@ -38,7 +39,11 @@ export const analyticsRoutes =
     analytics: AnalyticsService,
     groups: Pick<
       GroupsRepository,
-      'visibleCards' | 'reportingCurrency' | 'memberEditMinutes' | 'editableCardNames'
+      | 'visibleCards'
+      | 'categoriesWithArchive'
+      | 'reportingCurrency'
+      | 'memberEditMinutes'
+      | 'editableCardNames'
     >,
     report: ReportService,
     rates: Pick<RatesService, 'rateOf' | 'currencies'>,
@@ -60,8 +65,10 @@ export const analyticsRoutes =
       return { currency, rate };
     };
     const clock = now;
-    const filtersFor = async (query: AnalyticsFilters & { currency?: string }, user: AuthUser) =>
-      filtersOf(query, user, await displayOf(query.currency));
+    const filtersFor = async (
+      query: AnalyticsFilters & { currency?: string; includeArchived?: boolean },
+      user: AuthUser,
+    ) => filtersOf(query, user, await displayOf(query.currency));
 
     app.get('/analytics/summary', async (request) => {
       const query = parseQuery('filters', request.query);
@@ -103,6 +110,12 @@ export const analyticsRoutes =
     app.get('/analytics/cards', async (request) => ({
       success: true,
       data: await groups.visibleCards(scopeOf(request.user!)),
+    }));
+
+    /** The categories for the filter: archived ones are marked, their old expenses can still be filtered. */
+    app.get('/analytics/categories', async (request) => ({
+      success: true,
+      data: await groups.categoriesWithArchive(request.user!.groupId),
     }));
 
     /** Expense authors for the "кто добавил" (who added) filter. */

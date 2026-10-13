@@ -148,6 +148,17 @@ export function FilterPanel({
               />
             </div>
           </FieldGroup>
+          {options.hasArchive && (
+            <label className="flex items-center gap-3 text-sm sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={state.includeArchived}
+                onChange={(event) => onChange({ includeArchived: event.target.checked })}
+                className="size-5 accent-indigo-600"
+              />
+              Показывать архив
+            </label>
+          )}
           <label className="flex items-center gap-3 text-sm sm:col-span-2">
             <input
               type="checkbox"

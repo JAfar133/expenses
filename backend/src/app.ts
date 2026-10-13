@@ -43,7 +43,12 @@ export interface AppDependencies {
   /** Cards of a group (for the default card in the profile) */
   groups: Pick<
     GroupsRepository,
-    'cardNames' | 'reportingCurrency' | 'visibleCards' | 'memberEditMinutes' | 'editableCardNames'
+    | 'cardNames'
+    | 'reportingCurrency'
+    | 'visibleCards'
+    | 'categoriesWithArchive'
+    | 'memberEditMinutes'
+    | 'editableCardNames'
   >;
   /** Management of the user's own group (owner) */
   groupService: GroupService;

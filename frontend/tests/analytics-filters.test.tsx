@@ -413,3 +413,114 @@ describe('панель фильтров', () => {
     expect(screen.getByRole('group', { name: 'Категории' })).toBeInTheDocument();
   });
 });
+
+describe('архив', () => {
+  const archive = () => screen.queryByRole('checkbox', { name: 'Показывать архив' });
+  const withArchive = () => {
+    harness.handlers['/api/analytics/categories'] = () =>
+      ok([
+        { name: 'кафе', archived: false },
+        { name: 'продукты', archived: false },
+        { name: 'старая', archived: true },
+      ]);
+  };
+
+  it('без архива в группе переключателя нет', async () => {
+    const user = renderAnalytics();
+    await openPanel(user);
+
+    expect(await screen.findByRole('group', { name: 'Категории' })).toBeInTheDocument();
+    expect(archive()).toBeNull();
+  });
+
+  it('с архивной категорией переключатель есть, выключен, и по умолчанию includeArchived не отправляется', async () => {
+    withArchive();
+    const user = renderAnalytics();
+    await openPanel(user);
+
+    await waitFor(() => expect(archive()).not.toBeNull());
+    expect(archive()).not.toBeChecked();
+    expect(harness.requests.some((r) => r.includes('includeArchived'))).toBe(false);
+  });
+
+  it('с архивной картой переключатель тоже есть', async () => {
+    harness.handlers['/api/analytics/cards'] = () =>
+      ok([
+        { name: 'Миша', currency: 'AMD', archived: false },
+        { name: 'Старая', currency: 'AMD', archived: true },
+      ]);
+    const user = renderAnalytics();
+    await openPanel(user);
+
+    await waitFor(() => expect(archive()).not.toBeNull());
+  });
+
+  it('включение: includeArchived=true в запросах и archive=1 в адресе; счётчик и чип; сброс выключает', async () => {
+    withArchive();
+    const user = renderAnalytics();
+    await openPanel(user);
+    await waitFor(() => expect(archive()).not.toBeNull());
+
+    await user.click(archive()!);
+
+    await waitFor(() => expect(lastSummary()).toContain('includeArchived=true'));
+    expect(location()).toHaveTextContent('archive=1');
+    expect(archive()).toBeChecked();
+    expect(screen.getByRole('button', { name: /^Фильтры/ })).toHaveTextContent('1');
+    expect(screen.getByRole('button', { name: 'Убрать фильтр: С архивом' })).toBeInTheDocument();
+    for (const path of ['timeseries', 'breakdown']) {
+      const last = harness.requests.filter((r) => r.startsWith(`/api/analytics/${path}`)).at(-1)!;
+      expect(last).toContain('includeArchived=true');
+    }
+
+    await user.click(screen.getByRole('button', { name: 'Сбросить всё' }));
+
+    await waitFor(() => expect(archive()).not.toBeChecked());
+    // The page is back on the cached query without the archive: no new request is needed
+    await waitFor(() => expect(location()).not.toHaveTextContent('archive=1'));
+    expect(screen.queryByRole('button', { name: 'Убрать фильтр: С архивом' })).toBeNull();
+  });
+
+  it('архивная категория в списке с пометкой «(архив)» и выбирается', async () => {
+    withArchive();
+    const user = renderAnalytics();
+    await openPanel(user);
+
+    const group = await screen.findByRole('group', { name: 'Категории' });
+    await waitFor(() =>
+      expect(
+        within(group)
+          .getAllByRole('button')
+          .map((b) => b.textContent),
+      ).toEqual(['кафе', 'продукты', 'старая (архив)']),
+    );
+
+    await user.click(within(group).getByRole('button', { name: 'старая (архив)' }));
+
+    await waitFor(() =>
+      expect(lastSummary()).toContain('categories=%D1%81%D1%82%D0%B0%D1%80%D0%B0%D1%8F'),
+    );
+    // Choosing it explicitly does not require the archive switch
+    expect(lastSummary()).not.toContain('includeArchived');
+  });
+
+  it('скачивание отчёта тоже получает includeArchived=true', async () => {
+    withArchive();
+    harness.handlers['/api/expenses/export.xlsx'] = () =>
+      new Response('x', { headers: { 'Content-Disposition': 'attachment; filename="a.xlsx"' } });
+    URL.createObjectURL = () => 'blob:x';
+    URL.revokeObjectURL = () => undefined;
+    const user = renderAnalytics(`/analytics?archive=1`);
+    await screen.findByRole('button', { name: 'Скачать Excel' });
+
+    await user.click(screen.getByRole('button', { name: 'Скачать Excel' }));
+
+    await waitFor(() =>
+      expect(
+        harness.requests.some(
+          (r) => r.startsWith('/api/expenses/export.xlsx') && r.includes('includeArchived=true'),
+        ),
+      ).toBe(true),
+    );
+  });
+});

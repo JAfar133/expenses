@@ -27,12 +27,13 @@ describe('parseFilterState', () => {
       minAmount: undefined,
       maxAmount: undefined,
       includeDeleted: false,
+      includeArchived: false,
     });
   });
 
   it('читает все фильтры', () => {
     const state = parse(
-      'period=90d&card=Миша&card=Настя&category=кафе&by=nastya&cur=USD&q=латте&min=100&max=900&deleted=1',
+      'period=90d&card=Миша&card=Настя&category=кафе&by=nastya&cur=USD&q=латте&min=100&max=900&deleted=1&archive=1',
     );
 
     expect(state).toMatchObject({
@@ -45,6 +46,7 @@ describe('parseFilterState', () => {
       minAmount: 100,
       maxAmount: 900,
       includeDeleted: true,
+      includeArchived: true,
     });
   });
 
@@ -172,5 +174,24 @@ describe('activeFilterCount и withoutFilters', () => {
 
     expect(activeFilterCount(cleared)).toBe(0);
     expect(cleared.month).toBe('2026-08');
+  });
+});
+
+describe('архив в состоянии фильтров', () => {
+  it('archive=1 читается, пишется в адрес и в запросы только когда включён', () => {
+    const state = parse('archive=1');
+    expect(state.includeArchived).toBe(true);
+    expect(serializeFilterState(state, TODAY).get('archive')).toBe('1');
+    expect(toApiFilters(state, TODAY).includeArchived).toBe(true);
+
+    const off = parse('');
+    expect(off.includeArchived).toBe(false);
+    expect(serializeFilterState(off, TODAY).has('archive')).toBe(false);
+  });
+
+  it('входит в счётчик фильтров, а сброс его выключает', () => {
+    const state = parse('archive=1');
+    expect(activeFilterCount(state)).toBe(1);
+    expect(withoutFilters(state).includeArchived).toBe(false);
   });
 });

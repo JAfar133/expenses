@@ -232,7 +232,7 @@ export default function OperationsPage() {
         <EditExpenseDialog
           item={editing}
           cards={cardsForEditing(editing, cards.data, currency)}
-          categories={options.categories.map((category) => category.value)}
+          categories={options.activeCategories}
           currency={editing.currency || currency}
           baseCurrency={baseCurrency}
           saving={update.isPending}

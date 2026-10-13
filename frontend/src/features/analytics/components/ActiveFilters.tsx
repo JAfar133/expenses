@@ -54,6 +54,9 @@ export function ActiveFilters({ state, authors, onChange, onReset }: ActiveFilte
       clear: { minAmount: undefined, maxAmount: undefined },
     });
   }
+  if (state.includeArchived) {
+    chips.push({ id: 'archive', text: 'С архивом', clear: { includeArchived: false } });
+  }
   if (state.includeDeleted) {
     chips.push({ id: 'deleted', text: 'С удалёнными', clear: { includeDeleted: false } });
   }

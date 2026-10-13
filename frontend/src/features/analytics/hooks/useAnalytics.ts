@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
   fetchAuthors,
   fetchFilterCards,
+  fetchFilterCategories,
   fetchBreakdown,
   fetchSummary,
   fetchTimeseries,
@@ -55,6 +56,14 @@ export const useFilterCards = () =>
   useQuery({
     queryKey: [...ANALYTICS_KEY, 'cards'],
     queryFn: fetchFilterCards,
+    staleTime: 60_000,
+  });
+
+/** All categories of the group for the filter (archived ones are marked). */
+export const useFilterCategories = () =>
+  useQuery({
+    queryKey: [...ANALYTICS_KEY, 'categories'],
+    queryFn: fetchFilterCategories,
     staleTime: 60_000,
   });
 

@@ -95,6 +95,11 @@ export function setupAnalyticsHarness() {
           { name: 'Миша', currency: 'AMD', archived: false },
           { name: 'Настя', currency: 'AMD', archived: false },
         ]),
+      '/api/analytics/categories': () =>
+        ok([
+          { name: 'кафе', archived: false },
+          { name: 'продукты', archived: false },
+        ]),
       '/api/analytics/authors': () =>
         ok([
           { value: 'misha', label: 'Миша', count: 4 },

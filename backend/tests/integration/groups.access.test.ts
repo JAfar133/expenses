@@ -182,14 +182,18 @@ describe('добавление трат', () => {
     ).toEqual([]);
   });
 
-  it('архивная карта не предлагается, а старые траты по ней остаются видны', async () => {
+  it('архивная карта не предлагается, старые траты по ней скрыты, пока не включён архив', async () => {
     await database.query('UPDATE cards SET archived_at = now() WHERE id = $1', [cardIds['Миша']]);
 
     expect(
       (await get('/api/cards', 'misha')).json().data.map((c: { name: string }) => c.name),
     ).toEqual(['Настя']);
     expect((await add('Миша', 'misha')).statusCode).toBe(422);
-    expect(await names('nastya')).toEqual(['Кофе миши']);
+    expect(await names('nastya')).toEqual([]);
+    const withArchive = await get('/api/expenses?limit=50&includeArchived=true', 'nastya');
+    expect(withArchive.json().data.items.map((i: { name: string }) => i.name)).toEqual([
+      'Кофе миши',
+    ]);
   });
 });
 

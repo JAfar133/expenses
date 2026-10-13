@@ -4,9 +4,13 @@ import type { AnalyticsFilters } from './analytics.types.ts';
 /**
  * The expenses table with the card's current name (`card_label`): renaming a card in the `cards` table shows up
  * everywhere. The text column `card` is kept only for old records and for Excel.
+ * `card_archived` and `category_archived` tell whether the card or the category is in the archive.
  */
-export const EXPENSES_SOURCE =
-  '(SELECT e.*, c.name AS card_label FROM expenses e LEFT JOIN cards c ON c.id = e.card_id) expenses';
+export const EXPENSES_SOURCE = `(SELECT e.*, c.name AS card_label,
+    (c.archived_at IS NOT NULL) AS card_archived, (cat.archived_at IS NOT NULL) AS category_archived
+  FROM expenses e
+  LEFT JOIN cards c ON c.id = e.card_id
+  LEFT JOIN categories cat ON cat.group_id = e.group_id AND cat.name = e.category) expenses`;
 
 /**
  * The amount of a record in the group's reporting currency (what charts and totals add up);
@@ -82,6 +86,11 @@ export function buildWhere(
     conditions.push(`${CARD_NAME_SQL} = ANY(${param(filters.cards)}::text[])`);
   if (filters.categories.length) {
     conditions.push(`category = ANY(${param(filters.categories)}::text[])`);
+  }
+  // Archived cards and categories are left out unless the user picked them in the filter or asked for the archive
+  if (filters.excludeArchived) {
+    if (!filters.cards.length) conditions.push('card_archived IS NOT TRUE');
+    if (!filters.categories.length) conditions.push('category_archived IS NOT TRUE');
   }
   if (filters.createdBy.length) {
     conditions.push(`created_by = ANY(${param(filters.createdBy)}::text[])`);

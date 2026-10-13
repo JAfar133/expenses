@@ -20,6 +20,8 @@ export interface FilterState {
   minAmount?: number;
   maxAmount?: number;
   includeDeleted: boolean;
+  /** Show expenses of archived cards and categories too (off by default) */
+  includeArchived: boolean;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -77,6 +79,7 @@ export function parseFilterState(params: URLSearchParams, today: string): Filter
         ? undefined
         : maxAmount,
     includeDeleted: params.get('deleted') === '1',
+    includeArchived: params.get('archive') === '1',
   };
 }
 
@@ -101,6 +104,7 @@ export function serializeFilterState(state: FilterState, today: string): URLSear
   if (state.minAmount !== undefined) params.set('min', String(state.minAmount));
   if (state.maxAmount !== undefined) params.set('max', String(state.maxAmount));
   if (state.includeDeleted) params.set('deleted', '1');
+  if (state.includeArchived) params.set('archive', '1');
   return params;
 }
 
@@ -138,6 +142,7 @@ export function toApiFilters(
     minAmount: state.minAmount,
     maxAmount: state.maxAmount,
     includeDeleted: state.includeDeleted,
+    includeArchived: state.includeArchived,
   };
 }
 
@@ -163,7 +168,8 @@ export function activeFilterCount(state: FilterState): number {
     (state.currencies.length ? 1 : 0) +
     (state.q ? 1 : 0) +
     (state.minAmount !== undefined || state.maxAmount !== undefined ? 1 : 0) +
-    (state.includeDeleted ? 1 : 0)
+    (state.includeDeleted ? 1 : 0) +
+    (state.includeArchived ? 1 : 0)
   );
 }
 
@@ -178,6 +184,7 @@ export const withoutFilters = (state: FilterState): FilterState => ({
   minAmount: undefined,
   maxAmount: undefined,
   includeDeleted: false,
+  includeArchived: false,
 });
 
 /** URL parameters controlled by filters; others (tabs, month comparison) are left alone. */
@@ -194,6 +201,7 @@ const FILTER_KEYS = [
   'min',
   'max',
   'deleted',
+  'archive',
 ];
 
 /** Writes the state to the URL, preserving foreign parameters. */
