@@ -15,6 +15,9 @@ const FLAGS: Record<string, string> = {
   AED: '🇦🇪',
 };
 
+/** The flag of a currency, or nothing for an unknown one (the tiles show the bare code then). */
+export const knownFlag = (code: string): string | undefined => FLAGS[code];
+
 export const flagOf = (code: string) => FLAGS[code] ?? '💱';
 
 /** «🇺🇸 USD» */

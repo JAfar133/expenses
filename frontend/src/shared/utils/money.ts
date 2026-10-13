@@ -85,3 +85,22 @@ export function formatAmount(value: number, digits: number): string {
     .format(value)
     .replace(/[\s ]/g, ' ');
 }
+
+/** The number of characters before `caret` that carry the value: digits and the decimal separator. */
+const significantBefore = (text: string, caret: number) =>
+  text.slice(0, caret).replace(/[^\d.,]/g, '').length;
+
+/**
+ * Where the caret goes after the text was reformatted (spaces between thousands appeared or went):
+ * after the same number of digits and separators as before, so typing in the middle does not jump to the end.
+ */
+export function caretAfterFormat(raw: string, caret: number, formatted: string): number {
+  const target = significantBefore(raw, caret);
+  if (target === 0) return 0;
+  let seen = 0;
+  for (let index = 0; index < formatted.length; index += 1) {
+    if (/[\d.,]/.test(formatted[index]!)) seen += 1;
+    if (seen === target) return index + 1;
+  }
+  return formatted.length;
+}

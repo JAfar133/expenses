@@ -5,14 +5,9 @@ import { formatAmount } from '../../../shared/utils/money.ts';
 import { useConfig } from '../../expenses/hooks/useConfig.ts';
 import type { BreakdownRow } from '../../analytics/api/analytics.api.ts';
 import type { Budget } from '../api/budgets.api.ts';
+import { LevelMark, LimitBar } from './limit-parts.tsx';
 import { categoryIcon } from '../model/category-icon.tsx';
 import { pluralCategories } from '../model/plural.ts';
-
-const FILL = {
-  ok: 'bg-indigo-500 dark:bg-indigo-400',
-  warn: 'bg-amber-500',
-  over: 'bg-red-500',
-};
 
 /** Round icon background by level. */
 const BADGE = {
@@ -27,35 +22,6 @@ interface Format {
   /** A number with the currency */
   money: (value: number) => string;
   currency: string;
-}
-
-function Bar({ budget, className = 'h-1.5' }: { budget: Budget; className?: string }) {
-  const fill = Math.min(Math.max(budget.percent, 0), 100);
-  const label = budget.category ?? 'Всего';
-  // The part over the limit is hatched: it starts where the limit ends
-  const limitAt = budget.percent > 100 ? (100 / budget.percent) * 100 : null;
-  return (
-    <div
-      role="progressbar"
-      aria-label={`Лимит: ${label}`}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(fill)}
-      className={`relative overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800 ${className}`}
-    >
-      <div className={`h-full rounded-full ${FILL[budget.level]}`} style={{ width: `${fill}%` }} />
-      {limitAt !== null && (
-        <div
-          className="absolute inset-y-0 right-0"
-          style={{
-            left: `${limitAt}%`,
-            backgroundImage:
-              'repeating-linear-gradient(135deg, rgba(255,255,255,0.6) 0 2px, transparent 2px 5px)',
-          }}
-        />
-      )}
-    </div>
-  );
 }
 
 /** The overall limit as a block of its own: spent of the limit, percent, bar and what is left. */
@@ -80,7 +46,7 @@ function OverallBlock({ budget, format }: { budget: Budget; format: Format }) {
           {Math.round(budget.percent)}%
         </span>
       </div>
-      <Bar budget={budget} className="mt-2 h-2" />
+      <LimitBar budget={budget} className="mt-2 h-2" />
       <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
         {over ? (
           <span className="text-red-600 dark:text-red-400">
@@ -152,7 +118,7 @@ function CategoryRow({
         <span>{format.currency}</span>
       </div>
       <div className="col-span-2">
-        <Bar budget={budget} />
+        <LimitBar budget={budget} />
       </div>
     </div>
   );
@@ -186,27 +152,6 @@ const GROUP_TONES = {
   plain: 'border-zinc-100 dark:border-zinc-800',
 } as const;
 
-/** The marker before a group title: a red circle with «!», an amber triangle or a grey circle. */
-function GroupMark({ tone }: { tone: keyof typeof GROUP_TONES }) {
-  if (tone === 'warn') {
-    return (
-      <span aria-hidden="true" className="text-amber-500">
-        <WarningIcon />
-      </span>
-    );
-  }
-  return (
-    <span
-      aria-hidden="true"
-      className={`flex size-5 items-center justify-center rounded-full text-xs font-bold text-white ${
-        tone === 'over' ? 'bg-red-500' : 'bg-zinc-400 dark:bg-zinc-600'
-      }`}
-    >
-      {tone === 'over' ? '!' : 'i'}
-    </span>
-  );
-}
-
 /** A collapsible group of rows: the marker, the title, the count of categories and a chevron. */
 function Group({
   title,
@@ -224,7 +169,7 @@ function Group({
   return (
     <details open={open} className={`group rounded-xl border p-2.5 sm:p-3 ${GROUP_TONES[tone]}`}>
       <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium">
-        <GroupMark tone={tone} />
+        <LevelMark tone={tone} />
         <span>{title}</span>
         <span className="font-normal text-zinc-500 dark:text-zinc-400">
           {count} {pluralCategories(count)}

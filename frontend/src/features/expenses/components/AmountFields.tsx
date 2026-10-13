@@ -4,6 +4,7 @@ import { currencyLabel } from '../../../shared/utils/currency-flags.ts';
 import {
   formatAmountInput,
   formatDecimalInput,
+  caretAfterFormat,
   formatAmount,
   formatMoney,
   parseDecimal,
@@ -87,16 +88,23 @@ export function AmountFields({ form, base, cards, rates }: AmountFieldsProps) {
             type="text"
             inputMode={isBase ? 'numeric' : 'decimal'}
             autoComplete="off"
-            className={`${inputClassName} pr-28`}
+            // The most visible field of the form: big semibold digits
+            className={`${inputClassName} h-14 pr-28 text-2xl font-semibold tabular-nums`}
             aria-invalid={!!errors.amount}
             {...amountField}
             onChange={(event) => {
-              event.target.value = isBase
-                ? formatAmountInput(event.target.value)
-                : formatDecimalInput(event.target.value, {
-                    maxDecimals: AMOUNT_DECIMALS,
-                    group: true,
-                  });
+              const input = event.target;
+              const raw = input.value;
+              const caret = input.selectionStart ?? raw.length;
+              const formatted = isBase
+                ? formatAmountInput(raw)
+                : formatDecimalInput(raw, { maxDecimals: AMOUNT_DECIMALS, group: true });
+              if (formatted !== raw) {
+                input.value = formatted;
+                // Keep the caret where the person is typing, not at the end
+                const position = caretAfterFormat(raw, caret, formatted);
+                input.setSelectionRange?.(position, position);
+              }
               return amountField.onChange(event);
             }}
           />
@@ -122,6 +130,11 @@ export function AmountFields({ form, base, cards, rates }: AmountFieldsProps) {
             </span>
           )}
         </div>
+        {currency !== cardCurrency && (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            валюта отличается от валюты карты ({cardCurrency})
+          </p>
+        )}
         {converted !== null && (
           <p className="text-sm text-zinc-500" aria-live="polite">
             ≈ {formatAmount(converted, currencyDigits(cardCurrency, base))} {cardCurrency}

@@ -126,8 +126,8 @@ describe('отображение формы', () => {
     await renderPage();
 
     expect(screen.getByLabelText('Дата')).toHaveValue(todayIso());
-    expect(screen.getByRole('radio', { name: /Миша/ })).toBeChecked();
-    expect(screen.getByRole('radio', { name: /Настя/ })).not.toBeChecked();
+    expect(screen.getByLabelText('Карта')).toHaveValue('Миша');
+    expect(screen.getByLabelText('Карта')).not.toHaveValue('Настя');
     expect(screen.getByLabelText('Категория')).toHaveValue('');
     expect(screen.getByLabelText('Наименование')).toBeInTheDocument();
     expect(screen.getByLabelText('Стоимость')).toHaveAttribute('inputmode', 'numeric');
@@ -157,15 +157,15 @@ describe('карта по умолчанию зависит от пользов�
   it('Миша: выбрана карта «Миша»', async () => {
     await renderPage(MISHA);
 
-    expect(screen.getByRole('radio', { name: /Миша/ })).toBeChecked();
-    expect(screen.getByRole('radio', { name: /Настя/ })).not.toBeChecked();
+    expect(screen.getByLabelText('Карта')).toHaveValue('Миша');
+    expect(screen.getByLabelText('Карта')).not.toHaveValue('Настя');
   });
 
   it('Настя: выбрана карта «Настя»', async () => {
     await renderPage(NASTYA);
 
-    expect(screen.getByRole('radio', { name: /Настя/ })).toBeChecked();
-    expect(screen.getByRole('radio', { name: /Миша/ })).not.toBeChecked();
+    expect(screen.getByLabelText('Карта')).toHaveValue('Настя');
+    expect(screen.getByLabelText('Карта')).not.toHaveValue('Миша');
   });
 
   it('если карты пользователя нет в справочнике, выбирается первая', async () => {
@@ -179,12 +179,12 @@ describe('карта по умолчанию зависит от пользов�
       timezone: 'Asia/Yerevan',
     });
 
-    expect(screen.getByRole('radio', { name: /Миша/ })).toBeChecked();
+    expect(screen.getByLabelText('Карта')).toHaveValue('Миша');
   });
 
   it('карту можно сменить вручную, и в расход уйдёт выбранная', async () => {
     const user = await renderPage(NASTYA);
-    await user.click(screen.getByRole('radio', { name: /Миша/ }));
+    await user.selectOptions(screen.getByLabelText('Карта'), 'Миша');
     await fillForm(user);
 
     await submit(user);
@@ -540,7 +540,7 @@ describe('отправка', () => {
 
   it('последнюю выбранную карту не запоминает: по умолчанию всегда карта пользователя', async () => {
     const user = await renderPage(MISHA);
-    await user.click(screen.getByRole('radio', { name: /Настя/ }));
+    await user.selectOptions(screen.getByLabelText('Карта'), 'Настя');
     await fillForm(user);
 
     await submit(user);

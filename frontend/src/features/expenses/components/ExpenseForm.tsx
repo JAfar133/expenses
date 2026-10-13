@@ -4,9 +4,10 @@ import { useForm, useWatch } from 'react-hook-form';
 import type { AuthUser } from '../../auth/api/auth.api.ts';
 import { Button } from '../../../shared/ui/Button.tsx';
 import { Field, inputClassName } from '../../../shared/ui/Field.tsx';
+import { SelectBox, selectPadding } from '../../../shared/ui/SelectBox.tsx';
 import { Notice } from '../../../shared/ui/Notice.tsx';
 import { todayIso } from '../../../shared/utils/date.ts';
-import { currencyDigits } from '../../../shared/utils/conversion.ts';
+import { crossRate, currencyDigits } from '../../../shared/utils/conversion.ts';
 import {
   formatAmountInput,
   formatAmount,
@@ -16,7 +17,7 @@ import {
 } from '../../../shared/utils/money.ts';
 import { newRequestId } from '../../../shared/utils/request-id.ts';
 import { readStored, writeStored } from '../../../shared/utils/storage.ts';
-import type { Card, CreatedExpense, NameSuggestion } from '../api/expenses.api.ts';
+import type { Card, CreatedExpense, NameSuggestion, RatesResponse } from '../api/expenses.api.ts';
 import { toSaveErrorMessage } from '../api/save-error-message.ts';
 import { useCreateExpense } from '../hooks/useCreateExpense.ts';
 import { useNameSuggestions } from '../hooks/useNameSuggestions.ts';
@@ -24,7 +25,8 @@ import { useRates } from '../hooks/useRates.ts';
 import { createExpenseFormSchema, type ExpenseFormValues } from '../schemas/expense-form.schema.ts';
 import { pickSuggestions } from '../utils/pick-suggestions.ts';
 import { AmountFields } from './AmountFields.tsx';
-import { CardPicker } from './CardPicker.tsx';
+import { CardSelect } from './CardSelect.tsx';
+import { CategoryLimitHint } from '../../budgets/components/CategoryLimitHint.tsx';
 import { ReceiptPicker } from '../../receipts/components/ReceiptPicker.tsx';
 import { uploadReceipt } from '../../receipts/api/receipts.api.ts';
 import { useReceiptAllowed } from '../../receipts/hooks/useReceiptSettings.ts';
@@ -70,6 +72,20 @@ function successMessage(
 ): string {
   if (!original) return 'Расход успешно добавлен';
   return `Расход добавлен: ${formatAmount(reportingAmount, currencyDigits(reportingCurrency ?? reporting, base))} ${reportingCurrency ?? reporting} (${formatMoney(original.amount)} ${original.currency} по курсу ${formatMoney(original.rate, 6)})`;
+}
+
+/** The typed amount in the reporting currency of the group; null if it is empty or the rate is unknown. */
+function amountInReporting(
+  amount: string,
+  inputCurrency: string,
+  reporting: string,
+  base: string,
+  rates: RatesResponse | undefined,
+): number | null {
+  const value = parseDecimal(amount);
+  if (value === null) return null;
+  const rate = crossRate(rates?.rates, inputCurrency, reporting, base);
+  return rate === undefined ? null : value * rate;
 }
 
 export function ExpenseForm({ cards, categories, currency, baseCurrency, user }: ExpenseFormProps) {
@@ -122,7 +138,11 @@ export function ExpenseForm({ cards, categories, currency, baseCurrency, user }:
   const [photoFailed, setPhotoFailed] = useState(false);
 
   const { data: knownNames = [] } = useNameSuggestions();
-  const [category, name] = useWatch({ control, name: ['category', 'name'] });
+  const [category, name, typedAmount, typedCurrency] = useWatch({
+    control,
+    name: ['category', 'name', 'amount', 'currency'],
+  });
+  const projected = amountInReporting(typedAmount, typedCurrency, currency, baseCurrency, rates);
   const receiptAllowed = useReceiptAllowed(category);
   const suggestions = pickSuggestions(knownNames, { category, query: name });
 
@@ -193,49 +213,56 @@ export function ExpenseForm({ cards, categories, currency, baseCurrency, user }:
         />
       </Field>
 
-      <Field label="Карта" error={errors.card?.message}>
-        <CardPicker
+      <Field label="Карта" htmlFor="card" error={errors.card?.message}>
+        <CardSelect
           cards={cards}
+          invalid={!!errors.card}
           registration={register('card', {
             onChange: (event) => resetCurrencyFor(event.target.value),
           })}
         />
       </Field>
 
-      <Field label="Категория" htmlFor="category" error={errors.category?.message}>
-        <select
-          id="category"
-          className={inputClassName}
-          aria-invalid={!!errors.category}
-          {...register('category')}
-        >
-          <option value="" disabled>
-            Не выбрана
-          </option>
-          {categories.map((category) => (
-            <option key={category} value={category}>
-              {category}
-            </option>
-          ))}
-        </select>
-      </Field>
+      {/* Category and name are close: the suggestions under the name belong to the chosen category */}
+      <div className="space-y-3">
+        <Field label="Категория" htmlFor="category" error={errors.category?.message}>
+          <SelectBox>
+            <select
+              id="category"
+              className={`${inputClassName} ${selectPadding}`}
+              aria-invalid={!!errors.category}
+              {...register('category')}
+            >
+              <option value="" disabled>
+                Не выбрана
+              </option>
+              {categories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </SelectBox>
+        </Field>
 
-      {receiptAllowed && <ReceiptPicker photo={photo} onChange={setPhoto} />}
+        {receiptAllowed && <ReceiptPicker photo={photo} onChange={setPhoto} />}
 
-      <Field label="Наименование" htmlFor="name" error={errors.name?.message}>
-        <input
-          id="name"
-          type="text"
-          autoComplete="off"
-          maxLength={255}
-          className={inputClassName}
-          aria-invalid={!!errors.name}
-          {...register('name')}
-        />
-        <NameSuggestions suggestions={suggestions} onPick={pickSuggestion} />
-      </Field>
+        <Field label="Наименование" htmlFor="name" error={errors.name?.message}>
+          <input
+            id="name"
+            type="text"
+            autoComplete="off"
+            maxLength={255}
+            className={inputClassName}
+            aria-invalid={!!errors.name}
+            {...register('name')}
+          />
+          <NameSuggestions suggestions={suggestions} onPick={pickSuggestion} />
+        </Field>
+      </div>
 
       <AmountFields form={form} base={baseCurrency} cards={cards} rates={rates} />
+      {category && <CategoryLimitHint category={category} projected={projected} />}
 
       {createExpense.isSuccess &&
         (createExpense.data.excelStatus !== 'queued' ? (

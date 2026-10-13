@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -98,10 +98,10 @@ describe('валюта по карте', () => {
     const person = await renderForm();
     expect(currencySelect()).toHaveValue('AMD');
 
-    await person.click(screen.getByRole('radio', { name: /Доллары/ }));
+    await person.selectOptions(screen.getByLabelText('Карта'), 'Доллары');
     expect(currencySelect()).toHaveValue('USD');
 
-    await person.click(screen.getByRole('radio', { name: /Миша/ }));
+    await person.selectOptions(screen.getByLabelText('Карта'), 'Миша');
     expect(currencySelect()).toHaveValue('AMD');
   });
 
@@ -109,7 +109,7 @@ describe('валюта по карте', () => {
     const person = await renderForm();
     await person.selectOptions(currencySelect(), 'EUR');
 
-    await person.click(screen.getByRole('radio', { name: /Доллары/ }));
+    await person.selectOptions(screen.getByLabelText('Карта'), 'Доллары');
 
     expect(currencySelect()).toHaveValue('USD');
     expect(screen.queryByLabelText(/Курс/)).toBeNull();
@@ -117,7 +117,7 @@ describe('валюта по карте', () => {
 
   it('карта в долларах: сумма в долларах с копейками уходит без валюты и курса', async () => {
     const person = await renderForm();
-    await person.click(screen.getByRole('radio', { name: /Доллары/ }));
+    await person.selectOptions(screen.getByLabelText('Карта'), 'Доллары');
     expect(screen.getByLabelText('Стоимость')).toHaveAttribute('inputmode', 'decimal');
 
     await fill(person, '10,5');
@@ -131,7 +131,7 @@ describe('валюта по карте', () => {
 
   it('другая валюта на карте в долларах: курс обязателен, пересчёт идёт через драммы', async () => {
     const person = await renderForm();
-    await person.click(screen.getByRole('radio', { name: /Доллары/ }));
+    await person.selectOptions(screen.getByLabelText('Карта'), 'Доллары');
     await person.selectOptions(currencySelect(), 'EUR');
 
     expect(screen.getByLabelText('Курс: AMD за 1 EUR')).toHaveValue('500');
@@ -147,7 +147,7 @@ describe('валюта по карте', () => {
 
   it('драммы на карте в долларах: целая сумма, курс не нужен, заметка в долларах', async () => {
     const person = await renderForm();
-    await person.click(screen.getByRole('radio', { name: /Доллары/ }));
+    await person.selectOptions(screen.getByLabelText('Карта'), 'Доллары');
     await person.selectOptions(currencySelect(), 'AMD');
 
     expect(screen.queryByLabelText(/Курс/)).toBeNull();
@@ -168,21 +168,23 @@ describe('валюта по карте', () => {
     await submit(person);
     expect(await screen.findByText('Стоимость должна быть больше нуля')).toBeInTheDocument();
 
-    await person.click(screen.getByRole('radio', { name: /Доллары/ }));
+    await person.selectOptions(screen.getByLabelText('Карта'), 'Доллары');
     await person.clear(screen.getByLabelText('Стоимость'));
     await person.type(screen.getByLabelText('Стоимость'), '12,345');
     expect(screen.getByLabelText('Стоимость')).toHaveValue('12,34');
   });
 
-  it('рядом с каждой картой показана её валюта, в том числе когда все карты в драммах', async () => {
+  it('в списке карт у каждой флаг, название и код валюты, в том числе когда все карты в драммах', async () => {
     cards = [
       { name: 'Миша', currency: 'AMD' },
       { name: 'Настя', currency: 'AMD' },
     ];
     await renderForm();
 
-    const picker = screen.getByRole('radiogroup', { name: 'Карта' });
-    expect(picker).toHaveTextContent('🇦🇲AMD');
-    expect(picker.textContent?.match(/AMD/g)).toHaveLength(2);
+    const options = within(screen.getByLabelText('Карта')).getAllByRole('option');
+    expect(options.map((option) => option.textContent)).toEqual([
+      '🇦🇲 Миша · AMD',
+      '🇦🇲 Настя · AMD',
+    ]);
   });
 });

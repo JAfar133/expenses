@@ -169,7 +169,7 @@ describe('карта по умолчанию у вошедшего пользо�
     render(<App />);
 
     await screen.findByRole('button', { name: 'Добавить расход' });
-    expect(screen.getByRole('radio', { name: /Миша/ })).toBeChecked();
+    expect(screen.getByLabelText('Карта')).toHaveValue('Миша');
     expect(screen.getByRole('button', { name: 'Меню пользователя: Миша' })).toBeInTheDocument();
   });
 
@@ -178,7 +178,7 @@ describe('карта по умолчанию у вошедшего пользо�
     render(<App />);
 
     await screen.findByRole('button', { name: 'Добавить расход' });
-    expect(screen.getByRole('radio', { name: /Настя/ })).toBeChecked();
+    expect(screen.getByLabelText('Карта')).toHaveValue('Настя');
   });
 });
 
@@ -222,7 +222,7 @@ describe('форма входа', () => {
     await fillAndSubmit(person, 'nastya');
 
     expect(await screen.findByRole('button', { name: 'Добавить расход' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: /Настя/ })).toBeChecked();
+    expect(screen.getByLabelText('Карта')).toHaveValue('Настя');
   });
 
   it('на сервер уходит логин без пробелов и пароль как есть', async () => {
@@ -414,7 +414,7 @@ describe('выход', () => {
     const server = installFakeServer({ access: 'valid', user: MISHA });
     const person = userEvent.setup();
     render(<App />);
-    await screen.findByRole('radio', { name: /Миша/ });
+    await screen.findByLabelText('Карта');
     await signOut(person);
     await screen.findByRole('heading', { name: 'Вход' });
 
@@ -423,7 +423,7 @@ describe('выход', () => {
     await person.type(screen.getByLabelText('Пароль'), 'secret-password-1');
     await person.click(screen.getByRole('button', { name: 'Войти' }));
 
-    await waitFor(() => expect(screen.getByRole('radio', { name: /Настя/ })).toBeChecked());
+    await waitFor(() => expect(screen.getByLabelText('Карта')).toHaveValue('Настя'));
     expect(screen.getByRole('button', { name: 'Меню пользователя: Настя' })).toBeInTheDocument();
   });
 
