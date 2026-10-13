@@ -70,6 +70,8 @@ export interface ExpenseRepository {
     createdBy: string,
     original?: ExpenseOriginal,
     money?: ExpenseMoney,
+    /** Where the name and the date came from (see migration 0019); typed by hand when omitted */
+    sources?: { name: 'default' | 'manual'; date: 'default' | 'manual' },
   ): Promise<StoredExpense>;
   findById(id: string): Promise<StoredExpense | undefined>;
   /** Categories used by the records the scope allows (all records without a scope: internal use) */

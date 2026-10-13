@@ -8,6 +8,7 @@ import type {
 import type { ExpenseScope } from '../groups/scope.ts';
 import type { GroupsRepository } from '../groups/groups.repository.ts';
 import { resolveMoney, type AmountContext } from './expense-amount.ts';
+import type { ItemsRepository } from '../items/items.repository.ts';
 import type { CreateExpenseInput } from './expenses.schema.ts';
 
 /** How many "category + name" pairs we give the form for suggestions. */
@@ -27,6 +28,8 @@ export interface ExpenseServiceOptions {
   >;
   /** Base currency, available currencies and rates for conversion to drams */
   currency: AmountContext;
+  /** Positions saved together with a new expense */
+  items?: ItemsRepository;
   logger?: { warn: (object: object, message: string) => void };
 }
 
@@ -87,13 +90,27 @@ export class ExpenseService {
     );
     const { amount, original, ...kept } = money;
     const { date, card, category, name } = input;
-    return this.repository.insertPending(
+    const saved = await this.repository.insertPending(
       db,
       { date, card, category, name, amount },
       author.username,
       original,
       kept,
+      { name: input.nameSource ?? 'manual', date: input.dateSource ?? 'manual' },
     );
+    if (input.items?.length && this.options.items) {
+      await this.options.items.replace(
+        db,
+        { id: saved.id, groupId: author.scope.groupId! },
+        input.items.map(({ name: itemName, price, quantity }) => ({
+          name: itemName,
+          price,
+          quantity,
+          source: 'manual' as const,
+        })),
+      );
+    }
+    return saved;
   }
 
   findById(id: string): Promise<StoredExpense | undefined> {

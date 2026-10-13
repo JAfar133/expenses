@@ -22,6 +22,8 @@ import { GroupsRepository } from '../../src/modules/groups/groups.repository.ts'
 import { ExpenseEditor } from '../../src/modules/expenses/expense-editor.ts';
 import { ExpenseService } from '../../src/modules/expenses/expenses.service.ts';
 import type { BackupStatusService } from '../../src/modules/admin/backup-status.service.ts';
+import { createAiModule } from '../../src/modules/ai/ai.module.ts';
+import { FakeProvider } from '../../src/modules/llm/providers/fake.provider.ts';
 import { BudgetsRepository } from '../../src/modules/budgets/budgets.repository.ts';
 import { ReceiptsRepository } from '../../src/modules/receipts/receipts.repository.ts';
 import { ReceiptsService } from '../../src/modules/receipts/receipts.service.ts';
@@ -150,6 +152,8 @@ export interface TestApp {
   auth: AuthService;
   authRepository: AuthRepository;
   invitations: InvitationsService;
+  /** The AI provider of the app: tests put its answers in `answers` and read `calls` */
+  llmProvider: FakeProvider;
   /** A request as the logged-in user (misha by default): with login cookies and the site Origin header */
   inject: (options: InjectOptions, as?: TestUsername) => Promise<LightMyRequestResponse>;
   /** Login cookies for a user: creates a session directly, without checking the password */
@@ -234,20 +238,36 @@ export async function createTestApp(
     today: () => TEST_TODAY,
   });
   const syncSwitch = new SyncSwitch(database, sync, scheduler);
+  const receiptsRepository = new ReceiptsRepository(database);
+  const receipts = new ReceiptsService({
+    repository: receiptsRepository,
+    store: new ReceiptStore(options.receiptsDir ?? mkdtempSync(path.join(tmpdir(), 'receipts-'))),
+    groups,
+    now: options.now,
+  });
+  const editor = new ExpenseEditor({ database, repository, groups, now: options.now });
+  const llmProvider = new FakeProvider();
+  const ai = createAiModule({
+    database,
+    expenses: repository,
+    editor,
+    receipts,
+    receiptsRepository,
+    provider: llmProvider,
+    secretsKey: 'test-secrets-key-test-secrets-key-1234',
+    defaults: { model: 'test-model', dailyLimit: 30 },
+    now: options.now,
+  });
 
   const app = buildApp({
     syncSwitch,
     now: options.now,
     backupStatus: options.backupStatus,
-    expenseService: new ExpenseService(repository, { groups, currency: rates }),
+    expenseService: new ExpenseService(repository, { groups, currency: rates, items: ai.items }),
     groups,
     invitations,
-    receipts: new ReceiptsService({
-      repository: new ReceiptsRepository(database),
-      store: new ReceiptStore(options.receiptsDir ?? mkdtempSync(path.join(tmpdir(), 'receipts-'))),
-      groups,
-      now: options.now,
-    }),
+    receipts,
+    ai,
     budgets: new BudgetsService({
       repository: budgetsRepository,
       analytics: analyticsRepository,
@@ -282,7 +302,7 @@ export async function createTestApp(
     analytics,
     report: new ReportService(analytics, { base: 'AMD', maxRows: options.maxReportRows }),
     preferences: new PreferencesRepository(database),
-    editor: new ExpenseEditor({ database, repository, groups, now: options.now }),
+    editor,
     idempotency: new IdempotencyService(database),
     sync: sync as unknown as SyncService,
     scheduler,
@@ -331,6 +351,7 @@ export async function createTestApp(
     auth,
     authRepository,
     invitations,
+    llmProvider,
     inject,
     sessionCookies,
   };

@@ -59,6 +59,24 @@ export class ReceiptsService {
     };
   }
 
+  /**
+   * The photo of an expense together with the expense, for someone who may change it (parsing writes to the expense).
+   * Throws when there is no photo.
+   */
+  async readForChange(user: AuthUser, expenseId: string) {
+    const expense = await this.visibleExpense(user, expenseId);
+    await this.requireMayChange(user, expense);
+    const attachment = await this.options.repository.current(expense.id);
+    if (!attachment) {
+      throw new AppError(409, 'RECEIPT_MISSING', 'К этой операции не прикреплено фото чека');
+    }
+    const image = {
+      contentType: attachment.contentType,
+      bytes: await this.options.store.read(attachment.filePath),
+    };
+    return { expense, image };
+  }
+
   async attach(user: AuthUser, expenseId: string, bytes: Buffer): Promise<void> {
     const expense = await this.visibleExpense(user, expenseId);
     await this.requireMayChange(user, expense);

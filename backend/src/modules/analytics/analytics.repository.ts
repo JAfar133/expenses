@@ -202,7 +202,11 @@ export class AnalyticsRepository {
                 original_amount::float8 AS original_amount, original_currency,
                 exchange_rate::float8 AS exchange_rate,
                 EXISTS (SELECT 1 FROM expense_attachments a
-                         WHERE a.expense_id = expenses.id AND a.deleted_at IS NULL) AS has_receipt
+                         WHERE a.expense_id = expenses.id AND a.deleted_at IS NULL) AS has_receipt,
+                (SELECT count(*)::int FROM expense_items i WHERE i.expense_id = expenses.id) AS items_count,
+                (SELECT count(*)::int FROM expense_items i
+                  WHERE i.expense_id = expenses.id AND i.source = 'ai') AS ai_items_count,
+                name_source, date_source, ai_processed_at IS NOT NULL AS ai_processed
            FROM ${EXPENSES_SOURCE} ${where.sql}
           ORDER BY ${options.sort === 'amount' ? where.amount : SORT_SQL[options.sort]} ${direction}, seq ${direction}
           LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -242,6 +246,11 @@ interface ListRow {
   original_currency: string | null;
   exchange_rate: number | null;
   has_receipt: boolean;
+  items_count: number;
+  ai_items_count: number;
+  name_source: 'default' | 'manual' | 'ai';
+  date_source: 'default' | 'manual' | 'ai';
+  ai_processed: boolean;
   display_amount: number;
   created_at: string;
   card_amount: number | null;
@@ -291,4 +300,9 @@ const toListItem = (row: ListRow, baseCurrency: string): ExpenseListItem => ({
   deletedReason: row.deleted_reason,
   updatedBy: row.updated_by,
   hasReceipt: row.has_receipt,
+  itemsCount: row.items_count,
+  aiItemsCount: row.ai_items_count,
+  nameSource: row.name_source,
+  dateSource: row.date_source,
+  aiProcessed: row.ai_processed,
 });

@@ -17,6 +17,10 @@ import { budgetsRoutes } from './modules/budgets/budgets.routes.ts';
 import { receiptsRoutes } from './modules/receipts/receipts.routes.ts';
 import type { ReceiptsService } from './modules/receipts/receipts.service.ts';
 import type { BudgetsService } from './modules/budgets/budgets.service.ts';
+import type { AiModule } from './modules/ai/ai.module.ts';
+import { llmRoutes } from './modules/llm/llm.routes.ts';
+import { itemsRoutes } from './modules/items/items.routes.ts';
+import { expenseAiRoutes } from './modules/expense-ai/expense-ai.routes.ts';
 import type { GroupService } from './modules/groups/group.service.ts';
 import type { GroupsRepository } from './modules/groups/groups.repository.ts';
 import { adminRoutes, groupRoutes, invitationRoutes } from './modules/groups/groups.routes.ts';
@@ -59,6 +63,8 @@ export interface AppDependencies {
   /** Spending limits */
   budgets: BudgetsService;
   receipts: ReceiptsService;
+  /** Items of expenses and receipt parsing with the AI (v4) */
+  ai: AiModule;
   /** Invitation links */
   invitations: InvitationsService;
   /** Logins allowed to edit and delete */
@@ -98,6 +104,7 @@ export function buildApp({
   invitations,
   budgets,
   receipts,
+  ai,
   idempotency,
   sync,
   scheduler,
@@ -204,6 +211,12 @@ export function buildApp({
   );
   app.register(budgetsRoutes(budgets), { prefix: '/api' });
   app.register(receiptsRoutes(receipts), { prefix: '/api' });
+  app.register(itemsRoutes(ai.itemsService), { prefix: '/api' });
+  app.register(expenseAiRoutes(ai.analysis, sync), { prefix: '/api' });
+  app.register(
+    llmRoutes({ service: ai.llm, settings: ai.llmSettings, repository: ai.llmRepository }),
+    { prefix: '/api' },
+  );
   app.register(groupRoutes(groupService), { prefix: '/api' });
   app.register(adminRoutes(platformAdmin, backupStatus), { prefix: '/api' });
   app.register(invitationRoutes(invitations, auth), { prefix: '/api' });

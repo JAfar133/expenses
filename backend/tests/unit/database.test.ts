@@ -19,6 +19,7 @@ describe('миграции', () => {
     );
 
     expect(tables.map((t) => t.table_name)).toEqual([
+      'ai_usage',
       'app_settings',
       'auth_sessions',
       'budgets',
@@ -29,6 +30,7 @@ describe('миграции', () => {
       'exchange_rates',
       'expense_attachments',
       'expense_changes',
+      'expense_items',
       'expenses',
       'groups',
       'idempotency_keys',

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createItemsSchema } from '../items/items.schema.ts';
 
 export const createExpenseSchema = z.object({
   date: z.iso.date({ error: 'Укажите корректную дату' }),
@@ -12,6 +13,11 @@ export const createExpenseSchema = z.object({
   amount: z
     .number({ error: 'Стоимость должна быть числом' })
     .positive('Стоимость должна быть больше нуля'),
+  /** Positions of the receipt (optional) */
+  items: createItemsSchema,
+  /** `default`: the person did not type it (the AI may replace it after parsing a receipt); omitted means typed by hand */
+  nameSource: z.enum(['default', 'manual']).optional(),
+  dateSource: z.enum(['default', 'manual']).optional(),
   /** Currency of the amount; if omitted: the base one (drams). The service checks at most two decimals */
   currency: z.string({ error: 'Выберите валюту' }).trim().min(1, 'Выберите валюту').optional(),
   /** Manual rate (drams per unit of currency); if omitted: the CBA rate */

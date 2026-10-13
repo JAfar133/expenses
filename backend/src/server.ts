@@ -13,6 +13,8 @@ import { migrate } from './infrastructure/database/migrate.ts';
 import { IdempotencyService } from './infrastructure/idempotency/idempotency.service.ts';
 import { AnalyticsRepository } from './modules/analytics/analytics.repository.ts';
 import { ReceiptsRepository } from './modules/receipts/receipts.repository.ts';
+import { createAiModule } from './modules/ai/ai.module.ts';
+import { GeminiProvider } from './modules/llm/providers/gemini.provider.ts';
 import { ReceiptsService } from './modules/receipts/receipts.service.ts';
 import { ReceiptStore } from './modules/receipts/receipts.store.ts';
 import { BudgetsRepository } from './modules/budgets/budgets.repository.ts';
@@ -115,10 +117,31 @@ const analytics = new AnalyticsService({
   repository: new AnalyticsRepository(database, env.DEFAULT_CURRENCY),
   today: (timezone) => todayIn(timezone),
 });
+const receiptsRepository = new ReceiptsRepository(database);
 const receipts = new ReceiptsService({
-  repository: new ReceiptsRepository(database),
+  repository: receiptsRepository,
   store: new ReceiptStore(env.RECEIPTS_DIR),
   groups,
+});
+const editor = new ExpenseEditor({
+  database,
+  repository: expenses,
+  groups,
+  base: env.DEFAULT_CURRENCY,
+});
+const ai = createAiModule({
+  database,
+  expenses,
+  editor,
+  receipts,
+  receiptsRepository,
+  provider: new GeminiProvider({ baseUrl: env.GEMINI_BASE_URL }),
+  secretsKey: env.SECRETS_KEY,
+  defaults: {
+    apiKey: env.GEMINI_API_KEY,
+    model: env.GEMINI_MODEL,
+    dailyLimit: env.AI_DAILY_LIMIT,
+  },
 });
 const budgetsRepository = new BudgetsRepository(database);
 const budgets = new BudgetsService({
@@ -168,16 +191,12 @@ const app = buildApp({
   analytics,
   report,
   preferences: new PreferencesRepository(database),
-  editor: new ExpenseEditor({
-    database,
-    repository: expenses,
-    groups,
-    base: env.DEFAULT_CURRENCY,
-  }),
+  editor,
   groups,
   invitations,
   budgets,
   receipts,
+  ai,
   groupService: new GroupService(
     new GroupAdminRepository(database),
     invitations,
@@ -208,6 +227,7 @@ const app = buildApp({
   inlineExcelWaitMs: env.SYNC_INLINE_WAIT_SECONDS * 1000,
   expenseService: new ExpenseService(expenses, {
     groups,
+    items: ai.items,
     currency: {
       base: env.DEFAULT_CURRENCY,
       currencies: env.CURRENCIES,

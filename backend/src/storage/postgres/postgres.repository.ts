@@ -103,13 +103,15 @@ export class PostgresExpenseRepository implements ExpenseRepository {
     createdBy: string,
     original?: ExpenseOriginal,
     money?: ExpenseMoney,
+    sources?: { name: 'default' | 'manual'; date: 'default' | 'manual' },
   ): Promise<StoredExpense> {
     const [row] = await db.query<ExpenseRow>(
       `INSERT INTO expenses (
          id, date, card, category, name, amount, source, excel_status, created_by,
          original_amount, original_currency, exchange_rate,
-         card_currency, card_amount, reporting_currency, reporting_amount
-       ) VALUES ($1, $2, $3, $4, $5, $6, 'app', 'pending', $7, $8, $9, $10, $11, $12, $13, $14)
+         card_currency, card_amount, reporting_currency, reporting_amount,
+         name_source, date_source
+       ) VALUES ($1, $2, $3, $4, $5, $6, 'app', 'pending', $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        RETURNING ${COLUMNS}`,
       [
         randomUUID(),
@@ -126,6 +128,8 @@ export class PostgresExpenseRepository implements ExpenseRepository {
         money?.cardAmount ?? null,
         money?.reportingCurrency ?? null,
         money?.reportingAmount ?? null,
+        sources?.name ?? 'manual',
+        sources?.date ?? 'manual',
       ],
     );
     return toStored(row!);
@@ -346,7 +350,10 @@ export class PostgresExpenseRepository implements ExpenseRepository {
   ): Promise<void> {
     await db.query(
       `UPDATE expenses
-          SET date = $2, card = $3, category = $4, name = $5, amount = $6,
+          SET date = $2::date, card = $3, category = $4, name = $5, amount = $6,
+              -- a value a person changed is theirs from now on (an AI mark goes away)
+              name_source = CASE WHEN name IS DISTINCT FROM $5 THEN 'manual' ELSE name_source END,
+              date_source = CASE WHEN date IS DISTINCT FROM $2::date THEN 'manual' ELSE date_source END,
               card_currency = COALESCE($9, card_currency),
               card_amount = COALESCE($10, card_amount),
               reporting_currency = COALESCE($11, reporting_currency),

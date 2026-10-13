@@ -58,6 +58,21 @@ const envSchema = z.object({
   BACKUP_DIR: z.string().default('./backups'),
   /** Receipt photos (a folder that must survive restarts; the nightly copy to OneDrive is scripts/backup-receipts.sh) */
   RECEIPTS_DIR: z.string().default('./receipts'),
+  // AI receipt parsing (v4). The key and the on/off switch are edited by the administrator in the app;
+  // the values here are the fallback when nothing was saved in the app
+  /** Master key that encrypts the Gemini API key stored in the database (at least 32 characters) */
+  SECRETS_KEY: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+  GEMINI_API_KEY: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+  GEMINI_MODEL: z.string().trim().min(1).default('gemini-3.8-flash'),
+  GEMINI_BASE_URL: z.string().url().default('https://generativelanguage.googleapis.com/v1beta'),
+  /** Parsings per group per day when neither the administrator nor the group set a limit */
+  AI_DAILY_LIMIT: z.coerce.number().int().min(0).default(30),
   BACKUP_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
 
   // PostgreSQL ↔ Excel sync

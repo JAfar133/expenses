@@ -258,7 +258,7 @@ export class ExpenseEditor {
     if (!(await groups.canAddToCardOf(actor.userId, record.id, tx))) throw forbiddenError();
   }
 
-  private async edit(
+  private edit(
     id: string,
     actor: EditActor,
     work: (
@@ -266,6 +266,25 @@ export class ExpenseEditor {
       record: StoredExpense,
     ) => Promise<boolean>,
   ): Promise<EditResult> {
+    const { repository } = this.options;
+
+    return this.withEditAccess(id, actor, async (tx, record) => {
+      if (record.excelStatus === 'writing') throw busyError();
+
+      const changed = await work(tx, record);
+      return { record: (await repository.findForUpdate(tx, id))!, changed };
+    });
+  }
+
+  /**
+   * Runs work in a transaction on a locked record the actor may change: it must be in the actor's group and,
+   * for a member, their own within the time window. Used for everything attached to a record (items).
+   */
+  withEditAccess<T>(
+    id: string,
+    actor: EditActor,
+    work: (tx: SqlExecutor, record: StoredExpense) => Promise<T>,
+  ): Promise<T> {
     const { database, repository } = this.options;
 
     return database.transaction(async (tx) => {
@@ -273,10 +292,7 @@ export class ExpenseEditor {
       // A record of another group looks the same as a missing one
       if (!record || !actor.groupId || record.groupId !== actor.groupId) throw notFoundError();
       await this.requireOwn(actor, record, tx);
-      if (record.excelStatus === 'writing') throw busyError();
-
-      const changed = await work(tx, record);
-      return { record: (await repository.findForUpdate(tx, id))!, changed };
+      return work(tx, record);
     });
   }
 }
