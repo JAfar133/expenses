@@ -1,6 +1,6 @@
 /** Longest side of a receipt photo after compression, in pixels. */
-export const MAX_SIDE = 1600;
-const JPEG_QUALITY = 0.8;
+export const MAX_SIDE = 2400;
+const JPEG_QUALITY = 0.85;
 
 export const PHOTO_ERROR = 'Не удалось обработать фото';
 
@@ -20,7 +20,7 @@ export function fitSize(
 }
 
 /**
- * Shrinks a photo to JPEG with the longer side up to 1600px. The EXIF orientation is applied while decoding.
+ * Shrinks a photo to JPEG with the longer side up to 2400px. The EXIF orientation is applied while decoding.
  * Throws `Error('Не удалось обработать фото')` if the browser cannot decode the file (e.g. HEIC).
  */
 export async function compressImage(file: Blob): Promise<Blob> {

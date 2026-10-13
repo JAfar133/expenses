@@ -21,7 +21,7 @@ const ok = (data: unknown, status = 200) => jsonResponse(status, { success: true
 const realCreateElement = document.createElement.bind(document);
 
 /** A browser able to decode and re-encode images (jsdom cannot): the stubs record what the code asks for. */
-function stubImaging(size = { width: 3200, height: 1600 }) {
+function stubImaging(size = { width: 4800, height: 2400 }) {
   const canvas = { width: 0, height: 0 };
   vi.stubGlobal(
     'createImageBitmap',
@@ -52,15 +52,15 @@ afterEach(() => {
 });
 
 describe('сжатие фото', () => {
-  it('fitSize: большая сторона не больше 1600, пропорции сохраняются, малое не увеличивается', () => {
-    expect(fitSize(3200, 1600)).toEqual({ width: 1600, height: 800 });
-    expect(fitSize(1200, 4800)).toEqual({ width: 400, height: 1600 });
+  it('fitSize: большая сторона не больше 2400, пропорции сохраняются, малое не увеличивается', () => {
+    expect(fitSize(4800, 2400)).toEqual({ width: 2400, height: 1200 });
+    expect(fitSize(1200, 4800)).toEqual({ width: 600, height: 2400 });
     expect(fitSize(800, 600)).toEqual({ width: 800, height: 600 });
-    expect(fitSize(1600, 1600)).toEqual({ width: 1600, height: 1600 });
-    expect(fitSize(5000, 1)).toEqual({ width: 1600, height: 1 });
+    expect(fitSize(2400, 2400)).toEqual({ width: 2400, height: 2400 });
+    expect(fitSize(5000, 1)).toEqual({ width: 2400, height: 1 });
   });
 
-  it('compressImage: учитывает ориентацию из EXIF, JPEG 0.8, размер по fitSize', async () => {
+  it('compressImage: учитывает ориентацию из EXIF, JPEG 0.85, размер по fitSize', async () => {
     const canvas = stubImaging();
 
     const blob = await compressImage(new Blob(['raw']));
@@ -68,8 +68,8 @@ describe('сжатие фото', () => {
     expect(createImageBitmap).toHaveBeenCalledWith(expect.anything(), {
       imageOrientation: 'from-image',
     });
-    expect(canvas).toMatchObject({ width: 1600, height: 800 });
-    expect(toBlobArgs).toEqual([['image/jpeg', 0.8]]);
+    expect(canvas).toMatchObject({ width: 2400, height: 1200 });
+    expect(toBlobArgs).toEqual([['image/jpeg', 0.85]]);
     expect(blob.type).toBe('image/jpeg');
   });
 
