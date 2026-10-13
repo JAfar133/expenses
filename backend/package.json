@@ -5,7 +5,7 @@
   "scripts": {
     "test": "vitest run",
     "format": "prettier --write .",
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch --include .env src/server.ts",
     "start": "tsx src/server.ts",
     "typecheck": "tsc -p .",
     "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R src/infrastructure/database/migrations dist/infrastructure/database/",
