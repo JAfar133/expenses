@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { Field, inputClassName } from '../../../shared/ui/Field.tsx';
 import { Modal } from '../../../shared/ui/Modal.tsx';
 import { Notice } from '../../../shared/ui/Notice.tsx';
@@ -24,6 +24,8 @@ interface EditExpenseDialogProps {
   saving: boolean;
   /** Error of the last save */
   error: unknown;
+  /** Extra block above the buttons (the photo of the receipt) */
+  extra?: ReactNode;
   onSave: (patch: ExpensePatch) => void;
   onClose: () => void;
 }
@@ -68,6 +70,7 @@ export function EditExpenseDialog({
   baseCurrency = 'AMD',
   saving,
   error,
+  extra,
   onSave,
   onClose,
 }: EditExpenseDialogProps) {
@@ -181,6 +184,7 @@ export function EditExpenseDialog({
             {formatMoney(item.original.rate, 6)}) будет сброшена: стоимость задана в {currency}
           </Notice>
         )}
+        {extra}
         {error != null && <Notice variant="error">{toSaveErrorMessage(error)}</Notice>}
 
         <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">

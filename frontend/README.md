@@ -106,6 +106,8 @@ chunk, so the expense form stays light. To run the development mode against a di
 
 - Limits (budgets): `GET /api/budgets` feeds the progress bars (`features/budgets`, shown under the add form and at the top of the analysis "Обзор" tab; nothing is rendered when the group has no limits). The owner sets them in the "Категории" panel of `/group`: a "Лимит" icon per category and a pinned "Все категории" row open a dialog (amount, period: month starting on a day 1–28 or week).
 
+- Receipt photos (`features/receipts`): the owner enables them and picks categories in the "Фото чеков" section of `/group`; the add form then offers an optional photo for those categories (compressed in the browser to 1600px JPEG, uploaded after the expense is saved), records with a photo show a camera in "Операции", the edit dialog can replace, remove or attach one.
+
 ## Structure
 
 ```

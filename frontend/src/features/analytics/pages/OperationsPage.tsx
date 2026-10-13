@@ -10,6 +10,9 @@ import { fetchCards } from '../../expenses/api/expenses.api.ts';
 import { toSaveErrorMessage } from '../../expenses/api/save-error-message.ts';
 import { useSyncState } from '../../sync/hooks/useSyncState.ts';
 import type { OperationItem, SortColumn } from '../api/operations.api.ts';
+import { ReceiptEditor } from '../../receipts/components/ReceiptEditor.tsx';
+import { ReceiptViewer } from '../../receipts/components/ReceiptViewer.tsx';
+import { useReceiptSettings } from '../../receipts/hooks/useReceiptSettings.ts';
 import { ConfirmDialog } from '../components/ConfirmDialog.tsx';
 import { EditExpenseDialog } from '../components/EditExpenseDialog.tsx';
 import { OperationsTable } from '../components/OperationsTable.tsx';
@@ -70,6 +73,10 @@ export default function OperationsPage() {
 
   const [editing, setEditing] = useState<OperationItem>();
   const [deleting, setDeleting] = useState<OperationItem>();
+  const [viewingReceipt, setViewingReceipt] = useState<OperationItem>();
+  const receiptSettings = useReceiptSettings().data;
+  const receiptAllowed = (item: OperationItem) =>
+    !!receiptSettings?.enabled && receiptSettings.categories.includes(item.category);
   const [notice, setNotice] = useState<{ kind: 'success' | 'error'; text: string }>();
 
   const setPage = (next: number) =>
@@ -192,6 +199,7 @@ export default function OperationsPage() {
             setEditing(item);
           }}
           onDelete={setDeleting}
+          onViewReceipt={setViewingReceipt}
           onRestore={(item) =>
             restore.mutate(item.id, {
               onSuccess: () => done(`Запись «${item.name}» возвращена`),
@@ -237,6 +245,14 @@ export default function OperationsPage() {
           baseCurrency={baseCurrency}
           saving={update.isPending}
           error={update.error}
+          extra={
+            <ReceiptEditor
+              key={editing.id}
+              expenseId={editing.id}
+              hasReceipt={!!editing.hasReceipt}
+              allowed={receiptAllowed(editing)}
+            />
+          }
           onClose={() => setEditing(undefined)}
           onSave={(patch) =>
             update.mutate(
@@ -250,6 +266,10 @@ export default function OperationsPage() {
             )
           }
         />
+      )}
+
+      {viewingReceipt && (
+        <ReceiptViewer expenseId={viewingReceipt.id} onClose={() => setViewingReceipt(undefined)} />
       )}
 
       {deleting && (

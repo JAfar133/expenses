@@ -2,6 +2,7 @@ import { formatShortDateTime } from '../../admin/model/backup.ts';
 import { currencyDigits } from '../../../shared/utils/conversion.ts';
 import { formatAmount, formatMoney } from '../../../shared/utils/money.ts';
 import type { OperationItem, SortColumn, SortDirection } from '../api/operations.api.ts';
+import { ReceiptBadge } from '../../receipts/components/ReceiptBadge.tsx';
 import { ExcelStateBadge } from './ExcelStateBadge.tsx';
 
 interface OperationsTableProps {
@@ -23,6 +24,7 @@ interface OperationsTableProps {
   onEdit: (item: OperationItem) => void;
   onDelete: (item: OperationItem) => void;
   onRestore: (item: OperationItem) => void;
+  onViewReceipt?: (item: OperationItem) => void;
 }
 
 const COLUMNS: { id: SortColumn; label: string; numeric?: boolean }[] = [
@@ -219,6 +221,9 @@ export function OperationsTable(props: OperationsTableProps) {
                 <td className="py-2.5 pr-4">{item.category}</td>
                 <th scope="row" className={`py-2.5 pr-4 font-normal ${nameClass(item)}`}>
                   {item.name}
+                  {item.hasReceipt && props.onViewReceipt && (
+                    <ReceiptBadge onClick={() => props.onViewReceipt?.(item)} />
+                  )}
                 </th>
                 <td className="py-2.5 pr-4 text-right whitespace-nowrap">
                   <Amount item={item} currency={currency} baseCurrency={baseCurrency} />
@@ -243,7 +248,12 @@ export function OperationsTable(props: OperationsTableProps) {
           <li key={item.id} className="rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className={`truncate font-medium ${nameClass(item)}`}>{item.name}</div>
+                <div className={`flex items-center gap-1 font-medium ${nameClass(item)}`}>
+                  <span className="truncate">{item.name}</span>
+                  {item.hasReceipt && props.onViewReceipt && (
+                    <ReceiptBadge onClick={() => props.onViewReceipt?.(item)} />
+                  )}
+                </div>
                 <div className="text-sm text-zinc-500 dark:text-zinc-400">
                   {formatDate(item.date)} · {item.category} · {item.card}
                 </div>

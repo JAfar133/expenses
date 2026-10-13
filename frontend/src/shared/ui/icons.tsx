@@ -306,3 +306,10 @@ export const PlusIcon = () => (
     <path d="M12 5v14M5 12h14" />
   </Icon>
 );
+
+export const CameraIcon = () => (
+  <Icon>
+    <path d="M4 8h3l2-3h6l2 3h3v11H4V8z" />
+    <circle cx="12" cy="13" r="3.5" />
+  </Icon>
+);

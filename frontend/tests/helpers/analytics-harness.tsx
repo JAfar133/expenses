@@ -129,6 +129,7 @@ export function setupAnalyticsHarness() {
       'PUT /api/preferences': () =>
         ok(harness.bodies[harness.requests.lastIndexOf('PUT /api/preferences')] ?? {}),
       '/api/budgets': () => ok([]),
+      '/api/receipts/settings': () => ok({ enabled: false, categories: [] }),
       '/api/categories': () => ok(['кафе', 'продукты']),
     };
     vi.stubGlobal(
@@ -136,7 +137,14 @@ export function setupAnalyticsHarness() {
       vi.fn(async (input: string, init?: RequestInit) => {
         const method = init?.method ?? 'GET';
         harness.requests.push(method === 'GET' ? input : `${method} ${input}`);
-        harness.bodies.push(init?.body === undefined ? undefined : JSON.parse(String(init.body)));
+        // A photo upload sends a raw image, not JSON
+        harness.bodies.push(
+          typeof init?.body === 'string'
+            ? JSON.parse(init.body)
+            : init?.body === undefined
+              ? undefined
+              : null,
+        );
         const url = new URL(input, 'http://localhost');
         // Replace the record id in the URL with :id so handlers do not depend on concrete values
         const path = url.pathname.replace(

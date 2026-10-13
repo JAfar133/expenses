@@ -8,6 +8,7 @@ import { InvitationsSection } from '../components/InvitationsSection.tsx';
 import { MemberEditSection } from '../components/MemberEditSection.tsx';
 import { MembersSection } from '../components/MembersSection.tsx';
 import { ReportingCurrencySection } from '../components/ReportingCurrencySection.tsx';
+import { ReceiptsSection } from '../../receipts/components/ReceiptsSection.tsx';
 import { useGroup } from '../hooks/useGroup.ts';
 import { toErrorMessage } from '../model/error-message.ts';
 
@@ -50,6 +51,7 @@ function GroupContent({ currentUsername }: { currentUsername: string }) {
         reportingCurrency={data.group.reportingCurrency}
       />
       <CategoriesSection categories={data.categories} />
+      <ReceiptsSection categories={data.categories} />
     </div>
   );
 }

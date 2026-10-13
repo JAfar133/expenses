@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import type { AuthUser } from '../../auth/api/auth.api.ts';
 import { Button } from '../../../shared/ui/Button.tsx';
@@ -25,6 +25,9 @@ import { createExpenseFormSchema, type ExpenseFormValues } from '../schemas/expe
 import { pickSuggestions } from '../utils/pick-suggestions.ts';
 import { AmountFields } from './AmountFields.tsx';
 import { CardPicker } from './CardPicker.tsx';
+import { ReceiptPicker } from '../../receipts/components/ReceiptPicker.tsx';
+import { uploadReceipt } from '../../receipts/api/receipts.api.ts';
+import { useReceiptAllowed } from '../../receipts/hooks/useReceiptSettings.ts';
 import { NameSuggestions } from './NameSuggestions.tsx';
 
 /** The last category is remembered per user: two people may share one device. */
@@ -114,8 +117,13 @@ export function ExpenseForm({ cards, categories, currency, baseCurrency, user }:
 
   const { data: rates } = useRates();
 
+  // An optional photo of the receipt, only for the categories the owner chose
+  const [photo, setPhoto] = useState<Blob | null>(null);
+  const [photoFailed, setPhotoFailed] = useState(false);
+
   const { data: knownNames = [] } = useNameSuggestions();
   const [category, name] = useWatch({ control, name: ['category', 'name'] });
+  const receiptAllowed = useReceiptAllowed(category);
   const suggestions = pickSuggestions(knownNames, { category, query: name });
 
   const pickSuggestion = ({ name: picked }: NameSuggestion) => {
@@ -142,6 +150,8 @@ export function ExpenseForm({ cards, categories, currency, baseCurrency, user }:
 
   const submit = handleSubmit((values) => {
     if (createExpense.isPending) return;
+    setPhotoFailed(false);
+    const attached = receiptAllowed ? photo : null;
 
     const expense = {
       date: values.date,
@@ -154,7 +164,12 @@ export function ExpenseForm({ cards, categories, currency, baseCurrency, user }:
     createExpense.mutate(
       { expense, idempotencyKey: idempotencyKey.current },
       {
-        onSuccess: () => {
+        onSuccess: (created) => {
+          // The expense is already saved: a failed upload must not undo or block anything
+          if (attached) {
+            uploadReceipt(created.id, attached).catch(() => setPhotoFailed(true));
+          }
+          setPhoto(null);
           writeStored(lastCategoryKey(user.username), values.category);
           idempotencyKey.current = newRequestId();
 
@@ -205,6 +220,8 @@ export function ExpenseForm({ cards, categories, currency, baseCurrency, user }:
         </select>
       </Field>
 
+      {receiptAllowed && <ReceiptPicker photo={photo} onChange={setPhoto} />}
+
       <Field label="Наименование" htmlFor="name" error={errors.name?.message}>
         <input
           id="name"
@@ -230,6 +247,11 @@ export function ExpenseForm({ cards, categories, currency, baseCurrency, user }:
             Расход сохранён. В Excel он появится позже, когда файл освободится
           </Notice>
         ))}
+      {photoFailed && (
+        <Notice variant="info">
+          Расход сохранён, но фото не загрузилось. Его можно прикрепить позже в «Операциях».
+        </Notice>
+      )}
       {createExpense.isError && (
         <Notice variant="error">{toSaveErrorMessage(createExpense.error)}</Notice>
       )}
