@@ -1,3 +1,5 @@
+import { useIsWide } from '../hooks/useIsWide.ts';
+import { useScrollLock } from '../hooks/useScrollLock.ts';
 import { CloseIcon } from './icons.tsx';
 import { useEffect, useRef, type KeyboardEvent, type ReactNode, type Ref } from 'react';
 
@@ -37,8 +39,11 @@ export function AnchoredPanel({
   widthClass = 'sm:w-96',
   className = '',
 }: AnchoredPanelProps) {
+  const wide = useIsWide();
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
+  // A sheet on a phone blocks the page; the desktop popover does not
+  useScrollLock(open && !wide);
 
   useEffect(() => {
     if (!open) return;

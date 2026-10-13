@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { useScrollLock } from '../hooks/useScrollLock.ts';
 
 interface ModalProps {
   title: string;
@@ -11,6 +12,7 @@ const FOCUSABLE = 'input, select, textarea, button:not([disabled]), [href]';
 /** Modal window: closes on Escape and on backdrop click, focus moves inside and returns back. */
 export function Modal({ title, onClose, children }: ModalProps) {
   const panel = useRef<HTMLDivElement>(null);
+  useScrollLock();
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
@@ -40,7 +42,7 @@ export function Modal({ title, onClose, children }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="max-h-dvh w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl dark:bg-zinc-900"
+        className="max-h-dvh w-full max-w-md overflow-y-auto overscroll-contain rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl dark:bg-zinc-900"
       >
         <h2 className="mb-4 text-lg font-semibold">{title}</h2>
         {children}
