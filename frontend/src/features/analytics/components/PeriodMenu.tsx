@@ -18,6 +18,10 @@ const PERIOD_OPTIONS: { value: PeriodKind; label: string }[] = [
 
 const display = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 
+/** For a narrow screen: «Октябрь 2026» → «Окт 2026»; the other captions are short already. */
+export const shortCaption = (caption: string) =>
+  caption.replace(/^(\p{L}{3})\p{L}+( \d{4})$/u, '$1$2');
+
 /** The caption of the period: «Октябрь 2026», «30 дней», «05.10.2026 – 12.10.2026». */
 export function periodCaption(state: FilterState, from?: string, to?: string): string {
   if (state.period === 'month') return monthLabel(state.month);
@@ -29,7 +33,7 @@ export function periodCaption(state: FilterState, from?: string, to?: string): s
 }
 
 const arrowClass =
-  'flex size-11 shrink-0 items-center justify-center rounded-lg border border-zinc-300 text-lg text-zinc-600 hover:border-indigo-400 disabled:opacity-40 disabled:hover:border-zinc-300 dark:border-zinc-700 dark:text-zinc-300';
+  'flex size-9 shrink-0 items-center justify-center sm:size-11 rounded-lg border border-zinc-300 text-lg text-zinc-600 hover:border-indigo-400 disabled:opacity-40 disabled:hover:border-zinc-300 dark:border-zinc-700 dark:text-zinc-300';
 
 interface PeriodMenuProps {
   state: FilterState;
@@ -61,7 +65,7 @@ export function PeriodMenu({ state, today, onChange }: PeriodMenuProps) {
   };
 
   return (
-    <div className="flex w-full items-center gap-2 sm:w-auto">
+    <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:w-auto sm:flex-none sm:gap-2">
       {state.period === 'month' && (
         <button
           type="button"
@@ -74,7 +78,7 @@ export function PeriodMenu({ state, today, onChange }: PeriodMenuProps) {
       )}
       <AnchoredPanel
         label="Период"
-        className="min-w-0 flex-1 sm:max-w-72"
+        className="min-w-[6.75rem] flex-1 sm:max-w-72"
         open={open}
         onOpenChange={setOpen}
         trigger={(props) => (
@@ -82,13 +86,14 @@ export function PeriodMenu({ state, today, onChange }: PeriodMenuProps) {
             {...props}
             type="button"
             aria-label={`Период: ${caption}`}
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-zinc-300 px-3 text-sm font-medium hover:border-indigo-400 dark:border-zinc-700"
+            className="flex h-11 w-full min-w-[6.75rem] items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-zinc-300 px-2 text-sm font-medium hover:border-indigo-400 sm:gap-2 sm:px-3 dark:border-zinc-700"
           >
-            <span aria-hidden="true" className="text-zinc-500 dark:text-zinc-400">
+            <span aria-hidden="true" className="hidden text-zinc-500 sm:inline dark:text-zinc-400">
               Период:
             </span>
             <span aria-live="polite" className="tabular-nums">
-              {caption}
+              <span className="sm:hidden">{shortCaption(caption)}</span>
+              <span className="hidden sm:inline">{caption}</span>
             </span>
             <ChevronDownIcon />
           </button>

@@ -355,15 +355,50 @@ describe('раскрытые позиции в списке', () => {
     return { user, toggle, list: await screen.findByRole('list', { name: 'Позиции' }) };
   }
 
-  it('кнопка с шевроном: aria-expanded меняется, область нажатия не ниже 44px', async () => {
+  it('кнопка с шевроном: aria-expanded меняется, размер кнопки не меняется', async () => {
     const { user, toggle } = await open();
+    const classes = toggle.className;
 
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    expect(toggle.className).toContain('min-h-11');
     await user.click(toggle);
 
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByRole('list', { name: 'Позиции' })).toBeNull();
+    expect(toggle.className).toBe(classes);
+    await waitFor(() => expect(screen.queryByRole('list', { name: 'Позиции' })).toBeNull());
+  });
+
+  it('раскрытие не меняет отступы строки: отличается только цвет фона', async () => {
+    serve(operation({ itemsCount: 2 }));
+    const user = renderAnalytics(OPS);
+    await waitFor(() => within(table()).getByText('Супермаркет'));
+    const card = () =>
+      screen
+        .getAllByRole('listitem')
+        .find(
+          (li) => li.textContent?.includes('Супермаркет') && li.className.includes('border-b'),
+        )!;
+    const spacing = (el: HTMLElement) =>
+      el.className
+        .split(' ')
+        .filter((c) => /^(p|m|px|py|border|rounded)/.test(c) && !c.startsWith('bg-'))
+        .join(' ');
+    const before = spacing(card());
+
+    await user.click(screen.getAllByRole('button', { name: '2 позиции' })[1]!);
+
+    expect(spacing(card())).toBe(before);
+    expect(card().className).toContain('bg-indigo-50');
+  });
+
+  it('блок позиций растёт вниз: сетка 0fr → 1fr, плавно, с уважением reduce-motion', async () => {
+    const { list } = await open();
+
+    const wrapper = list.closest<HTMLElement>('[aria-hidden]')!;
+    expect(wrapper.className).toContain('grid');
+    expect(wrapper.className).toContain('transition-[grid-template-rows,opacity]');
+    expect(wrapper.className).toContain('motion-reduce:transition-none');
+    expect(wrapper.className).toContain('[overflow-anchor:none]');
+    await waitFor(() => expect(wrapper.className).toContain('grid-rows-[1fr]'));
   });
 
   it('список — отдельный блок на всю ширину строки таблицы, а не в узкой колонке названия', async () => {

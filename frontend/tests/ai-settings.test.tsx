@@ -125,7 +125,7 @@ function renderAt(path: string) {
 
 const block = async () => {
   const heading = await screen.findByRole('heading', { name: 'ИИ (Gemini)' });
-  await screen.findByRole('region', { name: 'Группы' });
+  await screen.findByRole('region', { name: 'Использование' });
   return within(heading.closest('section')!);
 };
 const sent = (method: string, url: string) =>
@@ -137,9 +137,9 @@ const noKey = { keyConfigured: false, keySource: 'none', keyHint: null, enabled:
 describe('админ: статус и переключатель', () => {
   it.each([
     [noKey, 'Не настроено', 'Сначала задайте ключ'],
-    [{ enabled: false }, 'Ключ задан, ИИ выключен', 'Выключено'],
-    [{ enabled: true }, 'Работает', 'Включено'],
-  ])('состояние %o: «%s», подпись «%s»', async (patch, label, caption) => {
+    [{ enabled: false }, 'Ключ задан, ИИ выключен', 'Автоматическое распознавание чеков'],
+    [{ enabled: true }, 'Работает', 'Автоматическое распознавание чеков'],
+  ])('состояние %o: чип «%s», подпись «%s»', async (patch, label, caption) => {
     aiState = adminAi(patch);
     renderAt('/admin');
     const ai = await block();
@@ -148,19 +148,27 @@ describe('админ: статус и переключатель', () => {
     expect(ai.getByText(caption)).toBeInTheDocument();
   });
 
+  it('чип статуса справа в заголовке карточки', async () => {
+    renderAt('/admin');
+    const ai = await block();
+
+    const heading = ai.getByRole('heading', { name: 'ИИ (Gemini)' });
+    expect(heading.parentElement).toContainElement(ai.getByRole('status'));
+  });
+
   it('без ключа переключатель неактивен', async () => {
     aiState = adminAi(noKey);
     renderAt('/admin');
     const ai = await block();
 
-    expect(ai.getByRole('switch', { name: 'ИИ для установки' })).toBeDisabled();
+    expect(ai.getByRole('switch', { name: 'Использовать ИИ для установки' })).toBeDisabled();
   });
 
   it('с ключом переключатель включает и выключает ИИ', async () => {
     const user = renderAt('/admin');
     const ai = await block();
 
-    await user.click(ai.getByRole('switch', { name: 'ИИ для установки' }));
+    await user.click(ai.getByRole('switch', { name: 'Использовать ИИ для установки' }));
 
     await waitFor(() => expect(sent('PUT', '/api/admin/ai')).toEqual({ enabled: false }));
   });
@@ -184,80 +192,111 @@ describe('админ: статус и переключатель', () => {
   });
 });
 
-describe('админ: шаг 1, API-ключ', () => {
-  it('ключ задан: хвост и источник, три действия включены', async () => {
+describe('админ: список настроек и окна', () => {
+  it('одна тонированная рамка со строками «Модель», «Лимит чеков в сутки», «API-ключ»', async () => {
     renderAt('/admin');
     const ai = await block();
 
-    expect(ai.getByText('Ключ задан …1234 · из приложения')).toBeInTheDocument();
-    for (const name of ['Проверить', 'Заменить', 'Удалить']) {
-      expect(ai.getByRole('button', { name })).toBeEnabled();
-    }
-    expect(ai.queryByLabelText('API-ключ Gemini')).toBeNull();
+    const model = ai.getByRole('button', { name: /^Модель/ });
+    expect(model).toHaveTextContent('gemini-3.8-flash');
+    expect(ai.getByRole('button', { name: /^Лимит чеков в сутки/ })).toHaveTextContent('50');
+    expect(ai.getByRole('button', { name: /^API-ключ/ })).toHaveTextContent('…1234');
+    expect(model.parentElement!.className).toContain('bg-zinc-50');
   });
 
-  it('ключа нет: поле-пароль без значения, «Сохранить ключ» неактивна, пока ничего не введено', async () => {
-    aiState = adminAi(noKey);
-    renderAt('/admin');
+  it('«Модель» открывает окно; «Сохранить» шлёт модель', async () => {
+    const user = renderAt('/admin');
     const ai = await block();
 
-    const field = ai.getByLabelText('API-ключ Gemini');
+    await user.click(ai.getByRole('button', { name: /^Модель/ }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Модель' }));
+    expect(
+      dialog.getByText('Идентификатор Gemini, по умолчанию gemini-3.8-flash'),
+    ).toBeInTheDocument();
+    const field = dialog.getByLabelText('Модель');
+    await user.clear(field);
+    await user.type(field, 'gemini-x');
+    await user.click(dialog.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() => expect(sent('PUT', '/api/admin/ai')).toEqual({ model: 'gemini-x' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Модель' })).toBeNull());
+  });
+
+  it('«Лимит чеков в сутки»: числовое поле, сохранение числом', async () => {
+    const user = renderAt('/admin');
+    const ai = await block();
+
+    await user.click(ai.getByRole('button', { name: /^Лимит чеков в сутки/ }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Лимит чеков в сутки' }));
+    expect(dialog.getByText('Сколько чеков группа может разобрать за сутки')).toBeInTheDocument();
+    const field = dialog.getByLabelText('Лимит чеков в сутки');
+    expect(field).toHaveAttribute('inputmode', 'numeric');
+    await user.clear(field);
+    await user.type(field, '80');
+    await user.click(dialog.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() => expect(sent('PUT', '/api/admin/ai')).toEqual({ dailyLimit: 80 }));
+  });
+
+  it('«Сохранить» неактивна при пустом поле', async () => {
+    const user = renderAt('/admin');
+    const ai = await block();
+    await user.click(ai.getByRole('button', { name: /^Модель/ }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Модель' }));
+
+    await user.clear(dialog.getByLabelText('Модель'));
+
+    expect(dialog.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
+  });
+
+  it('«API-ключ» открывает окно: поле-пароль «Новый ключ» без значения; сохранение шлёт ключ', async () => {
+    const user = renderAt('/admin');
+    const ai = await block();
+
+    await user.click(ai.getByRole('button', { name: /^API-ключ/ }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'API-ключ' }));
+    const field = dialog.getByLabelText('Новый ключ');
     expect(field).toHaveAttribute('type', 'password');
     expect(field).toHaveValue('');
-    expect(ai.getByRole('button', { name: 'Сохранить ключ' })).toBeDisabled();
-    expect(ai.getByText('Ключ не задан', { selector: 'p' })).toBeInTheDocument();
-  });
-
-  it('«Показать» и «Скрыть» переключают вид ключа', async () => {
-    aiState = adminAi(noKey);
-    const user = renderAt('/admin');
-    const ai = await block();
-
-    await user.click(ai.getByRole('button', { name: 'Показать ключ' }));
-    expect(ai.getByLabelText('API-ключ Gemini')).toHaveAttribute('type', 'text');
-    await user.click(ai.getByRole('button', { name: 'Скрыть ключ' }));
-
-    expect(ai.getByLabelText('API-ключ Gemini')).toHaveAttribute('type', 'password');
-  });
-
-  it('«Сохранить ключ» шлёт ключ и очищает поле', async () => {
-    aiState = adminAi(noKey);
-    const user = renderAt('/admin');
-    const ai = await block();
-
-    await user.type(ai.getByLabelText('API-ключ Gemini'), 'SECRET-KEY');
-    await user.click(ai.getByRole('button', { name: 'Сохранить ключ' }));
+    expect(dialog.getByRole('button', { name: 'Сохранить ключ' })).toBeDisabled();
+    await user.click(dialog.getByRole('button', { name: 'Показать ключ' }));
+    expect(field).toHaveAttribute('type', 'text');
+    await user.type(field, 'SECRET-KEY');
+    await user.click(dialog.getByRole('button', { name: 'Сохранить ключ' }));
 
     await waitFor(() => expect(sent('PUT', '/api/admin/ai/key')).toEqual({ apiKey: 'SECRET-KEY' }));
-    await waitFor(() => expect(ai.getByLabelText('API-ключ Gemini')).toHaveValue(''));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'API-ключ' })).toBeNull());
   });
 
-  it('«Заменить» показывает поле, «Отмена» его убирает, сохранение шлёт новый ключ', async () => {
+  it('«Заменить» открывает то же окно ключа', async () => {
     const user = renderAt('/admin');
     const ai = await block();
 
     await user.click(ai.getByRole('button', { name: 'Заменить' }));
-    await user.click(ai.getByRole('button', { name: 'Отмена' }));
-    expect(ai.queryByLabelText('API-ключ Gemini')).toBeNull();
 
-    await user.click(ai.getByRole('button', { name: 'Заменить' }));
-    await user.type(ai.getByLabelText('API-ключ Gemini'), 'NEW-KEY');
-    await user.click(ai.getByRole('button', { name: 'Сохранить ключ' }));
-
-    await waitFor(() => expect(sent('PUT', '/api/admin/ai/key')).toEqual({ apiKey: 'NEW-KEY' }));
-    await waitFor(() => expect(ai.queryByLabelText('API-ключ Gemini')).toBeNull());
+    expect(await screen.findByRole('dialog', { name: 'API-ключ' })).toBeInTheDocument();
   });
 
-  it('«Удалить» вызывает DELETE', async () => {
-    const user = renderAt('/admin');
+  it('нет ключа: строка «не задан»', async () => {
+    aiState = adminAi(noKey);
+    renderAt('/admin');
     const ai = await block();
 
-    await user.click(ai.getByRole('button', { name: 'Удалить' }));
-
-    await waitFor(() => expect(did('DELETE', '/api/admin/ai/key')).toBe(true));
+    expect(ai.getByRole('button', { name: /^API-ключ/ })).toHaveTextContent('не задан');
   });
 
-  it('«Проверить»: спиннер, затем сообщение сервера с галочкой', async () => {
+  it('тексты состояния ключа', () => {
+    expect(keyStatusText({ keyConfigured: true, keySource: 'env', keyHint: 'abcd' })).toBe(
+      'Ключ задан …abcd · из окружения',
+    );
+    expect(keyStatusText({ keyConfigured: false, keySource: 'none', keyHint: null })).toBe(
+      'Ключ не задан',
+    );
+  });
+});
+
+describe('админ: проверить, заменить, удалить', () => {
+  it('«Проверить»: спиннер, затем зелёная галочка с сообщением', async () => {
     let finish: (response: Response) => void = () => undefined;
     respond = (method, url) =>
       method === 'POST' && url === '/api/admin/ai/test'
@@ -273,9 +312,49 @@ describe('админ: шаг 1, API-ключ', () => {
     expect(await ai.findByText('Ключ работает')).toBeInTheDocument();
   });
 
-  it('нет SECRETS_KEY: жёлтая плашка с командой, поле и «Заменить» отключены с пояснением', async () => {
-    aiState = adminAi({ canStoreKey: false });
+  it('«Удалить» просит подтверждение, затем DELETE', async () => {
+    const user = renderAt('/admin');
+    const ai = await block();
+
+    await user.click(ai.getByRole('button', { name: 'Удалить' }));
+    expect(did('DELETE', '/api/admin/ai/key')).toBe(false);
+    await user.click(
+      within(await screen.findByRole('dialog', { name: 'Удалить ключ?' })).getByRole('button', {
+        name: 'Удалить',
+      }),
+    );
+
+    await waitFor(() => expect(did('DELETE', '/api/admin/ai/key')).toBe(true));
+  });
+
+  it('без ключа «Проверить» и «Удалить» отключены с подсказкой', async () => {
+    aiState = adminAi(noKey);
     renderAt('/admin');
+    const ai = await block();
+
+    expect(ai.getByRole('button', { name: 'Проверить' })).toBeDisabled();
+    expect(ai.getByRole('button', { name: 'Удалить' })).toBeDisabled();
+    expect(ai.getByRole('button', { name: 'Удалить' })).toHaveAttribute('title', 'Ключ не задан');
+  });
+
+  it('ключ из окружения: «Удалить» неактивна с подсказкой, окно ключа объясняет про SECRETS_KEY', async () => {
+    aiState = adminAi({ keySource: 'env' });
+    const user = renderAt('/admin');
+    const ai = await block();
+
+    const remove = ai.getByRole('button', { name: 'Удалить' });
+    expect(remove).toBeDisabled();
+    expect(remove).toHaveAttribute('title', expect.stringContaining('окружении'));
+    await user.click(ai.getByRole('button', { name: /^API-ключ/ }));
+    expect(
+      await screen.findByText(/Чтобы заменить его в приложении, нужен SECRETS_KEY/),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Ключ задан …1234 · из окружения')).toBeInTheDocument();
+  });
+
+  it('нет SECRETS_KEY: жёлтая плашка с командой, «Заменить» отключена, поле в окне ключа тоже', async () => {
+    aiState = adminAi({ canStoreKey: false });
+    const user = renderAt('/admin');
     const ai = await block();
 
     expect(ai.getByRole('note')).toHaveTextContent(
@@ -287,145 +366,41 @@ describe('админ: шаг 1, API-ключ', () => {
       'title',
       'Нужен SECRETS_KEY на сервере',
     );
-  });
-
-  it('нет SECRETS_KEY и нет ключа: поле и кнопка сохранения отключены', async () => {
-    aiState = adminAi({ ...noKey, canStoreKey: false });
-    renderAt('/admin');
-    const ai = await block();
-
-    expect(ai.getByLabelText('API-ключ Gemini')).toBeDisabled();
-    expect(ai.getByRole('button', { name: 'Сохранить ключ' })).toBeDisabled();
-  });
-
-  it('ключ из окружения: пояснение, «Удалить» неактивна с подсказкой', async () => {
-    aiState = adminAi({ keySource: 'env' });
-    renderAt('/admin');
-    const ai = await block();
-
-    expect(ai.getByText('Ключ задан …1234 · из окружения')).toBeInTheDocument();
-    expect(ai.getByText(/Чтобы заменить его в приложении, нужен SECRETS_KEY/)).toBeInTheDocument();
-    const remove = ai.getByRole('button', { name: 'Удалить' });
-    expect(remove).toBeDisabled();
-    expect(remove).toHaveAttribute('title', expect.stringContaining('окружении'));
-  });
-
-  it('тексты состояния ключа', () => {
-    expect(keyStatusText({ keyConfigured: true, keySource: 'env', keyHint: 'abcd' })).toBe(
-      'Ключ задан …abcd · из окружения',
-    );
-    expect(keyStatusText({ keyConfigured: false, keySource: 'none', keyHint: null })).toBe(
-      'Ключ не задан',
-    );
+    await user.click(ai.getByRole('button', { name: /^API-ключ/ }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'API-ключ' }));
+    expect(dialog.getByLabelText('Новый ключ')).toBeDisabled();
+    expect(dialog.getByRole('button', { name: 'Сохранить ключ' })).toBeDisabled();
   });
 });
 
-describe('админ: параметры, использование, группы', () => {
-  it('«Дополнительно» свёрнуто: видно только строка с текущими значениями', async () => {
-    renderAt('/admin');
-    const ai = await block();
-
-    expect(ai.queryByLabelText('Модель')).toBeNull();
-    expect(
-      ai.getByText(/Модель gemini-3.8-flash · лимит 50 в сутки на группу/),
-    ).toBeInTheDocument();
-  });
-
-  it('одна форма и одна кнопка «Сохранить»: активна при изменениях, шлёт модель и лимит вместе', async () => {
-    const user = renderAt('/admin');
-    const ai = await block();
-    await user.click(ai.getByRole('button', { name: /Дополнительно/ }));
-    expect(ai.getByLabelText('Модель')).toHaveValue('gemini-3.8-flash');
-    expect(ai.getByLabelText('Лимит')).toHaveValue('50');
-    expect(ai.getByText('Сколько чеков группа может разобрать за сутки')).toBeInTheDocument();
-    expect(ai.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
-
-    await user.type(ai.getByLabelText('Модель'), '-pro');
-    await user.clear(ai.getByLabelText('Лимит'));
-    await user.type(ai.getByLabelText('Лимит'), '80');
-    await user.click(ai.getByRole('button', { name: 'Сохранить' }));
-
-    await waitFor(() =>
-      expect(sent('PUT', '/api/admin/ai')).toEqual({
-        model: 'gemini-3.8-flash-pro',
-        dailyLimit: 80,
-      }),
-    );
-  });
-
-  it('три плитки использования', async () => {
+describe('админ: использование', () => {
+  it('«Сегодня 3 / 50», «За 30 дней 41», «Ошибок 2» в одной рамке', async () => {
     renderAt('/admin');
     const ai = await block();
 
     const usage = within(ai.getByRole('region', { name: 'Использование' }));
-    expect(usage.getByText('Сегодня').nextSibling).toHaveTextContent('3');
+    expect(usage.getByText('Использование (последние 30 дней)')).toBeInTheDocument();
+    expect(usage.getByText('Сегодня').nextSibling).toHaveTextContent('3 / 50');
     expect(usage.getByText('За 30 дней').nextSibling).toHaveTextContent('41');
-    expect(usage.getByText('Ошибок за 30 дней').nextSibling).toHaveTextContent('2');
+    expect(usage.getByText('Ошибок').nextSibling).toHaveTextContent('2');
   });
 
-  it('группы: состояние, «сегодня разобрано N из L» (свой или общий лимит)', async () => {
+  it('нулевое использование: «0 / 30»', async () => {
+    aiState = adminAi({ dailyLimit: 30, usage: { today: 0, month: 0, errorsMonth: 0 } });
     renderAt('/admin');
     const ai = await block();
 
-    expect(ai.getByText(/ИИ включён владельцем · сегодня разобрано 2 из 50/)).toBeInTheDocument();
-    expect(ai.getByText(/ИИ выключен владельцем · сегодня разобрано 0 из 10/)).toBeInTheDocument();
-    expect(ai.getByLabelText('Лимит разборов в сутки: Семья')).toHaveAttribute(
-      'placeholder',
-      'как у всех (50)',
-    );
+    expect(
+      within(ai.getByRole('region', { name: 'Использование' })).getByText('0 / 30'),
+    ).toBeInTheDocument();
   });
 
-  it('одна группа тоже показывается', async () => {
-    aiState = adminAi({
-      groups: [{ id: 1, name: 'Семья', enabled: true, dailyLimit: null, usedToday: 1 }],
-    });
+  it('списка групп в блоке ИИ больше нет', async () => {
     renderAt('/admin');
     const ai = await block();
 
-    expect(ai.getByText('Семья')).toBeInTheDocument();
-  });
-
-  it('лимит группы сохраняется по Enter', async () => {
-    const user = renderAt('/admin');
-    const ai = await block();
-
-    await user.type(ai.getByLabelText('Лимит разборов в сутки: Семья'), '25{Enter}');
-
-    await waitFor(() => expect(sent('PUT', '/api/admin/groups/1/ai-limit')).toEqual({ limit: 25 }));
-  });
-
-  it('лимит группы сохраняется при уходе из поля', async () => {
-    const user = renderAt('/admin');
-    const ai = await block();
-
-    await user.type(ai.getByLabelText('Лимит разборов в сутки: Семья'), '30');
-    await user.tab();
-
-    await waitFor(() => expect(sent('PUT', '/api/admin/groups/1/ai-limit')).toEqual({ limit: 30 }));
-  });
-
-  it('кнопка-иконка с галочкой появляется при изменении и сохраняет', async () => {
-    const user = renderAt('/admin');
-    const ai = await block();
-    expect(ai.queryByRole('button', { name: 'Сохранить лимит: Семья' })).toBeNull();
-
-    await user.type(ai.getByLabelText('Лимит разборов в сутки: Семья'), '12');
-    await user.click(ai.getByRole('button', { name: 'Сохранить лимит: Семья' }));
-
-    await waitFor(() => expect(sent('PUT', '/api/admin/groups/1/ai-limit')).toEqual({ limit: 12 }));
-    expect(requests.filter((r) => r.url === '/api/admin/groups/1/ai-limit')).toHaveLength(1);
-  });
-
-  it('очистка своего лимита возвращает общий: limit = null', async () => {
-    const user = renderAt('/admin');
-    const ai = await block();
-
-    await user.clear(ai.getByLabelText('Лимит разборов в сутки: Соседи'));
-    await user.tab();
-
-    await waitFor(() =>
-      expect(sent('PUT', '/api/admin/groups/2/ai-limit')).toEqual({ limit: null }),
-    );
+    expect(ai.queryByRole('region', { name: 'Группы' })).toBeNull();
+    expect(ai.queryByLabelText(/Лимит разборов в сутки/)).toBeNull();
   });
 });
 
@@ -468,37 +443,6 @@ describe('«Настройки группы»: разбор чеков с пом
     expect(toggle).toBeDisabled();
     expect(toggle).not.toBeChecked();
     expect(screen.getByText('Выключено администратором')).toBeInTheDocument();
-  });
-});
-
-describe('админ: лимит группы понятно', () => {
-  it('подпись «Лимит в сутки», placeholder с общим лимитом, пояснение в title', async () => {
-    renderAt('/admin');
-    const ai = await block();
-
-    expect(ai.getAllByText('Лимит в сутки')).toHaveLength(2);
-    const field = ai.getByLabelText('Лимит разборов в сутки: Семья');
-    expect(field).toHaveAttribute('placeholder', 'как у всех (50)');
-    expect(field.closest('[title]')).toHaveAttribute(
-      'title',
-      'Сколько чеков эта группа может разобрать за сутки. Пусто: действует общий лимит',
-    );
-  });
-
-  it('у группы со своим лимитом — пометка «свой лимит» и «Сбросить» (limit: null); у остальных нет', async () => {
-    const user = renderAt('/admin');
-    const ai = await block();
-    expect(ai.queryByRole('button', { name: 'Сбросить лимит: Семья' })).toBeNull();
-    expect(ai.getAllByText(/свой лимит/)).toHaveLength(1);
-
-    await user.click(ai.getByRole('button', { name: 'Сбросить лимит: Соседи' }));
-
-    await waitFor(() =>
-      expect(sent('PUT', '/api/admin/groups/2/ai-limit')).toEqual({ limit: null }),
-    );
-    await waitFor(() =>
-      expect(ai.getByLabelText('Лимит разборов в сутки: Соседи')).toHaveValue(''),
-    );
   });
 });
 

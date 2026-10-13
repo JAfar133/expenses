@@ -17,6 +17,7 @@ import { useReceiptSettings } from '../../receipts/hooks/useReceiptSettings.ts';
 import { ConfirmDialog } from '../components/ConfirmDialog.tsx';
 import { EditExpenseDialog } from '../components/EditExpenseDialog.tsx';
 import { OperationsTable } from '../components/OperationsTable.tsx';
+import { useTimeseries } from '../hooks/useAnalytics.ts';
 import { useAnalyticsReference } from '../hooks/useAnalyticsReference.ts';
 import { useDisplayCurrency } from '../hooks/useDisplayCurrency.tsx';
 import { useFilterOptions } from '../hooks/useFilterOptions.ts';
@@ -26,6 +27,7 @@ import { toApiFilters } from '../model/filter-state.ts';
 import {
   clampPage,
   nextSort,
+  recordsLabel,
   PAGE_SIZE,
   pageCount,
   parseSort,
@@ -71,6 +73,13 @@ export default function OperationsPage() {
     limit: PAGE_SIZE,
     offset: (page - 1) * PAGE_SIZE,
   });
+
+  // Day totals for the plates of the phone list: whole days, not only the loaded page (same filters and currency)
+  const byDate = sort === 'date';
+  const days = useTimeseries(filters, 'day', undefined, { enabled: byDate });
+  const dayTotals = days.data
+    ? new Map(days.data.map((point) => [point.period, point.total]))
+    : undefined;
 
   const [editing, setEditing] = useState<OperationItem>();
   const [deleting, setDeleting] = useState<OperationItem>();
@@ -141,15 +150,13 @@ export default function OperationsPage() {
 
   return (
     <section className="space-y-4 rounded-2xl bg-white p-4 shadow-sm sm:p-5 dark:bg-zinc-900">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-base font-semibold">Все операции</h2>
+      <div>
+        <h2 className="text-base font-semibold">Операции</h2>
         {list.data && (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Записей: <strong className="font-semibold">{list.data.total}</strong> на{' '}
-            <strong className="font-semibold">
-              {formatAmount(list.data.totalAmount, currencyDigits(displayCurrency, baseCurrency))}{' '}
-              {displayCurrency}
-            </strong>
+            {recordsLabel(list.data.total)} ·{' '}
+            {formatAmount(list.data.totalAmount, currencyDigits(displayCurrency, baseCurrency))}{' '}
+            {displayCurrency}
           </p>
         )}
       </div>
@@ -195,6 +202,10 @@ export default function OperationsPage() {
           excelEnabled={excelEnabled}
           authorLabel={authorLabel}
           busyId={busyId}
+          groupByDay={byDate}
+          dayTotals={dayTotals}
+          displayCurrency={displayCurrency}
+          currentUsername={user?.username}
           onEdit={(item) => {
             update.reset();
             setEditing(item);

@@ -40,7 +40,7 @@ describe('скачивание отчёта на странице анализа
     );
 
     await user.click(screen.getByRole('link', { name: 'Операции' }));
-    await screen.findByRole('heading', { name: 'Все операции' });
+    await screen.findByRole('heading', { name: 'Операции' });
     expect(screen.getAllByRole('button', { name: 'Скачать Excel' })).toHaveLength(1);
 
     await user.click(screen.getByRole('link', { name: 'Сравнение месяцев' }));

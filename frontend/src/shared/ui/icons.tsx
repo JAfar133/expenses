@@ -349,3 +349,16 @@ export const InfoIcon = ({ size = 14 }: { size?: number }) => (
     <path d="M12 11v5M12 8h.01" />
   </Icon>
 );
+
+export const MailIcon = () => (
+  <Icon>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="M3 7l9 6 9-6" />
+  </Icon>
+);
+
+export const ChevronRightSmallIcon = () => (
+  <Icon size={16}>
+    <path d="M9 5l7 7-7 7" />
+  </Icon>
+);

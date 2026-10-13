@@ -43,10 +43,12 @@ export const useTimeseries = (
   filters: AnalyticsFilters,
   granularity: Granularity,
   splitBy?: 'category' | 'card',
+  { enabled = true }: { enabled?: boolean } = {},
 ) =>
   useQuery({
     queryKey: [...ANALYTICS_KEY, 'timeseries', granularity, splitBy ?? null, filters],
     queryFn: () => fetchTimeseries(filters, granularity, splitBy),
+    enabled,
     ...options,
   });
 

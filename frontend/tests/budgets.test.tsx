@@ -386,7 +386,7 @@ describe('лимиты на вкладке «Обзор»', () => {
     harness.handlers['/api/budgets'] = () => analyticsOk([budget()]);
     harness.handlers['/api/expenses'] = () => analyticsOk({ items: [], total: 0, totalAmount: 0 });
     renderAnalytics('/analytics/operations');
-    await screen.findByRole('heading', { name: 'Все операции' });
+    await screen.findByRole('heading', { name: 'Операции' });
 
     expect(screen.queryByRole('progressbar')).toBeNull();
   });

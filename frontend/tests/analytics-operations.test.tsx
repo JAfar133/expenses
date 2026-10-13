@@ -139,9 +139,7 @@ describe('список операций', () => {
     expect(row).toHaveTextContent('Миша');
     expect(row).toHaveTextContent('кафе');
     expect(row).toHaveTextContent('12 345 AMD');
-    expect(screen.getByText('Записей:', { exact: false })).toHaveTextContent(
-      'Записей: 1 на 12 345 AMD',
-    );
+    expect(screen.getByText(/запис\S* ·/)).toHaveTextContent('1 запись · 12 345 AMD');
   });
 
   it('по умолчанию от новых к старым, 50 записей, период берётся из фильтров', async () => {
@@ -615,7 +613,7 @@ describe('вкладка', () => {
 
     await user.click(await screen.findByRole('link', { name: 'Операции' }));
 
-    expect(await screen.findByRole('heading', { name: 'Все операции' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Операции' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Операции' })).toHaveAttribute('aria-current', 'page');
   });
 
@@ -691,7 +689,7 @@ describe('валюты карт', () => {
       });
     renderAnalytics(OPS);
 
-    expect(await screen.findByText('5 000,00 RUB')).toBeInTheDocument();
+    expect(await screen.findByText(/· 5 000,00 RUB/)).toBeInTheDocument();
     expect(decodeURIComponent(listRequests().at(-1)!)).toContain('currency=RUB');
   });
 
@@ -707,7 +705,7 @@ describe('валюты карт', () => {
       });
     renderAnalytics(OPS);
 
-    expect(await screen.findByText('137,16 USD')).toBeInTheDocument();
+    expect(await screen.findByText(/· 137,16 USD/)).toBeInTheDocument();
   });
 
   it('записи в драммах при отчётности в драммах: ничего лишнего', async () => {

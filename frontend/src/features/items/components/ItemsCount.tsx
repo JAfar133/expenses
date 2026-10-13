@@ -14,7 +14,7 @@ export function ItemsCount({ count, open, onToggle }: ItemsCountProps) {
       type="button"
       aria-expanded={open}
       onClick={onToggle}
-      className="mt-0.5 flex min-h-11 items-center gap-1 rounded-lg pr-2 text-xs text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 md:min-h-8"
+      className="mt-0.5 flex min-h-9 items-center gap-1 rounded-lg pr-2 text-xs text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 md:min-h-8"
     >
       {itemsLabel(count)}
       <span aria-hidden="true" className={`transition ${open ? 'rotate-180' : ''}`}>

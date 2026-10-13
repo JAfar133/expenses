@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -23,11 +23,13 @@ const EXPIRES = '2026-10-20T10:00:00.000Z';
 
 let me: Record<string, unknown>;
 let groups: Record<string, unknown>[];
+let aiGroups: Record<string, unknown>[];
 let requests: { method: string; url: string; body?: Record<string, unknown> }[];
 
 beforeEach(() => {
   me = ADMIN;
   requests = [];
+  aiGroups = [];
   groups = [
     {
       id: 1,
@@ -66,7 +68,7 @@ beforeEach(() => {
           keyHint: null,
           canStoreKey: true,
           usage: { today: 0, month: 0, errorsMonth: 0 },
-          groups: [],
+          groups: aiGroups,
         });
       }
       if (url === '/api/admin/groups' && method === 'GET') return ok(groups);
@@ -113,53 +115,107 @@ describe('страница администрирования', () => {
     expect(requests.some((r) => r.url === '/api/admin/groups')).toBe(false);
   });
 
-  it('перечисляет группы со статусом', async () => {
+  it('перечисляет группы компактными строками: валюта, владельцы, участники, статус', async () => {
     renderAdmin();
 
     expect(await screen.findByText('Семья')).toBeInTheDocument();
-    expect(screen.getByText('Соседи')).toBeInTheDocument();
-    expect(screen.getByText('отключена')).toBeInTheDocument();
-    expect(screen.getByText(/владельцев: 1 · участников: 3/)).toBeInTheDocument();
+    expect(screen.getByText('AMD · 1 владелец · 3 участника')).toBeInTheDocument();
+    expect(screen.getByText('USD · 1 владелец · 1 участник')).toBeInTheDocument();
+    expect(screen.getByText('Активна')).toBeInTheDocument();
+    expect(screen.getByText('Приостановлена')).toBeInTheDocument();
   });
 
-  it('создаёт группу и показывает ссылку для владельца', async () => {
+  it('создание группы: «+ Создать новую группу» открывает окно, ссылка для владельца', async () => {
     const person = renderAdmin();
     await screen.findByText('Семья');
 
-    await person.type(screen.getByLabelText('Название новой группы'), 'Друзья');
-    await person.selectOptions(await screen.findByLabelText('Валюта отчётов'), 'USD');
-    await person.click(screen.getByRole('button', { name: 'Создать группу' }));
+    await person.click(screen.getByRole('button', { name: '+ Создать новую группу' }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Новая группа' }));
+    await person.type(dialog.getByLabelText('Название новой группы'), 'Друзья');
+    await person.selectOptions(await dialog.findByLabelText('Валюта отчётов'), 'USD');
+    await person.click(dialog.getByRole('button', { name: 'Создать группу' }));
 
-    expect(await screen.findByLabelText('Ссылка')).toHaveValue(
+    expect(await dialog.findByLabelText('Ссылка')).toHaveValue(
       `${window.location.origin}/invite/OWNER-NEW`,
     );
     expect(sent('POST', '/api/admin/groups')).toEqual({ name: 'Друзья', currency: 'USD' });
   });
 
-  it('создаёт ссылку для владельца существующей группы', async () => {
+  it('нажатие на строку открывает окно группы; «Ссылка-приглашение» создаёт ссылку', async () => {
     const person = renderAdmin();
-    await screen.findByText('Семья');
+    await person.click(await screen.findByRole('button', { name: /Открыть группу Семья/ }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Семья' }));
 
-    await person.click(screen.getByRole('button', { name: 'Ссылка для владельца: Семья' }));
+    await person.click(dialog.getByRole('button', { name: 'Ссылка-приглашение' }));
 
-    expect(await screen.findByLabelText('Ссылка')).toHaveValue(
+    expect(await dialog.findByLabelText('Ссылка')).toHaveValue(
       `${window.location.origin}/invite/OWNER-1`,
     );
   });
 
-  it('отключает группу с подтверждением и включает обратно', async () => {
+  it('«Приостановить» (красная) спрашивает подтверждение; «Возобновить» сразу', async () => {
     const person = renderAdmin();
-    await screen.findByText('Семья');
+    await person.click(await screen.findByRole('button', { name: /Открыть группу Семья/ }));
+    const sheet = within(await screen.findByRole('dialog', { name: 'Семья' }));
+    expect(sheet.getByRole('button', { name: 'Приостановить' }).className).toContain(
+      'text-red-600',
+    );
 
-    await person.click(screen.getByRole('button', { name: 'Отключить: Семья' }));
+    await person.click(sheet.getByRole('button', { name: 'Приостановить' }));
     expect(sent('PATCH', '/api/admin/groups/1')).toBeUndefined();
     await person.click(
-      within(screen.getByRole('dialog')).getByRole('button', { name: 'Отключить' }),
+      within(screen.getByRole('dialog', { name: 'Приостановить группу?' })).getByRole('button', {
+        name: 'Приостановить',
+      }),
     );
     expect(sent('PATCH', '/api/admin/groups/1')).toEqual({ disabled: true });
 
-    await person.click(screen.getByRole('button', { name: 'Включить: Соседи' }));
+    await person.keyboard('{Escape}');
+    await person.click(await screen.findByRole('button', { name: /Открыть группу Соседи/ }));
+    const second = within(await screen.findByRole('dialog', { name: 'Соседи' }));
+    await person.click(second.getByRole('button', { name: 'Возобновить' }));
     expect(sent('PATCH', '/api/admin/groups/2')).toEqual({ disabled: false });
+  });
+
+  it('окно группы: лимит ИИ в сутки, состояние, «сегодня разобрано N из L», сохранение и сброс', async () => {
+    aiGroups = [
+      { id: 1, name: 'Семья', enabled: true, dailyLimit: null, usedToday: 2 },
+      { id: 2, name: 'Соседи', enabled: false, dailyLimit: 10, usedToday: 0 },
+    ];
+    const person = renderAdmin();
+    await person.click(await screen.findByRole('button', { name: /Открыть группу Соседи/ }));
+    const sheet = within(await screen.findByRole('dialog', { name: 'Соседи' }));
+
+    expect(
+      await sheet.findByText(/ИИ выключен владельцем · сегодня разобрано 0 из 10/),
+    ).toBeInTheDocument();
+    const field = sheet.getByLabelText('Лимит разборов в сутки: Соседи');
+    expect(field).toHaveAttribute('placeholder', 'как у всех (50)');
+    await person.type(field, '5');
+    await person.click(sheet.getByRole('button', { name: 'Сохранить лимит: Соседи' }));
+    await waitFor(() =>
+      expect(sent('PUT', '/api/admin/groups/2/ai-limit')).toEqual({ limit: 105 }),
+    );
+
+    await person.click(sheet.getByRole('button', { name: 'Сбросить лимит: Соседи' }));
+    await waitFor(() => expect(sent('PUT', '/api/admin/groups/2/ai-limit')).toBeDefined());
+  });
+
+  it('склонение: 2 владельца, 5 участников', async () => {
+    groups = [
+      {
+        id: 9,
+        name: 'Большая',
+        reportingCurrency: 'AMD',
+        disabled: false,
+        owners: 2,
+        members: 5,
+        createdAt: '2026-10-01T00:00:00.000Z',
+      },
+    ];
+    renderAdmin();
+
+    expect(await screen.findByText('AMD · 2 владельца · 5 участников')).toBeInTheDocument();
   });
 });
 
@@ -168,6 +224,7 @@ describe('сброс пароля', () => {
     const person = renderAdmin();
     await screen.findByText('Семья');
     const reset = within(section('Сброс пароля'));
+    expect(reset.getByRole('button', { name: 'Создать ссылку для сброса пароля' })).toBeDisabled();
 
     await person.type(reset.getByLabelText('Логин пользователя'), 'nastya');
     await person.click(reset.getByRole('button', { name: 'Создать ссылку для сброса пароля' }));

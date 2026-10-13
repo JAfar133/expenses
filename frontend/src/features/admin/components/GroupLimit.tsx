@@ -13,7 +13,7 @@ const LIMIT_HINT =
   'Сколько чеков эта группа может разобрать за сутки. Пусто: действует общий лимит';
 
 /** The own limit of a group: saved on Enter, on leaving the field or with the small check button. Empty = common. */
-function GroupLimit({ group, commonLimit }: { group: AiGroup; commonLimit: number }) {
+export function GroupLimit({ group, commonLimit }: { group: AiGroup; commonLimit: number }) {
   const refresh = useRefreshAdminAi();
   const [value, setValue] = useState(group.dailyLimit === null ? '' : String(group.dailyLimit));
   const save = useAdminMutation(
@@ -79,28 +79,5 @@ function GroupLimit({ group, commonLimit }: { group: AiGroup; commonLimit: numbe
         {save.isError && <span className="text-xs text-red-600">{toErrorMessage(save.error)}</span>}
       </div>
     </div>
-  );
-}
-
-/** Step 4: every group (even a single one): the state, today's use out of the limit, and its own limit. */
-export function AiGroupsList({ groups, commonLimit }: { groups: AiGroup[]; commonLimit: number }) {
-  return (
-    <section aria-label="Группы" className="space-y-2">
-      <h3 className="text-sm font-semibold">Группы</h3>
-      <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-        {groups.map((group) => (
-          <li key={group.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5">
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">{group.name}</div>
-              <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                {group.enabled ? 'ИИ включён владельцем' : 'ИИ выключен владельцем'} · сегодня
-                разобрано {group.usedToday} из {groupLimit(group.dailyLimit, commonLimit)}
-              </div>
-            </div>
-            <GroupLimit group={group} commonLimit={commonLimit} />
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }

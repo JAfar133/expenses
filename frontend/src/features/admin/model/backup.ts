@@ -30,3 +30,11 @@ export const RUN_ERROR_TEXT: Record<string, string> = {
   upload_failed: 'не загрузилась в OneDrive',
   unexpected: 'непредвиденная ошибка',
 };
+
+/** «13.10.2026 в 22:20» for the backup card. */
+export function formatBackupMoment(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} в ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}

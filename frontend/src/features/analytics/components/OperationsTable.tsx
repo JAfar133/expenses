@@ -7,6 +7,7 @@ import { ParsingBadge } from '../../ai/components/ParsingBadge.tsx';
 import { ItemsCount } from '../../items/components/ItemsCount.tsx';
 import { ItemsPanel } from '../../items/components/ItemsPanel.tsx';
 import { ReceiptBadge } from '../../receipts/components/ReceiptBadge.tsx';
+import { capitalize, dayWords, groupByDate } from '../model/operations.ts';
 import { formatShortDateTime } from '../../admin/model/backup.ts';
 import { ActionMenu, type MenuAction } from '../../../shared/ui/ActionMenu.tsx';
 import { CameraIcon, PencilIcon, TrashIcon, UndoIcon } from '../../../shared/ui/icons.tsx';
@@ -32,6 +33,13 @@ interface OperationsTableProps {
   onDelete: (item: OperationItem) => void;
   onRestore: (item: OperationItem) => void;
   onViewReceipt?: (item: OperationItem) => void;
+  /** Phone list: records grouped under a plate per day (only while sorted by date) */
+  groupByDay?: boolean;
+  /** The whole-day totals in the display currency, by YYYY-MM-DD; a day without a total shows no sum */
+  dayTotals?: ReadonlyMap<string, number>;
+  displayCurrency?: string;
+  /** The author is named in a row only when it is somebody else */
+  currentUsername?: string;
 }
 
 const COLUMNS: { id: SortColumn; label: string; numeric?: boolean }[] = [
@@ -53,10 +61,12 @@ function Amount({
   item,
   currency,
   baseCurrency,
+  strong = false,
 }: {
   item: OperationItem;
   currency: string;
   baseCurrency: string;
+  strong?: boolean;
 }) {
   const own = item.currency || currency;
   const showReporting =
@@ -66,7 +76,9 @@ function Amount({
 
   return (
     <span className="inline-flex flex-col items-end">
-      <span className="font-medium tabular-nums whitespace-nowrap">
+      <span
+        className={`${strong ? 'font-semibold' : 'font-medium'} tabular-nums whitespace-nowrap`}
+      >
         {formatAmount(item.amount, currencyDigits(own, baseCurrency))} {own}
       </span>
       {item.original && (
@@ -139,13 +151,17 @@ function Actions({
 /** Which rows have their positions opened. The table and the phone cards keep their own state. */
 function useOpenRows() {
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
-  const toggle = (id: string) =>
+  // Rows opened at least once keep their (collapsed) block, so closing animates too
+  const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
+  const toggle = (id: string) => {
     setOpen((current) => {
       const next = new Set(current);
       if (!next.delete(id)) next.add(id);
       return next;
     });
-  return { open, toggle };
+    setOpened((current) => new Set(current).add(id));
+  };
+  return { open, opened, toggle };
 }
 
 /** Under the name: the parsing status and the muted «3 позиции ▾» button. */
@@ -189,12 +205,17 @@ export function OperationsTable(props: OperationsTableProps) {
     excelEnabled,
     authorLabel,
     busyId,
+    groupByDay = false,
+    dayTotals,
+    displayCurrency,
+    currentUsername,
   } = props;
   const tableRows = useOpenRows();
   const cardRows = useOpenRows();
-  const panelOf = (item: OperationItem) => (
+  const panelOf = (item: OperationItem, open: boolean) => (
     <ItemsPanel
       expenseId={item.id}
+      open={open}
       currency={item.currency || currency}
       baseCurrency={baseCurrency}
       operationAmount={item.amount}
@@ -286,10 +307,10 @@ export function OperationsTable(props: OperationsTableProps) {
                   <td className="py-2.5 pr-4">{authorLabel(item.createdBy)}</td>
                   {showActions && <td className="py-2.5 text-right">{actions(item)}</td>}
                 </tr>
-                {tableRows.open.has(item.id) && (
-                  <tr className="border-b border-zinc-100 dark:border-zinc-800">
-                    <td colSpan={COLUMNS.length + (showActions ? 1 : 0)} className="pb-3">
-                      {panelOf(item)}
+                {tableRows.opened.has(item.id) && (
+                  <tr>
+                    <td colSpan={COLUMNS.length + (showActions ? 1 : 0)} className="p-0">
+                      {panelOf(item, tableRows.open.has(item.id))}
                     </td>
                   </tr>
                 )}
@@ -299,40 +320,62 @@ export function OperationsTable(props: OperationsTableProps) {
         </table>
       </div>
 
-      <ul className="space-y-3 md:hidden" aria-label="Операции">
-        {items.map((item) => (
-          <li key={item.id} className="rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className={`flex items-center gap-1 font-medium ${nameClass(item)}`}>
-                  <span className="truncate">{item.name}</span>
-                  {item.nameSource === 'ai' && <AiMark />}
-                  {item.hasReceipt && props.onViewReceipt && (
-                    <ReceiptBadge onClick={() => props.onViewReceipt?.(item)} />
-                  )}
-                </div>
-                <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                  {formatDate(item.date)} · {item.category} · {item.card}
-                </div>
-                <RowExtras
-                  item={item}
-                  open={cardRows.open.has(item.id)}
-                  onToggle={() => cardRows.toggle(item.id)}
-                  excelEnabled={excelEnabled}
-                />
-              </div>
-              <Amount item={item} currency={currency} baseCurrency={baseCurrency} />
-            </div>
-            <div className="mt-2 flex flex-wrap items-end justify-between gap-2">
-              <div className="space-y-1">
-                <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Добавил: {authorLabel(item.createdBy)}
-                </div>
-              </div>
-              {actions(item)}
-            </div>
-            {cardRows.open.has(item.id) && panelOf(item)}
-          </li>
+      <ul className="md:hidden" aria-label="Операции">
+        {(groupByDay ? groupByDate(items) : [{ date: null, items }]).map((group) => (
+          <Fragment key={group.date ?? 'all'}>
+            {group.date && (
+              <li className="pt-2 first:pt-0">
+                <h3 className="rounded-lg bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                  {dayWords(group.date)}
+                  {dayTotals?.has(group.date) &&
+                    ` · ${formatAmount(dayTotals.get(group.date)!, currencyDigits(displayCurrency ?? currency, baseCurrency))} ${displayCurrency ?? currency}`}
+                </h3>
+              </li>
+            )}
+            {group.items.map((item) => {
+              const open = cardRows.open.has(item.id);
+              const meta = [
+                group.date ? null : formatDate(item.date),
+                capitalize(item.category),
+                item.source === 'excel' ? 'Из Excel' : item.card,
+                item.createdBy !== currentUsername ? authorLabel(item.createdBy) : null,
+              ]
+                .filter(Boolean)
+                .join(' · ');
+              return (
+                <li
+                  key={item.id}
+                  className={`rounded-xl border-b border-zinc-100 px-2 py-2 transition-colors dark:border-zinc-800 ${open ? 'bg-indigo-50/50 dark:bg-indigo-950/20' : 'bg-transparent'} ${item.deletedAt ? 'opacity-70' : ''}`}
+                >
+                  <div className="flex items-start gap-1">
+                    <div className="min-w-0 flex-1">
+                      <div className={`flex items-center gap-1 font-medium ${nameClass(item)}`}>
+                        <span className="truncate">{item.name}</span>
+                        {item.nameSource === 'ai' && <AiMark />}
+                        {item.hasReceipt && props.onViewReceipt && (
+                          <ReceiptBadge onClick={() => props.onViewReceipt?.(item)} />
+                        )}
+                      </div>
+                      <div className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                        {meta}
+                      </div>
+                      <RowExtras
+                        item={item}
+                        open={open}
+                        onToggle={() => cardRows.toggle(item.id)}
+                        excelEnabled={excelEnabled}
+                      />
+                    </div>
+                    <div className="shrink-0 text-right text-sm">
+                      <Amount item={item} currency={currency} baseCurrency={baseCurrency} strong />
+                    </div>
+                    <div className="-my-1 -mr-1">{actions(item)}</div>
+                  </div>
+                  {cardRows.opened.has(item.id) && panelOf(item, open)}
+                </li>
+              );
+            })}
+          </Fragment>
         ))}
       </ul>
     </>

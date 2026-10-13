@@ -103,7 +103,7 @@ describe('форматирование', () => {
 const shot = (iso: string) => {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} в ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 const AT = shot('2026-10-12T03:00:00.000Z');
 const INSTRUCTION = 'Проверьте на сервере: ./scripts/backup-db.sh · лог ~/backups/backup.log';
@@ -115,14 +115,18 @@ describe('раздел «Бэкап базы»', () => {
     expect(headings[1]).toBe('Бэкап базы');
   });
 
-  it('ok: одна строка — дата, имя файла, размер, OneDrive; без инструкции и лишних строк', async () => {
+  it('ok: зелёная плашка с галочкой «Последний бэкап: … в …», «размер · OneDrive», имя файла мелко', async () => {
     await renderAdmin();
     const box = within(section());
 
-    expect(await box.findByText(AT)).toBeInTheDocument();
+    const title = await box.findByText(`Последний бэкап: ${AT}`);
+    const plate = title.closest('div.rounded-xl')!;
+    expect(plate.className).toContain('bg-emerald-50');
+    expect(within(plate as HTMLElement).getByText('2,5 МБ · OneDrive')).toBeInTheDocument();
     expect(box.getByText('expenses-2026-10-12.dump')).toBeInTheDocument();
-    expect(box.getByText('2,5 МБ')).toBeInTheDocument();
-    expect(box.getByText('OneDrive')).toBeInTheDocument();
+    expect(box.getByText('expenses-2026-10-12.dump').className).toContain('text-xs');
+    expect(box.getByRole('button', { name: 'Обновить' })).toBeInTheDocument();
+    expect(box.queryByRole('button', { name: /Создать/ })).toBeNull();
     expect(box.queryByText(INSTRUCTION)).toBeNull();
     expect(box.queryByRole('alert')).toBeNull();
     expect(box.queryByText(/Последний запуск/)).toBeNull();
@@ -148,7 +152,7 @@ describe('раздел «Бэкап базы»', () => {
     });
     await renderAdmin();
     expect(await within(section()).findByText('10 Б')).toBeInTheDocument();
-    expect(within(section()).queryByText('OneDrive')).toBeNull();
+    expect(within(section()).queryByText(/OneDrive/)).toBeNull();
   });
 
   it('stale: «Нет свежей копии · последняя … (2 дн. назад)» и строка-инструкция', async () => {
@@ -156,9 +160,8 @@ describe('раздел «Бэкап базы»', () => {
     await renderAdmin();
     const box = within(section());
 
-    expect(
-      await box.findByText(`Нет свежей копии · последняя ${AT} (2 дн. назад)`),
-    ).toBeInTheDocument();
+    const title = await box.findByText(`Нет свежей копии · последняя ${AT} (2 дн. назад)`);
+    expect(title.closest('div.rounded-xl')!.className).toContain('bg-amber-50');
     expect(box.getByText(INSTRUCTION)).toBeInTheDocument();
     expect(box.queryByRole('alert')).toBeNull();
   });
@@ -185,9 +188,8 @@ describe('раздел «Бэкап базы»', () => {
     await renderAdmin();
     const box = within(section());
 
-    expect(
-      await box.findByText(`Ошибка запуска: ${text} · последняя копия ${AT}`),
-    ).toBeInTheDocument();
+    const title = await box.findByText(`Ошибка запуска: ${text} · последняя копия ${AT}`);
+    expect(title.closest('div.rounded-xl')!.className).toContain('bg-red-50');
     expect(box.getByText(INSTRUCTION)).toBeInTheDocument();
   });
 
@@ -196,7 +198,9 @@ describe('раздел «Бэкап базы»', () => {
     await renderAdmin();
     const box = within(section());
 
-    expect(await box.findByText('Нет данных')).toBeInTheDocument();
+    expect((await box.findByText('Нет данных')).closest('div.rounded-xl')!.className).toContain(
+      'bg-zinc-100',
+    );
     expect(box.queryByText(INSTRUCTION)).toBeNull();
   });
 
@@ -209,12 +213,13 @@ describe('раздел «Бэкап базы»', () => {
       ageHours: null,
     });
     await renderAdmin();
-    expect(await within(section()).findByText('Не настроено')).toBeInTheDocument();
+    const plate = (await within(section()).findByText('Не настроено')).closest('div.rounded-xl')!;
+    expect(plate.className).toContain('bg-zinc-100');
   });
 
   it('«Обновить» запрашивает состояние заново', async () => {
     const person = await renderAdmin();
-    await within(section()).findByText(AT);
+    await within(section()).findByText(`Последний бэкап: ${AT}`);
     const before = requests.filter((r) => r === '/api/admin/backup').length;
 
     current = backup({ state: 'stale', ageHours: 60 });
@@ -226,7 +231,7 @@ describe('раздел «Бэкап базы»', () => {
 
   it('подсказка короткая и называет предел в часах', async () => {
     const person = await renderAdmin();
-    await within(section()).findByText(AT);
+    await within(section()).findByText(`Последний бэкап: ${AT}`);
 
     await person.click(within(section()).getByRole('button', { name: 'Подсказка' }));
 

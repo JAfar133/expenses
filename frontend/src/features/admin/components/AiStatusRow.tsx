@@ -1,6 +1,6 @@
 import { Switch } from '../../../shared/ui/Switch.tsx';
 import type { AdminAi } from '../api/admin.api.ts';
-import { aiStatusOf, switchCaption, type AiTone } from '../model/ai-status.ts';
+import { aiStatusOf, type AiTone } from '../model/ai-status.ts';
 
 const DOT: Record<AiTone, string> = {
   grey: 'bg-zinc-400',
@@ -15,39 +15,44 @@ const CHIP: Record<AiTone, string> = {
   red: 'bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200',
 };
 
-interface AiStatusRowProps {
-  ai: Pick<AdminAi, 'keyConfigured' | 'enabled'>;
-  lastCheckFailed: boolean;
+type Setup = Pick<AdminAi, 'keyConfigured' | 'enabled'>;
+
+/** The state as a coloured chip: no key, key without the switch, working, or the last check failed. */
+export function AiStatusChip({ ai, lastCheckFailed }: { ai: Setup; lastCheckFailed: boolean }) {
+  const status = aiStatusOf(ai, lastCheckFailed);
+  return (
+    <span
+      role="status"
+      className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${CHIP[status.tone]}`}
+    >
+      <span aria-hidden="true" className={`size-2 rounded-full ${DOT[status.tone]}`} />
+      {status.label}
+    </span>
+  );
+}
+
+interface AiSwitchRowProps {
+  ai: Setup;
   busy: boolean;
   onToggle: (enabled: boolean) => void;
 }
 
-/** The top line: the state as a coloured chip, and the switch of the AI for the whole installation. */
-export function AiStatusRow({ ai, lastCheckFailed, busy, onToggle }: AiStatusRowProps) {
-  const status = aiStatusOf(ai, lastCheckFailed);
+/** «Использовать ИИ для установки» with the switch; without a key the switch is off and says why. */
+export function AiSwitchRow({ ai, busy, onToggle }: AiSwitchRowProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <span
-        role="status"
-        className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium ${CHIP[status.tone]}`}
-      >
-        <span aria-hidden="true" className={`size-2 rounded-full ${DOT[status.tone]}`} />
-        {status.label}
-      </span>
-      <div className="flex items-center gap-3">
-        <span className="text-right">
-          <span className="block text-sm font-medium">ИИ для установки</span>
-          <span className="block text-xs text-zinc-500 dark:text-zinc-400">
-            {switchCaption(ai)}
-          </span>
-        </span>
-        <Switch
-          checked={ai.enabled}
-          label="ИИ для установки"
-          disabled={!ai.keyConfigured || busy}
-          onChange={onToggle}
-        />
+    <div className="flex items-center justify-between gap-4">
+      <div className="min-w-0">
+        <div className="text-sm font-medium">Использовать ИИ для установки</div>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          {ai.keyConfigured ? 'Автоматическое распознавание чеков' : 'Сначала задайте ключ'}
+        </p>
       </div>
+      <Switch
+        checked={ai.enabled}
+        label="Использовать ИИ для установки"
+        disabled={!ai.keyConfigured || busy}
+        onChange={onToggle}
+      />
     </div>
   );
 }

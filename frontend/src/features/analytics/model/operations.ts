@@ -106,3 +106,48 @@ export function parseSort(sort: string | null, dir: string | null) {
   if (!column) return DEFAULT_SORT;
   return { sort: column, direction: dir === 'asc' ? ('asc' as const) : ('desc' as const) };
 }
+
+/** «1 запись», «3 записи», «68 записей». */
+export function recordsLabel(count: number): string {
+  const lastTwo = count % 100;
+  const last = count % 10;
+  if (lastTwo >= 11 && lastTwo <= 14) return `${count} записей`;
+  if (last === 1) return `${count} запись`;
+  if (last >= 2 && last <= 4) return `${count} записи`;
+  return `${count} записей`;
+}
+
+/** Only for display: «кафе» → «Кафе». */
+export const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+const MONTHS_GENITIVE = [
+  'января',
+  'февраля',
+  'марта',
+  'апреля',
+  'мая',
+  'июня',
+  'июля',
+  'августа',
+  'сентября',
+  'октября',
+  'ноября',
+  'декабря',
+];
+
+/** «13 октября 2026» for YYYY-MM-DD. */
+export const dayWords = (iso: string) =>
+  `${Number(iso.slice(8, 10))} ${MONTHS_GENITIVE[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
+
+/** Consecutive records of one date (the list is sorted by date, so a day is one run). */
+export function groupByDate<T extends { date: string }>(
+  items: T[],
+): { date: string; items: T[] }[] {
+  const groups: { date: string; items: T[] }[] = [];
+  for (const item of items) {
+    const last = groups.at(-1);
+    if (last && last.date === item.date) last.items.push(item);
+    else groups.push({ date: item.date, items: [item] });
+  }
+  return groups;
+}
