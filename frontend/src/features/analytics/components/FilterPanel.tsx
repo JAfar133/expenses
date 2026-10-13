@@ -1,36 +1,27 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { AnchoredPanel } from '../../../shared/ui/AnchoredPanel.tsx';
+import { SettingsIcon } from '../../../shared/ui/icons.tsx';
 import { useFilterOptions } from '../hooks/useFilterOptions.ts';
-import { usePreference } from '../../preferences/hooks/usePreferences.ts';
 import { activeFilterCount, type FilterState } from '../model/filter-state.ts';
 import { ActiveFilters } from './ActiveFilters.tsx';
-import { DebouncedInput } from './DebouncedInput.tsx';
-import { PeriodPicker } from './PeriodPicker.tsx';
-import { ToggleChips } from './ToggleChips.tsx';
+import { FilterSheet } from './FilterSheet.tsx';
+import { PeriodMenu } from './PeriodMenu.tsx';
 
 interface FilterPanelProps {
   state: FilterState;
   today: string;
   onChange: (patch: Partial<FilterState>) => void;
   onReset: () => void;
-  /** Show the period picker; month comparison has its own period */
+  /** Show the period; month comparison has its own period */
   showPeriod?: boolean;
-  /** Buttons next to the Filters toggle (e.g. the report download) */
+  /** Buttons next to the Filters button (e.g. the report download) */
   actions?: ReactNode;
 }
 
-function FieldGroup({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="space-y-1.5">
-      <div className="text-sm font-medium text-zinc-600 dark:text-zinc-400">{label}</div>
-      {children}
-    </div>
-  );
-}
-
-const amountOrUndefined = (text: string) =>
-  /^\d+$/.test(text.trim()) ? Number(text.trim()) : undefined;
-
-/** Shared filter panel of the analytics page: period on top, other conditions expand with the Filters button. */
+/**
+ * The top of the analytics pages: the period and the Filters button on one line (the panel with the filters opens
+ * from it), under them only the filters that restrict something, as chips with a cross.
+ */
 export function FilterPanel({
   state,
   today,
@@ -39,149 +30,53 @@ export function FilterPanel({
   showPeriod = true,
   actions,
 }: FilterPanelProps) {
-  const [openState, setOpenState] = usePreference('filters.panel');
-  const open = openState === 'open';
+  const [open, setOpen] = useState(false);
   const options = useFilterOptions();
   const count = activeFilterCount(state);
 
   return (
     <section
       aria-label="Фильтры"
-      className="space-y-3 rounded-2xl bg-white p-4 shadow-sm dark:bg-zinc-900"
+      className="space-y-2 rounded-2xl bg-white p-3 shadow-sm dark:bg-zinc-900"
     >
-      {showPeriod && <PeriodPicker state={state} today={today} onChange={onChange} />}
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        {showPeriod && <PeriodMenu state={state} today={today} onChange={onChange} />}
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            aria-expanded={open}
-            aria-controls="filter-fields"
-            onClick={() => setOpenState(open ? 'closed' : 'open')}
-            className="flex h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-zinc-300 px-3 text-sm font-medium hover:border-indigo-400 sm:h-9 sm:flex-none dark:border-zinc-700"
-          >
-            Фильтры
-            {count > 0 && (
-              <span className="flex size-5 items-center justify-center rounded-full bg-indigo-600 text-xs text-white">
-                {count}
-              </span>
+          <AnchoredPanel
+            label="Фильтры"
+            className="min-w-0 flex-1 sm:flex-none"
+            open={open}
+            onOpenChange={setOpen}
+            widthClass="sm:w-[26rem]"
+            trigger={(props) => (
+              <button
+                {...props}
+                type="button"
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-zinc-300 px-3 text-sm font-medium hover:border-indigo-400 dark:border-zinc-700"
+              >
+                <SettingsIcon />
+                Фильтры
+                {count > 0 && <span>· {count}</span>}
+              </button>
             )}
-            <span aria-hidden="true">{open ? '▴' : '▾'}</span>
-          </button>
+          >
+            <FilterSheet
+              state={state}
+              options={options}
+              onChange={onChange}
+              onReset={onReset}
+              onClose={() => setOpen(false)}
+            />
+          </AnchoredPanel>
           {actions}
         </div>
-        <ActiveFilters
-          state={state}
-          authors={options.authors}
-          onChange={onChange}
-          onReset={onReset}
-        />
       </div>
-
-      {open && (
-        <div id="filter-fields" className="grid gap-4 sm:grid-cols-2">
-          <FieldGroup label="Карты">
-            <ToggleChips
-              label="Карты"
-              options={options.cards}
-              selected={state.cards}
-              excluded={state.excludeCards}
-              onChange={({ selected, excluded }) =>
-                onChange({ cards: selected, excludeCards: excluded })
-              }
-            />
-          </FieldGroup>
-          <FieldGroup label="Кто добавил">
-            <ToggleChips
-              label="Кто добавил"
-              options={options.authors}
-              selected={state.createdBy}
-              excluded={state.excludeCreatedBy}
-              onChange={({ selected, excluded }) =>
-                onChange({ createdBy: selected, excludeCreatedBy: excluded })
-              }
-            />
-          </FieldGroup>
-          <div className="sm:col-span-2">
-            <FieldGroup label="Категории">
-              <ToggleChips
-                label="Категории"
-                options={options.categories}
-                selected={state.categories}
-                excluded={state.excludeCategories}
-                onChange={({ selected, excluded }) =>
-                  onChange({ categories: selected, excludeCategories: excluded })
-                }
-              />
-            </FieldGroup>
-          </div>
-          <FieldGroup label="Валюта ввода">
-            <ToggleChips
-              label="Валюта ввода"
-              options={options.currencies}
-              selected={state.currencies}
-              excluded={state.excludeCurrencies}
-              onChange={({ selected, excluded }) =>
-                onChange({ currencies: selected, excludeCurrencies: excluded })
-              }
-            />
-          </FieldGroup>
-          <FieldGroup label="Наименование содержит">
-            <DebouncedInput
-              type="search"
-              aria-label="Поиск по наименованию"
-              placeholder="Например, латте"
-              autoComplete="off"
-              maxLength={100}
-              value={state.q}
-              onCommit={(q) => onChange({ q: q.trim() })}
-            />
-          </FieldGroup>
-          <FieldGroup label="Сумма, от и до">
-            <div className="flex items-center gap-2">
-              <DebouncedInput
-                inputMode="numeric"
-                aria-label="Сумма от"
-                placeholder="от"
-                autoComplete="off"
-                value={state.minAmount === undefined ? '' : String(state.minAmount)}
-                onCommit={(text) => onChange({ minAmount: amountOrUndefined(text) })}
-              />
-              <span aria-hidden="true" className="text-zinc-400">
-                –
-              </span>
-              <DebouncedInput
-                inputMode="numeric"
-                aria-label="Сумма до"
-                placeholder="до"
-                autoComplete="off"
-                value={state.maxAmount === undefined ? '' : String(state.maxAmount)}
-                onCommit={(text) => onChange({ maxAmount: amountOrUndefined(text) })}
-              />
-            </div>
-          </FieldGroup>
-          {options.hasArchive && (
-            <label className="flex items-center gap-3 text-sm sm:col-span-2">
-              <input
-                type="checkbox"
-                checked={state.includeArchived}
-                onChange={(event) => onChange({ includeArchived: event.target.checked })}
-                className="size-5 accent-indigo-600"
-              />
-              Показывать архив
-            </label>
-          )}
-          <label className="flex items-center gap-3 text-sm sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={state.includeDeleted}
-              onChange={(event) => onChange({ includeDeleted: event.target.checked })}
-              className="size-5 accent-indigo-600"
-            />
-            Показывать удалённые записи (пропавшие из Excel)
-          </label>
-        </div>
-      )}
+      <ActiveFilters
+        state={state}
+        authors={options.authors}
+        onChange={onChange}
+        onReset={onReset}
+      />
     </section>
   );
 }

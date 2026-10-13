@@ -297,6 +297,7 @@ describe('сортировка и страницы', () => {
     const user = renderAnalytics(`${OPS}?page=3`);
     await waitFor(() => expect(lastList()).toContain('offset=100'));
 
+    await user.click(screen.getByRole('button', { name: /^Период:/ }));
     await user.click(screen.getByRole('radio', { name: '30 дней' }));
 
     await waitFor(() => expect(screen.getByTestId('location')).not.toHaveTextContent('page='));

@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { inputClassName } from '../../../shared/ui/Field.tsx';
+import { SelectBox, selectPadding } from '../../../shared/ui/SelectBox.tsx';
 import { formatMoney } from '../../../shared/utils/money.ts';
 import type { BreakdownRow } from '../api/analytics.api.ts';
 import { assignColors, seriesColor } from '../model/chart-data.ts';
 import { toNameShares } from '../model/drill.ts';
 import { ChartCard, ChartMessage } from './ChartCard.tsx';
-import { ChartTypeSwitch } from './ChartTypeSwitch.tsx';
 
 /** How many names to show at once; the rest expand with a button. */
 const VISIBLE_NAMES = 10;
@@ -52,15 +53,23 @@ export function CategoryNames({
         <ChartMessage>За выбранный период расходов нет</ChartMessage>
       ) : (
         <div className="space-y-4">
-          <ChartTypeSwitch
-            label="Категория"
-            options={categories.map((row) => ({ value: row.key, label: row.key }))}
-            value={selected ?? ''}
-            onChange={(next) => {
-              setExpanded(false);
-              onSelect(next);
-            }}
-          />
+          <SelectBox>
+            <select
+              aria-label="Категория"
+              value={selected ?? ''}
+              onChange={(event) => {
+                setExpanded(false);
+                onSelect(event.target.value);
+              }}
+              className={`${inputClassName} ${selectPadding}`}
+            >
+              {categories.map((row) => (
+                <option key={row.key} value={row.key}>
+                  {row.key}
+                </option>
+              ))}
+            </select>
+          </SelectBox>
 
           {category && (
             <p className="text-sm text-zinc-500 dark:text-zinc-400">

@@ -61,7 +61,7 @@ describe('отчётность группы не в драммах', () => {
 
   it('по умолчанию суммы показаны в валюте отчётности, драммы тоже есть в списке', async () => {
     reportInDollars();
-    renderAnalytics();
+    const user = renderAnalytics();
 
     await waitFor(() => expect(tile('Потрачено')).toHaveTextContent('2 100,00 USD'));
     await waitFor(() =>
@@ -71,6 +71,7 @@ describe('отчётность группы не в драммах', () => {
           .map((o) => o.textContent),
       ).toEqual(['🇺🇸 USD', '🇷🇺 RUB', '🇦🇲 AMD']),
     );
+    await user.click(screen.getByRole('button', { name: 'Подсказка' }));
     expect(screen.getByText('Суммы в USD')).toBeInTheDocument();
   });
 
@@ -180,10 +181,12 @@ describe('выбор валюты на странице анализа', () => {
     withRates();
     const user = renderAnalytics();
     await waitFor(() => expect(screen.getByRole('radio', { name: '🇺🇸 USD' })).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Подсказка' }));
     expect(screen.getByText('Суммы в AMD')).toBeInTheDocument();
 
     await pick(user, 'USD');
 
+    await user.click(screen.getByRole('button', { name: 'Подсказка' }));
     expect(
       await screen.findByText(
         'Траты в USD показаны как введены, остальные пересчитаны по курсу ЦБ на день траты',

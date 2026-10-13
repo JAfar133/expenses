@@ -9,6 +9,8 @@ interface DateRangeInputProps {
   to?: string;
   /** Last selectable day (usually today) */
   max: string;
+  /** The calendar opens in the flow under the field (inside a sheet on a phone) instead of a popover */
+  inline?: boolean;
   onChange: (range: { from: string; to: string }) => void;
 }
 
@@ -50,26 +52,38 @@ function rangeText(from?: string, to?: string): string {
  * A single "input" for a date range: a button with the chosen period opens a calendar
  * where start and end are clicked. The selection completes on the second click.
  */
-export function DateRangeInput({ from, to, max, onChange }: DateRangeInputProps) {
+export function DateRangeInput({ from, to, max, inline = false, onChange }: DateRangeInputProps) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<DateRange | undefined>();
   const root = useRef<HTMLDivElement>(null);
-  const months = useMonthsShown();
+  const calendar = useRef<HTMLDivElement>(null);
+  const months = inline ? 1 : useMonthsShown();
 
   // The calendar closes on Escape and on a click outside it
   useEffect(() => {
     if (!open) return;
-    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setOpen(false);
+    // In the capture phase and stopped: Escape closes only the calendar, not the panel around it
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      setOpen(false);
+    };
     const onPointer = (event: PointerEvent) => {
       if (root.current && !root.current.contains(event.target as Node)) setOpen(false);
     };
-    document.addEventListener('keydown', onKey);
+    document.addEventListener('keydown', onKey, true);
     document.addEventListener('pointerdown', onPointer);
     return () => {
-      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('keydown', onKey, true);
       document.removeEventListener('pointerdown', onPointer);
     };
   }, [open]);
+
+  // Inside a sheet the opened calendar is scrolled into view as a whole
+  useEffect(() => {
+    if (open && inline)
+      calendar.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+  }, [open, inline]);
 
   const toggle = () => {
     if (!open) setDraft({ from: toDate(from), to: toDate(to) });
@@ -110,7 +124,12 @@ export function DateRangeInput({ from, to, max, onChange }: DateRangeInputProps)
         <div
           role="dialog"
           aria-label="Выбор диапазона дат"
-          className="absolute left-0 z-20 mt-2 w-max max-w-[calc(100vw-2rem)] overflow-x-auto rounded-2xl bg-white p-3 shadow-xl ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-700"
+          ref={calendar}
+          className={
+            inline
+              ? 'mt-2 flex flex-col items-center overflow-x-auto rounded-2xl p-1 ring-1 ring-zinc-200 dark:ring-zinc-700'
+              : 'absolute left-0 z-20 mt-2 w-max max-w-[calc(100vw-2rem)] overflow-x-auto rounded-2xl bg-white p-3 shadow-xl ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-700'
+          }
         >
           <DayPicker
             mode="range"

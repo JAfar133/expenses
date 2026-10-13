@@ -10,7 +10,7 @@ export function ExportButton({ busy, onClick }: { busy: boolean; onClick: () => 
       aria-busy={busy}
       disabled={busy}
       onClick={onClick}
-      className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-zinc-300 text-indigo-600 hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-60 sm:size-9 dark:border-zinc-700 dark:text-indigo-300"
+      className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-zinc-300 text-indigo-600 hover:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-indigo-300"
     >
       <span className={busy ? 'animate-pulse' : undefined}>
         <DownloadIcon />

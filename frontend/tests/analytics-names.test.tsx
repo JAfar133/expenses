@@ -85,16 +85,28 @@ describe('наименования в категории', () => {
 
   it('выбор другой категории меняет список и адрес', async () => {
     const user = renderAnalytics();
-    const group = await screen.findByRole('radiogroup', { name: 'Категория' });
+    const select = await screen.findByRole('combobox', { name: 'Категория' });
 
-    await user.click(within(group).getByRole('radio', { name: 'продукты' }));
+    await user.selectOptions(select, 'продукты');
 
     expect(
       await screen.findByRole('list', { name: 'Наименования в категории продукты' }),
     ).toBeInTheDocument();
     expect(nameRows().map((r) => r.querySelector('span')?.textContent)).toEqual(['Хлеб']);
     expect(screen.getByTestId('location')).toHaveTextContent('drill=');
-    expect(within(group).getByRole('radio', { name: 'продукты' })).toBeChecked();
+    expect(select).toHaveValue('продукты');
+  });
+
+  it('селект «Категория» перечисляет категории по убыванию расходов и показывает выбранную', async () => {
+    renderAnalytics();
+    const select = await screen.findByRole('combobox', { name: 'Категория' });
+
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['кафе', 'продукты']);
+    expect(select).toHaveValue('кафе');
   });
 
   it('категория из адреса открывается сразу', async () => {

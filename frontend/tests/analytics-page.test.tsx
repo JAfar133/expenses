@@ -19,7 +19,7 @@ describe('обзор месяца', () => {
   it('по умолчанию показывает текущий месяц и запрашивает его границы', async () => {
     renderAnalytics();
 
-    expect(await screen.findByRole('heading', { name: 'Октябрь 2026' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Период: Октябрь 2026' })).toBeInTheDocument();
     await waitFor(() =>
       expect(harness.requests.some((r) => r.startsWith('/api/analytics/summary'))).toBe(true),
     );
@@ -67,11 +67,13 @@ describe('обзор месяца', () => {
 describe('переключение месяца', () => {
   it('«назад» открывает прошлый месяц и запоминает его в адресе', async () => {
     const user = renderAnalytics();
-    await screen.findByRole('heading', { name: 'Октябрь 2026' });
+    await screen.findByRole('button', { name: 'Период: Октябрь 2026' });
 
     await user.click(screen.getByRole('button', { name: 'Предыдущий месяц' }));
 
-    expect(await screen.findByRole('heading', { name: 'Сентябрь 2026' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: 'Период: Сентябрь 2026' }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('/analytics?month=2026-09');
     await waitFor(() =>
       expect(harness.requests).toContain(
@@ -82,19 +84,19 @@ describe('переключение месяца', () => {
 
   it('дальше текущего месяца переключать нельзя', async () => {
     renderAnalytics();
-    await screen.findByRole('heading', { name: 'Октябрь 2026' });
+    await screen.findByRole('button', { name: 'Период: Октябрь 2026' });
 
     expect(screen.getByRole('button', { name: 'Следующий месяц' })).toBeDisabled();
   });
 
   it('из прошлого месяца можно вернуться, адрес снова без параметра', async () => {
     const user = renderAnalytics('/analytics?month=2026-08');
-    await screen.findByRole('heading', { name: 'Август 2026' });
+    await screen.findByRole('button', { name: 'Период: Август 2026' });
 
     await user.click(screen.getByRole('button', { name: 'Следующий месяц' }));
     await user.click(screen.getByRole('button', { name: 'Следующий месяц' }));
 
-    expect(await screen.findByRole('heading', { name: 'Октябрь 2026' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Период: Октябрь 2026' })).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent(/^\/analytics$/);
   });
 
@@ -103,7 +105,9 @@ describe('переключение месяца', () => {
     async (month) => {
       renderAnalytics(`/analytics?month=${month}`);
 
-      expect(await screen.findByRole('heading', { name: 'Октябрь 2026' })).toBeInTheDocument();
+      expect(
+        await screen.findByRole('button', { name: 'Период: Октябрь 2026' }),
+      ).toBeInTheDocument();
     },
   );
 });

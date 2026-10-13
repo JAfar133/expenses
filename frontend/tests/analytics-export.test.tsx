@@ -75,7 +75,8 @@ describe('скачивание отчёта на странице анализа
     expect(exportUrls()[0]).not.toContain('cards=');
 
     await user.click(screen.getByRole('button', { name: /Фильтры/ }));
-    await user.click((await screen.findAllByRole('button', { name: 'Миша' }))[0]!);
+    await user.click(await screen.findByRole('button', { name: /^Карты:/ }));
+    await user.click(await screen.findByRole('checkbox', { name: 'Настя' }));
     await waitFor(() => expect(button()).toBeEnabled());
     await user.click(button());
 
