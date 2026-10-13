@@ -164,7 +164,7 @@ describe('правка', () => {
   it.each([
     ['карта не из списка', { card: 'Вася' }, 'INVALID_CARD'],
     ['нулевая сумма', { amount: 0 }, 'INVALID_AMOUNT'],
-    ['дробная сумма', { amount: 10.5 }, 'INVALID_AMOUNT'],
+    ['больше двух знаков', { amount: 10.555 }, 'INVALID_AMOUNT'],
     ['отрицательная сумма', { amount: -5 }, 'INVALID_AMOUNT'],
     ['некорректная дата', { date: '10.10.2026' }, 'INVALID_DATE'],
     ['пустое наименование', { name: '   ' }, 'INVALID_NAME'],

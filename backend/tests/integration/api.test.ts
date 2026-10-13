@@ -62,7 +62,7 @@ describe('POST /api/expenses', () => {
   it.each([
     [{ ...validBody, amount: 0 }, 'INVALID_AMOUNT', 'Стоимость должна быть больше нуля'],
     [{ ...validBody, amount: -5 }, 'INVALID_AMOUNT', 'Стоимость должна быть больше нуля'],
-    [{ ...validBody, amount: 10.5 }, 'INVALID_AMOUNT', 'Стоимость должна быть целым числом'],
+    [{ ...validBody, amount: 10.555 }, 'INVALID_AMOUNT', 'Не более двух знаков после запятой'],
     [{ ...validBody, amount: '100' }, 'INVALID_AMOUNT', 'Стоимость должна быть числом'],
     [{ ...validBody, date: '2026-02-30' }, 'INVALID_DATE', 'Укажите корректную дату'],
     [{ ...validBody, name: '   ' }, 'INVALID_NAME', 'Введите наименование'],

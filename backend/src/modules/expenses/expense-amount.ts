@@ -36,8 +36,8 @@ const hasAtMostTwoDecimals = (value: number) =>
   Math.abs(value * 100 - Math.round(value * 100)) < 1e-6;
 
 /**
- * Converts the entered amount to drams. Drams require a whole amount, a foreign currency allows cents,
- * and it is converted by the rate (manual or from the reference).
+ * Converts the entered amount to drams. Every currency allows cents (drams are also kept rounded to whole),
+ * and a foreign one is converted by the rate (manual or from the reference).
  */
 export async function resolveAmount(
   input: AmountInput,
@@ -56,10 +56,11 @@ async function convertToDrams(
   }
 
   if (currency === context.base) {
-    if (!Number.isInteger(amount)) {
-      throw validationError('INVALID_AMOUNT', 'Стоимость должна быть целым числом');
+    if (!hasAtMostTwoDecimals(amount)) {
+      throw validationError('INVALID_AMOUNT', 'Не более двух знаков после запятой');
     }
-    return { amount: checked(amount), exact: amount };
+    // The drams column is whole (Excel, pivot for conversions): it keeps the rounded amount
+    return { amount: checked(Math.round(amount)), exact: amount };
   }
 
   if (!hasAtMostTwoDecimals(amount)) {
@@ -92,8 +93,8 @@ function checked(amount: number): number {
   return amount;
 }
 
-/** Decimal places kept for amounts in a currency: drams are whole, the others have cents. */
-export const decimalsOf = (currency: string, base: string) => (currency === base ? 0 : 2);
+/** Decimal places kept for amounts in any currency, drams included (the whole-drams column is rounded separately). */
+export const decimalsOf = (_currency: string, _base: string) => 2;
 
 const roundTo = (value: number, decimals: number) => {
   const factor = 10 ** decimals;

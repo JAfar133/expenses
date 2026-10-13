@@ -147,24 +147,17 @@ export class ExpenseEditor {
       reportingCurrency: base,
       reportingAmount: record.amount,
     };
-    const decimals = decimalsOf(money.cardCurrency, base);
-    if (
-      !(cardAmount > 0) ||
-      Math.abs(cardAmount * 10 ** decimals - Math.round(cardAmount * 10 ** decimals)) > 1e-6
-    ) {
-      throw validationError(
-        'INVALID_AMOUNT',
-        decimals === 0
-          ? 'Стоимость должна быть целым числом'
-          : 'Не более двух знаков после запятой',
-      );
+    if (!(cardAmount > 0) || Math.abs(cardAmount * 100 - Math.round(cardAmount * 100)) > 1e-6) {
+      throw validationError('INVALID_AMOUNT', 'Не более двух знаков после запятой');
     }
     const factor = cardAmount / money.cardAmount;
     const reporting =
       money.reportingCurrency === money.cardCurrency
         ? cardAmount
         : roundTo(money.reportingAmount * factor, decimalsOf(money.reportingCurrency, base));
-    const amount = Math.round(record.amount * factor);
+    // A card in drams: the whole-drams column is the rounded amount itself; otherwise it follows the proportion
+    const amount =
+      money.cardCurrency === base ? Math.round(cardAmount) : Math.round(record.amount * factor);
     if (amount < 1 || amount > MAX_DRAMS || !(reporting > 0)) {
       throw validationError(
         'INVALID_AMOUNT',

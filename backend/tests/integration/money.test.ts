@@ -208,7 +208,7 @@ describe('правка суммы', () => {
     });
   });
 
-  it('драммы правятся только целыми, доллары до двух знаков', async () => {
+  it('все валюты правятся до двух знаков', async () => {
     await createCard('Доллары', 'USD');
     await spend('Миша', 500);
     await spend('Доллары', 10);
@@ -217,7 +217,7 @@ describe('правка суммы', () => {
     const usd = items.find((i: { currency: string }) => i.currency === 'USD').id;
 
     const bad = [
-      await call('PATCH', `/api/expenses/${amd}`, 'misha', { amount: 10.5 }),
+      await call('PATCH', `/api/expenses/${amd}`, 'misha', { amount: 10.555 }),
       await call('PATCH', `/api/expenses/${usd}`, 'misha', { amount: 10.555 }),
     ];
 
@@ -460,10 +460,10 @@ describe('суммы в валюте показа (?currency=)', () => {
     t.rates.rates.set('RUB', 4.2997);
     await spend('Миша', 5000, { currency: 'RUB' });
 
-    // The record keeps 21 498 whole drams (5000 × 4.2997 = 21 498.5), but in roubles it is exactly what was typed
-    expect(await total()).toBe(21498);
+    // The whole-drams column keeps 21 498, the card amount is exact (5000 × 4.2997 = 21 498.5); in roubles it is what was typed
+    expect(await total()).toBe(21498.5);
     expect(await total('RUB')).toBe(5000);
-    expect(await total('AMD')).toBe(21498);
+    expect(await total('AMD')).toBe(21498.5);
   });
 
   it('прочие траты пересчитываются из драммов по курсу своего дня', async () => {

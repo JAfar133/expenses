@@ -14,10 +14,15 @@ describe('драммы', () => {
     expect(await resolve({ amount: 9703, currency: 'AMD' })).toEqual({ amount: 9703 });
   });
 
-  it('дробная сумма не принимается', async () => {
-    await expect(resolve({ amount: 10.5, currency: 'AMD' })).rejects.toMatchObject({
+  it('дробная сумма принимается, в целую колонку идёт округлённая', async () => {
+    expect(await resolve({ amount: 10.5, currency: 'AMD' })).toEqual({ amount: 11 });
+    expect(await resolve({ amount: 1234.4, currency: 'AMD' })).toEqual({ amount: 1234 });
+  });
+
+  it('больше двух знаков после запятой не принимается', async () => {
+    await expect(resolve({ amount: 10.555, currency: 'AMD' })).rejects.toMatchObject({
       code: 'INVALID_AMOUNT',
-      message: 'Стоимость должна быть целым числом',
+      message: 'Не более двух знаков после запятой',
     });
   });
 });

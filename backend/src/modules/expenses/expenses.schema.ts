@@ -12,7 +12,7 @@ export const createExpenseSchema = z.object({
   amount: z
     .number({ error: 'Стоимость должна быть числом' })
     .positive('Стоимость должна быть больше нуля'),
-  /** Currency of the amount; if omitted: the base one (drams). The service checks a whole amount in drams and a fractional one in a foreign currency */
+  /** Currency of the amount; if omitted: the base one (drams). The service checks at most two decimals */
   currency: z.string({ error: 'Выберите валюту' }).trim().min(1, 'Выберите валюту').optional(),
   /** Manual rate (drams per unit of currency); if omitted: the CBA rate */
   rate: z

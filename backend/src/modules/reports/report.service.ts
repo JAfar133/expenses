@@ -156,8 +156,8 @@ export class ReportService {
     });
     table.commit();
 
-    const decimals = (code: string) =>
-      code === this.options.base ? NUMBER_FORMAT.whole : NUMBER_FORMAT.cents;
+    // Every currency can have cents, drams included
+    const decimals = (_code: string) => NUMBER_FORMAT.cents;
     items.forEach((item, index) => {
       const row = 6 + index;
       sheet.getCell(row, 1).numFmt = 'dd.mm.yyyy';

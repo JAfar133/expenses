@@ -100,8 +100,9 @@ describe('ошибки', () => {
     });
   });
 
-  it('драммы вводятся целыми, остальные валюты до двух знаков', async () => {
-    await expect(resolveMoney({ amount: 10.5 }, amd, context)).rejects.toMatchObject({
+  it('все валюты, драммы тоже, принимают до двух знаков', async () => {
+    expect(await resolveMoney({ amount: 10.5 }, amd, context)).toMatchObject({ cardAmount: 10.5 });
+    await expect(resolveMoney({ amount: 10.555 }, amd, context)).rejects.toMatchObject({
       code: 'INVALID_AMOUNT',
     });
     await expect(resolveMoney({ amount: 1.234 }, usdCardAmdGroup, context)).rejects.toMatchObject({
