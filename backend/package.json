@@ -9,7 +9,8 @@
     "start": "tsx src/server.ts",
     "typecheck": "tsc -p .",
     "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R src/infrastructure/database/migrations dist/infrastructure/database/",
-    "start:prod": "node dist/server.js"
+    "start:prod": "node dist/server.js",
+    "ai:parse": "tsx scripts/parse-receipt.ts"
   },
   "keywords": [],
   "author": "",
