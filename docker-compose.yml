@@ -95,6 +95,12 @@ services:
       # Receipt photos: in the same volume as the rest of the backend data (copied to OneDrive by scripts/backup-receipts.sh)
       RECEIPTS_DIR: /data/receipts
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      # AI receipt parsing (v4). The key is normally entered by the administrator in the app (stored encrypted with
+      # SECRETS_KEY); GEMINI_API_KEY is only a fallback. Both can stay empty: the AI is then simply unavailable.
+      SECRETS_KEY: ${SECRETS_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.8-flash}
+      AI_DAILY_LIMIT: ${AI_DAILY_LIMIT:-30}
       SYNC_INTERVAL_MINUTES: ${SYNC_INTERVAL_MINUTES:-5}
       SYNC_RETRY_SECONDS: ${SYNC_RETRY_SECONDS:-60}
       SYNC_INLINE_WAIT_SECONDS: ${SYNC_INLINE_WAIT_SECONDS:-15}

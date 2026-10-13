@@ -20,6 +20,8 @@ export const preferencesSchema = z
     'compare.months': z.enum(['6', '12', '24']),
     /** Currency in which to show amounts on the analytics page (everything is stored in drams) */
     'analytics.currency': z.enum(['AMD', 'RUB', 'USD', 'EUR']),
+    /** The person has seen the notice that a receipt photo is sent to the AI service (shown once) */
+    'ai.noticeSeen': z.boolean(),
   })
   .partial()
   .strict();

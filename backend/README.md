@@ -36,43 +36,48 @@ On startup the backend waits for the database, applies migrations, starts synchr
 
 ## Environment variables
 
-| Variable                       | Default                         | Description                                                                                                          |
-| ------------------------------ | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `NODE_ENV`                     | `development`                   | Environment                                                                                                          |
-| `HOST`, `PORT`                 | `127.0.0.1`, `3000`             | Server address                                                                                                       |
-| `DATABASE_URL`                 | **required**                    | PostgreSQL connection, for example `postgres://expenses:…@127.0.0.1:5433/expenses`                                   |
-| `DEFAULT_CURRENCY`             | `AMD`                           | Base currency: bookkeeping and Excel use it                                                                          |
-| `CURRENCIES`                   | `AMD,RUB,USD,EUR`               | Currencies in which expenses can be entered                                                                          |
-| `EXCHANGE_RATES_URL`           | `https://cb.am/latest.json.php` | Rate source (Central Bank of Armenia, drams per unit of currency)                                                    |
-| `EXCHANGE_RATES_REFRESH_HOURS` | `6`                             | How often to refresh the rates                                                                                       |
-| `APP_TIMEZONE`                 | `Asia/Yerevan`                  | Time zone for backup names                                                                                           |
-| `EXCEL_SHEET_NAME`             | `Лист1`                         | Sheet with the table                                                                                                 |
-| `EXCEL_TABLE_NAME`             | `Операции`                      | Excel structured table                                                                                               |
-| `ONEDRIVE_REMOTE`              | `onedrive`                      | rclone remote name                                                                                                   |
-| `ONEDRIVE_FILE_PATH`           | not set (Excel disabled)        | Path to the file in OneDrive, for example `Документы/Расходы-dev.xlsx`                                               |
-| `RCLONE_CONFIG`                | default rclone path             | Path to `rclone.conf`                                                                                                |
-| `RCLONE_MODE`                  | `daemon`                        | `daemon` is a persistent rclone process (fast), `cli` starts rclone for every command                                |
-| `RCLONE_TIMEOUT_MS`            | `120000`                        | Timeout of a single rclone operation                                                                                 |
-| `SYNC_INTERVAL_MINUTES`        | `5`                             | How often to synchronize Excel and the database                                                                      |
-| `SYNC_RETRY_SECONDS`           | `60`                            | Retry interval while entries cannot be appended to Excel (file is open)                                              |
-| `SYNC_INLINE_WAIT_SECONDS`     | `15`                            | How long to wait for the Excel write before responding to an expense creation                                        |
-| `SYNC_MAX_DELETE_PERCENT`      | `25`                            | Safeguard: what share of entries may be marked deleted in one cycle                                                  |
-| `AUTH_USERS`                   | `misha:Миша,nastya:Настя`       | Users: `username:default card`. Username: lowercase Latin letters, digits, `_`                                       |
-| `AUTH_PASSWORD_<USERNAME>`     | not set                         | The user's password (`AUTH_PASSWORD_MISHA`, `AUTH_PASSWORD_NASTYA`), at least `AUTH_MIN_PASSWORD_LENGTH`             |
-| `EDITOR_USERS`                 | `misha`                         | Who may edit and delete entries **by default**; after that the editors change rights themselves on the settings page |
-| `ADMIN_USERS`                  | empty                           | Application administrators (v2: manage groups)                                                                       |
-| `DEFAULT_GROUP_NAME`           | `Семья`                         | Name of the group created for the existing users on the first start (v2)                                             |
-| `AUTH_MIN_PASSWORD_LENGTH`     | `8`                             | Minimum password length (less than 8 is not allowed)                                                                 |
-| `ACCESS_TOKEN_TTL_HOURS`       | `24`                            | Access token lifetime (the login cookie)                                                                             |
-| `REFRESH_TOKEN_TTL_DAYS`       | `7`                             | Refresh token lifetime; extended on every refresh                                                                    |
-| `SESSION_MAX_DAYS`             | `30`                            | Upper limit of a session's life since the password was entered                                                       |
-| `TRUST_PROXY`                  | `false`                         | Behind Caddy: real IP and protocol from `X-Forwarded-*` (`true` in compose)                                          |
-| `ALLOWED_ORIGINS`              | empty                           | Additional allowed site addresses (Origin), comma-separated                                                          |
-| `BACKUP_DIR`                   | `./backups`                     | Excel backup folder                                                                                                  |
-| `RECEIPTS_DIR`                 | `./receipts`                    | Receipt photos (`/data/receipts` in compose); copied to OneDrive by `scripts/backup-receipts.sh`                     |
-| `BACKUP_RETENTION_DAYS`        | `30`                            | How many days to keep backups and idempotency keys                                                                   |
-| `CARDS`                        | `Миша,Настя`                    | Comma-separated list of cards                                                                                        |
-| `CATEGORIES`                   | `кафе,одежда,продукты,…`        | Initial categories; values from the database are added to them                                                       |
+| Variable                       | Default                         | Description                                                                                                                      |
+| ------------------------------ | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                     | `development`                   | Environment                                                                                                                      |
+| `HOST`, `PORT`                 | `127.0.0.1`, `3000`             | Server address                                                                                                                   |
+| `DATABASE_URL`                 | **required**                    | PostgreSQL connection, for example `postgres://expenses:…@127.0.0.1:5433/expenses`                                               |
+| `DEFAULT_CURRENCY`             | `AMD`                           | Base currency: bookkeeping and Excel use it                                                                                      |
+| `CURRENCIES`                   | `AMD,RUB,USD,EUR`               | Currencies in which expenses can be entered                                                                                      |
+| `EXCHANGE_RATES_URL`           | `https://cb.am/latest.json.php` | Rate source (Central Bank of Armenia, drams per unit of currency)                                                                |
+| `EXCHANGE_RATES_REFRESH_HOURS` | `6`                             | How often to refresh the rates                                                                                                   |
+| `APP_TIMEZONE`                 | `Asia/Yerevan`                  | Time zone for backup names                                                                                                       |
+| `EXCEL_SHEET_NAME`             | `Лист1`                         | Sheet with the table                                                                                                             |
+| `EXCEL_TABLE_NAME`             | `Операции`                      | Excel structured table                                                                                                           |
+| `ONEDRIVE_REMOTE`              | `onedrive`                      | rclone remote name                                                                                                               |
+| `ONEDRIVE_FILE_PATH`           | not set (Excel disabled)        | Path to the file in OneDrive, for example `Документы/Расходы-dev.xlsx`                                                           |
+| `RCLONE_CONFIG`                | default rclone path             | Path to `rclone.conf`                                                                                                            |
+| `RCLONE_MODE`                  | `daemon`                        | `daemon` is a persistent rclone process (fast), `cli` starts rclone for every command                                            |
+| `RCLONE_TIMEOUT_MS`            | `120000`                        | Timeout of a single rclone operation                                                                                             |
+| `SYNC_INTERVAL_MINUTES`        | `5`                             | How often to synchronize Excel and the database                                                                                  |
+| `SYNC_RETRY_SECONDS`           | `60`                            | Retry interval while entries cannot be appended to Excel (file is open)                                                          |
+| `SYNC_INLINE_WAIT_SECONDS`     | `15`                            | How long to wait for the Excel write before responding to an expense creation                                                    |
+| `SYNC_MAX_DELETE_PERCENT`      | `25`                            | Safeguard: what share of entries may be marked deleted in one cycle                                                              |
+| `AUTH_USERS`                   | `misha:Миша,nastya:Настя`       | Users: `username:default card`. Username: lowercase Latin letters, digits, `_`                                                   |
+| `AUTH_PASSWORD_<USERNAME>`     | not set                         | The user's password (`AUTH_PASSWORD_MISHA`, `AUTH_PASSWORD_NASTYA`), at least `AUTH_MIN_PASSWORD_LENGTH`                         |
+| `EDITOR_USERS`                 | `misha`                         | Who may edit and delete entries **by default**; after that the editors change rights themselves on the settings page             |
+| `ADMIN_USERS`                  | empty                           | Application administrators (v2: manage groups)                                                                                   |
+| `DEFAULT_GROUP_NAME`           | `Семья`                         | Name of the group created for the existing users on the first start (v2)                                                         |
+| `AUTH_MIN_PASSWORD_LENGTH`     | `8`                             | Minimum password length (less than 8 is not allowed)                                                                             |
+| `ACCESS_TOKEN_TTL_HOURS`       | `24`                            | Access token lifetime (the login cookie)                                                                                         |
+| `REFRESH_TOKEN_TTL_DAYS`       | `7`                             | Refresh token lifetime; extended on every refresh                                                                                |
+| `SESSION_MAX_DAYS`             | `30`                            | Upper limit of a session's life since the password was entered                                                                   |
+| `TRUST_PROXY`                  | `false`                         | Behind Caddy: real IP and protocol from `X-Forwarded-*` (`true` in compose)                                                      |
+| `ALLOWED_ORIGINS`              | empty                           | Additional allowed site addresses (Origin), comma-separated                                                                      |
+| `BACKUP_DIR`                   | `./backups`                     | Excel backup folder                                                                                                              |
+| `RECEIPTS_DIR`                 | `./receipts`                    | Receipt photos (`/data/receipts` in compose); copied to OneDrive by `scripts/backup-receipts.sh`                                 |
+| `SECRETS_KEY`                  | empty                           | Master key (32+ characters) that encrypts the Gemini API key stored in the database; empty: the key cannot be saved from the app |
+| `GEMINI_API_KEY`               | empty                           | Fallback API key when none was saved in the app                                                                                  |
+| `GEMINI_MODEL`                 | `gemini-3.8-flash`              | Default model (the administrator can change it in the app)                                                                       |
+| `GEMINI_BASE_URL`              | Google API address              | Gemini API base URL                                                                                                              |
+| `AI_DAILY_LIMIT`               | `30`                            | Receipt parsings per group per day by default (the administrator changes it, also per group)                                     |
+| `BACKUP_RETENTION_DAYS`        | `30`                            | How many days to keep backups and idempotency keys                                                                               |
+| `CARDS`                        | `Миша,Настя`                    | Comma-separated list of cards                                                                                                    |
+| `CATEGORIES`                   | `кафе,одежда,продукты,…`        | Initial categories; values from the database are added to them                                                                   |
 
 **Excel is optional.** There is deliberately no default for `ONEDRIVE_FILE_PATH`: this way the app will not write data to the
 working file by accident. For development use `Расходы-dev.xlsx`.
@@ -479,6 +484,30 @@ JSON logs to stdout. Each operation gets a line with a `requestId`, a result and
 Expense data (name, amount), passwords and tokens do not get into the log; the `Authorization`
 and `Cookie` headers are hidden.
 
+## Items and AI receipt parsing (v4)
+
+An expense may have **items** (positions of a receipt: name, price of the line, quantity). Prices may be fractional in any
+currency, drams included; the whole-drams column `expenses.amount` keeps the rounded amount and `card_amount` the exact one.
+
+| Request                                                                                                                  | What                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `GET/PUT /api/expenses/:id/items`                                                                                        | Read / replace the whole list (same rights as the expense; the change goes to the change log)                            |
+| `POST /api/expenses` (extra fields)                                                                                      | `items`, `nameSource`, `dateSource` (`default`: not typed by a person, the AI may replace it)                            |
+| `POST /api/expenses/:id/receipt/parse`                                                                                   | Reads the attached photo with the model and fills what a person did not enter; `{replaceItems: true}` replaces own items |
+| `DELETE /api/expenses/:id/ai`                                                                                            | Accept the generated values: the "generated by AI" marks go away                                                         |
+| `GET /api/ai/status`                                                                                                     | Whether the AI is available to the user's group                                                                          |
+| `PUT /api/group/ai`                                                                                                      | The owner's switch for the group                                                                                         |
+| `GET/PUT /api/admin/ai`, `PUT/DELETE /api/admin/ai/key`, `POST /api/admin/ai/test`, `PUT /api/admin/groups/:id/ai-limit` | Administrator: switch, model, daily limit, API key (write-only), key check                                               |
+
+The AI works only when the administrator turned it on, a key is set and the group owner turned it on for the group. The key is
+stored encrypted (AES-256-GCM, master key `SECRETS_KEY`) in `app_settings` and is never returned by the API or written to logs.
+Where a name, a date or an item came from is stored (`name_source`, `date_source`, `expense_items.source`: `default`/`manual`/`ai`):
+the AI fills only what a person did not enter, and a person's edit removes the mark. `expenses.ai_processed_at`/`ai_model` remember
+that the receipt was parsed. Every attempt is counted in `ai_usage` (daily limit per group). Everything about the model lives in
+`modules/llm` (`LlmService` is the only entry; Gemini is only in `providers/gemini.provider.ts`; `fake.provider.ts` is for tests).
+The request asks Gemini for JSON by schema (`responseMimeType: application/json` + `responseSchema`); the answer is validated
+and wrong lines are dropped. The prompt is in `modules/llm/receipt-parser.ts`.
+
 ## Structure
 
 ```
@@ -488,6 +517,10 @@ src/
   modules/expenses/           routes, validation schema, business logic
   modules/auth/               login: passwords (scrypt), tokens, sessions, route protection and CSRF, attempt limiting
   modules/receipts/           receipt photos: settings, files on the disk, rights
+  modules/items/              items (positions) of an expense
+  modules/llm/                the model: settings and encrypted key, limits, Gemini provider, receipt prompt and checks
+  modules/expense-ai/         applying a parsed receipt: the "only what a person did not enter" rule, source marks
+  modules/ai/                 assembly of the modules above (`createAiModule`)
   modules/sync/               synchronization cycle, reconciliation (reconcile), scheduler, routes
   storage/postgres/           expense repository (SQL)
   services/excel/             XLSX editing and reading
