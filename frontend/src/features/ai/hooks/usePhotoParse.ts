@@ -17,14 +17,14 @@ export type PhotoParseState =
 export function usePhotoParse(onResult: (result: PhotoParse) => void) {
   const [state, setState] = useState<PhotoParseState>({ status: 'idle' });
   const token = useRef(0);
-  const last = useRef<{ photo: Blob; category: string } | null>(null);
+  const last = useRef<{ photo: Blob; category?: string } | null>(null);
   const waiters = useRef<(() => void)[]>([]);
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
 
   const settle = () => waiters.current.splice(0).forEach((resolve) => resolve());
 
-  const start = useCallback(async (photo: Blob, category: string) => {
+  const start = useCallback(async (photo: Blob, category?: string) => {
     const mine = ++token.current;
     last.current = { photo, category };
     setState({ status: 'running' });

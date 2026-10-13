@@ -27,6 +27,8 @@ const lastPost = () => server.posts().at(-1)!.body as Record<string, unknown>;
 async function ready(confirmed = true) {
   enableAi();
   allowPhotos();
+  // Photos and the AI in both categories
+  server.receiptSettings = { enabled: true, categories: ['кафе', 'продукты'] };
   if (confirmed) server.preferences = { 'ai.noticeSeen': true };
   return renderApp();
 }
@@ -434,12 +436,21 @@ describe('сумма из чека', () => {
     });
   const amount = () => screen.getByLabelText('Стоимость');
 
+  it('дробная сумма подставляется всегда с двумя знаками, целая без знаков', async () => {
+    server.parsePhoto = answer({ total: 1500 });
+    const { person } = await ready();
+
+    await pickPhoto(person);
+
+    await waitFor(() => expect(amount()).toHaveValue('1 500'));
+  });
+
   it('пустое поле суммы получает итог с чека, с пометкой AI; подсказки про итог нет', async () => {
     const { person } = await ready();
 
     await pickPhoto(person);
 
-    await waitFor(() => expect(amount()).toHaveValue('1 500,5'));
+    await waitFor(() => expect(amount()).toHaveValue('1 500,50'));
     expect(within(labelOf('Стоимость')).getByRole('img', { name: AI })).toBeInTheDocument();
     expect(screen.queryByText(/По чеку: /)).toBeNull();
   });
@@ -495,9 +506,9 @@ describe('сумма из чека', () => {
   it('пометка снимается при правке суммы', async () => {
     const { person } = await ready();
     await pickPhoto(person);
-    await waitFor(() => expect(amount()).toHaveValue('1 500,5'));
+    await waitFor(() => expect(amount()).toHaveValue('1 500,50'));
 
-    await person.type(amount(), '9');
+    await person.type(amount(), '{Backspace}');
 
     expect(within(labelOf('Стоимость')).queryByRole('img', { name: AI })).toBeNull();
   });
@@ -505,20 +516,20 @@ describe('сумма из чека', () => {
   it('правка позиций сумму не пересчитывает', async () => {
     const { person } = await ready();
     await pickPhoto(person);
-    await waitFor(() => expect(amount()).toHaveValue('1 500,5'));
+    await waitFor(() => expect(amount()).toHaveValue('1 500,50'));
 
     await openItems(person, true);
     const price = screen.getByLabelText('Цена позиции 1');
     await person.clear(price);
     await person.type(price, '99');
 
-    expect(amount()).toHaveValue('1 500,5');
+    expect(amount()).toHaveValue('1 500,50');
   });
 
   it('другое фото: сумма, помеченная ИИ, перезаписывается; правленая рукой — нет', async () => {
     const { person } = await ready();
     await pickPhoto(person);
-    await waitFor(() => expect(amount()).toHaveValue('1 500,5'));
+    await waitFor(() => expect(amount()).toHaveValue('1 500,50'));
     server.parsePhoto = answer({ parseId: 'p2', total: 300 });
     await person.click(screen.getByRole('button', { name: 'Убрать фото' }));
     await pickPhoto(person);
@@ -536,7 +547,7 @@ describe('сумма из чека', () => {
   it('сохранение: подставленная сумма уходит как обычная', async () => {
     const { person } = await ready();
     await pickPhoto(person);
-    await waitFor(() => expect(amount()).toHaveValue('1 500,5'));
+    await waitFor(() => expect(amount()).toHaveValue('1 500,50'));
 
     await submit(person);
 
@@ -570,7 +581,7 @@ describe('подсказка про итог под полем суммы', () =
 
     await person.click(screen.getByRole('button', { name: 'Подставить' }));
 
-    expect(amount()).toHaveValue('1 500,5');
+    expect(amount()).toHaveValue('1 500,50');
     expect(within(labelOf('Стоимость')).getByRole('img', { name: AI })).toBeInTheDocument();
     expect(screen.queryByText(/По чеку: /)).toBeNull();
   });
@@ -738,5 +749,100 @@ describe('ИИ по категориям', () => {
     await pickPhoto(person);
 
     await waitFor(() => expect(server.photoParses()).toHaveLength(1));
+  });
+});
+
+describe('подсказка категории от ИИ', () => {
+  const answerWith = (category: string | null) => () =>
+    ok({
+      parseId: 'p1',
+      category,
+      name: 'Кофейня',
+      date: null,
+      items: [],
+      total: null,
+      currency: null,
+      dropped: 0,
+    });
+  const hint = () => screen.queryByText(/ИИ считает:/);
+
+  it('человек выбрал «кафе», ИИ считает «продукты»: спокойная строка с «Выбрать»', async () => {
+    server.parsePhoto = answerWith('продукты');
+    const { person } = await ready();
+
+    await pickPhoto(person);
+
+    const line = (await screen.findByText('ИИ считает: продукты')).closest('p')!;
+    expect(line.className).toContain('text-zinc-500');
+    expect(line.className).not.toContain('red');
+    expect(within(line).getByRole('button', { name: 'Выбрать' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Категория')).toHaveValue('кафе');
+  });
+
+  it('«Выбрать» ставит категорию с пометкой AI, строка исчезает', async () => {
+    server.parsePhoto = answerWith('продукты');
+    const { person } = await ready();
+    await pickPhoto(person);
+    await screen.findByText('ИИ считает: продукты');
+
+    await person.click(screen.getByRole('button', { name: 'Выбрать' }));
+
+    expect(screen.getByLabelText('Категория')).toHaveValue('продукты');
+    expect(within(labelOf('Категория')).getByRole('img', { name: AI })).toBeInTheDocument();
+    expect(hint()).toBeNull();
+  });
+
+  it('совпадает с выбранной или category null: строки нет', async () => {
+    server.parsePhoto = answerWith('кафе');
+    const first = await ready();
+    await pickPhoto(first.person);
+    await screen.findByDisplayValue('Кофейня');
+    expect(hint()).toBeNull();
+  });
+
+  it('category null: строки нет', async () => {
+    server.parsePhoto = answerWith(null);
+    const { person } = await ready();
+    await pickPhoto(person);
+    await screen.findByDisplayValue('Кофейня');
+
+    expect(hint()).toBeNull();
+  });
+
+  it('ручная смена на предложенную убирает строку, смена на третью оставляет её', async () => {
+    server.parsePhoto = answerWith('продукты');
+    const { person } = await ready();
+    await pickPhoto(person);
+    await screen.findByText('ИИ считает: продукты');
+
+    await person.selectOptions(screen.getByLabelText('Категория'), 'продукты');
+    expect(hint()).toBeNull();
+    await person.selectOptions(screen.getByLabelText('Категория'), 'кафе');
+
+    expect(await screen.findByText('ИИ считает: продукты')).toBeInTheDocument();
+  });
+
+  it('фото убрано: строка исчезает', async () => {
+    server.parsePhoto = answerWith('продукты');
+    const { person } = await ready();
+    await pickPhoto(person);
+    await screen.findByText('ИИ считает: продукты');
+
+    await person.click(screen.getByRole('button', { name: 'Убрать фото' }));
+
+    expect(hint()).toBeNull();
+  });
+
+  it('не мешает сохранению с выбранной человеком категорией', async () => {
+    server.parsePhoto = answerWith('продукты');
+    const { person } = await ready();
+    await pickPhoto(person);
+    await screen.findByText('ИИ считает: продукты');
+    await person.type(screen.getByLabelText('Стоимость'), '500');
+
+    await submit(person);
+
+    await screen.findByText('Расход успешно добавлен');
+    expect(lastPost()).toMatchObject({ category: 'кафе', aiParseId: 'p1' });
   });
 });

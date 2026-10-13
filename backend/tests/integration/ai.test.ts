@@ -725,11 +725,22 @@ describe('чек без выбранной категории: ИИ выбира
     expect((await noCategory()).json().data.category).toBeNull();
   });
 
-  it('когда категория выбрана, модель её не выбирает', async () => {
-    await draftWithCategory();
+  it('когда категория выбрана, модель всё равно называет свою: это только подсказка', async () => {
+    t.llmProvider.answers = [{ ...RECEIPT, category: 'продукты' }];
 
+    const response = await draftWithCategory();
+
+    expect(response.json().data.category).toBe('продукты');
     const { request } = t.llmProvider.calls[0]!;
-    expect((request.schema as any).properties.category).toBeUndefined();
+    expect((request.schema as any).properties.category.enum).toEqual(['кафе', 'продукты']);
+  });
+
+  it('если подходящих категорий нет, а категория выбрана, разбор идёт без подсказки', async () => {
+    await call('PUT', '/api/group/receipts', { enabled: true, categories: [], aiCategories: [] });
+
+    const response = await draftWithCategory();
+
+    expect(response.statusCode).toBe(409);
   });
 
   it('фото выключены или нет подходящих категорий: 409, в модель ничего не уходит', async () => {

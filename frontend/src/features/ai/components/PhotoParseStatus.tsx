@@ -12,11 +12,14 @@ export function PhotoParseStatus({
   state,
   onRetry,
   fallbackCurrency,
+  categoryHint = false,
 }: {
   state: PhotoParseState;
   onRetry: () => void;
   /** The currency of the amount field, when the receipt names none */
   fallbackCurrency: string;
+  /** The AI found no category for the receipt: the person chooses */
+  categoryHint?: boolean;
 }) {
   if (state.status === 'running') {
     return (
@@ -61,6 +64,9 @@ export function PhotoParseStatus({
             ? 'Товары не найдены'
             : `Найдено ${goodsLabel(items.length)}${amount > 0 ? ` · ${formatMoney(amount)} ${currency ?? fallbackCurrency}` : ''}`}
         </div>
+        {categoryHint && (
+          <div className="text-xs text-zinc-500 dark:text-zinc-400">Категорию выберите сами</div>
+        )}
       </div>
     );
   }

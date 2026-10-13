@@ -30,7 +30,9 @@ import { CardSelect } from './CardSelect.tsx';
 import { CategoryLimitHint } from '../../budgets/components/CategoryLimitHint.tsx';
 import { ReceiptPicker } from '../../receipts/components/ReceiptPicker.tsx';
 import { useReceiptAllowed } from '../../receipts/hooks/useReceiptSettings.ts';
+import { useAiPhotoFirst } from '../../ai/hooks/useAiPhotoFirst.ts';
 import { useAiInCategory } from '../../ai/hooks/useAiInCategory.ts';
+import { CategorySuggestion } from '../../ai/components/CategorySuggestion.tsx';
 import { AiMark } from '../../ai/components/AiMark.tsx';
 import { AiNotice } from '../../ai/components/AiNotice.tsx';
 import { ReceiptTotalHint } from '../../ai/components/ReceiptTotalHint.tsx';
@@ -179,19 +181,33 @@ export function ExpenseForm({
   const receiptAllowed = useReceiptAllowed(category);
   // The AI reads the receipt only where the owner allowed it
   const aiHere = useAiInCategory(category);
+  // Before a category is chosen a receipt can still be loaded when the AI is on: it will name the category itself
+  const photoFirst = useAiPhotoFirst() && !category;
+  const showPhoto = receiptAllowed || photoFirst;
+  const aiEligible = category ? aiHere : photoFirst;
   // A receipt photo for the AI: the name may be left empty
-  nameOptional.current = aiHere && photo !== null;
-  const attachedPhoto = receiptAllowed ? photo : null;
+  nameOptional.current = aiEligible && photo !== null;
+  const attachedPhoto = showPhoto ? photo : null;
+  const [photoWarning, setPhotoWarning] = useState<string>();
   const ai = useReceiptPreparse({
     form,
     photo: attachedPhoto,
-    eligible: aiHere,
+    eligible: aiEligible,
     category,
+    categories,
     items,
     setItems,
     dateTouched,
   });
   const parsing = ai.state.status === 'running';
+
+  // A category that does not allow a photo: the photo is taken off (with a word about it)
+  useEffect(() => {
+    if (category && photo && !receiptAllowed) {
+      setPhoto(null);
+      setPhotoWarning('В этой категории фото чека не включено, фото убрано');
+    }
+  }, [category, photo, receiptAllowed]);
   // Pressing «Добавить» while the AI is still reading waits for it, then saves with what it filled in
   const [waitingForParse, setWaitingForParse] = useState(false);
   const suggestions = pickSuggestions(knownNames, { category, query: name });
@@ -235,7 +251,9 @@ export function ExpenseForm({
     setItemsError(undefined);
 
     // With a photo and the AI on, the sources tell the AI what it may replace
-    const forAi = aiHere && attached !== null;
+    const forAi = aiEligible && attached !== null;
+    // The parse id goes only where the AI may read receipts of the chosen category
+    const parseId = aiHere ? ai.parseId : undefined;
     const typedName = values.name.trim();
     const expense = {
       date: values.date,
@@ -244,9 +262,9 @@ export function ExpenseForm({
       name: typedName || (forAi ? 'Чек' : ''),
       ...amountPayload(values, baseCurrency, cardCurrencyOf(values.card)),
       ...(parsed.items.length > 0 ? { items: parsed.items } : {}),
-      ...(ai.parseId ? { aiParseId: ai.parseId } : {}),
+      ...(parseId ? { aiParseId: parseId } : {}),
       // Without a parse before saving, the sources tell the AI what it may replace later
-      ...(forAi && !ai.parseId
+      ...(forAi && !parseId
         ? {
             nameSource: typedName ? ('manual' as const) : ('default' as const),
             dateSource: dateTouched.current ? ('manual' as const) : ('default' as const),
@@ -255,7 +273,7 @@ export function ExpenseForm({
     };
 
     // After saving the AI parses only what could not be parsed before: nothing leaves without the notice confirmed
-    const parseLater = forAi && ai.noticeSeen && !ai.parseId;
+    const parseLater = forAi && ai.noticeSeen && !parseId;
     const result = await submitExpense(
       expense,
       idempotencyKey.current,
@@ -324,7 +342,16 @@ export function ExpenseForm({
 
       {/* Category and name are close: the suggestions under the name belong to the chosen category */}
       <div className="space-y-3">
-        <Field label="Категория" htmlFor="category" error={errors.category?.message}>
+        <Field
+          label={
+            <LabelWithMark
+              text="Категория"
+              ai={ai.aiCategory !== null && category === ai.aiCategory}
+            />
+          }
+          htmlFor="category"
+          error={errors.category?.message}
+        >
           <SelectBox>
             <select
               id="category"
@@ -343,23 +370,36 @@ export function ExpenseForm({
             </select>
           </SelectBox>
         </Field>
+        {ai.suggestedCategory && (
+          <CategorySuggestion category={ai.suggestedCategory} onChoose={ai.chooseSuggested} />
+        )}
 
-        {receiptAllowed && (
+        {showPhoto && (
           <ReceiptPicker
             photo={photo}
-            onChange={setPhoto}
+            onChange={(next) => {
+              setPhoto(next);
+              setPhotoWarning(undefined);
+            }}
             status={
-              aiHere && photo && !ai.needsNotice ? (
+              aiEligible && photo && !ai.needsNotice ? (
                 <PhotoParseStatus
                   state={ai.state}
                   onRetry={ai.retry}
+                  categoryHint={ai.askForCategory}
                   fallbackCurrency={typedCurrency}
                 />
               ) : undefined
             }
           />
         )}
-        {aiHere && photo && ai.needsNotice && <AiNotice onConfirm={ai.confirmNotice} />}
+        {photoFirst && (
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            ИИ сам заполнит данные, включая категорию
+          </p>
+        )}
+        {photoWarning && <Notice variant="info">{photoWarning}</Notice>}
+        {aiEligible && photo && ai.needsNotice && <AiNotice onConfirm={ai.confirmNotice} />}
 
         <Field
           label={

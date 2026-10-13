@@ -42,6 +42,8 @@ export const acceptAi = (expenseId: string) =>
 export interface PhotoParse {
   /** Goes to POST /expenses as `aiParseId`: the server marks as AI what is saved exactly as read */
   parseId: string;
+  /** Without a category in the request: the category the AI chose (the exact name), or null */
+  category?: string | null;
   name: string | null;
   /** YYYY-MM-DD, only a plausible one */
   date: string | null;
@@ -52,11 +54,14 @@ export interface PhotoParse {
 }
 
 /** The photo is sent as it is (already compressed by the client). */
-export const parseReceiptPhoto = async (photo: Blob, category: string) =>
+export const parseReceiptPhoto = async (photo: Blob, category?: string) =>
   (
-    await apiRequest<PhotoParse>(`/ai/receipt/parse?category=${encodeURIComponent(category)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': photo.type || 'image/jpeg' },
-      body: photo,
-    })
+    await apiRequest<PhotoParse>(
+      category ? `/ai/receipt/parse?category=${encodeURIComponent(category)}` : '/ai/receipt/parse',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': photo.type || 'image/jpeg' },
+        body: photo,
+      },
+    )
   ).data;

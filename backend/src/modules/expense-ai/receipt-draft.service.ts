@@ -15,7 +15,7 @@ export interface ReceiptDraft {
   /** Sent back with the new expense, so that the server knows which values came from the AI */
   parseId: string;
   name: string | null;
-  /** The category the model chose when none was given; null when it did not or could not */
+  /** The category the model chose (it fills an empty field or is offered as a hint); null when none fits */
   category: string | null;
   /** Only a believable date (not in the future, not too old) */
   date: string | null;
@@ -39,13 +39,15 @@ export class ReceiptDraftService {
 
   /**
    * `category`: the category chosen in the form (the owner may have turned the AI off for it). Without it the model
-   * picks one of the categories that allow both the photo and the AI.
+   * picks one of the categories that allow both the photo and the AI; with it, the model's pick is only a suggestion.
    */
   async parse(user: AuthUser, bytes: Buffer, category?: string): Promise<ReceiptDraft> {
     if (!user.groupId) throw validationError('NO_GROUP', 'Вы не состоите в группе');
     const { categories } = this.options;
     if (category && !(await categories.aiAllowed(user.groupId, category))) throw aiCategoryOff();
-    const candidates = category ? [] : await categories.photoAiCategories(user.groupId);
+    // The model always names a category when it can: it fills the empty field, or is shown to the person as a hint
+    // when they chose another one. Only categories that allow the photo are offered, so applying it keeps the photo.
+    const candidates = await categories.photoAiCategories(user.groupId);
     if (!category && candidates.length === 0) throw aiCategoryOff();
     if (bytes.length === 0) throw validationError('EMPTY_RECEIPT', 'Файл пустой');
     if (bytes.length > MAX_RECEIPT_BYTES) {
