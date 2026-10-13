@@ -343,3 +343,62 @@ describe('карточка записи: раздел «Позиции»', () =>
     expect(screen.getByRole('dialog', { name: 'Изменить запись' })).toBeInTheDocument();
   });
 });
+
+describe('раскрытые позиции в списке', () => {
+  async function open(op = operation({ itemsCount: 2, aiItemsCount: 1 })) {
+    serve(op);
+    const user = renderAnalytics(OPS);
+    await waitFor(() => within(table()).getByText('Супермаркет'));
+    const toggle = within(table()).getByRole('button', { name: '2 позиции' });
+    await user.click(toggle);
+    return { user, toggle, list: await screen.findByRole('list', { name: 'Позиции' }) };
+  }
+
+  it('кнопка с шевроном: aria-expanded меняется, область нажатия не ниже 44px', async () => {
+    const { user, toggle } = await open();
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle.className).toContain('min-h-11');
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('list', { name: 'Позиции' })).toBeNull();
+  });
+
+  it('список — отдельный блок на всю ширину строки таблицы, а не в узкой колонке названия', async () => {
+    const { list } = await open();
+
+    const cell = list.closest('td')!;
+    expect(cell).toHaveAttribute('colspan');
+    expect(list.parentElement!.className).toContain('bg-zinc-50');
+    expect(list.parentElement!.className).toContain('dark:bg-zinc-800/40');
+  });
+
+  it('строка: название слева, количество под ним мелко, цена справа с двумя знаками у дробной', async () => {
+    const { list } = await open();
+
+    const [bread, cheese] = within(list).getAllByRole('listitem');
+    expect(bread).toHaveTextContent('Хлеб');
+    expect(bread).toHaveTextContent('120,50');
+    expect(bread).not.toHaveTextContent('×');
+    expect(cheese).toHaveTextContent('× 0,35');
+    expect(cheese).toHaveTextContent('12 220');
+    expect(within(cheese!).getByText('12 220').className).toContain('tabular-nums');
+  });
+
+  it('внизу сумма позиций и приглушённое расхождение с суммой операции', async () => {
+    const { list } = await open(operation({ itemsCount: 2, amount: 12460.5 }));
+
+    const footer = list.parentElement!;
+    expect(within(footer).getByText('Сумма позиций 12 340,50')).toBeInTheDocument();
+    const note = within(footer).getByText('Сумма позиций 12 340,50, на 120 меньше суммы операции');
+    expect(note.className).not.toContain('red');
+  });
+
+  it('расхождение меньше единицы не показывается, сумма позиций остаётся', async () => {
+    const { list } = await open(operation({ itemsCount: 2, amount: 12340.9 }));
+
+    expect(within(list.parentElement!).getByText('Сумма позиций 12 340,50')).toBeInTheDocument();
+    expect(within(list.parentElement!).queryByText(/меньше суммы|больше суммы/)).toBeNull();
+  });
+});

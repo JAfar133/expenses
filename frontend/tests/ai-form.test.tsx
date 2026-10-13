@@ -107,6 +107,39 @@ describe('позиции чека на «Добавить»', () => {
   });
 });
 
+describe('редактор позиций на узком экране', () => {
+  it('каждая позиция — карточка: название на всю строку, во второй строке цена, «Кол.» и крестик; ввод работает', async () => {
+    const { person } = await renderApp();
+    await person.click(screen.getByRole('button', { name: '+ Позиции чека' }));
+
+    const name = screen.getByLabelText('Название позиции 1');
+    expect(name.parentElement!.className).toContain('w-full');
+    expect(name.closest('li')!.className).toContain('flex-wrap');
+    expect(screen.getByPlaceholderText('Кол.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Удалить позицию 1' }).className).toContain(
+      'ml-auto',
+    );
+    await person.type(name, 'Молоко 3,2% пастеризованное');
+    await person.type(screen.getByLabelText('Цена позиции 1'), '1249,5');
+    await person.type(screen.getByLabelText('Количество позиции 1'), '2');
+
+    expect(name).toHaveValue('Молоко 3,2% пастеризованное');
+    expect(screen.getByLabelText('Цена позиции 1')).toHaveValue('1 249,5');
+    expect(screen.getByLabelText('Количество позиции 1')).toHaveValue('2');
+  });
+
+  it('кнопка добавления — текстовая «Добавить позицию»', async () => {
+    const { person } = await renderApp();
+    await person.click(screen.getByRole('button', { name: '+ Позиции чека' }));
+
+    const add = screen.getByRole('button', { name: 'Добавить позицию' });
+    expect(add).toHaveTextContent('Добавить позицию');
+    await person.click(add);
+
+    expect(screen.getByLabelText('Название позиции 2')).toBeInTheDocument();
+  });
+});
+
 describe('фото чека и ИИ на «Добавить»', () => {
   it('с ИИ и фото название необязательно: уходит «Чек», источники default', async () => {
     enableAi();

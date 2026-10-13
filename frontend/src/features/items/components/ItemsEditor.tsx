@@ -29,35 +29,39 @@ export function ItemsEditor({ value, onChange }: ItemsEditorProps) {
     <div className="space-y-2">
       <ul className="space-y-2">
         {value.map((row, index) => (
-          <li key={row.key} className="flex items-start gap-1.5">
-            <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_6rem_4.5rem] gap-1.5 sm:grid-cols-[minmax(0,1fr)_7rem_5rem]">
-              <div className="relative min-w-0">
-                <input
-                  type="text"
-                  aria-label={`Название позиции ${index + 1}`}
-                  placeholder="Название"
-                  autoComplete="off"
-                  maxLength={MAX_NAME_LENGTH}
-                  value={row.name}
-                  onChange={(event) => change(row.key, { name: event.target.value })}
-                  className={`${fieldClass} w-full ${isAiGenerated(row) ? 'pr-8' : ''}`}
-                />
-                {isAiGenerated(row) && (
-                  <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
-                    <AiMark />
-                  </span>
-                )}
-              </div>
+          <li
+            key={row.key}
+            className="flex flex-wrap items-center gap-1.5 rounded-xl border border-zinc-200 p-2 sm:flex-nowrap sm:border-0 sm:p-0 dark:border-zinc-700"
+          >
+            {/* On a phone the name has the whole first line; the price, the quantity and the cross share the second */}
+            <div className="relative w-full min-w-0 sm:w-auto sm:flex-1">
               <input
                 type="text"
-                inputMode="decimal"
-                aria-label={`Цена позиции ${index + 1}`}
-                placeholder="Цена"
+                aria-label={`Название позиции ${index + 1}`}
+                placeholder="Название"
                 autoComplete="off"
-                value={row.price}
-                onChange={(event) => change(row.key, { price: formatPrice(event.target.value) })}
-                className={`${fieldClass} text-right tabular-nums`}
+                maxLength={MAX_NAME_LENGTH}
+                value={row.name}
+                onChange={(event) => change(row.key, { name: event.target.value })}
+                className={`${fieldClass} w-full ${isAiGenerated(row) ? 'pr-8' : ''}`}
               />
+              {isAiGenerated(row) && (
+                <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
+                  <AiMark />
+                </span>
+              )}
+            </div>
+            <input
+              type="text"
+              inputMode="decimal"
+              aria-label={`Цена позиции ${index + 1}`}
+              placeholder="Цена"
+              autoComplete="off"
+              value={row.price}
+              onChange={(event) => change(row.key, { price: formatPrice(event.target.value) })}
+              className={`${fieldClass} w-32 text-right tabular-nums sm:w-28`}
+            />
+            <div className="flex items-center gap-1.5">
               <input
                 type="text"
                 inputMode="decimal"
@@ -68,7 +72,7 @@ export function ItemsEditor({ value, onChange }: ItemsEditorProps) {
                 onChange={(event) =>
                   change(row.key, { quantity: formatQuantity(event.target.value) })
                 }
-                className={`${fieldClass} text-right tabular-nums`}
+                className={`${fieldClass} w-20 text-right tabular-nums`}
               />
             </div>
             <button
@@ -76,7 +80,7 @@ export function ItemsEditor({ value, onChange }: ItemsEditorProps) {
               aria-label={`Удалить позицию ${index + 1}`}
               title="Удалить позицию"
               onClick={() => onChange(value.filter((item) => item.key !== row.key))}
-              className={iconButton}
+              className={`${iconButton} ml-auto`}
             >
               <CloseIcon />
             </button>
@@ -89,9 +93,10 @@ export function ItemsEditor({ value, onChange }: ItemsEditorProps) {
         title="Добавить позицию"
         disabled={value.length >= MAX_ITEMS}
         onClick={() => onChange([...value, emptyDraft()])}
-        className={iconButton}
+        className="flex h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-40 dark:text-indigo-300 dark:hover:bg-indigo-950/60"
       >
         <PlusIcon />
+        Добавить позицию
       </button>
     </div>
   );

@@ -1,3 +1,4 @@
+import { Fragment, useState } from 'react';
 import { formatShortDateTime } from '../../admin/model/backup.ts';
 import { currencyDigits } from '../../../shared/utils/conversion.ts';
 import { formatAmount, formatMoney } from '../../../shared/utils/money.ts';
@@ -5,6 +6,7 @@ import type { OperationItem, SortColumn, SortDirection } from '../api/operations
 import { AiMark } from '../../ai/components/AiMark.tsx';
 import { ParsingBadge } from '../../ai/components/ParsingBadge.tsx';
 import { ItemsCount } from '../../items/components/ItemsCount.tsx';
+import { ItemsPanel } from '../../items/components/ItemsPanel.tsx';
 import { ReceiptBadge } from '../../receipts/components/ReceiptBadge.tsx';
 import { ExcelStateBadge } from './ExcelStateBadge.tsx';
 
@@ -142,12 +144,32 @@ function Actions({
   );
 }
 
-/** Under the name: the parsing status and the muted counter of the receipt positions. */
-function RowExtras({ item }: { item: OperationItem }) {
+/** Which rows have their positions opened. The table and the phone cards keep their own state. */
+function useOpenRows() {
+  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
+  const toggle = (id: string) =>
+    setOpen((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  return { open, toggle };
+}
+
+/** Under the name: the parsing status and the muted «3 позиции ▾» button. */
+function RowExtras({
+  item,
+  open,
+  onToggle,
+}: {
+  item: OperationItem;
+  open: boolean;
+  onToggle: () => void;
+}) {
   return (
     <>
       <ParsingBadge expenseId={item.id} />
-      {!!item.itemsCount && <ItemsCount expenseId={item.id} count={item.itemsCount} />}
+      {!!item.itemsCount && <ItemsCount count={item.itemsCount} open={open} onToggle={onToggle} />}
     </>
   );
 }
@@ -169,6 +191,16 @@ export function OperationsTable(props: OperationsTableProps) {
     authorLabel,
     busyId,
   } = props;
+  const tableRows = useOpenRows();
+  const cardRows = useOpenRows();
+  const panelOf = (item: OperationItem) => (
+    <ItemsPanel
+      expenseId={item.id}
+      currency={item.currency || currency}
+      baseCurrency={baseCurrency}
+      operationAmount={item.amount}
+    />
+  );
   // Actions follow the server's verdict per record: `editable` (live records), restore only for the owner
   const hasActions = (item: OperationItem) => (item.deletedAt ? canRestore : item.editable);
   const showActions = items.some(hasActions);
@@ -226,37 +258,50 @@ export function OperationsTable(props: OperationsTableProps) {
           </thead>
           <tbody>
             {items.map((item) => (
-              <tr key={item.id} className="border-b border-zinc-100 align-top dark:border-zinc-800">
-                <td className="py-2.5 pr-4 tabular-nums whitespace-nowrap">
-                  {formatDate(item.date)}
-                </td>
-                <td className="py-2.5 pr-4">{item.card}</td>
-                <td className="py-2.5 pr-4">{item.category}</td>
-                <th scope="row" className={`py-2.5 pr-4 font-normal ${nameClass(item)}`}>
-                  {/* The camera sits in a flex line with the name: an inline-flex button in a table cell would sit on the
+              <Fragment key={item.id}>
+                <tr className="border-b border-zinc-100 align-top dark:border-zinc-800">
+                  <td className="py-2.5 pr-4 tabular-nums whitespace-nowrap">
+                    {formatDate(item.date)}
+                  </td>
+                  <td className="py-2.5 pr-4">{item.card}</td>
+                  <td className="py-2.5 pr-4">{item.category}</td>
+                  <th scope="row" className={`py-2.5 pr-4 font-normal ${nameClass(item)}`}>
+                    {/* The camera sits in a flex line with the name: an inline-flex button in a table cell would sit on the
                       text baseline and push the row apart */}
-                  <div className="flex items-center gap-1">
-                    <span>{item.name}</span>
-                    {item.nameSource === 'ai' && <AiMark />}
-                    {item.hasReceipt && props.onViewReceipt && (
-                      <ReceiptBadge onClick={() => props.onViewReceipt?.(item)} />
-                    )}
-                  </div>
-                  <RowExtras item={item} />
-                </th>
-                <td className="py-2.5 pr-4 text-right whitespace-nowrap">
-                  <Amount item={item} currency={currency} baseCurrency={baseCurrency} />
-                </td>
-                <td className="py-2.5 pr-4">{authorLabel(item.createdBy)}</td>
-                <td className="py-2.5 pr-4">
-                  <ExcelStateBadge
-                    state={item.excelState}
-                    error={item.excelError}
-                    excelEnabled={excelEnabled}
-                  />
-                </td>
-                {showActions && <td className="py-2.5 text-right">{actions(item)}</td>}
-              </tr>
+                    <div className="flex items-center gap-1">
+                      <span>{item.name}</span>
+                      {item.nameSource === 'ai' && <AiMark />}
+                      {item.hasReceipt && props.onViewReceipt && (
+                        <ReceiptBadge onClick={() => props.onViewReceipt?.(item)} />
+                      )}
+                    </div>
+                    <RowExtras
+                      item={item}
+                      open={tableRows.open.has(item.id)}
+                      onToggle={() => tableRows.toggle(item.id)}
+                    />
+                  </th>
+                  <td className="py-2.5 pr-4 text-right whitespace-nowrap">
+                    <Amount item={item} currency={currency} baseCurrency={baseCurrency} />
+                  </td>
+                  <td className="py-2.5 pr-4">{authorLabel(item.createdBy)}</td>
+                  <td className="py-2.5 pr-4">
+                    <ExcelStateBadge
+                      state={item.excelState}
+                      error={item.excelError}
+                      excelEnabled={excelEnabled}
+                    />
+                  </td>
+                  {showActions && <td className="py-2.5 text-right">{actions(item)}</td>}
+                </tr>
+                {tableRows.open.has(item.id) && (
+                  <tr className="border-b border-zinc-100 dark:border-zinc-800">
+                    <td colSpan={COLUMNS.length + 1 + (showActions ? 1 : 0)} className="pb-3">
+                      {panelOf(item)}
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -274,10 +319,14 @@ export function OperationsTable(props: OperationsTableProps) {
                     <ReceiptBadge onClick={() => props.onViewReceipt?.(item)} />
                   )}
                 </div>
-                <RowExtras item={item} />
                 <div className="text-sm text-zinc-500 dark:text-zinc-400">
                   {formatDate(item.date)} · {item.category} · {item.card}
                 </div>
+                <RowExtras
+                  item={item}
+                  open={cardRows.open.has(item.id)}
+                  onToggle={() => cardRows.toggle(item.id)}
+                />
               </div>
               <Amount item={item} currency={currency} baseCurrency={baseCurrency} />
             </div>
@@ -294,6 +343,7 @@ export function OperationsTable(props: OperationsTableProps) {
               </div>
               {actions(item)}
             </div>
+            {cardRows.open.has(item.id) && panelOf(item)}
           </li>
         ))}
       </ul>
