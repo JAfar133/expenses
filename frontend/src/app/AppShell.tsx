@@ -5,10 +5,12 @@ import { UserBar } from '../features/auth/components/UserBar.tsx';
 import { SyncIndicator } from '../features/sync/components/SyncIndicator.tsx';
 import { PlusIcon } from '../shared/ui/icons.tsx';
 
-/** «Добавить» is the main action: a filled button. */
+/** «Добавить» is the main action: a filled button; on its own page it turns into a soft "you are here" pill. */
 const addClass = ({ isActive }: { isActive: boolean }) =>
-  'inline-flex h-8 items-center gap-1 rounded-full px-3 text-sm font-semibold bg-indigo-600 text-white transition ' +
-  (isActive ? 'brightness-90' : 'hover:bg-indigo-500');
+  'inline-flex h-8 items-center gap-1 rounded-full px-3 text-sm font-semibold transition ' +
+  (isActive
+    ? 'bg-indigo-100 text-indigo-700 ring-1 ring-inset ring-indigo-300 dark:bg-indigo-950 dark:text-indigo-300 dark:ring-indigo-700'
+    : 'bg-indigo-600 text-white hover:bg-indigo-500');
 
 /** «Аналитика» is a calm section: text, the active one is indigo with a thin line below. */
 const sectionClass = ({ isActive }: { isActive: boolean }) =>

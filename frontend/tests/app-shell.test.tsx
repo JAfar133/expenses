@@ -103,7 +103,9 @@ describe('AppShell', () => {
     const person = renderShell('/');
     const add = screen.getByRole('link', { name: 'Добавить' });
     const analytics = screen.getByRole('link', { name: 'Аналитика' });
-    expect(add).toHaveClass('bg-indigo-600', 'text-white');
+    // On its own page the main button turns into a soft pill: the user sees where they are
+    expect(add).toHaveClass('bg-indigo-100', 'text-indigo-700');
+    expect(add).not.toHaveClass('bg-indigo-600');
     expect(analytics).not.toHaveClass('bg-indigo-600');
     expect(analytics).toHaveClass('border-transparent');
 
@@ -111,6 +113,8 @@ describe('AppShell', () => {
 
     expect(analytics).toHaveClass('border-indigo-600', 'text-indigo-700');
     expect(analytics).not.toHaveClass('bg-indigo-600');
+    // Elsewhere «Добавить» is the filled call to action
+    expect(add).toHaveClass('bg-indigo-600', 'text-white');
   });
 
   it('навигация одна и стоит в шапке рядом с названием (на телефоне уходит на вторую строку)', () => {
