@@ -156,3 +156,117 @@ export const GaugeIcon = () => (
     <path d="M3 20h18" />
   </Icon>
 );
+
+/* Category icons: a small fixed set, picked by the name of a category (see features/budgets/model/category-icon.tsx) */
+
+export const HomeIcon = () => (
+  <Icon>
+    <path d="M3 11l9-8 9 8" />
+    <path d="M5 10v10h14V10" />
+    <path d="M10 20v-6h4v6" />
+  </Icon>
+);
+
+export const BasketIcon = () => (
+  <Icon>
+    <path d="M5 9h14l-1.5 10h-11L5 9z" />
+    <path d="M9 9l3-5 3 5" />
+  </Icon>
+);
+
+export const CupIcon = () => (
+  <Icon>
+    <path d="M5 8h11v6a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5V8z" />
+    <path d="M16 10h2a2 2 0 0 1 0 4h-2" />
+    <path d="M8 3v2M12 3v2" />
+  </Icon>
+);
+
+export const ForkKnifeIcon = () => (
+  <Icon>
+    <path d="M6 3v7a2 2 0 0 0 4 0V3M8 3v18" />
+    <path d="M17 3c-2 2-2 6 0 8v10" />
+  </Icon>
+);
+
+export const CarIcon = () => (
+  <Icon>
+    <path d="M5 17v-4l2-5h10l2 5v4z" />
+    <path d="M5 13h14" />
+    <circle cx="8.5" cy="17.5" r="1.5" />
+    <circle cx="15.5" cy="17.5" r="1.5" />
+  </Icon>
+);
+
+export const ShirtIcon = () => (
+  <Icon>
+    <path d="M8 3L3 6l2 4 3-1v12h8V9l3 1 2-4-5-3a4 4 0 0 1-8 0z" />
+  </Icon>
+);
+
+export const HeartIcon = () => (
+  <Icon>
+    <path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z" />
+  </Icon>
+);
+
+export const CartIcon = () => (
+  <Icon>
+    <path d="M3 4h2l2.5 11h10l2-8H6.5" />
+    <circle cx="9" cy="19.5" r="1.2" />
+    <circle cx="17" cy="19.5" r="1.2" />
+  </Icon>
+);
+
+export const BanknoteIcon = () => (
+  <Icon>
+    <rect x="3" y="6" width="18" height="12" rx="2" />
+    <circle cx="12" cy="12" r="2.5" />
+  </Icon>
+);
+
+export const SignalIcon = () => (
+  <Icon>
+    <path d="M5 19v-3M10 19v-7M15 19V8M20 19V4" />
+  </Icon>
+);
+
+export const StarIcon = () => (
+  <Icon>
+    <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3z" />
+  </Icon>
+);
+
+export const DocumentIcon = () => (
+  <Icon>
+    <path d="M7 3h7l4 4v14H7V3z" />
+    <path d="M14 3v4h4M10 12h5M10 16h5" />
+  </Icon>
+);
+
+export const BulbIcon = () => (
+  <Icon>
+    <path d="M9 18h6M10 21h4" />
+    <path d="M12 3a6 6 0 0 0-3.5 10.9V16h7v-2.1A6 6 0 0 0 12 3z" />
+  </Icon>
+);
+
+export const DotsIcon = () => (
+  <Icon>
+    <circle cx="6" cy="12" r="1" />
+    <circle cx="12" cy="12" r="1" />
+    <circle cx="18" cy="12" r="1" />
+  </Icon>
+);
+
+export const ChevronRightIcon = () => (
+  <Icon size={16}>
+    <path d="M9 5l7 7-7 7" />
+  </Icon>
+);
+
+export const ChevronDownIcon = () => (
+  <Icon size={16}>
+    <path d="M5 9l7 7 7-7" />
+  </Icon>
+);

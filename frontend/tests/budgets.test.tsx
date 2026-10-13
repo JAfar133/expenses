@@ -251,7 +251,7 @@ describe('лимиты на вкладке «Обзор»', () => {
     renderAnalytics();
 
     const block = within(await overall());
-    expect(block.getByText('40,50 USD')).toBeInTheDocument();
+    expect(block.getByText('40,50')).toBeInTheDocument();
     expect(block.getByText(/\/ 100,00 USD/)).toBeInTheDocument();
     expect(block.getByText('41%')).toBeInTheDocument();
     expect(block.getByText('Осталось 59,50 USD до конца периода')).toBeInTheDocument();
@@ -374,17 +374,72 @@ describe('лимиты на вкладке «Обзор»', () => {
     const group = (title: string) => screen.getByText(title).closest('details')!;
     expect(within(group('Превышен лимит')).getByText('1 категория')).toBeInTheDocument();
     expect(within(group('Превышен лимит')).getByText('продукты')).toBeInTheDocument();
-    expect(within(group('Превышен лимит')).getByText(/превышение 200 AMD/)).toBeInTheDocument();
+    expect(within(group('Превышен лимит')).getByText(/превышение 200$/)).toBeInTheDocument();
     expect(within(group('Близко к лимиту')).getByText('Транспорт')).toBeInTheDocument();
-    expect(
-      within(group('Близко к лимиту')).getByText(/85% · осталось 150 AMD/),
-    ).toBeInTheDocument();
+    expect(within(group('Близко к лимиту')).getByText(/85%\s*· осталось 150$/)).toBeInTheDocument();
     expect(within(group('Остальные категории')).getByText('Игры')).toBeInTheDocument();
     // Categories with spending but no limit; collapsed by default
     const unlimited = group('Без лимита');
     expect(within(unlimited).getByText('кафе')).toBeInTheDocument();
     expect(unlimited).not.toHaveAttribute('open');
     expect(group('Превышен лимит')).toHaveAttribute('open');
+  });
+
+  it('строка категории: числа без кода валюты слева, код валюты отдельно справа, значок и шеврон', async () => {
+    harness.handlers['/api/budgets'] = () =>
+      analyticsOk([
+        budget(),
+        budget({
+          id: 'a',
+          categoryId: '1',
+          category: 'продукты',
+          level: 'over',
+          percent: 120,
+          spent: 122398,
+          limit: 80000,
+          remaining: -42398,
+        }),
+      ]);
+    renderAnalytics();
+    await overall();
+
+    const row = screen.getByRole('button', { name: 'продукты: открыть наименования' });
+    // Spent and limit without the currency, in one line; the currency code is a separate small text
+    expect(within(row).getByText('122 398')).toBeInTheDocument();
+    expect(within(row).getByText(/\/ 80 000$/)).toBeInTheDocument();
+    expect(within(row).getByText(/превышение 42 398$/)).toHaveClass('text-red-600');
+    expect(within(row).getByText('AMD')).toBeInTheDocument();
+    expect(row).not.toHaveTextContent('AMD AMD');
+    // The round icon (decorative) and the chevron
+    expect(row.querySelectorAll('svg').length).toBeGreaterThanOrEqual(2);
+    expect(row.querySelector('.bg-red-100')).not.toBeNull();
+  });
+
+  it('клик по строке категории открывает её наименования', async () => {
+    harness.handlers['/api/budgets'] = () =>
+      analyticsOk([
+        budget(),
+        budget({
+          id: 'a',
+          categoryId: '1',
+          category: 'продукты',
+          level: 'ok',
+          percent: 10,
+          remaining: 900,
+        }),
+      ]);
+    const user = renderAnalytics();
+    await overall();
+
+    await user.click(screen.getByRole('button', { name: 'продукты: открыть наименования' }));
+
+    await waitFor(() =>
+      expect(
+        harness.requests
+          .map(decodeURIComponent)
+          .some((r) => r.includes('categories=продукты') && r.includes('by=name')),
+      ).toBe(true),
+    );
   });
 
   it('группа сворачивается и разворачивается по заголовку', async () => {

@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
-import { WarningIcon } from '../../../shared/ui/icons.tsx';
+import { ChevronDownIcon, ChevronRightIcon, WarningIcon } from '../../../shared/ui/icons.tsx';
 import { currencyDigits } from '../../../shared/utils/conversion.ts';
 import { formatAmount } from '../../../shared/utils/money.ts';
 import { useConfig } from '../../expenses/hooks/useConfig.ts';
 import type { BreakdownRow } from '../../analytics/api/analytics.api.ts';
 import type { Budget } from '../api/budgets.api.ts';
+import { categoryIcon } from '../model/category-icon.tsx';
 import { pluralCategories } from '../model/plural.ts';
 
 const FILL = {
@@ -13,13 +14,26 @@ const FILL = {
   over: 'bg-red-500',
 };
 
-interface Money {
-  (value: number): string;
+/** Round icon background by level. */
+const BADGE = {
+  ok: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300',
+  warn: 'bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-300',
+  over: 'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-300',
+};
+
+interface Format {
+  /** A number without the currency */
+  num: (value: number) => string;
+  /** A number with the currency */
+  money: (value: number) => string;
+  currency: string;
 }
 
 function Bar({ budget, className = 'h-1.5' }: { budget: Budget; className?: string }) {
   const fill = Math.min(Math.max(budget.percent, 0), 100);
   const label = budget.category ?? 'Всего';
+  // The part over the limit is hatched: it starts where the limit ends
+  const limitAt = budget.percent > 100 ? (100 / budget.percent) * 100 : null;
   return (
     <div
       role="progressbar"
@@ -27,15 +41,25 @@ function Bar({ budget, className = 'h-1.5' }: { budget: Budget; className?: stri
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(fill)}
-      className={`overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800 ${className}`}
+      className={`relative overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800 ${className}`}
     >
       <div className={`h-full rounded-full ${FILL[budget.level]}`} style={{ width: `${fill}%` }} />
+      {limitAt !== null && (
+        <div
+          className="absolute inset-y-0 right-0"
+          style={{
+            left: `${limitAt}%`,
+            backgroundImage:
+              'repeating-linear-gradient(135deg, rgba(255,255,255,0.6) 0 2px, transparent 2px 5px)',
+          }}
+        />
+      )}
     </div>
   );
 }
 
 /** The overall limit as a block of its own: spent of the limit, percent, bar and what is left. */
-function OverallBlock({ budget, money }: { budget: Budget; money: Money }) {
+function OverallBlock({ budget, format }: { budget: Budget; format: Format }) {
   const over = budget.remaining < 0;
   return (
     <section
@@ -43,10 +67,14 @@ function OverallBlock({ budget, money }: { budget: Budget; money: Money }) {
       className="rounded-xl border border-zinc-100 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/40"
     >
       <p className="text-sm text-zinc-500 dark:text-zinc-400">Общий бюджет</p>
-      <div className="mt-1 flex items-baseline justify-between gap-3">
-        <p className="min-w-0 tabular-nums">
-          <span className="text-2xl font-semibold">{money(budget.spent)}</span>
-          <span className="text-zinc-500 dark:text-zinc-400"> / {money(budget.limit)}</span>
+      <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-3">
+        {/* The currency once, after the limit; the numbers never break */}
+        <p className="whitespace-nowrap tabular-nums">
+          <span className="text-2xl font-semibold">{format.num(budget.spent)}</span>
+          <span className="text-zinc-500 dark:text-zinc-400">
+            {' '}
+            / {format.num(budget.limit)} {format.currency}
+          </span>
         </p>
         <span className="text-xl font-semibold tabular-nums text-indigo-600 dark:text-indigo-300">
           {Math.round(budget.percent)}%
@@ -56,59 +84,88 @@ function OverallBlock({ budget, money }: { budget: Budget; money: Money }) {
       <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
         {over ? (
           <span className="text-red-600 dark:text-red-400">
-            Превышение {money(-budget.remaining)}
+            Превышение {format.money(-budget.remaining)}
           </span>
         ) : (
-          <>Осталось {money(budget.remaining)} до конца периода</>
+          <>Осталось {format.money(budget.remaining)} до конца периода</>
         )}
       </p>
     </section>
   );
 }
 
+/**
+ * One category: a round icon, the name, «N% · осталось X», the bar; on the right «spent / limit» and the currency.
+ * Everything is on one line each (no wrapping on a phone); a click opens the names of the category.
+ */
 function CategoryRow({
   budget,
-  money,
+  format,
   onSelect,
 }: {
   budget: Budget;
-  money: Money;
+  format: Format;
   onSelect?: (category: string) => void;
 }) {
   const over = budget.remaining < 0;
   const name = budget.category ?? '';
-  return (
-    <li className="space-y-1.5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          {onSelect ? (
-            <button
-              type="button"
-              onClick={() => onSelect(name)}
-              className="max-w-full truncate text-left text-sm font-medium hover:underline"
-            >
-              {name}
-            </button>
-          ) : (
-            <span className="block truncate text-sm font-medium">{name}</span>
-          )}
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {Math.round(budget.percent)}% ·{' '}
-            {over ? (
-              <span className="text-red-600 dark:text-red-400">
-                превышение {money(-budget.remaining)}
-              </span>
-            ) : (
-              <>осталось {money(budget.remaining)}</>
-            )}
-          </p>
-        </div>
-        <span className="shrink-0 text-right text-sm tabular-nums">
-          {money(budget.spent)}
-          <span className="text-zinc-500 dark:text-zinc-400"> / {money(budget.limit)}</span>
+  const content = (
+    <div className="grid grid-cols-[2.25rem_minmax(0,1fr)_auto_1rem] items-center gap-x-2.5 gap-y-1">
+      <span
+        aria-hidden="true"
+        className={`row-span-3 flex size-9 items-center justify-center rounded-full ${BADGE[budget.level]}`}
+      >
+        {categoryIcon(name)}
+      </span>
+      <span className="min-w-0 truncate text-sm font-medium">{name}</span>
+      <span className="whitespace-nowrap text-right text-xs font-medium tabular-nums">
+        {format.num(budget.spent)}
+        <span className="font-normal text-zinc-500 dark:text-zinc-400">
+          {' '}
+          / {format.num(budget.limit)}
         </span>
+      </span>
+      <span aria-hidden="true" className="row-span-3 text-zinc-400">
+        {onSelect && <ChevronRightIcon />}
+      </span>
+      <div className="col-span-2 flex items-center justify-between gap-2 whitespace-nowrap text-[11px] tabular-nums text-zinc-500 dark:text-zinc-400">
+        <span className="flex items-center gap-1">
+          {budget.level === 'warn' && (
+            <span className="text-amber-600 dark:text-amber-400">
+              <WarningIcon />
+            </span>
+          )}
+          {Math.round(budget.percent)}% ·{' '}
+          {over ? (
+            <span className="text-red-600 dark:text-red-400">
+              превышение {format.num(-budget.remaining)}
+            </span>
+          ) : (
+            <>осталось {format.num(budget.remaining)}</>
+          )}
+        </span>
+        <span>{format.currency}</span>
       </div>
-      <Bar budget={budget} />
+      <div className="col-span-2">
+        <Bar budget={budget} />
+      </div>
+    </div>
+  );
+
+  return (
+    <li>
+      {onSelect ? (
+        <button
+          type="button"
+          onClick={() => onSelect(name)}
+          aria-label={`${name}: открыть наименования`}
+          className="block w-full text-left"
+        >
+          {content}
+        </button>
+      ) : (
+        content
+      )}
     </li>
   );
 }
@@ -119,32 +176,51 @@ const GROUP_TONES = {
   plain: 'border-zinc-100 dark:border-zinc-800',
 } as const;
 
-/** A collapsible group of rows: the title with the count of categories. */
+/** The marker before a group title: a red circle with «!», an amber triangle or a grey circle. */
+function GroupMark({ tone }: { tone: keyof typeof GROUP_TONES }) {
+  if (tone === 'warn') {
+    return (
+      <span aria-hidden="true" className="text-amber-500">
+        <WarningIcon />
+      </span>
+    );
+  }
+  return (
+    <span
+      aria-hidden="true"
+      className={`flex size-5 items-center justify-center rounded-full text-xs font-bold text-white ${
+        tone === 'over' ? 'bg-red-500' : 'bg-zinc-400 dark:bg-zinc-600'
+      }`}
+    >
+      {tone === 'over' ? '!' : 'i'}
+    </span>
+  );
+}
+
+/** A collapsible group of rows: the marker, the title, the count of categories and a chevron. */
 function Group({
   title,
   count,
   tone,
-  icon,
   open = true,
   children,
 }: {
   title: string;
   count: number;
   tone: keyof typeof GROUP_TONES;
-  icon?: ReactNode;
   open?: boolean;
   children: ReactNode;
 }) {
   return (
-    <details open={open} className={`group rounded-xl border p-3 ${GROUP_TONES[tone]}`}>
+    <details open={open} className={`group rounded-xl border p-2.5 sm:p-3 ${GROUP_TONES[tone]}`}>
       <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium">
-        {icon}
+        <GroupMark tone={tone} />
         <span>{title}</span>
         <span className="font-normal text-zinc-500 dark:text-zinc-400">
           {count} {pluralCategories(count)}
         </span>
         <span aria-hidden="true" className="ml-auto text-zinc-400 transition group-open:rotate-180">
-          ▾
+          <ChevronDownIcon />
         </span>
       </summary>
       <ul className="mt-3 space-y-3">{children}</ul>
@@ -166,7 +242,8 @@ export function BudgetsTab({ budgets, rows, onSelect }: BudgetsTabProps) {
 
   const currency = budgets[0]?.currency ?? config.currency;
   const digits = currencyDigits(currency, config.baseCurrency);
-  const money: Money = (value) => `${formatAmount(value, digits)} ${currency}`;
+  const num = (value: number) => formatAmount(value, digits);
+  const format: Format = { num, money: (value) => `${num(value)} ${currency}`, currency };
 
   const overall = budgets.find((budget) => budget.categoryId === null);
   const limited = budgets.filter((budget) => budget.categoryId !== null);
@@ -178,37 +255,19 @@ export function BudgetsTab({ budgets, rows, onSelect }: BudgetsTabProps) {
 
   const list = (items: Budget[]) =>
     items.map((budget) => (
-      <CategoryRow key={budget.id} budget={budget} money={money} onSelect={onSelect} />
+      <CategoryRow key={budget.id} budget={budget} format={format} onSelect={onSelect} />
     ));
 
   return (
     <div className="space-y-3">
-      {overall && <OverallBlock budget={overall} money={money} />}
+      {overall && <OverallBlock budget={overall} format={format} />}
       {over.length > 0 && (
-        <Group
-          title="Превышен лимит"
-          count={over.length}
-          tone="over"
-          icon={
-            <span className="text-red-600 dark:text-red-400">
-              <WarningIcon />
-            </span>
-          }
-        >
+        <Group title="Превышен лимит" count={over.length} tone="over">
           {list(over)}
         </Group>
       )}
       {warn.length > 0 && (
-        <Group
-          title="Близко к лимиту"
-          count={warn.length}
-          tone="warn"
-          icon={
-            <span className="text-amber-600 dark:text-amber-400">
-              <WarningIcon />
-            </span>
-          }
-        >
+        <Group title="Близко к лимиту" count={warn.length} tone="warn">
           {list(warn)}
         </Group>
       )}
@@ -223,7 +282,7 @@ export function BudgetsTab({ budgets, rows, onSelect }: BudgetsTabProps) {
             <li key={row.key} className="flex items-center justify-between gap-3 text-sm">
               <span className="min-w-0 truncate">{row.key}</span>
               <span className="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">
-                {money(row.total)}
+                {format.money(row.total)}
               </span>
             </li>
           ))}
