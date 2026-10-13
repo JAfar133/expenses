@@ -7,11 +7,8 @@ import { PlusIcon } from '../shared/ui/icons.tsx';
 
 /** «Добавить» is the main action: a filled button. */
 const addClass = ({ isActive }: { isActive: boolean }) =>
-  'inline-flex h-10 items-center gap-1.5 rounded-full bg-indigo-600 px-4 text-sm font-semibold text-white ' +
-  'transition hover:bg-indigo-500 ' +
-  (isActive
-    ? 'ring-2 ring-indigo-300 ring-offset-2 ring-offset-zinc-100 dark:ring-offset-zinc-950'
-    : '');
+  'inline-flex h-8 items-center gap-1 rounded-full px-3 text-sm font-semibold bg-indigo-600 text-white transition ' +
+  (isActive ? 'brightness-90' : 'hover:bg-indigo-500');
 
 /** «Аналитика» is a calm section: text, the active one is indigo with a thin line below. */
 const sectionClass = ({ isActive }: { isActive: boolean }) =>
