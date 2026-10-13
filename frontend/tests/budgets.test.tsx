@@ -311,6 +311,11 @@ describe('лимиты на вкладке «Обзор»', () => {
     const kinds = within(categoryCard()).getByRole('radiogroup', { name: 'Вид графика' });
     const tabs = within(categoryCard()).getByRole('radiogroup', { name: 'Раздел' });
     expect(tabs.compareDocumentPosition(kinds) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Separate rows on any width: the tabs fill the row (never inline), the view switch sits in its own block
+    expect(tabs).toHaveClass('grid', 'w-full');
+    expect(tabs).not.toHaveClass('sm:inline-flex');
+    expect(tabs.parentElement).not.toBe(kinds.parentElement);
+    expect(tabs.parentElement?.contains(kinds)).toBe(false);
     expect(
       within(kinds)
         .getAllByRole('radio')

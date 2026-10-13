@@ -14,6 +14,8 @@ interface ChartTypeSwitchProps<T extends string> {
    * Without a value the options simply wrap onto new rows.
    */
   mobileColumns?: 2 | 3 | 4;
+  /** Equal columns on every width (not only on phones): tabs that take the whole row */
+  fullWidth?: boolean;
 }
 
 const GRID_COLUMNS = { 2: 'grid-cols-2', 3: 'grid-cols-3', 4: 'grid-cols-4' } as const;
@@ -25,6 +27,7 @@ export function ChartTypeSwitch<T extends string>({
   value,
   onChange,
   mobileColumns,
+  fullWidth = false,
 }: ChartTypeSwitchProps<T>) {
   return (
     <div
@@ -33,7 +36,7 @@ export function ChartTypeSwitch<T extends string>({
       className={
         'max-w-full rounded-lg bg-zinc-100 p-0.5 dark:bg-zinc-800 ' +
         (mobileColumns
-          ? `grid w-full ${GRID_COLUMNS[mobileColumns]} sm:inline-flex sm:w-auto sm:flex-wrap`
+          ? `grid w-full ${GRID_COLUMNS[mobileColumns]} ${fullWidth ? '' : 'sm:inline-flex sm:w-auto sm:flex-wrap'}`
           : 'inline-flex flex-wrap')
       }
     >

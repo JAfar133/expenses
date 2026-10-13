@@ -96,14 +96,18 @@ export function CategoryChart({
       {/* Tabs always come first; the view switch is under them and only on the structure tab */}
       {hasLimits && (
         <div className="mb-4 space-y-3">
-          <ChartTypeSwitch
-            label="Раздел"
-            options={TABS}
-            value={tab}
-            onChange={setTab}
-            mobileColumns={2}
-          />
-          {!showLimits && viewSwitch}
+          {/* The tabs take a row of their own on any width; the view switch is a separate row under them */}
+          <div>
+            <ChartTypeSwitch
+              label="Раздел"
+              options={TABS}
+              value={tab}
+              onChange={setTab}
+              mobileColumns={2}
+              fullWidth
+            />
+          </div>
+          {!showLimits && <div className="flex justify-start">{viewSwitch}</div>}
         </div>
       )}
       {showLimits ? (
