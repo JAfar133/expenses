@@ -334,3 +334,11 @@ export const TrashIcon = () => (
     <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6" />
   </Icon>
 );
+
+/** A spark: the mark of what the AI generated. */
+export const SparkIcon = ({ size = 14 }: { size?: number }) => (
+  <Icon size={size}>
+    <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
+    <path d="M19 15l.7 1.8L21.5 17.5l-1.8.7L19 20l-.7-1.8-1.8-.7 1.8-.7L19 15z" />
+  </Icon>
+);

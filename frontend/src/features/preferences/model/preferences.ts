@@ -93,8 +93,15 @@ export type PreferenceValue<K extends PreferenceKey> =
 
 export const PREFERENCE_KEYS = Object.keys(PREFERENCES) as PreferenceKey[];
 
+/** Flags that are plain booleans, not a choice from a list: kept apart from `PREFERENCES`. */
+export const BOOLEAN_PREFERENCES = ['ai.noticeSeen'] as const;
+export type BooleanPreferenceKey = (typeof BOOLEAN_PREFERENCES)[number];
+
 /** All saved preferences: only those the user changed. */
-export type Preferences = { [K in PreferenceKey]?: PreferenceValue<K> };
+export type Preferences = { [K in PreferenceKey]?: PreferenceValue<K> } & {
+  /** The person has seen the notice that a receipt photo is sent to the AI service */
+  [K in BooleanPreferenceKey]?: boolean;
+};
 
 export const isAllowed = <K extends PreferenceKey>(
   key: K,
@@ -116,8 +123,12 @@ export const migrateLegacy = (key: PreferenceKey, value: unknown): unknown =>
 
 /** Keeps only known keys with allowed values: server responses and old records are not trusted blindly. */
 export function sanitizePreferences(raw: unknown): Preferences {
-  const clean: Record<string, string> = {};
+  const clean: Record<string, string | boolean> = {};
   if (raw && typeof raw === 'object') {
+    for (const key of BOOLEAN_PREFERENCES) {
+      const value = (raw as Record<string, unknown>)[key];
+      if (typeof value === 'boolean') clean[key] = value;
+    }
     for (const key of PREFERENCE_KEYS) {
       const value = migrateLegacy(key, (raw as Record<string, unknown>)[key]);
       if (isAllowed(key, value)) clean[key] = value;

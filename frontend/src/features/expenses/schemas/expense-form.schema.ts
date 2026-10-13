@@ -8,13 +8,15 @@ import { parseDecimal } from '../../../shared/utils/money.ts';
 export function createExpenseFormSchema(
   baseCurrency: string,
   cardCurrencies: Record<string, string> = {},
+  /** The name may stay empty (the AI will fill it from the receipt photo); read at validation time */
+  nameOptional: () => boolean = () => false,
 ) {
   return z
     .object({
       date: z.string().min(1, 'Укажите дату'),
       card: z.string().min(1, 'Выберите карту'),
       category: z.string().min(1, 'Выберите категорию'),
-      name: z.string().trim().min(1, 'Введите наименование').max(255, 'Не более 255 символов'),
+      name: z.string().trim().max(255, 'Не более 255 символов'),
       currency: z.string().min(1, 'Выберите валюту'),
       amount: z.string(),
       /** Rate: drams per unit of the typed currency */
@@ -22,6 +24,10 @@ export function createExpenseFormSchema(
     })
     .superRefine((values, context) => {
       const isBase = values.currency === baseCurrency;
+
+      if (!values.name.trim() && !nameOptional()) {
+        context.addIssue({ code: 'custom', path: ['name'], message: 'Введите наименование' });
+      }
 
       const amountMessage = validateAmount(values.amount);
       if (amountMessage)

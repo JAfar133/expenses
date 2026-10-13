@@ -56,6 +56,19 @@ beforeEach(() => {
       requests.push({ method, url, body });
       if (url === '/api/auth/me') return ok({ user: me });
       if (url === '/api/rates') return ok({ base: 'AMD', currencies: ['AMD', 'USD'], rates: [] });
+      if (url === '/api/admin/ai') {
+        return ok({
+          enabled: false,
+          model: 'gemini-3.8-flash',
+          dailyLimit: 50,
+          keyConfigured: false,
+          keySource: 'none',
+          keyHint: null,
+          canStoreKey: true,
+          usage: { today: 0, month: 0, errorsMonth: 0 },
+          groups: [],
+        });
+      }
       if (url === '/api/admin/groups' && method === 'GET') return ok(groups);
       if (url === '/api/admin/groups' && method === 'POST')
         return ok({ id: 3, token: 'OWNER-NEW', expiresAt: EXPIRES }, 201);

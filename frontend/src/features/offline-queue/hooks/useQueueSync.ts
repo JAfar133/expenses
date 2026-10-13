@@ -3,7 +3,8 @@ import { useCallback, useEffect } from 'react';
 import { invalidateAfterCreate } from '../../expenses/hooks/useCreateExpense.ts';
 import { announceAllSent, onQueueSyncRequested } from '../model/queue-signal.ts';
 import { queueStore } from '../model/queue-store.ts';
-import { runQueueSync } from '../model/queue-sync.ts';
+import { startReceiptParse } from '../../ai/model/parse-runner.ts';
+import { defaultSyncDeps, runQueueSync } from '../model/queue-sync.ts';
 import { useQueueItems } from './useQueueItems.ts';
 
 export const SYNC_INTERVAL_MS = 30_000;
@@ -17,7 +18,10 @@ export function useQueueSync(): void {
   const waiting = useQueueItems().some((item) => item.status === 'pending');
 
   const run = useCallback(async () => {
-    const outcome = await runQueueSync();
+    const outcome = await runQueueSync({
+      ...defaultSyncDeps,
+      parse: (expenseId) => void startReceiptParse(expenseId, queryClient),
+    });
     if (!outcome || outcome.created === 0) return;
     invalidateAfterCreate(queryClient);
     const left = await queueStore.list().catch(() => []);

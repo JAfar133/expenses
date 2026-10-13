@@ -4,6 +4,7 @@ import { ExpenseForm } from '../features/expenses/components/ExpenseForm.tsx';
 import { useExpenseReference } from '../features/expenses/hooks/useExpenseReference.ts';
 import { MonthSpent } from '../features/analytics/components/MonthSpent.tsx';
 import { BudgetSummary } from '../features/budgets/components/BudgetSummary.tsx';
+import { ParseNotices } from '../features/ai/components/ParseNotices.tsx';
 import { PendingExpenses } from '../features/offline-queue/components/PendingExpenses.tsx';
 import type { QueuedExpense } from '../features/offline-queue/model/queue-types.ts';
 import { Notice } from '../shared/ui/Notice.tsx';
@@ -43,6 +44,10 @@ export function AddExpensePage({ user }: { user: AuthUser }) {
           </p>
         )}
       </section>
+
+      <div className="mt-4 space-y-2 empty:hidden">
+        <ParseNotices />
+      </div>
 
       {reference.data && <MonthSpent currency={reference.data.currency} />}
       {reference.data && <BudgetSummary className="mt-4" />}

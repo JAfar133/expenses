@@ -1,4 +1,5 @@
 import { apiRequest } from '../../../shared/api/http.ts';
+import type { ItemInput } from '../../items/api/items.api.ts';
 
 export interface CreateExpenseRequest {
   date: string;
@@ -11,6 +12,11 @@ export interface CreateExpenseRequest {
   currency?: string;
   /** Rate: drams per unit of the INPUT currency; needed when it is neither drams nor the card currency */
   rate?: number;
+  /** Receipt positions entered with the expense */
+  items?: ItemInput[];
+  /** Sent only when the AI may parse the receipt: `default` means the person did not touch the field */
+  nameSource?: 'default' | 'manual';
+  dateSource?: 'default' | 'manual';
 }
 
 /** Original expense amount in a foreign currency. */

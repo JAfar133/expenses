@@ -33,6 +33,14 @@ export interface OperationItem {
   /** May the current user edit or delete this record (owner: any live record; member: own, window open, card access) */
   /** The record has a photo of a receipt */
   hasReceipt?: boolean;
+  /** How many receipt positions the record has, and how many of them the AI generated */
+  itemsCount?: number;
+  aiItemsCount?: number;
+  /** Where the name and the date came from: `ai` means generated and not changed by a person */
+  nameSource?: 'default' | 'manual' | 'ai';
+  dateSource?: 'default' | 'manual' | 'ai';
+  /** The receipt was parsed by the AI (stays true even after the person corrected everything) */
+  aiProcessed?: boolean;
   editable: boolean;
   /** Members only: when the window to edit this record closes; null otherwise */
   editableUntil: string | null;

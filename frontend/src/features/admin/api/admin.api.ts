@@ -72,3 +72,46 @@ export interface AdminBackup {
 }
 
 export const fetchAdminBackup = async () => (await apiRequest<AdminBackup>('/admin/backup')).data;
+
+/** The AI (Gemini) settings of the installation. The key itself never comes from the server. */
+export interface AdminAi {
+  enabled: boolean;
+  model: string;
+  /** Receipts a group may parse per day */
+  dailyLimit: number;
+  keyConfigured: boolean;
+  keySource: 'app' | 'env' | 'none';
+  /** The last 4 characters of the key */
+  keyHint: string | null;
+  /** The server has SECRETS_KEY: a key can be stored from the app */
+  canStoreKey: boolean;
+  usage: { today: number; month: number; errorsMonth: number };
+  groups: {
+    id: number;
+    name: string;
+    enabled: boolean;
+    /** The group's own limit; null means the common one */
+    dailyLimit: number | null;
+    usedToday: number;
+  }[];
+}
+
+export const fetchAdminAi = async () => (await apiRequest<AdminAi>('/admin/ai')).data;
+
+export const updateAdminAi = (patch: { enabled?: boolean; model?: string; dailyLimit?: number }) =>
+  apiRequest('/admin/ai', { method: 'PUT', body: JSON.stringify(patch) });
+
+export const saveAdminAiKey = (apiKey: string) =>
+  apiRequest('/admin/ai/key', { method: 'PUT', body: JSON.stringify({ apiKey }) });
+
+export const deleteAdminAiKey = () => apiRequest('/admin/ai/key', { method: 'DELETE' });
+
+/** Makes one real call to check the key and the model; returns the server's message. */
+export const testAdminAi = async () =>
+  (await apiRequest<{ message: string }>('/admin/ai/test', { method: 'POST' })).data;
+
+export const setGroupAiLimit = (groupId: number, limit: number | null) =>
+  apiRequest(`/admin/groups/${groupId}/ai-limit`, {
+    method: 'PUT',
+    body: JSON.stringify({ limit }),
+  });

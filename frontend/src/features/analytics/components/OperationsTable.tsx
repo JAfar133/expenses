@@ -2,6 +2,9 @@ import { formatShortDateTime } from '../../admin/model/backup.ts';
 import { currencyDigits } from '../../../shared/utils/conversion.ts';
 import { formatAmount, formatMoney } from '../../../shared/utils/money.ts';
 import type { OperationItem, SortColumn, SortDirection } from '../api/operations.api.ts';
+import { AiMark } from '../../ai/components/AiMark.tsx';
+import { ParsingBadge } from '../../ai/components/ParsingBadge.tsx';
+import { ItemsCount } from '../../items/components/ItemsCount.tsx';
 import { ReceiptBadge } from '../../receipts/components/ReceiptBadge.tsx';
 import { ExcelStateBadge } from './ExcelStateBadge.tsx';
 
@@ -139,6 +142,16 @@ function Actions({
   );
 }
 
+/** Under the name: the parsing status and the muted counter of the receipt positions. */
+function RowExtras({ item }: { item: OperationItem }) {
+  return (
+    <>
+      <ParsingBadge expenseId={item.id} />
+      {!!item.itemsCount && <ItemsCount expenseId={item.id} count={item.itemsCount} />}
+    </>
+  );
+}
+
 const nameClass = (item: OperationItem) =>
   item.deletedAt ? 'text-zinc-400 line-through dark:text-zinc-500' : '';
 
@@ -224,10 +237,12 @@ export function OperationsTable(props: OperationsTableProps) {
                       text baseline and push the row apart */}
                   <div className="flex items-center gap-1">
                     <span>{item.name}</span>
+                    {item.nameSource === 'ai' && <AiMark />}
                     {item.hasReceipt && props.onViewReceipt && (
                       <ReceiptBadge onClick={() => props.onViewReceipt?.(item)} />
                     )}
                   </div>
+                  <RowExtras item={item} />
                 </th>
                 <td className="py-2.5 pr-4 text-right whitespace-nowrap">
                   <Amount item={item} currency={currency} baseCurrency={baseCurrency} />
@@ -254,10 +269,12 @@ export function OperationsTable(props: OperationsTableProps) {
               <div className="min-w-0">
                 <div className={`flex items-center gap-1 font-medium ${nameClass(item)}`}>
                   <span className="truncate">{item.name}</span>
+                  {item.nameSource === 'ai' && <AiMark />}
                   {item.hasReceipt && props.onViewReceipt && (
                     <ReceiptBadge onClick={() => props.onViewReceipt?.(item)} />
                   )}
                 </div>
+                <RowExtras item={item} />
                 <div className="text-sm text-zinc-500 dark:text-zinc-400">
                   {formatDate(item.date)} · {item.category} · {item.card}
                 </div>

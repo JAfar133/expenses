@@ -30,6 +30,10 @@ import { CardSelect } from './CardSelect.tsx';
 import { CategoryLimitHint } from '../../budgets/components/CategoryLimitHint.tsx';
 import { ReceiptPicker } from '../../receipts/components/ReceiptPicker.tsx';
 import { useReceiptAllowed } from '../../receipts/hooks/useReceiptSettings.ts';
+import { useAiAvailable } from '../../ai/hooks/useAiStatus.ts';
+import { AiNotice } from '../../ai/components/AiNotice.tsx';
+import { ReceiptItemsField } from '../../items/components/ReceiptItemsField.tsx';
+import { draftsToInputs, inputsToDrafts, type DraftItem } from '../../items/model/draft-items.ts';
 import { NameSuggestions } from './NameSuggestions.tsx';
 
 /** The last category is remembered per user: two people may share one device. */
@@ -101,6 +105,12 @@ export function ExpenseForm({
   onDraftApplied,
 }: ExpenseFormProps) {
   const { state, submit: submitExpense, reset: resetState } = useSubmitExpense();
+  const aiAvailable = useAiAvailable();
+  // The date counts as typed by a person only when they changed it: the AI may replace the default
+  const dateTouched = useRef(false);
+  const nameOptional = useRef(false);
+  const [items, setItems] = useState<DraftItem[]>([]);
+  const [itemsError, setItemsError] = useState<string>();
   // One key per attempt: resubmitting the same operation will not create a duplicate
   const idempotencyKey = useRef(newRequestId());
 
@@ -112,6 +122,7 @@ export function ExpenseForm({
       createExpenseFormSchema(
         baseCurrency,
         Object.fromEntries(cards.map((card) => [card.name, card.currency])),
+        () => nameOptional.current,
       ),
     [baseCurrency, cards],
   );
@@ -154,6 +165,8 @@ export function ExpenseForm({
   });
   const projected = amountInReporting(typedAmount, typedCurrency, currency, baseCurrency, rates);
   const receiptAllowed = useReceiptAllowed(category);
+  // A receipt photo for the AI: the name may be left empty
+  nameOptional.current = aiAvailable && receiptAllowed && photo !== null;
   const suggestions = pickSuggestions(knownNames, { category, query: name });
 
   const pickSuggestion = ({ name: picked }: NameSuggestion) => {
@@ -173,6 +186,8 @@ export function ExpenseForm({
     if (!draft) return;
     reset(draftToFormValues(draft, baseCurrency, cardCurrencyOf(draft.expense.card)));
     setPhoto(draft.photo ?? null);
+    setItems(inputsToDrafts(draft.expense.items));
+    dateTouched.current = draft.expense.dateSource === 'manual';
     resetState();
     onDraftApplied?.();
     // Only a new draft matters
@@ -188,18 +203,33 @@ export function ExpenseForm({
 
   const submit = handleSubmit(async (values) => {
     const attached = receiptAllowed ? photo : null;
+    const parsed = draftsToInputs(items);
+    if ('error' in parsed) return setItemsError(parsed.error);
+    setItemsError(undefined);
+
+    // With a photo and the AI on, the sources tell the AI what it may replace
+    const forAi = aiAvailable && attached !== null;
+    const typedName = values.name.trim();
     const expense = {
       date: values.date,
       card: values.card,
       category: values.category,
-      name: values.name.trim(),
+      name: typedName || (forAi ? 'Чек' : ''),
       ...amountPayload(values, baseCurrency, cardCurrencyOf(values.card)),
+      ...(parsed.items.length > 0 ? { items: parsed.items } : {}),
+      ...(forAi
+        ? {
+            nameSource: typedName ? ('manual' as const) : ('default' as const),
+            dateSource: dateTouched.current ? ('manual' as const) : ('default' as const),
+          }
+        : {}),
     };
 
-    const result = await submitExpense(expense, idempotencyKey.current, attached);
+    const result = await submitExpense(expense, idempotencyKey.current, attached, forAi);
     if (result !== 'sent' && result !== 'queued') return;
 
     setPhoto(null);
+    setItems([]);
     writeStored(lastCategoryKey(user.username), values.category);
     // The next expense is a new operation: a new key (the old one lives on in the queue record)
     idempotencyKey.current = newRequestId();
@@ -217,7 +247,11 @@ export function ExpenseForm({
           type="date"
           className={inputClassName}
           aria-invalid={!!errors.date}
-          {...register('date')}
+          {...register('date', {
+            onChange: () => {
+              dateTouched.current = true;
+            },
+          })}
         />
       </Field>
 
@@ -254,6 +288,7 @@ export function ExpenseForm({
         </Field>
 
         {receiptAllowed && <ReceiptPicker photo={photo} onChange={setPhoto} />}
+        {receiptAllowed && photo && <AiNotice />}
 
         <Field label="Наименование" htmlFor="name" error={errors.name?.message}>
           <input
@@ -261,6 +296,7 @@ export function ExpenseForm({
             type="text"
             autoComplete="off"
             maxLength={255}
+            placeholder={nameOptional.current ? 'Можно оставить пустым: заполнит ИИ' : undefined}
             className={inputClassName}
             aria-invalid={!!errors.name}
             {...register('name')}
@@ -271,6 +307,7 @@ export function ExpenseForm({
 
       <AmountFields form={form} base={baseCurrency} cards={cards} rates={rates} />
       {category && <CategoryLimitHint category={category} projected={projected} />}
+      <ReceiptItemsField value={items} onChange={setItems} error={itemsError} />
 
       {state.status === 'sent' &&
         (state.created.excelStatus !== 'queued' ? (

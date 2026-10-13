@@ -10,6 +10,7 @@ import { fetchCards } from '../../expenses/api/expenses.api.ts';
 import { toSaveErrorMessage } from '../../expenses/api/save-error-message.ts';
 import { useSyncState } from '../../sync/hooks/useSyncState.ts';
 import type { OperationItem, SortColumn } from '../api/operations.api.ts';
+import { ItemsSection } from '../../items/components/ItemsSection.tsx';
 import { ReceiptEditor } from '../../receipts/components/ReceiptEditor.tsx';
 import { ReceiptViewer } from '../../receipts/components/ReceiptViewer.tsx';
 import { useReceiptSettings } from '../../receipts/hooks/useReceiptSettings.ts';
@@ -246,12 +247,24 @@ export default function OperationsPage() {
           saving={update.isPending}
           error={update.error}
           extra={
-            <ReceiptEditor
-              key={editing.id}
-              expenseId={editing.id}
-              hasReceipt={!!editing.hasReceipt}
-              allowed={receiptAllowed(editing)}
-            />
+            <>
+              <ReceiptEditor
+                key={editing.id}
+                expenseId={editing.id}
+                hasReceipt={!!editing.hasReceipt}
+                allowed={receiptAllowed(editing)}
+              />
+              <ItemsSection
+                key={`items-${editing.id}`}
+                item={editing}
+                currency={editing.currency || currency}
+                baseCurrency={baseCurrency}
+                onChanged={(message) => {
+                  done(message);
+                  setEditing(undefined);
+                }}
+              />
+            </>
           }
           onClose={() => setEditing(undefined)}
           onSave={(patch) =>

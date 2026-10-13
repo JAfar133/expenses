@@ -1,3 +1,4 @@
+import { GroupAiRow } from '../../ai/components/GroupAiRow.tsx';
 import { ReceiptsRow } from '../../receipts/components/ReceiptsRow.tsx';
 import { SettingsSection } from '../../settings/components/SettingsSection.tsx';
 import type { GroupCategory, GroupOverview } from '../api/group.api.ts';
@@ -20,6 +21,7 @@ export function GroupSettingsCard({ group, currencies, categories }: GroupSettin
         <ReportingCurrencyRow current={group.reportingCurrency} currencies={currencies} />
         <MemberEditRow minutes={group.memberEditMinutes ?? 10080} />
         <ReceiptsRow categories={categories} />
+        <GroupAiRow />
       </div>
     </SettingsSection>
   );

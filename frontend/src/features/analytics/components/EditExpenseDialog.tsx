@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Field, inputClassName } from '../../../shared/ui/Field.tsx';
+import { AiMark } from '../../ai/components/AiMark.tsx';
 import { Modal } from '../../../shared/ui/Modal.tsx';
 import { Notice } from '../../../shared/ui/Notice.tsx';
 import {
@@ -28,6 +29,15 @@ interface EditExpenseDialogProps {
   extra?: ReactNode;
   onSave: (patch: ExpensePatch) => void;
   onClose: () => void;
+}
+
+/** A field label; the spark stays while the AI value was not changed by the person. */
+function LabelWithMark({ text, ai }: { text: string; ai: boolean }) {
+  return (
+    <>
+      {text} {ai && <AiMark />}
+    </>
+  );
 }
 
 /** Form values to a patch: only what actually changed. */
@@ -104,7 +114,13 @@ export function EditExpenseDialog({
   return (
     <Modal title="Изменить запись" onClose={onClose}>
       <form onSubmit={submit} noValidate className="space-y-4">
-        <Field label="Дата" htmlFor="edit-date" error={shown.date}>
+        <Field
+          label={
+            <LabelWithMark text="Дата" ai={item.dateSource === 'ai' && values.date === item.date} />
+          }
+          htmlFor="edit-date"
+          error={shown.date}
+        >
           <input
             id="edit-date"
             type="date"
@@ -145,7 +161,16 @@ export function EditExpenseDialog({
           </select>
         </Field>
 
-        <Field label="Наименование" htmlFor="edit-name" error={shown.name}>
+        <Field
+          label={
+            <LabelWithMark
+              text="Наименование"
+              ai={item.nameSource === 'ai' && values.name === item.name}
+            />
+          }
+          htmlFor="edit-name"
+          error={shown.name}
+        >
           <input
             id="edit-name"
             type="text"

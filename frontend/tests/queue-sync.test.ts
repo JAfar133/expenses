@@ -231,6 +231,57 @@ describe('отправка очереди', () => {
   });
 });
 
+describe('разбор чека после отправки очереди', () => {
+  const photo = () => new Blob(['x'], { type: 'image/jpeg' });
+
+  it('запись с фото и признаком parse: после загрузки фото запускается разбор расхода', async () => {
+    await queueStore.add(queued('1', { photo: photo(), parse: true }));
+    const parse = vi.fn();
+    const { deps, uploadPhoto } = makeDeps({ parse } as never);
+
+    await syncOnce(deps);
+
+    expect(parse).toHaveBeenCalledWith('srv-1');
+    expect(parse.mock.invocationCallOrder[0]).toBeGreaterThan(
+      uploadPhoto.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('без признака parse разбор не запускается', async () => {
+    await queueStore.add(queued('1', { photo: photo() }));
+    const parse = vi.fn();
+    const { deps } = makeDeps({ parse } as never);
+
+    await syncOnce(deps);
+
+    expect(parse).not.toHaveBeenCalled();
+  });
+
+  it('сбой фото: разбирать нечего, разбор не запускается', async () => {
+    await queueStore.add(queued('1', { photo: photo(), parse: true }));
+    const parse = vi.fn();
+    const { deps } = makeDeps({
+      parse,
+      uploadPhoto: vi.fn().mockRejectedValue(http(422, 'Не JPEG')),
+    } as never);
+
+    await syncOnce(deps);
+
+    expect(parse).not.toHaveBeenCalled();
+  });
+
+  it('повтор только фото (расход уже принят): после загрузки тоже разбор', async () => {
+    await queueStore.add(queued('1', { photo: photo(), parse: true, serverId: 'srv-9' }));
+    const parse = vi.fn();
+    const { deps, send } = makeDeps({ parse } as never);
+
+    await syncOnce(deps);
+
+    expect(send).not.toHaveBeenCalled();
+    expect(parse).toHaveBeenCalledWith('srv-9');
+  });
+});
+
 describe('замок: нет параллельной отправки', () => {
   it('второй запуск во время первого ничего не делает', async () => {
     await queueStore.add(queued('1'));

@@ -12,6 +12,7 @@ import {
   type CreateExpenseRequest,
 } from '../api/expenses.api.ts';
 import { toSaveErrorMessage } from '../api/save-error-message.ts';
+import { startReceiptParse } from '../../ai/model/parse-runner.ts';
 import { invalidateAfterCreate } from './useCreateExpense.ts';
 
 export type SubmitState =
@@ -40,11 +41,13 @@ export function useSubmitExpense() {
     expense: CreateExpenseRequest,
     idempotencyKey: string,
     photo: Blob | null,
+    parse: boolean,
   ) => {
     await queueStore.add({
       id: idempotencyKey,
       expense,
       ...(photo ? { photo } : {}),
+      ...(photo && parse ? { parse } : {}),
       createdAt: nextCreatedAt(),
       status: 'pending',
       attempts: 0,
@@ -56,6 +59,8 @@ export function useSubmitExpense() {
       expense: CreateExpenseRequest,
       idempotencyKey: string,
       photo: Blob | null,
+      /** Parse the receipt with the AI once the photo is uploaded */
+      parse = false,
     ): Promise<SubmitResult> => {
       if (busy.current) return 'busy';
       busy.current = true;
@@ -63,7 +68,7 @@ export function useSubmitExpense() {
 
       const queue = async (fallbackMessage?: string): Promise<SubmitResult> => {
         try {
-          await enqueue(expense, idempotencyKey, photo);
+          await enqueue(expense, idempotencyKey, photo, parse);
           setState({ status: 'queued' });
           return 'queued';
         } catch (error) {
@@ -90,6 +95,8 @@ export function useSubmitExpense() {
               () => false,
               () => true,
             );
+            // In the background: the next expense can be typed meanwhile
+            if (parse && !photoFailed) void startReceiptParse(created.id, queryClient);
           }
           setState({ status: 'sent', created, photoFailed });
           return 'sent';

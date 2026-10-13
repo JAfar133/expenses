@@ -6,8 +6,10 @@ export type QueueStatus = 'pending' | 'failed';
 export interface QueuedExpense {
   /** The idempotency key of the expense: the same one on every attempt, so no duplicates */
   id: string;
-  /** Exactly what goes to POST /api/expenses */
+  /** Exactly what goes to POST /api/expenses (the positions and the sources of the name and date included) */
   expense: CreateExpenseRequest;
+  /** After the photo is uploaded, ask the AI to parse the receipt */
+  parse?: boolean;
   /** An already compressed photo of the receipt */
   photo?: Blob;
   createdAt: number;

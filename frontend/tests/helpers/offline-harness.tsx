@@ -38,6 +38,21 @@ export const server = {
   postExpense: (_body: Record<string, unknown>, _headers: Headers): Response | Promise<Response> =>
     ok({ id: 'srv', excelStatus: 'synced', original: null }, 201),
   putReceipt: (_url: string): Response | Promise<Response> => ok({}),
+  /** What /api/ai/status answers: by default the AI is off */
+  aiStatus: { installationReady: false, groupEnabled: false, available: false },
+  /** What the user has saved in the preferences */
+  preferences: {} as Record<string, unknown>,
+  parseReceipt: (_url: string, _body: unknown): Response | Promise<Response> =>
+    ok({
+      nameFilled: true,
+      dateFilled: true,
+      itemsFilled: true,
+      itemsOffered: false,
+      dropped: 0,
+      total: null,
+      currency: null,
+    }),
+  parses: () => server.requests.filter((r) => r.url.endsWith('/receipt/parse')),
   posts: () => server.requests.filter((r) => r.method === 'POST' && r.url === '/api/expenses'),
   puts: () => server.requests.filter((r) => r.method === 'PUT'),
 };
@@ -50,6 +65,23 @@ function resetServer() {
   server.postExpense = () =>
     ok({ id: `srv-${++counter}`, excelStatus: 'synced', original: null }, 201);
   server.putReceipt = () => ok({});
+  server.aiStatus = { installationReady: false, groupEnabled: false, available: false };
+  server.preferences = {};
+  server.parseReceipt = () =>
+    ok({
+      nameFilled: true,
+      dateFilled: true,
+      itemsFilled: true,
+      itemsOffered: false,
+      dropped: 0,
+      total: null,
+      currency: null,
+    });
+}
+
+/** The AI is on for the installation and the group. */
+export function enableAi() {
+  server.aiStatus = { installationReady: true, groupEnabled: true, available: true };
 }
 
 export function setOnLine(value: boolean) {
@@ -86,6 +118,15 @@ export function setupOfflineHarness() {
         if (url === '/api/rates') return failure(500, 'x');
         if (url === '/api/name-suggestions' || url === '/api/budgets') return ok([]);
         if (url === '/api/receipts/settings') return ok(server.receiptSettings);
+        if (url === '/api/ai/status') return ok(server.aiStatus);
+        if (url === '/api/preferences' && method === 'GET') return ok(server.preferences);
+        if (url === '/api/preferences' && method === 'PUT') {
+          server.preferences = { ...server.preferences, ...JSON.parse(String(init?.body)) };
+          return ok(server.preferences);
+        }
+        if (url.endsWith('/receipt/parse') && method === 'POST') {
+          return server.parseReceipt(url, JSON.parse(String(init?.body)));
+        }
         if (url === '/api/sync/status') {
           return ok({
             enabled: false,

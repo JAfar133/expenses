@@ -35,6 +35,8 @@ export interface SyncDeps {
   store: QueueStore;
   send: typeof createExpense;
   uploadPhoto: typeof uploadReceipt;
+  /** Starts the AI parsing of a receipt whose photo has just been uploaded */
+  parse?: (expenseId: string) => void;
 }
 
 export interface SyncOutcome {
@@ -64,7 +66,7 @@ export async function syncOnce(deps: SyncDeps): Promise<SyncOutcome> {
 /** One record; returns why the whole run must stop, if it must. */
 async function sendOne(
   item: QueuedExpense,
-  { store, send, uploadPhoto }: SyncDeps,
+  { store, send, uploadPhoto, parse }: SyncDeps,
   outcome: SyncOutcome,
 ): Promise<'retry' | 'auth' | undefined> {
   await store.update(item.id, { attempts: item.attempts + 1 });
@@ -98,13 +100,14 @@ async function sendOne(
       });
       return undefined;
     }
+    if (item.parse) parse?.(serverId);
   }
 
   await store.remove(item.id);
   return undefined;
 }
 
-const defaultDeps: SyncDeps = {
+export const defaultSyncDeps: SyncDeps = {
   store: queueStore,
   send: createExpense,
   uploadPhoto: uploadReceipt,
@@ -122,7 +125,9 @@ async function withTabLock<T>(run: () => Promise<T>): Promise<T | undefined> {
 }
 
 /** One sync run; a run that is already in progress (here or in another tab) makes this call do nothing. */
-export async function runQueueSync(deps: SyncDeps = defaultDeps): Promise<SyncOutcome | undefined> {
+export async function runQueueSync(
+  deps: SyncDeps = defaultSyncDeps,
+): Promise<SyncOutcome | undefined> {
   if (running || !isBrowserOnline()) return undefined;
   running = true;
   setSyncing(true);

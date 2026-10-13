@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router';
 import { useCurrentUser } from '../../auth/hooks/useAuth.ts';
+import { AdminAiSection } from '../components/AdminAiSection.tsx';
 import { BackupSection } from '../components/BackupSection.tsx';
 import { GroupsSection } from '../components/GroupsSection.tsx';
 import { PasswordResetSection } from '../components/PasswordResetSection.tsx';
@@ -17,6 +18,7 @@ export default function AdminPage() {
       <BackupSection />
       <GroupsSection />
       <PasswordResetSection />
+      <AdminAiSection />
       <SyncSection />
     </div>
   );
