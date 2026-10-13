@@ -13,6 +13,8 @@ export type BudgetLevel = 'ok' | 'warn' | 'over';
 
 /** A limit with how much of it is spent in the current period. */
 export interface BudgetProgress extends BudgetRow {
+  /** The currency of `limit`, `spent` and `remaining`: the requested one or the reporting currency of the group */
+  currency: string;
   period: BudgetPeriod;
   /** Spent in the period in the reporting currency (by the cards the user may see) */
   spent: number;
@@ -26,6 +28,12 @@ export interface BudgetProgress extends BudgetRow {
 export interface BudgetsServiceOptions {
   repository: Pick<BudgetsRepository, 'list' | 'categoryInGroup' | 'create' | 'update' | 'remove'>;
   analytics: Pick<AnalyticsRepository, 'summary'>;
+  /** For amounts in another currency: the reporting currency of the group and the current rates */
+  currencies?: {
+    reportingCurrency: (groupId: string) => Promise<string | undefined>;
+    rateOf: (currency: string) => Promise<number | undefined>;
+    available: string[];
+  };
   /** The clock (tests) */
   now?: () => Date;
 }
@@ -37,16 +45,22 @@ const levelOf = (percent: number): BudgetLevel =>
 export class BudgetsService {
   constructor(private readonly options: BudgetsServiceOptions) {}
 
-  /** The limits of the user's group with the spending of the current period (in the user's time zone). */
-  async progress(user: AuthUser): Promise<BudgetProgress[]> {
+  /**
+   * The limits of the user's group with the spending of the current period (in the user's time zone).
+   * With `currency` the amounts are in that currency: the spent amount counts a record entered in it exactly and converts
+   * the others, the limit is converted at the current rate. The percent and the level always come from the reporting
+   * currency of the group, so they do not change with the currency of the view.
+   */
+  async progress(user: AuthUser, currency?: string): Promise<BudgetProgress[]> {
     if (!user.groupId) return [];
     const budgets = await this.options.repository.list(user.groupId);
     const today = todayIn(user.timezone, (this.options.now ?? (() => new Date()))());
+    const view = await this.viewOf(user.groupId, currency);
 
     return Promise.all(
       budgets.map(async (budget) => {
         const period = periodOf(budget.periodKind, budget.periodDay, today);
-        const { total } = await this.options.analytics.summary({
+        const filters = {
           from: period.from,
           to: period.to,
           cards: [],
@@ -55,18 +69,49 @@ export class BudgetsService {
           currencies: [],
           includeDeleted: false,
           scope: scopeOf(user),
-        });
+        };
+        const { total } = await this.options.analytics.summary(filters);
         const percent = (total / budget.limit) * 100;
+
+        let shown = { spent: total, limit: budget.limit };
+        if (view.display) {
+          const inView = await this.options.analytics.summary({
+            ...filters,
+            display: view.display,
+          });
+          shown = { spent: inView.total, limit: budget.limit * view.factor };
+        }
         return {
           ...budget,
+          limit: shown.limit,
+          currency: view.currency,
           period,
-          spent: total,
-          remaining: budget.limit - total,
+          spent: shown.spent,
+          remaining: shown.limit - shown.spent,
           percent,
           level: levelOf(percent),
         };
       }),
     );
+  }
+
+  /** The currency of the view: the group's reporting one, or the requested one with its rate and the factor for limits. */
+  private async viewOf(groupId: string, requested?: string) {
+    const { currencies } = this.options;
+    const reporting = (await currencies?.reportingCurrency(groupId)) ?? '';
+    const code = requested?.toUpperCase();
+    if (!code || !currencies || code === reporting) {
+      return { currency: reporting, display: undefined, factor: 1 };
+    }
+    if (!currencies.available.includes(code)) {
+      throw validationError('INVALID_CURRENCY', 'Выберите валюту из списка');
+    }
+    const rate = await currencies.rateOf(code);
+    const reportingRate = reporting ? await currencies.rateOf(reporting) : undefined;
+    if (rate === undefined || !(rate > 0) || reportingRate === undefined) {
+      throw validationError('RATE_UNAVAILABLE', `Курс валюты ${code} недоступен`);
+    }
+    return { currency: code, display: { currency: code, rate }, factor: reportingRate / rate };
   }
 
   async create(owner: AuthUser, input: unknown): Promise<string> {

@@ -265,3 +265,67 @@ describe('изоляция групп и валюта', () => {
     expect((await progress())[0]!.limit).toBe(100);
   });
 });
+
+describe('суммы в выбранной валюте (?currency=)', () => {
+  const inCurrency = async (code: string, as = 'misha') =>
+    (await call('GET', `/api/budgets?currency=${code}`, as)).json().data as {
+      currency: string;
+      limit: number;
+      spent: number;
+      remaining: number;
+      percent: number;
+      level: string;
+    }[];
+
+  it('без параметра суммы в валюте отчётности, с указанием валюты', async () => {
+    await create('кафе', { limit: 38000 });
+
+    expect((await progress())[0]).toMatchObject({ currency: 'AMD', limit: 38000 });
+  });
+
+  it('потрачено в рублях: введённая в рублях трата ровно в введённой сумме, лимит по курсу', async () => {
+    t.rates.rates.set('RUB', 4.2997);
+    await create('кафе', { limit: 42997 });
+    await call(
+      'POST',
+      '/api/expenses',
+      'misha',
+      {
+        date: todayOf(),
+        card: 'Миша',
+        category: 'кафе',
+        name: 'Рубли',
+        amount: 5000,
+        currency: 'RUB',
+      },
+      { 'idempotency-key': 'budget-rub-key-xxxxxxxx' },
+    );
+
+    const [budget] = await inCurrency('RUB');
+
+    expect(budget).toMatchObject({ currency: 'RUB', spent: 5000 });
+    expect(budget!.limit).toBeCloseTo(10000, 4);
+    expect(budget!.remaining).toBeCloseTo(5000, 4);
+  });
+
+  it('процент и уровень не зависят от валюты показа', async () => {
+    t.rates.rates.set('USD', 380);
+    await create('кафе', { limit: 1000 });
+    await spend('Миша', 'кафе', 850);
+
+    const [drams] = await inCurrency('AMD');
+    const [dollars] = await inCurrency('USD');
+
+    expect(dollars).toMatchObject({ currency: 'USD', level: 'warn' });
+    expect(dollars!.percent).toBe(drams!.percent);
+    expect(dollars!.limit).toBeCloseTo(1000 / 380, 5);
+  });
+
+  it('валюта вне списка и валюта без курса отклоняются', async () => {
+    await create('кафе');
+    t.rates.rates.delete('EUR');
+
+    expect((await call('GET', '/api/budgets?currency=XXX', 'misha')).statusCode).toBe(422);
+    expect((await call('GET', '/api/budgets?currency=EUR', 'misha')).statusCode).toBe(422);
+  });
+});

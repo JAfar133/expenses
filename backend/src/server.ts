@@ -116,6 +116,11 @@ const budgetsRepository = new BudgetsRepository(database);
 const budgets = new BudgetsService({
   repository: budgetsRepository,
   analytics: new AnalyticsRepository(database, env.DEFAULT_CURRENCY),
+  currencies: {
+    reportingCurrency: (groupId) => groups.reportingCurrency(groupId),
+    rateOf: (currency) => rates.rateOf(currency),
+    available: env.CURRENCIES,
+  },
 });
 const report = new ReportService(analytics, { base: env.DEFAULT_CURRENCY });
 

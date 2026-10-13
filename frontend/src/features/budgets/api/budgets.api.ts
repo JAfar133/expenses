@@ -18,6 +18,8 @@ export interface Budget {
   /** May exceed 100 */
   percent: number;
   level: 'ok' | 'warn' | 'over';
+  /** The currency of `limit`, `spent` and `remaining` (the requested one, else the reporting currency); `percent` and `level` are always in the reporting currency */
+  currency: string;
 }
 
 export interface BudgetInput {
@@ -29,7 +31,13 @@ export interface BudgetInput {
 
 const json = (body: unknown): RequestInit => ({ body: JSON.stringify(body) });
 
-export const fetchBudgets = async () => (await apiRequest<Budget[]>('/budgets')).data;
+/** Limits with progress; `currency` asks the server for the amounts in another currency (default: the reporting one). */
+export const fetchBudgets = async (currency?: string) =>
+  (
+    await apiRequest<Budget[]>(
+      `/budgets${currency ? `?currency=${encodeURIComponent(currency)}` : ''}`,
+    )
+  ).data;
 
 export const createBudget = (input: BudgetInput) =>
   apiRequest<{ id: string }>('/group/budgets', { method: 'POST', ...json(input) });

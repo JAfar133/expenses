@@ -22,10 +22,11 @@ const ownerOnly = (request: FastifyRequest) => {
 export const budgetsRoutes =
   (service: BudgetsService): FastifyPluginAsync =>
   async (app) => {
-    app.get('/budgets', async (request) => ({
-      success: true,
-      data: await service.progress(request.user!),
-    }));
+    /** `?currency=USD` shows the amounts in that currency (the percent and the level do not depend on it). */
+    app.get('/budgets', async (request) => {
+      const currency = (request.query as { currency?: string }).currency;
+      return { success: true, data: await service.progress(request.user!, currency || undefined) };
+    });
 
     app.post('/group/budgets', async (request, reply) => {
       const id = await service.create(ownerOnly(request), request.body);

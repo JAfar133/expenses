@@ -89,6 +89,7 @@ const budget = (overrides: Record<string, unknown> = {}) => ({
   remaining: 15000,
   percent: 25,
   level: 'ok',
+  currency: 'AMD',
   ...overrides,
 });
 

@@ -28,6 +28,7 @@ const budget = (overrides: Record<string, unknown> = {}) => ({
   remaining: 7500,
   percent: 62.5,
   level: 'ok',
+  currency: 'AMD',
   ...overrides,
 });
 
@@ -69,7 +70,7 @@ describe('BudgetBars', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('общий лимит подписан «Всего», числа «потрачено / лимит валюта», период в title', async () => {
+  it('общий лимит подписан «Всего»: процент и остаток, лимит и период в title', async () => {
     budgets = [budget()];
     renderBars();
 
@@ -77,8 +78,9 @@ describe('BudgetBars', () => {
     expect(bar).toHaveAttribute('aria-valuenow', '63');
     const row = bar.closest('li')!;
     expect(row).toHaveTextContent('Всего');
-    expect(row).toHaveTextContent('12 500 / 20 000 AMD');
-    expect(row).toHaveAttribute('title', '01.10–31.10');
+    expect(row).toHaveTextContent(/63%\s*· осталось 7 500 AMD/);
+    expect(row).not.toHaveTextContent('12 500');
+    expect(row).toHaveAttribute('title', 'лимит 20 000 AMD · 01.10–31.10');
   });
 
   it('уровни: ok — без значка, warn — значок и янтарная полоска, over — красные полоска и «+N», числа обычным цветом', async () => {
@@ -124,8 +126,7 @@ describe('BudgetBars', () => {
     expect(row('Кафе').querySelector('.bg-amber-500')).not.toBeNull();
     expect(row('Игры').querySelector('svg')).not.toBeNull();
     expect(row('Игры').querySelector('.bg-red-500')).not.toBeNull();
-    expect(within(row('Игры')).getByText('+1 200')).toHaveClass('text-red-600');
-    expect(within(row('Игры')).queryByText(/11 200 \/ 10 000 AMD/)).not.toHaveClass('text-red-600');
+    expect(within(row('Игры')).getByText('· +1 200 AMD')).toHaveClass('text-red-600');
     // The bar never goes past 100%
     expect(screen.getByRole('progressbar', { name: 'Лимит: Игры' })).toHaveAttribute(
       'aria-valuenow',
@@ -136,11 +137,11 @@ describe('BudgetBars', () => {
 
   it('валюта отчётности не драммы: копейки', async () => {
     config = { currency: 'USD', baseCurrency: 'AMD' };
-    budgets = [budget({ spent: 1250.5, limit: 2000, remaining: 749.5 })];
+    budgets = [budget({ spent: 1250.5, limit: 2000, remaining: 749.5, currency: 'USD' })];
     renderBars();
 
     const bar = await screen.findByRole('progressbar', { name: 'Лимит: Всего' });
-    expect(bar.closest('li')).toHaveTextContent('1 250,50 / 2 000,00 USD');
+    expect(bar.closest('li')).toHaveTextContent('осталось 749,50 USD');
   });
 });
 
@@ -209,7 +210,7 @@ describe('лимиты на странице добавления', () => {
     expect(await screen.findByRole('progressbar', { name: 'Лимит: Всего' })).toBeInTheDocument();
     const before = requests.filter((r) => r === '/api/budgets').length;
 
-    budgets = [budget({ spent: 13500, percent: 67.5 })];
+    budgets = [budget({ spent: 13500, percent: 67.5, remaining: 6500 })];
     await person.selectOptions(screen.getByLabelText('Категория'), 'кафе');
     await person.type(screen.getByLabelText('Наименование'), 'Кофе');
     await person.type(screen.getByLabelText('Стоимость'), '1000');
@@ -221,7 +222,7 @@ describe('лимиты на странице добавления', () => {
     await waitFor(() =>
       expect(
         screen.getByRole('progressbar', { name: 'Лимит: Всего' }).closest('li'),
-      ).toHaveTextContent('13 500'),
+      ).toHaveTextContent('осталось 6 500 AMD'),
     );
   });
 });
@@ -231,6 +232,55 @@ describe('лимиты на вкладке «Обзор»', () => {
 
   const categoryCard = () =>
     screen.getByRole('heading', { name: 'Расход по категориям' }).closest('section')!;
+
+  it('при валюте показа USD запрос идёт с currency=USD, числа сервера показаны без пересчёта', async () => {
+    harness.handlers['/api/rates'] = () =>
+      analyticsOk({
+        base: 'AMD',
+        currencies: ['AMD', 'USD'],
+        rates: [{ currency: 'USD', rate: 380, fetchedAt: '2026-10-10T10:00:00.000Z' }],
+      });
+    harness.handlers['/api/preferences'] = () => analyticsOk({ 'analytics.currency': 'USD' });
+    harness.handlers['/api/budgets'] = (url) =>
+      analyticsOk([
+        url.searchParams.get('currency') === 'USD'
+          ? budget({ limit: 100, spent: 40.5, remaining: 59.5, percent: 40.5, currency: 'USD' })
+          : budget(),
+      ]);
+    renderAnalytics();
+
+    const bar = await screen.findByRole('progressbar', { name: 'Лимит: Всего' });
+    const row = bar.closest('li')!;
+    expect(row).toHaveTextContent(/41%\s*· осталось 59,50 USD/);
+    expect(row).toHaveAttribute('title', 'лимит 100,00 USD · 01.10–31.10');
+    expect(row).not.toHaveTextContent('AMD');
+    expect(harness.requests).toContain('/api/budgets?currency=USD');
+  });
+
+  it('смена валюты показа перезапрашивает лимиты с новой валютой', async () => {
+    harness.handlers['/api/rates'] = () =>
+      analyticsOk({
+        base: 'AMD',
+        currencies: ['AMD', 'RUB'],
+        rates: [{ currency: 'RUB', rate: 4.5, fetchedAt: '2026-10-10T10:00:00.000Z' }],
+      });
+    harness.handlers['/api/budgets'] = (url) =>
+      analyticsOk([
+        url.searchParams.get('currency') === 'RUB'
+          ? budget({ limit: 4444, spent: 1000, remaining: 3444, currency: 'RUB' })
+          : budget(),
+      ]);
+    const user = renderAnalytics();
+    await screen.findByRole('progressbar', { name: 'Лимит: Всего' });
+    expect(harness.requests).toContain('/api/budgets?currency=AMD');
+
+    await user.click(await screen.findByRole('radio', { name: /RUB/ }));
+
+    await waitFor(() => expect(harness.requests).toContain('/api/budgets?currency=RUB'));
+    expect(
+      (await screen.findByRole('progressbar', { name: 'Лимит: Всего' })).closest('li'),
+    ).toHaveTextContent(/осталось 3 444,00 RUB/);
+  });
 
   it('полоски внутри карточки «Расход по категориям», отдельной карточки нет', async () => {
     harness.handlers['/api/budgets'] = () => analyticsOk([budget()]);

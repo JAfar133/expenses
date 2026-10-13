@@ -237,6 +237,11 @@ export async function createTestApp(
     budgets: new BudgetsService({
       repository: budgetsRepository,
       analytics: analyticsRepository,
+      currencies: {
+        reportingCurrency: (groupId) => groups.reportingCurrency(groupId),
+        rateOf: (currency) => rates.rateOf(currency),
+        available: ['AMD', 'USD', 'RUB', 'EUR'],
+      },
       now: options.now,
     }),
     groupService: new GroupService(

@@ -81,7 +81,7 @@ export function CategoryChart({
         )
       }
     >
-      <BudgetBars variant="inline" />
+      <BudgetBars variant="inline" currency={currency} />
       {loading && !rows ? (
         <ChartMessage>Загрузка…</ChartMessage>
       ) : !rows || total === 0 ? (

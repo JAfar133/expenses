@@ -18,35 +18,33 @@ const ICON = {
 
 const shortDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 
-function BudgetRow({
-  budget,
-  currency,
-  digits,
-}: {
-  budget: Budget;
-  currency: string;
-  digits: number;
-}) {
+function BudgetRow({ budget, baseCurrency }: { budget: Budget; baseCurrency: string }) {
+  const currency = budget.currency;
+  const digits = currencyDigits(currency, baseCurrency);
   const label = budget.category ?? 'Всего';
   const fill = Math.min(Math.max(budget.percent, 0), 100);
-  const money = (value: number) => formatAmount(value, digits);
+  const money = (value: number) => `${formatAmount(value, digits)} ${currency}`;
+  const over = budget.remaining < 0;
 
   return (
     <li
-      title={`${shortDate(budget.period.from)}–${shortDate(budget.period.to)}`}
-      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[9rem_minmax(0,1fr)_16rem]"
+      title={`лимит ${money(budget.limit)} · ${shortDate(budget.period.from)}–${shortDate(budget.period.to)}`}
+      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[9rem_minmax(0,1fr)_14rem]"
     >
       <span className="order-1 min-w-0 truncate text-sm font-medium">{label}</span>
-      <span className="order-2 flex items-center justify-end gap-1 whitespace-nowrap text-right text-sm tabular-nums sm:order-3">
+      {/* Only what the chart does not say: how much of the limit is used and what is left (or exceeded) */}
+      <span className="order-2 flex items-center justify-end gap-1.5 whitespace-nowrap text-right text-sm tabular-nums sm:order-3">
         {budget.level !== 'ok' && (
           <span className={ICON[budget.level]}>
             <WarningIcon />
           </span>
         )}
-        {money(budget.spent)} / {money(budget.limit)} {currency}
-        {budget.remaining < 0 && (
-          <span className="text-red-600 dark:text-red-400">+{money(-budget.remaining)}</span>
-        )}
+        <span>{Math.round(budget.percent)}%</span>
+        <span
+          className={over ? 'text-red-600 dark:text-red-400' : 'text-zinc-500 dark:text-zinc-400'}
+        >
+          · {over ? `+${money(-budget.remaining)}` : `осталось ${money(budget.remaining)}`}
+        </span>
       </span>
       <div
         role="progressbar"
@@ -69,19 +67,21 @@ interface BudgetBarsProps {
   className?: string;
   /** `card`: a card of its own (the add page); `inline`: a block inside another card (the category chart) */
   variant?: 'card' | 'inline';
+  /** Currency to show amounts in (asked from the server); by default the group's reporting currency */
+  currency?: string;
 }
 
 /** Progress of the group's limits. Renders nothing when there are none: a group without limits looks as before. */
-export function BudgetBars({ className = '', variant = 'card' }: BudgetBarsProps) {
-  const budgets = useBudgets().data;
+export function BudgetBars({ className = '', variant = 'card', currency }: BudgetBarsProps) {
+  // The server sums in the requested currency: the numbers are shown as they come
+  const budgets = useBudgets(currency).data;
   const config = useConfig().data;
   if (!budgets || budgets.length === 0 || !config) return null;
-  const digits = currencyDigits(config.currency, config.baseCurrency);
 
   const list = (
     <ul className="space-y-3">
       {budgets.map((budget) => (
-        <BudgetRow key={budget.id} budget={budget} currency={config.currency} digits={digits} />
+        <BudgetRow key={budget.id} budget={budget} baseCurrency={config.baseCurrency} />
       ))}
     </ul>
   );
@@ -90,11 +90,8 @@ export function BudgetBars({ className = '', variant = 'card' }: BudgetBarsProps
     return (
       <section
         aria-label="Лимиты"
-        className={`mb-4 space-y-2 border-b border-zinc-100 pb-4 dark:border-zinc-800 ${className}`}
+        className={`mb-4 border-b border-zinc-100 pb-4 dark:border-zinc-800 ${className}`}
       >
-        <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
-          Лимиты
-        </h3>
         {list}
       </section>
     );
