@@ -15,6 +15,8 @@ export interface ReceiptDraft {
   /** Sent back with the new expense, so that the server knows which values came from the AI */
   parseId: string;
   name: string | null;
+  /** The category the model chose when none was given; null when it did not or could not */
+  category: string | null;
   /** Only a believable date (not in the future, not too old) */
   date: string | null;
   items: ParsedItem[];
@@ -27,7 +29,7 @@ export interface ReceiptDraftOptions {
   llm: Pick<LlmService, 'status' | 'parseReceipt'>;
   repository: Pick<LlmRepository, 'saveResult'>;
   /** Which categories the owner allowed the AI for */
-  categories: Pick<ReceiptsRepository, 'aiAllowed'>;
+  categories: Pick<ReceiptsRepository, 'aiAllowed' | 'photoAiCategories'>;
   now?: () => Date;
 }
 
@@ -35,10 +37,16 @@ export interface ReceiptDraftOptions {
 export class ReceiptDraftService {
   constructor(private readonly options: ReceiptDraftOptions) {}
 
-  /** `category`: the category chosen in the form; the owner may have turned the AI off for it. */
-  async parse(user: AuthUser, bytes: Buffer, category: string): Promise<ReceiptDraft> {
+  /**
+   * `category`: the category chosen in the form (the owner may have turned the AI off for it). Without it the model
+   * picks one of the categories that allow both the photo and the AI.
+   */
+  async parse(user: AuthUser, bytes: Buffer, category?: string): Promise<ReceiptDraft> {
     if (!user.groupId) throw validationError('NO_GROUP', 'Вы не состоите в группе');
-    if (!(await this.options.categories.aiAllowed(user.groupId, category))) throw aiCategoryOff();
+    const { categories } = this.options;
+    if (category && !(await categories.aiAllowed(user.groupId, category))) throw aiCategoryOff();
+    const candidates = category ? [] : await categories.photoAiCategories(user.groupId);
+    if (!category && candidates.length === 0) throw aiCategoryOff();
     if (bytes.length === 0) throw validationError('EMPTY_RECEIPT', 'Файл пустой');
     if (bytes.length > MAX_RECEIPT_BYTES) {
       throw new AppError(413, 'RECEIPT_TOO_LARGE', 'Фото слишком большое');
@@ -53,12 +61,14 @@ export class ReceiptDraftService {
       groupId: user.groupId,
       username: user.username,
       expenseId: null,
+      categories: candidates,
       image: { bytes, contentType: type.contentType },
       today,
     });
     const draft: ReceiptDraft = {
       parseId: usageId,
       name: receipt.name ?? null,
+      category: receipt.category ?? null,
       date: believableDate(receipt.date, today) ?? null,
       items: receipt.items,
       total: receipt.total ?? null,

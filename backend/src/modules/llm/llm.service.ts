@@ -71,6 +71,8 @@ export class LlmService {
     /** The expense the photo belongs to; none while the form is still being filled in */
     expenseId: string | null;
     image: LlmImage;
+    /** Categories the model may pick from (the form has none chosen yet); none: no category is asked for */
+    categories?: string[];
     /** Today in the user's time zone, YYYY-MM-DD: helps with receipts without a year */
     today: string;
   }): Promise<ParsedByModel> {
@@ -91,11 +93,11 @@ export class LlmService {
       by: request.username,
     };
     try {
-      const answer = await provider.generateJson(receiptRequest(request.image, request.today), {
-        apiKey: config.apiKey,
-        model: config.model,
-      });
-      const receipt = parseReceiptAnswer(answer);
+      const answer = await provider.generateJson(
+        receiptRequest(request.image, request.today, request.categories),
+        { apiKey: config.apiKey, model: config.model },
+      );
+      const receipt = parseReceiptAnswer(answer, request.categories);
       const usageId = await repository.recordUsage({ ...usage, errorCode: null });
       return { receipt, model: config.model, usageId };
     } catch (error) {

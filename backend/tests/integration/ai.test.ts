@@ -674,17 +674,6 @@ describe('категории, где ИИ разрешён', () => {
     expect(t.llmProvider.calls).toHaveLength(0);
   });
 
-  it('категория обязательна', async () => {
-    const response = await t.inject({
-      method: 'POST',
-      url: '/api/ai/receipt/parse',
-      headers: { 'content-type': 'image/jpeg' },
-      payload: JPEG,
-    });
-
-    expect(response.statusCode).toBe(422);
-  });
-
   it('разбор сохранённой траты в запрещённой категории тоже отклоняется, а фото прикрепить можно', async () => {
     const id = await withPhoto({ category: 'продукты' });
 
@@ -694,3 +683,79 @@ describe('категории, где ИИ разрешён', () => {
     expect(response.json().error.code).toBe('AI_CATEGORY_OFF');
   });
 });
+
+describe('чек без выбранной категории: ИИ выбирает сам', () => {
+  const noCategory = () =>
+    t.inject({
+      method: 'POST',
+      url: '/api/ai/receipt/parse',
+      headers: { 'content-type': 'image/jpeg' },
+      payload: JPEG,
+    });
+
+  beforeEach(async () => {
+    await enableAi();
+    await call('PUT', '/api/group/receipts', {
+      enabled: true,
+      categories: ['кафе', 'продукты'],
+      aiCategories: ['кафе', 'продукты'],
+    });
+  });
+
+  it('модель выбирает одну из категорий, где разрешены и фото, и ИИ', async () => {
+    await call('PUT', '/api/group/receipts', {
+      enabled: true,
+      categories: ['кафе', 'продукты'],
+      aiCategories: ['продукты'],
+    });
+    t.llmProvider.answers = [{ ...RECEIPT, category: 'продукты' }];
+
+    const response = await noCategory();
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data.category).toBe('продукты');
+    const { request } = t.llmProvider.calls[0]!;
+    expect((request.schema as any).properties.category.enum).toEqual(['продукты']);
+    expect(request.prompt).toContain('"продукты"');
+  });
+
+  it('название категории от модели принимается только точное из предложенных', async () => {
+    t.llmProvider.answers = [{ ...RECEIPT, category: 'жилье' }];
+
+    expect((await noCategory()).json().data.category).toBeNull();
+  });
+
+  it('когда категория выбрана, модель её не выбирает', async () => {
+    await draftWithCategory();
+
+    const { request } = t.llmProvider.calls[0]!;
+    expect((request.schema as any).properties.category).toBeUndefined();
+  });
+
+  it('фото выключены или нет подходящих категорий: 409, в модель ничего не уходит', async () => {
+    await call('PUT', '/api/group/receipts', { enabled: false, categories: ['кафе'] });
+
+    const response = await noCategory();
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error.code).toBe('AI_CATEGORY_OFF');
+    expect(t.llmProvider.calls).toHaveLength(0);
+  });
+
+  it('трата с категорией от ИИ сохраняется и фото к ней прикрепляется', async () => {
+    t.llmProvider.answers = [{ ...RECEIPT, category: 'продукты' }];
+    const { parseId, category } = (await noCategory()).json().data;
+
+    const id = await withPhoto({ category, name: 'Carrefour', aiParseId: parseId });
+
+    expect((await expenseRow(id)).ai_processed_at).not.toBeNull();
+  });
+});
+
+const draftWithCategory = () =>
+  t.inject({
+    method: 'POST',
+    url: `/api/ai/receipt/parse?category=${encodeURIComponent('кафе')}`,
+    headers: { 'content-type': 'image/jpeg' },
+    payload: JPEG,
+  });

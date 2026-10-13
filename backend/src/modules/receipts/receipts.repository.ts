@@ -50,6 +50,20 @@ export class ReceiptsRepository {
     };
   }
 
+  /**
+   * Categories a receipt may be filed under when the person has not chosen one: the photo is allowed there and so is the
+   * AI. Empty while receipt photos are off for the group.
+   */
+  async photoAiCategories(groupId: string, db: SqlExecutor = this.database): Promise<string[]> {
+    const rows = await db.query<{ name: string }>(
+      `SELECT c.name FROM categories c JOIN groups g ON g.id = c.group_id
+        WHERE c.group_id = $1 AND g.receipts_enabled AND c.receipts_allowed AND c.ai_allowed
+          AND c.archived_at IS NULL ORDER BY c.position, c.name`,
+      [groupId],
+    );
+    return rows.map((row) => row.name);
+  }
+
   /** Whether the AI may read receipts of this category (a category the group does not have: no). */
   async aiAllowed(groupId: string, category: string, db: SqlExecutor = this.database) {
     const rows = await db.query(

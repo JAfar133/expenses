@@ -168,3 +168,23 @@ describe('запрос к модели', () => {
     expect(request.prompt).toContain('Today is 2026-10-15');
   });
 });
+
+describe('категория в ответе модели', () => {
+  it('принимается только точное название из предложенных', () => {
+    const offered = ['кафе', 'продукты'];
+
+    expect(parseReceiptAnswer({ items: [], category: 'кафе' }, offered).category).toBe('кафе');
+    expect(parseReceiptAnswer({ items: [], category: 'Кафе' }, offered).category).toBeUndefined();
+    expect(parseReceiptAnswer({ items: [], category: 'кафе' }).category).toBeUndefined();
+    expect(parseReceiptAnswer({ items: [], category: null }, offered).category).toBeUndefined();
+  });
+
+  it('просит категорию только когда есть из чего выбирать', () => {
+    const image = { bytes: Buffer.from('x'), contentType: 'image/jpeg' };
+
+    expect((receiptRequest(image, '2026-10-15').schema as any).properties.category).toBeUndefined();
+    const withCategories = receiptRequest(image, '2026-10-15', ['кафе']);
+    expect((withCategories.schema as any).properties.category.enum).toEqual(['кафе']);
+    expect(withCategories.prompt).toContain('"кафе"');
+  });
+});
