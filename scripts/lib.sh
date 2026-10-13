@@ -81,9 +81,9 @@ check_backend_env() {
   fi
 }
 
-# Local PostgreSQL. If DATABASE_URL points to our docker compose port (5433 by default),
-# start the container. If another database is specified, only check that it responds:
-# we do not touch someone else's Postgres on this machine or replace it with a container.
+# Local PostgreSQL. All the app needs is a database that answers at DATABASE_URL, in Docker or not.
+# If it already answers on the port, nothing is started and Docker is not touched. Only when nothing
+# answers on our docker compose port (5433 by default) is the container started; another database is never replaced.
 ensure_postgres() {
   local url port compose_port
   url="$(sed -n 's/^DATABASE_URL=//p' "$ROOT_DIR/backend/.env" | tail -n1)"
@@ -95,17 +95,17 @@ ensure_postgres() {
   esac
 
   port="$(printf '%s' "$url" | sed -E 's|.*@[^:/]+:([0-9]+)/.*|\1|')"
-  compose_port="$(sed -n 's/^POSTGRES_PORT=//p' "$ROOT_DIR/.env" 2>/dev/null | tail -n1)"
-  compose_port="${compose_port:-5433}"
-
-  if [ "$port" != "$compose_port" ]; then
-    nc -z 127.0.0.1 "$port" >/dev/null 2>&1 \
-      || fail "база на 127.0.0.1:$port не отвечает. Запустите её или исправьте DATABASE_URL в backend/.env."
+  if nc -z 127.0.0.1 "$port" >/dev/null 2>&1; then
     return 0
   fi
 
-  require_command docker "Нужен Docker для локального PostgreSQL (или укажите свою базу в DATABASE_URL)."
-  docker info >/dev/null 2>&1 || fail "Docker не запущен. Запустите Docker Desktop и повторите."
+  compose_port="$(sed -n 's/^POSTGRES_PORT=//p' "$ROOT_DIR/.env" 2>/dev/null | tail -n1)"
+  compose_port="${compose_port:-5433}"
+  [ "$port" = "$compose_port" ] \
+    || fail "база на 127.0.0.1:$port не отвечает. Запустите её или исправьте DATABASE_URL в backend/.env."
+
+  require_command docker "База на 127.0.0.1:$port не отвечает. Запустите свою или установите Docker для локального PostgreSQL."
+  docker info >/dev/null 2>&1 || fail "база на 127.0.0.1:$port не отвечает, а Docker не запущен. Запустите базу или Docker Desktop и повторите."
 
   [ -f "$ROOT_DIR/.env" ] || cp "$ROOT_DIR/.env.example" "$ROOT_DIR/.env"
   log "Запускаю PostgreSQL (docker compose, порт $compose_port)..."
