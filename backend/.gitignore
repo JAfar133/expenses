@@ -4,3 +4,4 @@ dist/
 backups/
 tests/fixtures/*.xlsx
 *.log
+receipts/
