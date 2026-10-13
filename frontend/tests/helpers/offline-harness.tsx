@@ -44,6 +44,8 @@ export const server = {
   putReceipt: (_url: string): Response | Promise<Response> => ok({}),
   /** What /api/ai/status answers: by default the AI is off */
   aiStatus: { installationReady: false, groupEnabled: false, available: false },
+  /** The history of names offered under the name field */
+  nameSuggestions: [] as { name: string; category: string; count: number }[],
   /** What the user has saved in the preferences */
   preferences: {} as Record<string, unknown>,
   parseReceipt: (_url: string, _body: unknown): Response | Promise<Response> =>
@@ -86,6 +88,7 @@ function resetServer() {
   server.putReceipt = () => ok({});
   server.aiStatus = { installationReady: false, groupEnabled: false, available: false };
   server.preferences = {};
+  server.nameSuggestions = [];
   server.parseReceipt = () =>
     ok({
       nameFilled: true,
@@ -145,7 +148,8 @@ export function setupOfflineHarness() {
         if (url === '/api/categories') return ok(['кафе', 'продукты']);
         if (url === '/api/config') return ok({ currency: 'AMD', baseCurrency: 'AMD' });
         if (url === '/api/rates') return failure(500, 'x');
-        if (url === '/api/name-suggestions' || url === '/api/budgets') return ok([]);
+        if (url === '/api/name-suggestions') return ok(server.nameSuggestions);
+        if (url === '/api/budgets') return ok([]);
         if (url === '/api/receipts/settings') return ok(server.receiptSettings);
         if (url === '/api/ai/status') return ok(server.aiStatus);
         if (url === '/api/preferences' && method === 'GET') return ok(server.preferences);

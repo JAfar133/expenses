@@ -32,7 +32,7 @@ import { ReceiptPicker } from '../../receipts/components/ReceiptPicker.tsx';
 import { useReceiptAllowed } from '../../receipts/hooks/useReceiptSettings.ts';
 import { useAiPhotoFirst } from '../../ai/hooks/useAiPhotoFirst.ts';
 import { useAiInCategory } from '../../ai/hooks/useAiInCategory.ts';
-import { CategorySuggestion } from '../../ai/components/CategorySuggestion.tsx';
+import { AiSuggestion } from '../../ai/components/AiSuggestion.tsx';
 import { AiMark } from '../../ai/components/AiMark.tsx';
 import { AiNotice } from '../../ai/components/AiNotice.tsx';
 import { ReceiptTotalHint } from '../../ai/components/ReceiptTotalHint.tsx';
@@ -371,7 +371,11 @@ export function ExpenseForm({
           </SelectBox>
         </Field>
         {ai.suggestedCategory && (
-          <CategorySuggestion category={ai.suggestedCategory} onChoose={ai.chooseSuggested} />
+          <AiSuggestion
+            lead="ИИ считает"
+            value={ai.suggestedCategory}
+            onChoose={ai.chooseSuggested}
+          />
         )}
 
         {showPhoto && (
@@ -419,6 +423,13 @@ export function ExpenseForm({
             {...register('name')}
           />
           <NameSuggestions suggestions={suggestions} onPick={pickSuggestion} />
+          {ai.suggestedName && (
+            <AiSuggestion
+              lead="ИИ предлагает"
+              value={ai.suggestedName}
+              onChoose={ai.chooseSuggestedName}
+            />
+          )}
         </Field>
       </div>
 

@@ -152,8 +152,23 @@ export function useReceiptPreparse({
     setAiCategory(suggestedCategory);
   };
 
+  // The same for the name typed by the person: the AI's reading is offered, not forced
+  const typedName = form.watch('name');
+  const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+  const suggestedName =
+    result?.name && typedName.trim() && typedName !== aiName && !sameName(result.name, typedName)
+      ? result.name
+      : null;
+  const chooseSuggestedName = () => {
+    if (!suggestedName) return;
+    form.setValue('name', suggestedName, { shouldValidate: true });
+    setAiName(suggestedName);
+  };
+
   return {
     state: parse.state,
+    suggestedName,
+    chooseSuggestedName,
     suggestedCategory,
     chooseSuggested,
     retry: () => parse.retry(category),

@@ -846,3 +846,144 @@ describe('подсказка категории от ИИ', () => {
     expect(lastPost()).toMatchObject({ category: 'кафе', aiParseId: 'p1' });
   });
 });
+
+describe('подсказка названия от ИИ', () => {
+  const answerName = (name: string | null) => () =>
+    ok({
+      parseId: 'p1',
+      category: null,
+      name,
+      date: null,
+      items: [],
+      total: null,
+      currency: null,
+      dropped: 0,
+    });
+  const hint = () => screen.queryByText(/ИИ предлагает:/);
+
+  async function withTypedName(typed: string) {
+    const app = await ready();
+    await app.person.selectOptions(screen.getByLabelText('Категория'), 'кафе');
+    await app.person.type(screen.getByLabelText('Наименование'), typed);
+    return app;
+  }
+
+  it('человек ввёл своё название, ИИ прочитал другое: спокойная строка с «Выбрать»', async () => {
+    server.parsePhoto = answerName('Carrefour');
+    const { person } = await withTypedName('Магазин у дома');
+
+    await pickPhoto(person);
+
+    const line = (await screen.findByText('ИИ предлагает: Carrefour')).closest('p')!;
+    expect(line.className).toContain('text-zinc-500');
+    expect(line.className).not.toContain('red');
+    expect(screen.getByLabelText('Наименование')).toHaveValue('Магазин у дома');
+  });
+
+  it('«Выбрать» подставляет название с пометкой AI, строка исчезает; ручная правка снимает пометку', async () => {
+    server.parsePhoto = answerName('Carrefour');
+    const { person } = await withTypedName('Магазин у дома');
+    await pickPhoto(person);
+    await screen.findByText('ИИ предлагает: Carrefour');
+
+    await person.click(screen.getByRole('button', { name: 'Выбрать' }));
+
+    expect(screen.getByLabelText('Наименование')).toHaveValue('Carrefour');
+    expect(within(labelOf('Наименование')).getByRole('img', { name: AI })).toBeInTheDocument();
+    expect(hint()).toBeNull();
+    await person.type(screen.getByLabelText('Наименование'), '!');
+    expect(within(labelOf('Наименование')).queryByRole('img', { name: AI })).toBeNull();
+  });
+
+  it('совпадение без учёта регистра и крайних пробелов: строки нет', async () => {
+    server.parsePhoto = answerName('Carrefour');
+    const { person } = await withTypedName('  carrefour ');
+
+    await pickPhoto(person);
+    await waitFor(() => expect(server.photoParses()).toHaveLength(1));
+    await waitFor(() => expect(screen.queryByText('Распознаём чек…')).toBeNull());
+
+    expect(hint()).toBeNull();
+  });
+
+  it('name null: строки нет', async () => {
+    server.parsePhoto = answerName(null);
+    const { person } = await withTypedName('Магазин');
+
+    await pickPhoto(person);
+    await waitFor(() => expect(screen.queryByText('Распознаём чек…')).toBeNull());
+
+    expect(hint()).toBeNull();
+  });
+
+  it('поле пустое: прежняя автоподстановка, подсказки нет', async () => {
+    server.parsePhoto = answerName('Carrefour');
+    const { person } = await ready();
+
+    await pickPhoto(person);
+
+    expect(await screen.findByDisplayValue('Carrefour')).toBeInTheDocument();
+    expect(hint()).toBeNull();
+  });
+
+  it('сравнение всегда с текущим значением: совпало — исчезает, сменил на другое — возвращается', async () => {
+    server.parsePhoto = answerName('Carrefour');
+    const { person } = await withTypedName('Магазин');
+    await pickPhoto(person);
+    await screen.findByText('ИИ предлагает: Carrefour');
+
+    const field = screen.getByLabelText('Наименование');
+    await person.clear(field);
+    await person.type(field, 'Carrefour');
+    expect(hint()).toBeNull();
+    await person.clear(field);
+    await person.type(field, 'Другое');
+
+    expect(await screen.findByText('ИИ предлагает: Carrefour')).toBeInTheDocument();
+  });
+
+  it('фото убрано: строка исчезает', async () => {
+    server.parsePhoto = answerName('Carrefour');
+    const { person } = await withTypedName('Магазин');
+    await pickPhoto(person);
+    await screen.findByText('ИИ предлагает: Carrefour');
+
+    await person.click(screen.getByRole('button', { name: 'Убрать фото' }));
+
+    expect(hint()).toBeNull();
+  });
+
+  it('фото заменено: строка исчезает до нового ответа и приходит новая', async () => {
+    server.parsePhoto = answerName('Carrefour');
+    const { person } = await withTypedName('Магазин');
+    await pickPhoto(person);
+    await screen.findByText('ИИ предлагает: Carrefour');
+    server.parsePhoto = answerName('Spar');
+
+    await person.upload(
+      screen.getByLabelText('Выбрать фото чека'),
+      new File(['img2'], 'second.jpg', { type: 'image/jpeg' }),
+    );
+
+    expect(await screen.findByText('ИИ предлагает: Spar')).toBeInTheDocument();
+    expect(hint()).not.toHaveTextContent('Carrefour');
+  });
+
+  it('не мешает сохранению и не смешивается с чипами истории', async () => {
+    server.parsePhoto = answerName('Carrefour');
+    server.nameSuggestions = [{ name: 'Магазин у дома', category: 'кафе', count: 5 }];
+    const { person } = await withTypedName('Магаз');
+    await pickPhoto(person);
+    const line = await screen.findByText('ИИ предлагает: Carrefour');
+
+    const chip = screen.getByRole('button', { name: /Магазин у дома/ });
+    expect(chip.closest('p')).toBeNull();
+    expect(chip).not.toBe(line);
+    expect(line.closest('p')!.contains(chip)).toBe(false);
+    await person.type(screen.getByLabelText('Стоимость'), '500');
+    await submit(person);
+
+    await screen.findByText('Расход успешно добавлен');
+    expect(lastPost()).toMatchObject({ name: 'Магаз', aiParseId: 'p1' });
+  });
+});
