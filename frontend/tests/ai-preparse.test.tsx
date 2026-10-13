@@ -395,3 +395,127 @@ describe('заполнение формы без лишнего', () => {
     expect(lastPost()).toMatchObject({ name: 'Ручное', aiParseId: 'p1' });
   });
 });
+
+describe('сумма из чека', () => {
+  const answer = (patch: Record<string, unknown>) => () =>
+    ok({
+      parseId: 'p1',
+      name: 'Кофейня',
+      date: null,
+      items: [],
+      total: null,
+      currency: null,
+      dropped: 0,
+      ...patch,
+    });
+  const amount = () => screen.getByLabelText('Стоимость');
+
+  it('пустое поле суммы получает итог с чека, с пометкой AI; подсказки про итог нет', async () => {
+    const { person } = await ready();
+
+    await pickPhoto(person);
+
+    await waitFor(() => expect(amount()).toHaveValue('1 500,5'));
+    expect(within(labelOf('Стоимость')).getByRole('img', { name: AI })).toBeInTheDocument();
+    expect(screen.queryByText(/На чеке итог/)).toBeNull();
+  });
+
+  it('итога нет: подставляется сумма позиций, в том числе дробная 2095,66', async () => {
+    server.parsePhoto = answer({
+      items: [
+        { name: 'Сыр', price: 1000.1, quantity: 1 },
+        { name: 'Хлеб', price: 1095.56, quantity: 1 },
+      ],
+    });
+    const { person } = await ready();
+
+    await pickPhoto(person);
+
+    await waitFor(() => expect(amount()).toHaveValue('2 095,66'));
+    // The hint is only for a total that came from the receipt
+    expect(screen.queryByText(/На чеке итог/)).toBeNull();
+  });
+
+  it('нет ни итога, ни позиций: сумма остаётся пустой', async () => {
+    server.parsePhoto = answer({});
+    const { person } = await ready();
+
+    await pickPhoto(person);
+    await screen.findByDisplayValue('Кофейня');
+
+    expect(amount()).toHaveValue('');
+    expect(within(labelOf('Стоимость')).queryByRole('img', { name: AI })).toBeNull();
+  });
+
+  it('введённая руками сумма не меняется; серая подсказка про итог остаётся', async () => {
+    const { person } = await ready();
+    await person.type(amount(), '1000');
+
+    await pickPhoto(person);
+
+    expect(await screen.findByText(/На чеке итог 1 500,50/)).toBeInTheDocument();
+    expect(amount()).toHaveValue('1 000');
+    expect(within(labelOf('Стоимость')).queryByRole('img', { name: AI })).toBeNull();
+  });
+
+  it('другая валюта на чеке: сумма не подставляется, подсказка с валютой остаётся', async () => {
+    server.parsePhoto = answer({ total: 12.5, currency: 'USD' });
+    const { person } = await ready();
+
+    await pickPhoto(person);
+
+    expect(await screen.findByText(/На чеке итог 12,50 USD/)).toBeInTheDocument();
+    expect(amount()).toHaveValue('');
+  });
+
+  it('пометка снимается при правке суммы', async () => {
+    const { person } = await ready();
+    await pickPhoto(person);
+    await waitFor(() => expect(amount()).toHaveValue('1 500,5'));
+
+    await person.type(amount(), '9');
+
+    expect(within(labelOf('Стоимость')).queryByRole('img', { name: AI })).toBeNull();
+  });
+
+  it('правка позиций сумму не пересчитывает', async () => {
+    const { person } = await ready();
+    await pickPhoto(person);
+    await waitFor(() => expect(amount()).toHaveValue('1 500,5'));
+
+    const price = screen.getByLabelText('Цена позиции 1');
+    await person.clear(price);
+    await person.type(price, '99');
+
+    expect(amount()).toHaveValue('1 500,5');
+  });
+
+  it('другое фото: сумма, помеченная ИИ, перезаписывается; правленая рукой — нет', async () => {
+    const { person } = await ready();
+    await pickPhoto(person);
+    await waitFor(() => expect(amount()).toHaveValue('1 500,5'));
+    server.parsePhoto = answer({ parseId: 'p2', total: 300 });
+    await person.click(screen.getByRole('button', { name: 'Убрать фото' }));
+    await pickPhoto(person);
+    await waitFor(() => expect(amount()).toHaveValue('300'));
+
+    await person.type(amount(), '5');
+    server.parsePhoto = answer({ parseId: 'p3', total: 777 });
+    await person.click(screen.getByRole('button', { name: 'Убрать фото' }));
+    await pickPhoto(person);
+    await waitFor(() => expect(server.photoParses()).toHaveLength(3));
+
+    expect(amount()).toHaveValue('3 005');
+  });
+
+  it('сохранение: подставленная сумма уходит как обычная', async () => {
+    const { person } = await ready();
+    await pickPhoto(person);
+    await waitFor(() => expect(amount()).toHaveValue('1 500,5'));
+
+    await submit(person);
+
+    await screen.findByText('Расход успешно добавлен');
+    expect(lastPost()).toMatchObject({ amount: 1500.5, aiParseId: 'p1' });
+  });
+});

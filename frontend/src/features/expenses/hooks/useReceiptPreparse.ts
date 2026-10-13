@@ -7,7 +7,7 @@ import {
   type SetStateAction,
 } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
-import { parseDecimal } from '../../../shared/utils/money.ts';
+import { formatDecimalInput, parseDecimal } from '../../../shared/utils/money.ts';
 import type { PhotoParse } from '../../ai/api/ai.api.ts';
 import { useAiNotice } from '../../ai/hooks/useAiNotice.ts';
 import { usePhotoParse } from '../../ai/hooks/usePhotoParse.ts';
@@ -27,6 +27,9 @@ interface Options {
   dateTouched: MutableRefObject<boolean>;
 }
 
+/** The sum of the positions rounded to cents; 0 when there are none. */
+const positionsSum = (items: { price: number }[]) => sumItems(items);
+
 /**
  * Reads the receipt with the AI as soon as the photo is chosen (after the one-time notice is confirmed) and fills the
  * form: the name, the date and the positions, but only where the person has not typed their own. What the AI filled
@@ -43,11 +46,13 @@ export function useReceiptPreparse({
   const notice = useAiNotice();
   const [aiName, setAiName] = useState<string | null>(null);
   const [aiDate, setAiDate] = useState<string | null>(null);
+  // The amount text the AI put into the field: the mark stays while it is unchanged
+  const [aiAmount, setAiAmount] = useState<string | null>(null);
   // Fresh values for the answer handler, which may come long after the render that started the parse
   const itemsRef = useRef(items);
   itemsRef.current = items;
-  const marks = useRef({ name: aiName, date: aiDate });
-  marks.current = { name: aiName, date: aiDate };
+  const marks = useRef({ name: aiName, date: aiDate, amount: aiAmount });
+  marks.current = { name: aiName, date: aiDate, amount: aiAmount };
 
   const apply = (result: PhotoParse) => {
     const current = form.getValues();
@@ -58,6 +63,22 @@ export function useReceiptPreparse({
     if (result.date && (!dateTouched.current || current.date === marks.current.date)) {
       form.setValue('date', result.date);
       setAiDate(result.date);
+    }
+    // The amount: the receipt total, else the sum of the positions; never over what the person typed, and not in
+    // another currency than the one chosen in the field
+    const amount = result.total ?? positionsSum(result.items);
+    const sameCurrency = !result.currency || result.currency === current.currency;
+    if (
+      amount &&
+      sameCurrency &&
+      (!current.amount.trim() || current.amount === marks.current.amount)
+    ) {
+      const text = formatDecimalInput(String(amount).replace('.', ','), {
+        maxDecimals: 2,
+        group: true,
+      });
+      form.setValue('amount', text, { shouldValidate: true });
+      setAiAmount(text);
     }
     const rows = itemsRef.current;
     if (result.items.length > 0 && (rows.length === 0 || rows.every(isAiGenerated))) {
@@ -95,11 +116,13 @@ export function useReceiptPreparse({
     parseId: result?.parseId,
     aiName,
     aiDate,
+    aiAmount,
     receiptTotal,
     /** The values were saved: the marks belong to the previous expense */
     clearMarks: () => {
       setAiName(null);
       setAiDate(null);
+      setAiAmount(null);
     },
   };
 }

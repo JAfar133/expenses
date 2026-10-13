@@ -368,7 +368,13 @@ export function ExpenseForm({
         </Field>
       </div>
 
-      <AmountFields form={form} base={baseCurrency} cards={cards} rates={rates} />
+      <AmountFields
+        form={form}
+        base={baseCurrency}
+        cards={cards}
+        rates={rates}
+        aiAmount={ai.aiAmount !== null && typedAmount === ai.aiAmount}
+      />
       {category && <CategoryLimitHint category={category} projected={projected} />}
       <div aria-busy={parsing} className={parsing ? 'animate-pulse' : undefined}>
         <ReceiptItemsField value={items} onChange={setItems} error={itemsError} />

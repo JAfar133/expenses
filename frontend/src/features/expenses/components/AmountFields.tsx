@@ -1,4 +1,5 @@
 import type { UseFormReturn } from 'react-hook-form';
+import { AiMark } from '../../ai/components/AiMark.tsx';
 import { Field, inputClassName } from '../../../shared/ui/Field.tsx';
 import { currencyLabel } from '../../../shared/utils/currency-flags.ts';
 import {
@@ -22,6 +23,8 @@ interface AmountFieldsProps {
   cards: Card[];
   /** Available currencies and rates; until loaded, only the card currency is available */
   rates?: RatesResponse;
+  /** The amount is still as the AI wrote it: the spark is shown */
+  aiAmount?: boolean;
 }
 
 /** Currency rate formatted for the input (`380,5`); empty if there is no rate. */
@@ -47,7 +50,7 @@ export function convertedAmount(
  * Cost, currency and (when needed) rate with conversion into the card currency.
  * The currency starts as the card's one. The amount takes up to two decimals in any currency, drams included.
  */
-export function AmountFields({ form, base, cards, rates }: AmountFieldsProps) {
+export function AmountFields({ form, base, cards, rates, aiAmount = false }: AmountFieldsProps) {
   const { register, setValue, getValues, watch, formState } = form;
   const [currency, amount, rate, card] = watch(['currency', 'amount', 'rate', 'card']);
   const { errors } = formState;
@@ -75,7 +78,11 @@ export function AmountFields({ form, base, cards, rates }: AmountFieldsProps) {
 
   return (
     <>
-      <Field label="Стоимость" htmlFor="amount" error={errors.amount?.message}>
+      <Field
+        label={<>Стоимость {aiAmount && <AiMark />}</>}
+        htmlFor="amount"
+        error={errors.amount?.message}
+      >
         <div className="relative">
           <input
             id="amount"
