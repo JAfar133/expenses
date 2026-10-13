@@ -22,6 +22,8 @@ export interface AiStatus {
 export interface ParsedByModel {
   receipt: ParsedReceipt;
   model: string;
+  /** The record of this attempt in the usage log */
+  usageId: string;
 }
 
 export interface LlmServiceOptions {
@@ -66,7 +68,8 @@ export class LlmService {
   async parseReceipt(request: {
     groupId: string;
     username: string;
-    expenseId: string;
+    /** The expense the photo belongs to; none while the form is still being filled in */
+    expenseId: string | null;
     image: LlmImage;
     /** Today in the user's time zone, YYYY-MM-DD: helps with receipts without a year */
     today: string;
@@ -93,8 +96,8 @@ export class LlmService {
         model: config.model,
       });
       const receipt = parseReceiptAnswer(answer);
-      await repository.recordUsage({ ...usage, errorCode: null });
-      return { receipt, model: config.model };
+      const usageId = await repository.recordUsage({ ...usage, errorCode: null });
+      return { receipt, model: config.model, usageId };
     } catch (error) {
       const code = error instanceof AppError ? error.code : 'AI_UNAVAILABLE';
       await repository.recordUsage({ ...usage, errorCode: code });

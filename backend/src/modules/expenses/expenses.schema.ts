@@ -13,6 +13,8 @@ export const createExpenseSchema = z.object({
   amount: z
     .number({ error: 'Стоимость должна быть числом' })
     .positive('Стоимость должна быть больше нуля'),
+  /** The receipt parsed in the form before saving (`parseId` of POST /api/ai/receipt/parse) */
+  aiParseId: z.uuid().optional(),
   /** Positions of the receipt (optional) */
   items: createItemsSchema,
   /** `default`: the person did not type it (the AI may replace it after parsing a receipt); omitted means typed by hand */

@@ -1,4 +1,4 @@
-import type { Database } from '../../infrastructure/database/database.ts';
+import type { Database, SqlExecutor } from '../../infrastructure/database/database.ts';
 
 export interface UsageSummary {
   today: number;
@@ -69,6 +69,7 @@ export class LlmRepository {
     return row?.count ?? 0;
   }
 
+  /** Returns the id of the record: a parsing made before the expense exists is claimed by it later. */
   async recordUsage(entry: {
     groupId: string;
     expenseId: string | null;
@@ -76,10 +77,10 @@ export class LlmRepository {
     model: string;
     errorCode: string | null;
     by: string;
-  }): Promise<void> {
-    await this.database.query(
+  }): Promise<string> {
+    const [row] = await this.database.query<{ id: string }>(
       `INSERT INTO ai_usage (group_id, expense_id, task, model, status, error_code, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
       [
         entry.groupId,
         entry.expenseId,
@@ -90,6 +91,32 @@ export class LlmRepository {
         entry.by,
       ],
     );
+    return row!.id;
+  }
+
+  async saveResult(usageId: string, result: unknown): Promise<void> {
+    await this.database.query('UPDATE ai_usage SET result = $2::jsonb WHERE id = $1', [
+      usageId,
+      JSON.stringify(result),
+    ]);
+  }
+
+  /**
+   * Takes a finished parsing for an expense: only the user's own, of their group, successful, fresh and not taken
+   * before. Returns what the model said, or undefined when the parsing cannot be claimed.
+   */
+  async claim(
+    db: SqlExecutor,
+    claim: { usageId: string; groupId: string; username: string; expenseId: string },
+  ): Promise<{ model: string; result: unknown } | undefined> {
+    const [row] = await db.query<{ model: string; result: unknown }>(
+      `UPDATE ai_usage SET expense_id = $4
+        WHERE id = $1 AND group_id = $2 AND created_by = $3 AND expense_id IS NULL
+          AND status = 'ok' AND result IS NOT NULL AND created_at > now() - interval '24 hours'
+        RETURNING model, result`,
+      [claim.usageId, claim.groupId, claim.username, claim.expenseId],
+    );
+    return row;
   }
 
   async usageSummary(): Promise<UsageSummary> {

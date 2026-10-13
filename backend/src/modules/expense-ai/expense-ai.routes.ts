@@ -2,7 +2,9 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { validationError } from '../../errors/app-error.ts';
 import type { SyncService } from '../sync/sync.service.ts';
+import { MAX_RECEIPT_BYTES } from '../receipts/receipts.service.ts';
 import type { ReceiptAnalysisService } from './receipt-analysis.service.ts';
+import type { ReceiptDraftService } from './receipt-draft.service.ts';
 
 const idSchema = z.uuid();
 const bodySchema = z.object({ replaceItems: z.boolean().optional() }).strict();
@@ -11,6 +13,7 @@ const bodySchema = z.object({ replaceItems: z.boolean().optional() }).strict();
 export const expenseAiRoutes =
   (
     service: ReceiptAnalysisService,
+    drafts: ReceiptDraftService,
     sync: Pick<SyncService, 'requestCycle' | 'enabled'>,
   ): FastifyPluginAsync =>
   async (app) => {
@@ -19,6 +22,22 @@ export const expenseAiRoutes =
       if (!parsed.success) throw validationError('INVALID_ID', 'Некорректный идентификатор записи');
       return parsed.data;
     };
+
+    /**
+     * Reads a receipt photo while the "Add" form is open (raw image body). Nothing is saved: the answer fills the form,
+     * and `parseId` goes back with the new expense so that the server knows which values came from the AI.
+     */
+    app.post('/ai/receipt/parse', { bodyLimit: MAX_RECEIPT_BYTES + 1024 }, async (request) => {
+      if (!Buffer.isBuffer(request.body)) {
+        throw validationError('INVALID_RECEIPT', 'Нужна фотография в формате JPEG, PNG или WebP');
+      }
+      const data = await drafts.parse(request.user!, request.body);
+      request.log.info(
+        { operation: 'ai.receipt.draft', userId: request.user!.username },
+        'Operation completed',
+      );
+      return { success: true, data };
+    });
 
     app.post('/expenses/:id/receipt/parse', async (request) => {
       const id = parseId(request.params);

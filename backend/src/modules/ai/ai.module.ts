@@ -2,6 +2,8 @@ import type { Database } from '../../infrastructure/database/database.ts';
 import type { ExpenseRepository } from '../../storage/expense.repository.ts';
 import type { ExpenseEditor } from '../expenses/expense-editor.ts';
 import { ExpenseAiRepository } from '../expense-ai/expense-ai.repository.ts';
+import { ParseClaims } from '../expense-ai/parse-claims.ts';
+import { ReceiptDraftService } from '../expense-ai/receipt-draft.service.ts';
 import { ReceiptAnalysisService } from '../expense-ai/receipt-analysis.service.ts';
 import { ItemsRepository } from '../items/items.repository.ts';
 import { ItemsService } from '../items/items.service.ts';
@@ -34,6 +36,9 @@ export interface AiModule {
   llmSettings: LlmSettingsRepository;
   llmRepository: LlmRepository;
   analysis: ReceiptAnalysisService;
+  drafts: ReceiptDraftService;
+  /** What the expense service needs to take a receipt parsed in the form */
+  aiParse: { claims: ParseClaims; marks: ExpenseAiRepository };
 }
 
 export function createAiModule(options: AiModuleOptions): AiModule {
@@ -45,6 +50,7 @@ export function createAiModule(options: AiModuleOptions): AiModule {
     options.defaults,
   );
   const llmRepository = new LlmRepository(database);
+  const marks = new ExpenseAiRepository();
   const llm = new LlmService({
     settings: llmSettings,
     repository: llmRepository,
@@ -67,9 +73,11 @@ export function createAiModule(options: AiModuleOptions): AiModule {
       receipts,
       expenses,
       items,
-      repository: new ExpenseAiRepository(),
+      repository: marks,
       editor,
       now: options.now,
     }),
+    drafts: new ReceiptDraftService({ llm, repository: llmRepository, now: options.now }),
+    aiParse: { claims: new ParseClaims(llmRepository), marks },
   };
 }

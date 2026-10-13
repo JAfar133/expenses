@@ -212,7 +212,7 @@ export function buildApp({
   app.register(budgetsRoutes(budgets), { prefix: '/api' });
   app.register(receiptsRoutes(receipts), { prefix: '/api' });
   app.register(itemsRoutes(ai.itemsService), { prefix: '/api' });
-  app.register(expenseAiRoutes(ai.analysis, sync), { prefix: '/api' });
+  app.register(expenseAiRoutes(ai.analysis, ai.drafts, sync), { prefix: '/api' });
   app.register(
     llmRoutes({ service: ai.llm, settings: ai.llmSettings, repository: ai.llmRepository }),
     { prefix: '/api' },

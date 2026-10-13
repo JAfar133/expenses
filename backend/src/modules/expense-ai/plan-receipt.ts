@@ -34,7 +34,7 @@ const isRealDate = (iso: string) => {
 };
 
 /** The date from the receipt, if it is believable: a real day, not in the future, not too old. */
-const believableDate = (iso: string | undefined, today: string): string | undefined =>
+export const believableDate = (iso: string | undefined, today: string): string | undefined =>
   iso && isRealDate(iso) && iso <= today && iso >= addDays(today, -MAX_AGE_DAYS) ? iso : undefined;
 
 /**

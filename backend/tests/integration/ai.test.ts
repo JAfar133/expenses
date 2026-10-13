@@ -514,3 +514,120 @@ describe('когда разбор невозможен', () => {
     expect(credentials).toEqual({ apiKey: API_KEY, model: 'test-model' });
   });
 });
+
+describe('разбор фото до сохранения траты', () => {
+  beforeEach(enableAi);
+
+  const draft = (body: Buffer = JPEG, as = 'misha') =>
+    t.inject(
+      {
+        method: 'POST',
+        url: '/api/ai/receipt/parse',
+        headers: { 'content-type': 'image/jpeg' },
+        payload: body,
+      },
+      as,
+    );
+
+  it('возвращает название, дату, позиции и номер разбора, ничего не сохраняя', async () => {
+    const response = await draft();
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data).toMatchObject({
+      name: 'Carrefour',
+      date: '2026-10-12',
+      total: 1500,
+      items: [{ name: 'Молоко', price: 450.5 }, { name: 'Сыр' }],
+    });
+    expect(response.json().data.parseId).toEqual(expect.any(String));
+    expect(await database.query('SELECT 1 FROM expenses')).toHaveLength(0);
+  });
+
+  it('невозможную дату не отдаёт', async () => {
+    t.llmProvider.answers = [{ ...RECEIPT, date: '2027-01-01' }];
+
+    expect((await draft()).json().data.date).toBeNull();
+  });
+
+  it('не фотография: 422, выключено: 409', async () => {
+    expect((await draft(Buffer.from('текст'))).statusCode).toBe(422);
+
+    await call('PUT', '/api/group/ai', { enabled: false });
+    expect((await draft()).statusCode).toBe(409);
+  });
+
+  it('сохранённая трата получает пометки только у тех значений, которые остались ответом модели', async () => {
+    const { parseId } = (await draft()).json().data;
+
+    const id = await addExpense({
+      name: 'Carrefour',
+      nameSource: 'manual',
+      date: '2026-10-12',
+      dateSource: 'manual',
+      aiParseId: parseId,
+      items: [
+        { name: 'Молоко', price: 450.5, quantity: 1 },
+        { name: 'Сыр', price: 1000, quantity: 0.35 },
+        { name: 'Хлеб', price: 10 },
+      ],
+    });
+
+    expect(await expenseRow(id)).toMatchObject({
+      name_source: 'ai',
+      date_source: 'ai',
+      ai_model: 'test-model',
+    });
+    expect((await expenseRow(id)).ai_processed_at).not.toBeNull();
+    expect(
+      (await dataOf(call('GET', `/api/expenses/${id}/items`))).map((i: any) => i.source),
+    ).toEqual(['ai', 'manual', 'manual']);
+  });
+
+  it('название, которое человек изменил, остаётся его, но трата всё равно отмечена как обработанная ИИ', async () => {
+    const { parseId } = (await draft()).json().data;
+
+    const id = await addExpense({ name: 'Моё название', nameSource: 'manual', aiParseId: parseId });
+
+    expect(await expenseRow(id)).toMatchObject({ name: 'Моё название', name_source: 'manual' });
+    expect((await expenseRow(id)).ai_processed_at).not.toBeNull();
+  });
+
+  it('разбор берётся один раз и только своим автором', async () => {
+    const { parseId } = (await draft()).json().data;
+
+    const first = await addExpense({ name: 'Carrefour', aiParseId: parseId });
+    const second = await addExpense({ name: 'Carrefour', aiParseId: parseId });
+
+    expect((await expenseRow(first)).name_source).toBe('ai');
+    expect((await expenseRow(second)).name_source).toBe('default');
+  });
+
+  it('чужой номер разбора ничего не помечает', async () => {
+    const { parseId } = (await draft()).json().data;
+    const response = await t.inject(
+      {
+        method: 'POST',
+        url: '/api/expenses',
+        headers: { 'idempotency-key': 'key-another-user-1' },
+        payload: {
+          date: '2026-10-15',
+          card: 'Настя',
+          category: 'кафе',
+          name: 'Carrefour',
+          amount: 5,
+          aiParseId: parseId,
+        },
+      },
+      'nastya',
+    );
+
+    expect((await expenseRow(response.json().data.id)).name_source).toBe('manual');
+  });
+
+  it('попытка засчитывается в дневной лимит', async () => {
+    await call('PUT', '/api/admin/ai', { dailyLimit: 1 });
+    await draft();
+
+    expect((await draft()).statusCode).toBe(429);
+  });
+});

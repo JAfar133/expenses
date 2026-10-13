@@ -58,6 +58,22 @@ export class ExpenseAiRepository {
     );
   }
 
+  /** A new expense whose values came from a receipt parsed in the form. */
+  async markCreated(
+    db: SqlExecutor,
+    id: string,
+    marks: { nameIsAi: boolean; dateIsAi: boolean; model: string },
+  ): Promise<void> {
+    await db.query(
+      `UPDATE expenses
+          SET name_source = CASE WHEN $2 THEN 'ai' ELSE name_source END,
+              date_source = CASE WHEN $3 THEN 'ai' ELSE date_source END,
+              ai_processed_at = now(), ai_model = $4
+        WHERE id = $1`,
+      [id, marks.nameIsAi, marks.dateIsAi, marks.model],
+    );
+  }
+
   /** The values the AI wrote stay, but stop being marked as generated: the person accepted them. */
   async adoptGenerated(db: SqlExecutor, id: string): Promise<void> {
     await db.query(

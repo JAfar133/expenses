@@ -228,6 +228,7 @@ const app = buildApp({
   expenseService: new ExpenseService(expenses, {
     groups,
     items: ai.items,
+    aiParse: ai.aiParse,
     currency: {
       base: env.DEFAULT_CURRENCY,
       currencies: env.CURRENCIES,

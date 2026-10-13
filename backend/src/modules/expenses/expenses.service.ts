@@ -8,6 +8,8 @@ import type {
 import type { ExpenseScope } from '../groups/scope.ts';
 import type { GroupsRepository } from '../groups/groups.repository.ts';
 import { resolveMoney, type AmountContext } from './expense-amount.ts';
+import type { ExpenseAiRepository } from '../expense-ai/expense-ai.repository.ts';
+import type { ParseClaims } from '../expense-ai/parse-claims.ts';
 import type { ItemsRepository } from '../items/items.repository.ts';
 import type { CreateExpenseInput } from './expenses.schema.ts';
 
@@ -30,6 +32,8 @@ export interface ExpenseServiceOptions {
   currency: AmountContext;
   /** Positions saved together with a new expense */
   items?: ItemsRepository;
+  /** A receipt parsed in the form before saving: tells which values of the new expense came from the AI */
+  aiParse?: { claims: ParseClaims; marks: ExpenseAiRepository };
   logger?: { warn: (object: object, message: string) => void };
 }
 
@@ -98,19 +102,45 @@ export class ExpenseService {
       kept,
       { name: input.nameSource ?? 'manual', date: input.dateSource ?? 'manual' },
     );
-    if (input.items?.length && this.options.items) {
+    const items = input.items ?? [];
+    const claimed = await this.claimParse(db, input, author, saved.id, items);
+    if (items.length > 0 && this.options.items) {
       await this.options.items.replace(
         db,
         { id: saved.id, groupId: author.scope.groupId! },
-        input.items.map(({ name: itemName, price, quantity }) => ({
+        items.map(({ name: itemName, price, quantity }, index) => ({
           name: itemName,
           price,
           quantity,
-          source: 'manual' as const,
+          source: claimed?.itemIsAi[index] ? ('ai' as const) : ('manual' as const),
         })),
       );
     }
     return saved;
+  }
+
+  /** Takes the receipt parsed in the form (if the request names one) and marks what came from it. */
+  private async claimParse(
+    db: SqlExecutor,
+    input: CreateExpenseInput,
+    author: ExpenseAuthor,
+    expenseId: string,
+    items: NonNullable<CreateExpenseInput['items']>,
+  ) {
+    const { aiParse } = this.options;
+    if (!input.aiParseId || !aiParse || !author.scope.groupId) return undefined;
+    const claimed = await aiParse.claims.claim(
+      db,
+      {
+        usageId: input.aiParseId,
+        groupId: author.scope.groupId,
+        username: author.username,
+        expenseId,
+      },
+      { name: input.name, date: input.date, items },
+    );
+    if (claimed) await aiParse.marks.markCreated(db, expenseId, claimed);
+    return claimed;
   }
 
   findById(id: string): Promise<StoredExpense | undefined> {

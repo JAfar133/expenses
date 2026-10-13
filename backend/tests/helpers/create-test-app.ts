@@ -263,7 +263,12 @@ export async function createTestApp(
     syncSwitch,
     now: options.now,
     backupStatus: options.backupStatus,
-    expenseService: new ExpenseService(repository, { groups, currency: rates, items: ai.items }),
+    expenseService: new ExpenseService(repository, {
+      groups,
+      currency: rates,
+      items: ai.items,
+      aiParse: ai.aiParse,
+    }),
     groups,
     invitations,
     receipts,
