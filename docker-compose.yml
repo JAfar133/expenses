@@ -10,10 +10,20 @@
 # pgAdmin: http://127.0.0.1:5051 (login: PGADMIN_EMAIL / PGADMIN_PASSWORD from .env)
 name: expenses-tracker
 
+# Container logs: without a limit the json-file driver keeps them forever. Three files of 10 MB per container.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
+    # Memory cap: a leak restarts this container instead of exhausting the server
+    mem_limit: 256m
+    logging: *default-logging
     environment:
       POSTGRES_DB: expenses
       POSTGRES_USER: expenses
@@ -33,6 +43,12 @@ services:
   pgadmin:
     image: dpage/pgadmin4:latest
     restart: unless-stopped
+    # Not started by `docker compose up -d` (it takes ~240 MB and is rarely needed). On the server:
+    # ./scripts/pgadmin.sh on | off. Naming it explicitly (`docker compose up -d pgadmin`) also starts it.
+    profiles: ["tools"]
+    # Memory cap: a leak restarts this container instead of exhausting the server
+    mem_limit: 384m
+    logging: *default-logging
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,6 +69,9 @@ services:
       context: .
       dockerfile: infra/Dockerfile.backend
     restart: unless-stopped
+    # Memory cap: a leak restarts this container instead of exhausting the server
+    mem_limit: 256m
+    logging: *default-logging
     depends_on:
       postgres:
         condition: service_healthy
@@ -116,6 +135,9 @@ services:
       context: .
       dockerfile: infra/Dockerfile.frontend
     restart: unless-stopped
+    # Memory cap: a leak restarts this container instead of exhausting the server
+    mem_limit: 96m
+    logging: *default-logging
     depends_on:
       backend:
         condition: service_healthy

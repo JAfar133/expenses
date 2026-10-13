@@ -58,7 +58,8 @@ If the script does not run ("permission denied"): `chmod +x scripts/*.sh`.
 
 ## Running in Docker Compose
 
-Brings everything up at once: PostgreSQL, pgAdmin, backend and web (Caddy serves the UI and proxies `/api`).
+Brings everything up at once: PostgreSQL, backend and web (Caddy serves the UI and proxies `/api`).
+pgAdmin is on demand: `docker compose up -d pgadmin` (on a server: `./scripts/pgadmin.sh on`).
 
 > A full step-by-step server guide (preparation, rclone, `.env`, access without a domain, moving to a domain, backups,
 > maintenance, troubleshooting): **[docs/DEPLOY.md](docs/DEPLOY.md)** (in Russian). A short version follows.
