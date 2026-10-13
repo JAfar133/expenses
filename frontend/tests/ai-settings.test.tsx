@@ -119,43 +119,103 @@ function renderAt(path: string) {
 
 const block = async () => {
   const heading = await screen.findByRole('heading', { name: 'ИИ (Gemini)' });
-  await screen.findByText(/Использовано/);
+  await screen.findByRole('region', { name: 'Группы' });
   return within(heading.closest('section')!);
 };
 const sent = (method: string, url: string) =>
   requests.find((r) => r.method === method && r.url === url)?.body;
+const did = (method: string, url: string) =>
+  requests.some((r) => r.method === method && r.url === url);
+const noKey = { keyConfigured: false, keySource: 'none', keyHint: null, enabled: false };
 
-describe('админ: блок «ИИ (Gemini)»', () => {
-  it('показывает состояние, ключ (хвост и источник), модель, лимит и использование', async () => {
+describe('админ: статус и переключатель', () => {
+  it.each([
+    [noKey, 'Не настроено', 'Сначала задайте ключ'],
+    [{ enabled: false }, 'Ключ задан, ИИ выключен', 'Выключено'],
+    [{ enabled: true }, 'Работает', 'Включено'],
+  ])('состояние %o: «%s», подпись «%s»', async (patch, label, caption) => {
+    aiState = adminAi(patch);
     renderAt('/admin');
     const ai = await block();
 
-    expect(ai.getByRole('switch', { name: 'Включить ИИ для установки' })).toBeChecked();
-    expect(ai.getByText('Ключ задан …1234 (из приложения)')).toBeInTheDocument();
-    expect(ai.getByLabelText('Модель')).toHaveValue('gemini-3.8-flash');
-    expect(ai.getByLabelText('Разборов в сутки на группу')).toHaveValue('50');
-    expect(ai.getByText(/сегодня 3, за 30 дней 41, ошибок за 30 дней 2/)).toBeInTheDocument();
+    expect(ai.getByRole('status')).toHaveTextContent(label);
+    expect(ai.getByText(caption)).toBeInTheDocument();
   });
 
-  it('поле ключа — пароль и никогда не заполняется полученным значением', async () => {
+  it('без ключа переключатель неактивен', async () => {
+    aiState = adminAi(noKey);
+    renderAt('/admin');
+    const ai = await block();
+
+    expect(ai.getByRole('switch', { name: 'ИИ для установки' })).toBeDisabled();
+  });
+
+  it('с ключом переключатель включает и выключает ИИ', async () => {
+    const user = renderAt('/admin');
+    const ai = await block();
+
+    await user.click(ai.getByRole('switch', { name: 'ИИ для установки' }));
+
+    await waitFor(() => expect(sent('PUT', '/api/admin/ai')).toEqual({ enabled: false }));
+  });
+
+  it('«Ошибка» (красный) — только после неудачной проверки', async () => {
+    respond = (method, url) =>
+      method === 'POST' && url === '/api/admin/ai/test'
+        ? json(
+            { success: false, error: { code: 'AI_UNAVAILABLE', message: 'Ключ не принят' } },
+            400,
+          )
+        : undefined;
+    const user = renderAt('/admin');
+    const ai = await block();
+    expect(ai.getByRole('status')).toHaveTextContent('Работает');
+
+    await user.click(ai.getByRole('button', { name: 'Проверить' }));
+
+    await waitFor(() => expect(ai.getByRole('status')).toHaveTextContent('Ошибка'));
+    expect(ai.getByRole('alert')).toHaveTextContent('Ключ не принят');
+  });
+});
+
+describe('админ: шаг 1, API-ключ', () => {
+  it('ключ задан: хвост и источник, три действия включены', async () => {
+    renderAt('/admin');
+    const ai = await block();
+
+    expect(ai.getByText('Ключ задан …1234 · из приложения')).toBeInTheDocument();
+    for (const name of ['Проверить', 'Заменить', 'Удалить']) {
+      expect(ai.getByRole('button', { name })).toBeEnabled();
+    }
+    expect(ai.queryByLabelText('API-ключ Gemini')).toBeNull();
+  });
+
+  it('ключа нет: поле-пароль без значения, «Сохранить ключ» неактивна, пока ничего не введено', async () => {
+    aiState = adminAi(noKey);
     renderAt('/admin');
     const ai = await block();
 
     const field = ai.getByLabelText('API-ключ Gemini');
     expect(field).toHaveAttribute('type', 'password');
     expect(field).toHaveValue('');
+    expect(ai.getByRole('button', { name: 'Сохранить ключ' })).toBeDisabled();
+    expect(ai.getByText('Ключ не задан', { selector: 'p' })).toBeInTheDocument();
   });
 
-  it('тексты состояния ключа: из окружения, не задан', () => {
-    expect(keyStatusText({ keyConfigured: true, keySource: 'env', keyHint: 'abcd' })).toBe(
-      'Ключ задан …abcd (из окружения)',
-    );
-    expect(keyStatusText({ keyConfigured: false, keySource: 'none', keyHint: null })).toBe(
-      'Ключ не задан',
-    );
+  it('«Показать» и «Скрыть» переключают вид ключа', async () => {
+    aiState = adminAi(noKey);
+    const user = renderAt('/admin');
+    const ai = await block();
+
+    await user.click(ai.getByRole('button', { name: 'Показать ключ' }));
+    expect(ai.getByLabelText('API-ключ Gemini')).toHaveAttribute('type', 'text');
+    await user.click(ai.getByRole('button', { name: 'Скрыть ключ' }));
+
+    expect(ai.getByLabelText('API-ключ Gemini')).toHaveAttribute('type', 'password');
   });
 
   it('«Сохранить ключ» шлёт ключ и очищает поле', async () => {
+    aiState = adminAi(noKey);
     const user = renderAt('/admin');
     const ai = await block();
 
@@ -166,124 +226,188 @@ describe('админ: блок «ИИ (Gemini)»', () => {
     await waitFor(() => expect(ai.getByLabelText('API-ключ Gemini')).toHaveValue(''));
   });
 
-  it('«Сохранить ключ» недоступна, пока поле пустое', async () => {
-    renderAt('/admin');
+  it('«Заменить» показывает поле, «Отмена» его убирает, сохранение шлёт новый ключ', async () => {
+    const user = renderAt('/admin');
     const ai = await block();
 
-    expect(ai.getByRole('button', { name: 'Сохранить ключ' })).toBeDisabled();
+    await user.click(ai.getByRole('button', { name: 'Заменить' }));
+    await user.click(ai.getByRole('button', { name: 'Отмена' }));
+    expect(ai.queryByLabelText('API-ключ Gemini')).toBeNull();
+
+    await user.click(ai.getByRole('button', { name: 'Заменить' }));
+    await user.type(ai.getByLabelText('API-ключ Gemini'), 'NEW-KEY');
+    await user.click(ai.getByRole('button', { name: 'Сохранить ключ' }));
+
+    await waitFor(() => expect(sent('PUT', '/api/admin/ai/key')).toEqual({ apiKey: 'NEW-KEY' }));
+    await waitFor(() => expect(ai.queryByLabelText('API-ключ Gemini')).toBeNull());
   });
 
-  it('«Проверить» показывает сообщение сервера', async () => {
+  it('«Удалить» вызывает DELETE', async () => {
+    const user = renderAt('/admin');
+    const ai = await block();
+
+    await user.click(ai.getByRole('button', { name: 'Удалить' }));
+
+    await waitFor(() => expect(did('DELETE', '/api/admin/ai/key')).toBe(true));
+  });
+
+  it('«Проверить»: спиннер, затем сообщение сервера с галочкой', async () => {
+    let finish: (response: Response) => void = () => undefined;
     respond = (method, url) =>
       method === 'POST' && url === '/api/admin/ai/test'
-        ? ok({ message: 'Ключ работает' })
+        ? (new Promise<Response>((resolve) => (finish = resolve)) as unknown as Response)
         : undefined;
     const user = renderAt('/admin');
     const ai = await block();
 
     await user.click(ai.getByRole('button', { name: 'Проверить' }));
+    expect(await ai.findByText('Проверяем…')).toBeInTheDocument();
+    finish(ok({ message: 'Ключ работает' }));
 
     expect(await ai.findByText('Ключ работает')).toBeInTheDocument();
   });
 
-  it('«Проверить»: ошибка показывается', async () => {
-    respond = (method, url) =>
-      method === 'POST' && url === '/api/admin/ai/test'
-        ? json(
-            { success: false, error: { code: 'AI_KEY_MISSING', message: 'Ключ не принят' } },
-            400,
-          )
-        : undefined;
-    const user = renderAt('/admin');
+  it('нет SECRETS_KEY: жёлтая плашка с командой, поле и «Заменить» отключены с пояснением', async () => {
+    aiState = adminAi({ canStoreKey: false });
+    renderAt('/admin');
     const ai = await block();
 
-    await user.click(ai.getByRole('button', { name: 'Проверить' }));
-
-    expect(await ai.findByRole('alert')).toHaveTextContent('Ключ не принят');
+    expect(ai.getByRole('note')).toHaveTextContent(
+      /На сервере не задан SECRETS_KEY, ключ из приложения сохранить нельзя/,
+    );
+    expect(ai.getByText('openssl rand -base64 36').tagName).toBe('CODE');
+    expect(ai.getByRole('button', { name: 'Заменить' })).toBeDisabled();
+    expect(ai.getByRole('button', { name: 'Заменить' })).toHaveAttribute(
+      'title',
+      'Нужен SECRETS_KEY на сервере',
+    );
   });
 
-  it('«Удалить ключ» вызывает DELETE; для ключа из окружения недоступна', async () => {
-    const user = renderAt('/admin');
+  it('нет SECRETS_KEY и нет ключа: поле и кнопка сохранения отключены', async () => {
+    aiState = adminAi({ ...noKey, canStoreKey: false });
+    renderAt('/admin');
     const ai = await block();
 
-    await user.click(ai.getByRole('button', { name: 'Удалить ключ' }));
-
-    await waitFor(() => expect(sent('DELETE', '/api/admin/ai/key')).toBeUndefined());
-    expect(requests.some((r) => r.method === 'DELETE' && r.url === '/api/admin/ai/key')).toBe(true);
+    expect(ai.getByLabelText('API-ключ Gemini')).toBeDisabled();
+    expect(ai.getByRole('button', { name: 'Сохранить ключ' })).toBeDisabled();
   });
 
-  it('ключ из окружения: удалить из приложения нельзя', async () => {
+  it('ключ из окружения: пояснение, «Удалить» неактивна с подсказкой', async () => {
     aiState = adminAi({ keySource: 'env' });
     renderAt('/admin');
     const ai = await block();
 
-    expect(ai.getByText('Ключ задан …1234 (из окружения)')).toBeInTheDocument();
-    expect(ai.getByRole('button', { name: 'Удалить ключ' })).toBeDisabled();
+    expect(ai.getByText('Ключ задан …1234 · из окружения')).toBeInTheDocument();
+    expect(ai.getByText(/Чтобы заменить его в приложении, нужен SECRETS_KEY/)).toBeInTheDocument();
+    const remove = ai.getByRole('button', { name: 'Удалить' });
+    expect(remove).toBeDisabled();
+    expect(remove).toHaveAttribute('title', expect.stringContaining('окружении'));
   });
 
-  it('нет SECRETS_KEY: пояснение, поле и «Сохранить ключ» отключены', async () => {
+  it('тексты состояния ключа', () => {
+    expect(keyStatusText({ keyConfigured: true, keySource: 'env', keyHint: 'abcd' })).toBe(
+      'Ключ задан …abcd · из окружения',
+    );
+    expect(keyStatusText({ keyConfigured: false, keySource: 'none', keyHint: null })).toBe(
+      'Ключ не задан',
+    );
+  });
+});
+
+describe('админ: параметры, использование, группы', () => {
+  it('«Дополнительно» свёрнуто: видно только строка с текущими значениями', async () => {
+    renderAt('/admin');
+    const ai = await block();
+
+    expect(ai.queryByLabelText('Модель')).toBeNull();
+    expect(
+      ai.getByText(/Модель gemini-3.8-flash · лимит 50 в сутки на группу/),
+    ).toBeInTheDocument();
+  });
+
+  it('одна форма и одна кнопка «Сохранить»: активна при изменениях, шлёт модель и лимит вместе', async () => {
+    const user = renderAt('/admin');
+    const ai = await block();
+    await user.click(ai.getByRole('button', { name: /Дополнительно/ }));
+    expect(ai.getByLabelText('Модель')).toHaveValue('gemini-3.8-flash');
+    expect(ai.getByLabelText('Лимит')).toHaveValue('50');
+    expect(ai.getByText('Сколько чеков группа может разобрать за сутки')).toBeInTheDocument();
+    expect(ai.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
+
+    await user.type(ai.getByLabelText('Модель'), '-pro');
+    await user.clear(ai.getByLabelText('Лимит'));
+    await user.type(ai.getByLabelText('Лимит'), '80');
+    await user.click(ai.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() =>
+      expect(sent('PUT', '/api/admin/ai')).toEqual({
+        model: 'gemini-3.8-flash-pro',
+        dailyLimit: 80,
+      }),
+    );
+  });
+
+  it('три плитки использования', async () => {
+    renderAt('/admin');
+    const ai = await block();
+
+    const usage = within(ai.getByRole('region', { name: 'Использование' }));
+    expect(usage.getByText('Сегодня').nextSibling).toHaveTextContent('3');
+    expect(usage.getByText('За 30 дней').nextSibling).toHaveTextContent('41');
+    expect(usage.getByText('Ошибок за 30 дней').nextSibling).toHaveTextContent('2');
+  });
+
+  it('группы: состояние, «сегодня разобрано N из L» (свой или общий лимит)', async () => {
+    renderAt('/admin');
+    const ai = await block();
+
+    expect(ai.getByText(/ИИ включён владельцем · сегодня разобрано 2 из 50/)).toBeInTheDocument();
+    expect(ai.getByText(/ИИ выключен владельцем · сегодня разобрано 0 из 10/)).toBeInTheDocument();
+    expect(ai.getByLabelText('Лимит разборов в сутки: Семья')).toHaveAttribute(
+      'placeholder',
+      'общий',
+    );
+  });
+
+  it('одна группа тоже показывается', async () => {
     aiState = adminAi({
-      canStoreKey: false,
-      keyConfigured: false,
-      keySource: 'none',
-      keyHint: null,
+      groups: [{ id: 1, name: 'Семья', enabled: true, dailyLimit: null, usedToday: 1 }],
     });
     renderAt('/admin');
     const ai = await block();
 
-    expect(
-      ai.getByText('На сервере не задан SECRETS_KEY: ключ из приложения сохранить нельзя'),
-    ).toBeInTheDocument();
-    expect(ai.getByText('Ключ не задан')).toBeInTheDocument();
-    expect(ai.getByLabelText('API-ключ Gemini')).toBeDisabled();
-    expect(ai.getByRole('button', { name: 'Проверить' })).toBeDisabled();
+    expect(ai.getByText('Семья')).toBeInTheDocument();
   });
 
-  it('переключатель включает и выключает ИИ для установки', async () => {
+  it('лимит группы сохраняется по Enter', async () => {
     const user = renderAt('/admin');
     const ai = await block();
 
-    await user.click(ai.getByRole('switch', { name: 'Включить ИИ для установки' }));
+    await user.type(ai.getByLabelText('Лимит разборов в сутки: Семья'), '25{Enter}');
 
-    await waitFor(() => expect(sent('PUT', '/api/admin/ai')).toEqual({ enabled: false }));
-  });
-
-  it('модель и общий лимит сохраняются своими кнопками', async () => {
-    const user = renderAt('/admin');
-    const ai = await block();
-    expect(ai.queryByRole('button', { name: 'Сохранить' })).toBeNull();
-
-    const model = ai.getByLabelText('Модель');
-    await user.clear(model);
-    await user.type(model, 'gemini-x');
-    await user.click(ai.getByRole('button', { name: 'Сохранить' }));
-    await waitFor(() => expect(sent('PUT', '/api/admin/ai')).toEqual({ model: 'gemini-x' }));
-  });
-
-  it('общий лимит уходит числом', async () => {
-    const user = renderAt('/admin');
-    const ai = await block();
-
-    const limit = ai.getByLabelText('Разборов в сутки на группу');
-    await user.clear(limit);
-    await user.type(limit, '80');
-    await user.click(ai.getByRole('button', { name: 'Сохранить' }));
-
-    await waitFor(() => expect(sent('PUT', '/api/admin/ai')).toEqual({ dailyLimit: 80 }));
-  });
-
-  it('группы: состояние, использование за сегодня и свой лимит (пусто = общий)', async () => {
-    const user = renderAt('/admin');
-    const ai = await block();
-
-    expect(ai.getByText(/Включён владельцем · сегодня разобрано: 2/)).toBeInTheDocument();
-    expect(ai.getByText(/Выключен владельцем · сегодня разобрано: 0/)).toBeInTheDocument();
-    expect(ai.getByLabelText('Лимит разборов в сутки: Семья')).toHaveValue('');
-    expect(ai.getByLabelText('Лимит разборов в сутки: Соседи')).toHaveValue('10');
-
-    await user.type(ai.getByLabelText('Лимит разборов в сутки: Семья'), '25');
-    await user.click(ai.getAllByRole('button', { name: 'Сохранить' })[0]!);
     await waitFor(() => expect(sent('PUT', '/api/admin/groups/1/ai-limit')).toEqual({ limit: 25 }));
+  });
+
+  it('лимит группы сохраняется при уходе из поля', async () => {
+    const user = renderAt('/admin');
+    const ai = await block();
+
+    await user.type(ai.getByLabelText('Лимит разборов в сутки: Семья'), '30');
+    await user.tab();
+
+    await waitFor(() => expect(sent('PUT', '/api/admin/groups/1/ai-limit')).toEqual({ limit: 30 }));
+  });
+
+  it('кнопка-иконка с галочкой появляется при изменении и сохраняет', async () => {
+    const user = renderAt('/admin');
+    const ai = await block();
+    expect(ai.queryByRole('button', { name: 'Сохранить лимит: Семья' })).toBeNull();
+
+    await user.type(ai.getByLabelText('Лимит разборов в сутки: Семья'), '12');
+    await user.click(ai.getByRole('button', { name: 'Сохранить лимит: Семья' }));
+
+    await waitFor(() => expect(sent('PUT', '/api/admin/groups/1/ai-limit')).toEqual({ limit: 12 }));
+    expect(requests.filter((r) => r.url === '/api/admin/groups/1/ai-limit')).toHaveLength(1);
   });
 
   it('очистка своего лимита возвращает общий: limit = null', async () => {
@@ -291,7 +415,7 @@ describe('админ: блок «ИИ (Gemini)»', () => {
     const ai = await block();
 
     await user.clear(ai.getByLabelText('Лимит разборов в сутки: Соседи'));
-    await user.click(ai.getByRole('button', { name: 'Сохранить' }));
+    await user.tab();
 
     await waitFor(() =>
       expect(sent('PUT', '/api/admin/groups/2/ai-limit')).toEqual({ limit: null }),

@@ -59,8 +59,10 @@ export function useSubmitExpense() {
       expense: CreateExpenseRequest,
       idempotencyKey: string,
       photo: Blob | null,
-      /** Parse the receipt with the AI once the photo is uploaded */
+      /** Parse the receipt with the AI once the photo is uploaded (kept in the queue record when offline) */
       parse = false,
+      /** Parse right after saving when online; false when the receipt was already parsed before saving */
+      parseNow = parse,
     ): Promise<SubmitResult> => {
       if (busy.current) return 'busy';
       busy.current = true;
@@ -96,7 +98,7 @@ export function useSubmitExpense() {
               () => true,
             );
             // In the background: the next expense can be typed meanwhile
-            if (parse && !photoFailed) void startReceiptParse(created.id, queryClient);
+            if (parseNow && !photoFailed) void startReceiptParse(created.id, queryClient);
           }
           setState({ status: 'sent', created, photoFailed });
           return 'sent';

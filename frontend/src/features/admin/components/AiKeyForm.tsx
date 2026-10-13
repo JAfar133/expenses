@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Notice } from '../../../shared/ui/Notice.tsx';
+import { CheckIcon } from '../../../shared/ui/icons.tsx';
 import { compactInputClass, textButtonClass } from '../../group/components/styles.ts';
 import { toErrorMessage } from '../../group/model/error-message.ts';
 import { deleteAdminAiKey, saveAdminAiKey, testAdminAi, type AdminAi } from '../api/admin.api.ts';
@@ -13,36 +13,59 @@ export function keyStatusText(
   ai: Pick<AdminAi, 'keyConfigured' | 'keySource' | 'keyHint'>,
 ): string {
   if (!ai.keyConfigured || ai.keySource === 'none') return 'Ключ не задан';
-  const source = SOURCE_TEXT[ai.keySource];
-  return `Ключ задан …${ai.keyHint ?? ''} (${source})`;
+  return `Ключ задан …${ai.keyHint ?? ''} · ${SOURCE_TEXT[ai.keySource]}`;
 }
 
-/** The API key: a password field that is never filled from the server, save, check and delete. */
-export function AiKeyForm({ ai }: { ai: AdminAi }) {
+/** A disabled control must look disabled and say why. */
+const linkButton =
+  'rounded-lg px-2 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950/60 ' +
+  'disabled:cursor-not-allowed disabled:text-zinc-400 disabled:opacity-60 disabled:hover:bg-transparent dark:disabled:text-zinc-500';
+
+function MissingSecretsKey() {
+  return (
+    <div
+      role="note"
+      className="space-y-1 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200"
+    >
+      <p>
+        На сервере не задан SECRETS_KEY, ключ из приложения сохранить нельзя. Добавьте SECRETS_KEY в
+        .env сервера (32+ случайных символа, например:
+      </p>
+      <code className="block overflow-x-auto rounded-md bg-amber-100 px-2 py-1 font-mono text-xs dark:bg-amber-900/60">
+        openssl rand -base64 36
+      </code>
+      <p>) и перезапустите бэкенд.</p>
+    </div>
+  );
+}
+
+function KeyInput({
+  ai,
+  onDone,
+  onCancel,
+}: {
+  ai: AdminAi;
+  onDone: () => void;
+  onCancel?: () => void;
+}) {
   const refresh = useRefreshAdminAi();
   const [apiKey, setApiKey] = useState('');
+  const [shown, setShown] = useState(false);
   const save = useAdminMutation(saveAdminAiKey, () => {
     setApiKey('');
+    onDone();
     return refresh();
   });
-  const remove = useAdminMutation(deleteAdminAiKey, refresh);
-  const test = useAdminMutation(testAdminAi);
-  const failure = [save, remove, test].find((mutation) => mutation.isError)?.error;
+  const entered = apiKey.trim() !== '';
 
   return (
     <div className="space-y-2">
-      <p className="text-sm">{keyStatusText(ai)}</p>
-      {!ai.canStoreKey && (
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          На сервере не задан SECRETS_KEY: ключ из приложения сохранить нельзя
-        </p>
-      )}
       <div className="flex gap-2">
         <input
-          type="password"
+          type={shown ? 'text' : 'password'}
           aria-label="API-ключ Gemini"
           autoComplete="off"
-          placeholder="Новый ключ"
+          placeholder="Вставьте ключ"
           value={apiKey}
           disabled={!ai.canStoreKey}
           onChange={(event) => setApiKey(event.target.value)}
@@ -50,33 +73,139 @@ export function AiKeyForm({ ai }: { ai: AdminAi }) {
         />
         <button
           type="button"
-          disabled={!ai.canStoreKey || !apiKey.trim() || save.isPending}
+          aria-label={shown ? 'Скрыть ключ' : 'Показать ключ'}
+          title={shown ? 'Скрыть ключ' : 'Показать ключ'}
+          onClick={() => setShown((value) => !value)}
+          className={`${linkButton} shrink-0`}
+        >
+          {shown ? 'Скрыть' : 'Показать'}
+        </button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={!ai.canStoreKey || !entered || save.isPending}
+          title={entered ? undefined : 'Сначала введите ключ'}
           onClick={() => save.mutate(apiKey.trim())}
-          className={textButtonClass}
+          className="h-10 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
         >
-          Сохранить ключ
+          {save.isPending ? 'Сохраняем…' : 'Сохранить ключ'}
         </button>
+        {onCancel && (
+          <button type="button" onClick={onCancel} className={textButtonClass}>
+            Отмена
+          </button>
+        )}
+        {save.isError && (
+          <span role="alert" className="text-sm text-red-600 dark:text-red-400">
+            {toErrorMessage(save.error)}
+          </span>
+        )}
       </div>
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={!ai.keyConfigured || test.isPending}
-          onClick={() => test.mutate()}
-          className={textButtonClass}
-        >
-          {test.isPending ? 'Проверяем…' : 'Проверить'}
-        </button>
-        <button
-          type="button"
-          disabled={ai.keySource !== 'app' || remove.isPending}
-          onClick={() => remove.mutate()}
-          className={textButtonClass}
-        >
-          Удалить ключ
-        </button>
-      </div>
-      {test.isSuccess && <Notice variant="success">{test.data.message}</Notice>}
-      {failure != null && <Notice variant="error">{toErrorMessage(failure)}</Notice>}
     </div>
+  );
+}
+
+interface AiKeyFormProps {
+  ai: AdminAi;
+  /** The result of the last check: the status line shows «Ошибка» after a failed one */
+  onChecked: (failed: boolean) => void;
+}
+
+/** Step 1: the key. No key: an input. A key: its tail and source, «Проверить», «Заменить», «Удалить». */
+export function AiKeyForm({ ai, onChecked }: AiKeyFormProps) {
+  const refresh = useRefreshAdminAi();
+  const [replacing, setReplacing] = useState(false);
+  const remove = useAdminMutation(deleteAdminAiKey, () => {
+    onChecked(false);
+    return refresh();
+  });
+  const test = useAdminMutation(testAdminAi, () => onChecked(false));
+  const checkFailed = test.isError;
+  const fromEnv = ai.keySource === 'env';
+
+  return (
+    <section aria-label="API-ключ" className="space-y-2">
+      <h3 className="text-sm font-semibold">API-ключ</h3>
+      {!ai.canStoreKey && <MissingSecretsKey />}
+
+      {!ai.keyConfigured ? (
+        <>
+          <p className="text-sm">{keyStatusText(ai)}</p>
+          <KeyInput ai={ai} onDone={() => undefined} />
+        </>
+      ) : (
+        <>
+          <p className="text-sm">{keyStatusText(ai)}</p>
+          {fromEnv && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Ключ взят из переменной окружения сервера. Чтобы заменить его в приложении, нужен
+              SECRETS_KEY.
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-1">
+            <button
+              type="button"
+              disabled={test.isPending}
+              onClick={() => test.mutate(undefined, { onError: () => onChecked(true) })}
+              className={linkButton}
+            >
+              {test.isPending ? (
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className="size-3.5 animate-spin rounded-full border-2 border-indigo-300 border-t-indigo-600"
+                  />
+                  Проверяем…
+                </span>
+              ) : (
+                'Проверить'
+              )}
+            </button>
+            <button
+              type="button"
+              disabled={!ai.canStoreKey}
+              title={ai.canStoreKey ? undefined : 'Нужен SECRETS_KEY на сервере'}
+              onClick={() => setReplacing(true)}
+              className={linkButton}
+            >
+              Заменить
+            </button>
+            <button
+              type="button"
+              disabled={fromEnv || remove.isPending}
+              title={fromEnv ? 'Ключ задан в окружении сервера: удалите его из .env' : undefined}
+              onClick={() => remove.mutate()}
+              className={`${linkButton} enabled:text-red-600 dark:enabled:text-red-400`}
+            >
+              Удалить
+            </button>
+          </div>
+          {test.isSuccess && (
+            <p className="flex items-start gap-1.5 text-sm text-emerald-700 dark:text-emerald-400">
+              <CheckIcon />
+              {test.data.message}
+            </p>
+          )}
+          {checkFailed && (
+            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+              {toErrorMessage(test.error)}
+            </p>
+          )}
+          {remove.isError && (
+            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+              {toErrorMessage(remove.error)}
+            </p>
+          )}
+          {replacing && (
+            <KeyInput
+              ai={ai}
+              onDone={() => setReplacing(false)}
+              onCancel={() => setReplacing(false)}
+            />
+          )}
+        </>
+      )}
+    </section>
   );
 }

@@ -49,6 +49,24 @@ export function itemsToDrafts(items: ExpenseItem[]): DraftItem[] {
   });
 }
 
+/** What the AI read from a photo to editor rows; the mark stays until a person changes a row. */
+export function parsedToDrafts(
+  items: { name: string; price: number; quantity: number }[],
+): DraftItem[] {
+  return items.map((item) => {
+    const price = formatPrice(String(item.price).replace('.', ','));
+    const quantity =
+      item.quantity === 1 ? '' : formatQuantity(String(item.quantity).replace('.', ','));
+    return {
+      key: newRequestId(),
+      name: item.name,
+      price,
+      quantity,
+      origin: { source: 'ai', name: item.name, price, quantity },
+    };
+  });
+}
+
 /** Positions of an expense taken back from the offline queue to editor rows. */
 export function inputsToDrafts(items: ItemInput[] = []): DraftItem[] {
   return items.map((item) => ({

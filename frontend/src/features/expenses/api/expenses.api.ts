@@ -17,6 +17,8 @@ export interface CreateExpenseRequest {
   /** Sent only when the AI may parse the receipt: `default` means the person did not touch the field */
   nameSource?: 'default' | 'manual';
   dateSource?: 'default' | 'manual';
+  /** The id of the parse made before saving: the server marks as AI what stayed exactly as the AI read it */
+  aiParseId?: string;
 }
 
 /** Original expense amount in a foreign currency. */

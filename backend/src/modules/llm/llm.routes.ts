@@ -87,7 +87,8 @@ export const llmRoutes =
     app.post('/admin/ai/test', async (request) => {
       adminOnly(request);
       const { model } = await service.check();
-      return { success: true, message: `Ключ работает, модель «${model}» доступна` };
+      const message = `Ключ работает, модель «${model}» доступна`;
+      return { success: true, data: { model, message }, message };
     });
 
     app.put('/admin/groups/:id/ai-limit', async (request) => {

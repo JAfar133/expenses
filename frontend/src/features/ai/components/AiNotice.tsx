@@ -1,14 +1,5 @@
-import { useSavePreferences, usePreferences } from '../../preferences/hooks/usePreferences.ts';
-import { useAiAvailable } from '../hooks/useAiStatus.ts';
-
-/** Shown once, when the first receipt photo is attached: where the photo goes. */
-export function AiNotice() {
-  const available = useAiAvailable();
-  const { data } = usePreferences();
-  const { save } = useSavePreferences();
-  // Until the preferences are loaded nothing is shown (no flash for those who already confirmed)
-  if (!available || !data || data['ai.noticeSeen'] === true) return null;
-
+/** Shown before the first photo is sent: where it goes. «Понятно» confirms and lets the parsing start. */
+export function AiNotice({ onConfirm }: { onConfirm: () => void }) {
   return (
     <div
       role="note"
@@ -17,7 +8,7 @@ export function AiNotice() {
       <span>Чек будет отправлен на разбор в Google (Gemini)</span>
       <button
         type="button"
-        onClick={() => void save({ 'ai.noticeSeen': true })}
+        onClick={onConfirm}
         className="h-9 shrink-0 rounded-lg bg-violet-600 px-3 text-sm font-medium text-white hover:bg-violet-500"
       >
         Понятно

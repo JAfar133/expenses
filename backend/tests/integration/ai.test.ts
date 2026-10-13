@@ -161,6 +161,8 @@ describe('включение и ключ', () => {
     const response = await call('POST', '/api/admin/ai/test');
 
     expect(response.statusCode).toBe(200);
+    expect(response.json().data).toMatchObject({ model: 'gemini-3.8-flash' });
+    expect(response.json().data.message).toContain('gemini-3.8-flash');
     expect(t.llmProvider.checks).toEqual([{ apiKey: API_KEY, model: 'gemini-3.8-flash' }]);
     expect(response.body).not.toContain(API_KEY);
   });

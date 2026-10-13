@@ -52,7 +52,22 @@ export const server = {
       total: null,
       currency: null,
     }),
-  parses: () => server.requests.filter((r) => r.url.endsWith('/receipt/parse')),
+  /** The parse of a photo before saving (POST /api/ai/receipt/parse) */
+  parsePhoto: (_photo: unknown): Response | Promise<Response> =>
+    ok({
+      parseId: 'p1',
+      name: 'Кофейня',
+      date: '2026-09-30',
+      items: [{ name: 'Латте', price: 1500, quantity: 1 }],
+      total: 1500.5,
+      currency: 'AMD',
+      dropped: 0,
+    }),
+  photoParses: () => server.requests.filter((r) => r.url === '/api/ai/receipt/parse'),
+  parses: () =>
+    server.requests.filter(
+      (r) => r.url.endsWith('/receipt/parse') && r.url !== '/api/ai/receipt/parse',
+    ),
   posts: () => server.requests.filter((r) => r.method === 'POST' && r.url === '/api/expenses'),
   puts: () => server.requests.filter((r) => r.method === 'PUT'),
 };
@@ -76,6 +91,16 @@ function resetServer() {
       dropped: 0,
       total: null,
       currency: null,
+    });
+  server.parsePhoto = () =>
+    ok({
+      parseId: 'p1',
+      name: 'Кофейня',
+      date: '2026-09-30',
+      items: [{ name: 'Латте', price: 1500, quantity: 1 }],
+      total: 1500.5,
+      currency: 'AMD',
+      dropped: 0,
     });
 }
 
@@ -124,6 +149,8 @@ export function setupOfflineHarness() {
           server.preferences = { ...server.preferences, ...JSON.parse(String(init?.body)) };
           return ok(server.preferences);
         }
+        if (url === '/api/ai/receipt/parse' && method === 'POST')
+          return server.parsePhoto(init?.body);
         if (url.endsWith('/receipt/parse') && method === 'POST') {
           return server.parseReceipt(url, JSON.parse(String(init?.body)));
         }
@@ -187,3 +214,35 @@ export async function fillForm(person: Person, name = 'Кофе', amount = '1000
 
 export const submit = (person: Person) =>
   person.click(screen.getByRole('button', { name: 'Добавить расход' }));
+
+export const stubImaging = () => {
+  vi.stubGlobal(
+    'createImageBitmap',
+    vi.fn(async () => ({ width: 100, height: 100, close: vi.fn() })),
+  );
+  const real = document.createElement.bind(document);
+  vi.spyOn(document, 'createElement').mockImplementation(((tag: string) =>
+    tag === 'canvas'
+      ? Object.assign(real('canvas'), {
+          getContext: () => ({ drawImage: vi.fn() }),
+          toBlob: (callback: BlobCallback) => callback(new Blob(['jpeg'], { type: 'image/jpeg' })),
+        })
+      : real(tag)) as typeof document.createElement);
+  URL.createObjectURL = vi.fn(() => 'blob:photo');
+  URL.revokeObjectURL = vi.fn();
+};
+
+/** The photo is allowed for the category «кафе». */
+export function allowPhotos() {
+  server.receiptSettings = { enabled: true, categories: ['кафе'] };
+  stubImaging();
+}
+
+export async function pickPhoto(person: Person) {
+  await person.selectOptions(screen.getByLabelText('Категория'), 'кафе');
+  await person.upload(
+    await screen.findByLabelText('Выбрать фото чека'),
+    new File(['img'], 'check.jpg', { type: 'image/jpeg' }),
+  );
+  await screen.findByAltText('Фото чека');
+}

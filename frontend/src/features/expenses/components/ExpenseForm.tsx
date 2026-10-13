@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import type { AuthUser } from '../../auth/api/auth.api.ts';
 import { Button } from '../../../shared/ui/Button.tsx';
@@ -31,7 +31,10 @@ import { CategoryLimitHint } from '../../budgets/components/CategoryLimitHint.ts
 import { ReceiptPicker } from '../../receipts/components/ReceiptPicker.tsx';
 import { useReceiptAllowed } from '../../receipts/hooks/useReceiptSettings.ts';
 import { useAiAvailable } from '../../ai/hooks/useAiStatus.ts';
+import { AiMark } from '../../ai/components/AiMark.tsx';
 import { AiNotice } from '../../ai/components/AiNotice.tsx';
+import { PhotoParseStatus } from '../../ai/components/PhotoParseStatus.tsx';
+import { useReceiptPreparse } from '../hooks/useReceiptPreparse.ts';
 import { ReceiptItemsField } from '../../items/components/ReceiptItemsField.tsx';
 import { draftsToInputs, inputsToDrafts, type DraftItem } from '../../items/model/draft-items.ts';
 import { NameSuggestions } from './NameSuggestions.tsx';
@@ -93,6 +96,15 @@ function amountInReporting(
   if (value === null) return null;
   const rate = crossRate(rates?.rates, inputCurrency, reporting, base);
   return rate === undefined ? null : value * rate;
+}
+
+/** A field label with the spark while the AI value is still as the AI wrote it. */
+function LabelWithMark({ text, ai }: { text: string; ai: boolean }) {
+  return (
+    <>
+      {text} {ai && <AiMark />}
+    </>
+  );
 }
 
 export function ExpenseForm({
@@ -159,14 +171,26 @@ export function ExpenseForm({
   const [photo, setPhoto] = useState<Blob | null>(null);
 
   const { data: knownNames = [] } = useNameSuggestions();
-  const [category, name, typedAmount, typedCurrency] = useWatch({
+  const [category, name, typedAmount, typedCurrency, typedDate] = useWatch({
     control,
-    name: ['category', 'name', 'amount', 'currency'],
+    name: ['category', 'name', 'amount', 'currency', 'date'],
   });
   const projected = amountInReporting(typedAmount, typedCurrency, currency, baseCurrency, rates);
   const receiptAllowed = useReceiptAllowed(category);
   // A receipt photo for the AI: the name may be left empty
   nameOptional.current = aiAvailable && receiptAllowed && photo !== null;
+  const attachedPhoto = receiptAllowed ? photo : null;
+  const ai = useReceiptPreparse({
+    form,
+    photo: attachedPhoto,
+    eligible: aiAvailable && receiptAllowed,
+    items,
+    setItems,
+    dateTouched,
+  });
+  const parsing = ai.state.status === 'running';
+  // Pressing «Добавить» while the AI is still reading waits for it, then saves with what it filled in
+  const [waitingForParse, setWaitingForParse] = useState(false);
   const suggestions = pickSuggestions(knownNames, { category, query: name });
 
   const pickSuggestion = ({ name: picked }: NameSuggestion) => {
@@ -202,7 +226,7 @@ export function ExpenseForm({
   };
 
   const submit = handleSubmit(async (values) => {
-    const attached = receiptAllowed ? photo : null;
+    const attached = attachedPhoto;
     const parsed = draftsToInputs(items);
     if ('error' in parsed) return setItemsError(parsed.error);
     setItemsError(undefined);
@@ -217,7 +241,9 @@ export function ExpenseForm({
       name: typedName || (forAi ? 'Чек' : ''),
       ...amountPayload(values, baseCurrency, cardCurrencyOf(values.card)),
       ...(parsed.items.length > 0 ? { items: parsed.items } : {}),
-      ...(forAi
+      ...(ai.parseId ? { aiParseId: ai.parseId } : {}),
+      // Without a parse before saving, the sources tell the AI what it may replace later
+      ...(forAi && !ai.parseId
         ? {
             nameSource: typedName ? ('manual' as const) : ('default' as const),
             dateSource: dateTouched.current ? ('manual' as const) : ('default' as const),
@@ -225,11 +251,20 @@ export function ExpenseForm({
         : {}),
     };
 
-    const result = await submitExpense(expense, idempotencyKey.current, attached, forAi);
+    // After saving the AI parses only what could not be parsed before: nothing leaves without the notice confirmed
+    const parseLater = forAi && ai.noticeSeen && !ai.parseId;
+    const result = await submitExpense(
+      expense,
+      idempotencyKey.current,
+      attached,
+      parseLater,
+      parseLater && ai.state.status === 'idle',
+    );
     if (result !== 'sent' && result !== 'queued') return;
 
     setPhoto(null);
     setItems([]);
+    ai.clearMarks();
     writeStored(lastCategoryKey(user.username), values.category);
     // The next expense is a new operation: a new key (the old one lives on in the queue record)
     idempotencyKey.current = newRequestId();
@@ -239,13 +274,32 @@ export function ExpenseForm({
     setFocus('name');
   });
 
+  // The reading is over: the waiting submit goes on with the form filled in
+  useEffect(() => {
+    if (!waitingForParse || parsing) return;
+    setWaitingForParse(false);
+    void submit();
+    // `submit` is rebuilt on every render and reads the fresh form
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waitingForParse, parsing]);
+
+  const onSubmit = (event: FormEvent) => {
+    if (!parsing) return void submit(event);
+    event.preventDefault();
+    setWaitingForParse(true);
+  };
+
   return (
-    <form onSubmit={submit} noValidate className="space-y-5">
-      <Field label="Дата" htmlFor="date" error={errors.date?.message}>
+    <form onSubmit={onSubmit} noValidate className="space-y-5">
+      <Field
+        label={<LabelWithMark text="Дата" ai={ai.aiDate !== null && typedDate === ai.aiDate} />}
+        htmlFor="date"
+        error={errors.date?.message}
+      >
         <input
           id="date"
           type="date"
-          className={inputClassName}
+          className={`${inputClassName} ${parsing ? 'animate-pulse' : ''}`}
           aria-invalid={!!errors.date}
           {...register('date', {
             onChange: () => {
@@ -288,16 +342,25 @@ export function ExpenseForm({
         </Field>
 
         {receiptAllowed && <ReceiptPicker photo={photo} onChange={setPhoto} />}
-        {receiptAllowed && photo && <AiNotice />}
+        {receiptAllowed && photo && ai.needsNotice && <AiNotice onConfirm={ai.confirmNotice} />}
+        {receiptAllowed && photo && (
+          <PhotoParseStatus state={ai.state} onRetry={ai.retry} receiptTotal={ai.receiptTotal} />
+        )}
 
-        <Field label="Наименование" htmlFor="name" error={errors.name?.message}>
+        <Field
+          label={
+            <LabelWithMark text="Наименование" ai={ai.aiName !== null && name === ai.aiName} />
+          }
+          htmlFor="name"
+          error={errors.name?.message}
+        >
           <input
             id="name"
             type="text"
             autoComplete="off"
             maxLength={255}
             placeholder={nameOptional.current ? 'Можно оставить пустым: заполнит ИИ' : undefined}
-            className={inputClassName}
+            className={`${inputClassName} ${parsing ? 'animate-pulse' : ''}`}
             aria-invalid={!!errors.name}
             {...register('name')}
           />
@@ -307,7 +370,9 @@ export function ExpenseForm({
 
       <AmountFields form={form} base={baseCurrency} cards={cards} rates={rates} />
       {category && <CategoryLimitHint category={category} projected={projected} />}
-      <ReceiptItemsField value={items} onChange={setItems} error={itemsError} />
+      <div aria-busy={parsing} className={parsing ? 'animate-pulse' : undefined}>
+        <ReceiptItemsField value={items} onChange={setItems} error={itemsError} />
+      </div>
 
       {state.status === 'sent' &&
         (state.created.excelStatus !== 'queued' ? (
@@ -325,8 +390,12 @@ export function ExpenseForm({
       )}
       {state.status === 'error' && <Notice variant="error">{state.message}</Notice>}
 
-      <Button type="submit" loading={state.status === 'pending'}>
-        {state.status === 'pending' ? 'Сохраняем…' : 'Добавить расход'}
+      <Button type="submit" loading={state.status === 'pending' || waitingForParse}>
+        {waitingForParse
+          ? 'Ждём разбор чека…'
+          : state.status === 'pending'
+            ? 'Сохраняем…'
+            : 'Добавить расход'}
       </Button>
     </form>
   );

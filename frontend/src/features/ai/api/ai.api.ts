@@ -37,3 +37,26 @@ export const parseReceipt = async (expenseId: string, replaceItems = false) =>
 /** «Accept»: the AI marks go away, the values stay. */
 export const acceptAi = (expenseId: string) =>
   apiRequest(`/expenses/${expenseId}/ai`, { method: 'DELETE' });
+
+/** What the AI read from a receipt photo before the expense is saved: nothing is stored on the server. */
+export interface PhotoParse {
+  /** Goes to POST /expenses as `aiParseId`: the server marks as AI what is saved exactly as read */
+  parseId: string;
+  name: string | null;
+  /** YYYY-MM-DD, only a plausible one */
+  date: string | null;
+  items: { name: string; price: number; quantity: number }[];
+  total: number | null;
+  currency: string | null;
+  dropped: number;
+}
+
+/** The photo is sent as it is (already compressed by the client). */
+export const parseReceiptPhoto = async (photo: Blob) =>
+  (
+    await apiRequest<PhotoParse>('/ai/receipt/parse', {
+      method: 'POST',
+      headers: { 'Content-Type': photo.type || 'image/jpeg' },
+      body: photo,
+    })
+  ).data;
