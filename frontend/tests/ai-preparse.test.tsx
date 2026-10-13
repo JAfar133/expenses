@@ -163,7 +163,7 @@ describe('разбор чека при выборе фото', () => {
 
     await pickPhoto(person);
 
-    expect(await screen.findByText(/На чеке итог 1 500,50/)).toBeInTheDocument();
+    expect(await screen.findByText(/На чеке 1 500,50 AMD/)).toBeInTheDocument();
     expect(screen.getByLabelText('Стоимость')).toHaveValue('1 000');
   });
 
@@ -184,7 +184,7 @@ describe('разбор чека при выборе фото', () => {
     await pickPhoto(person);
     await screen.findByDisplayValue('Кофейня');
 
-    expect(screen.queryByText(/На чеке итог/)).toBeNull();
+    expect(screen.queryByText(/На чеке /)).toBeNull();
   });
 });
 
@@ -417,7 +417,7 @@ describe('сумма из чека', () => {
 
     await waitFor(() => expect(amount()).toHaveValue('1 500,5'));
     expect(within(labelOf('Стоимость')).getByRole('img', { name: AI })).toBeInTheDocument();
-    expect(screen.queryByText(/На чеке итог/)).toBeNull();
+    expect(screen.queryByText(/На чеке /)).toBeNull();
   });
 
   it('итога нет: подставляется сумма позиций, в том числе дробная 2095,66', async () => {
@@ -433,7 +433,7 @@ describe('сумма из чека', () => {
 
     await waitFor(() => expect(amount()).toHaveValue('2 095,66'));
     // The hint is only for a total that came from the receipt
-    expect(screen.queryByText(/На чеке итог/)).toBeNull();
+    expect(screen.queryByText(/На чеке /)).toBeNull();
   });
 
   it('нет ни итога, ни позиций: сумма остаётся пустой', async () => {
@@ -453,7 +453,7 @@ describe('сумма из чека', () => {
 
     await pickPhoto(person);
 
-    expect(await screen.findByText(/На чеке итог 1 500,50/)).toBeInTheDocument();
+    expect(await screen.findByText(/На чеке 1 500,50 AMD/)).toBeInTheDocument();
     expect(amount()).toHaveValue('1 000');
     expect(within(labelOf('Стоимость')).queryByRole('img', { name: AI })).toBeNull();
   });
@@ -464,7 +464,7 @@ describe('сумма из чека', () => {
 
     await pickPhoto(person);
 
-    expect(await screen.findByText(/На чеке итог 12,50 USD/)).toBeInTheDocument();
+    expect(await screen.findByText(/На чеке 12,50 USD/)).toBeInTheDocument();
     expect(amount()).toHaveValue('');
   });
 
@@ -517,5 +517,85 @@ describe('сумма из чека', () => {
 
     await screen.findByText('Расход успешно добавлен');
     expect(lastPost()).toMatchObject({ amount: 1500.5, aiParseId: 'p1' });
+  });
+});
+
+describe('подсказка про итог под полем суммы', () => {
+  const amount = () => screen.getByLabelText('Стоимость');
+  const hintOf = () => screen.getByText(/На чеке 1 500,50 AMD/).closest('p')!;
+
+  it('под полем суммы, а не под фото: «На чеке 1 500,50 AMD» и ссылка «Подставить»', async () => {
+    const { person } = await ready();
+    await person.type(amount(), '1000');
+
+    await pickPhoto(person);
+    await screen.findByText(/На чеке 1 500,50 AMD/);
+
+    expect(within(hintOf()).getByRole('button', { name: 'Подставить' })).toBeInTheDocument();
+    expect(screen.getAllByText(/На чеке /)).toHaveLength(1);
+    expect(hintOf().className).toContain('text-zinc-500');
+    expect(hintOf().className).not.toContain('red');
+  });
+
+  it('«Подставить» ставит итог в поле с пометкой AI, строка исчезает', async () => {
+    const { person } = await ready();
+    await person.type(amount(), '1000');
+    await pickPhoto(person);
+    await screen.findByText(/На чеке 1 500,50 AMD/);
+
+    await person.click(screen.getByRole('button', { name: 'Подставить' }));
+
+    expect(amount()).toHaveValue('1 500,5');
+    expect(within(labelOf('Стоимость')).getByRole('img', { name: AI })).toBeInTheDocument();
+    expect(screen.queryByText(/На чеке /)).toBeNull();
+  });
+
+  it('разница меньше единицы или сумма уже равна: строки нет', async () => {
+    const { person } = await ready();
+    await person.type(amount(), '1500,2');
+
+    await pickPhoto(person);
+    await screen.findByDisplayValue('Кофейня');
+
+    expect(screen.queryByText(/На чеке /)).toBeNull();
+  });
+
+  it('другая валюта: валюта в строке, ссылки «Подставить» нет', async () => {
+    server.parsePhoto = () =>
+      ok({
+        parseId: 'p1',
+        name: 'Кофейня',
+        date: null,
+        items: [],
+        total: 12.5,
+        currency: 'USD',
+        dropped: 0,
+      });
+    const { person } = await ready();
+
+    await pickPhoto(person);
+
+    expect(await screen.findByText(/На чеке 12,50 USD/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Подставить' })).toBeNull();
+  });
+
+  it('сумма посчитана из позиций, итога на чеке нет: строки нет', async () => {
+    server.parsePhoto = () =>
+      ok({
+        parseId: 'p1',
+        name: 'Кофейня',
+        date: null,
+        items: [{ name: 'Сыр', price: 2095.66, quantity: 1 }],
+        total: null,
+        currency: null,
+        dropped: 0,
+      });
+    const { person } = await ready();
+    await person.type(amount(), '1000');
+
+    await pickPhoto(person);
+    await screen.findByDisplayValue('Кофейня');
+
+    expect(screen.queryByText(/На чеке /)).toBeNull();
   });
 });

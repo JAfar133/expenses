@@ -365,7 +365,7 @@ describe('админ: параметры, использование, групп
     expect(ai.getByText(/ИИ выключен владельцем · сегодня разобрано 0 из 10/)).toBeInTheDocument();
     expect(ai.getByLabelText('Лимит разборов в сутки: Семья')).toHaveAttribute(
       'placeholder',
-      'общий',
+      'как у всех (50)',
     );
   });
 
@@ -462,5 +462,36 @@ describe('«Настройки группы»: разбор чеков с пом
     expect(toggle).toBeDisabled();
     expect(toggle).not.toBeChecked();
     expect(screen.getByText('Выключено администратором')).toBeInTheDocument();
+  });
+});
+
+describe('админ: лимит группы понятно', () => {
+  it('подпись «Лимит в сутки», placeholder с общим лимитом, пояснение в title', async () => {
+    renderAt('/admin');
+    const ai = await block();
+
+    expect(ai.getAllByText('Лимит в сутки')).toHaveLength(2);
+    const field = ai.getByLabelText('Лимит разборов в сутки: Семья');
+    expect(field).toHaveAttribute('placeholder', 'как у всех (50)');
+    expect(field.closest('[title]')).toHaveAttribute(
+      'title',
+      'Сколько чеков эта группа может разобрать за сутки. Пусто: действует общий лимит',
+    );
+  });
+
+  it('у группы со своим лимитом — пометка «свой лимит» и «Сбросить» (limit: null); у остальных нет', async () => {
+    const user = renderAt('/admin');
+    const ai = await block();
+    expect(ai.queryByRole('button', { name: 'Сбросить лимит: Семья' })).toBeNull();
+    expect(ai.getAllByText(/свой лимит/)).toHaveLength(1);
+
+    await user.click(ai.getByRole('button', { name: 'Сбросить лимит: Соседи' }));
+
+    await waitFor(() =>
+      expect(sent('PUT', '/api/admin/groups/2/ai-limit')).toEqual({ limit: null }),
+    );
+    await waitFor(() =>
+      expect(ai.getByLabelText('Лимит разборов в сутки: Соседи')).toHaveValue(''),
+    );
   });
 });

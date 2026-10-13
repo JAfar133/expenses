@@ -1,16 +1,12 @@
-import { formatMoney } from '../../../shared/utils/money.ts';
 import type { PhotoParseState } from '../hooks/usePhotoParse.ts';
 
 /** Next to the photo: a spinner while the AI reads the receipt, a soft message with «Повторить» on a failure. */
 export function PhotoParseStatus({
   state,
   onRetry,
-  receiptTotal,
 }: {
   state: PhotoParseState;
   onRetry: () => void;
-  /** The total on the receipt, when it differs noticeably from what was typed */
-  receiptTotal?: { total: number; currency: string | null };
 }) {
   if (state.status === 'running') {
     return (
@@ -38,13 +34,6 @@ export function PhotoParseStatus({
           Повторить
         </button>
       </div>
-    );
-  }
-  if (receiptTotal) {
-    return (
-      <p className="text-xs text-zinc-500 dark:text-zinc-400">
-        На чеке итог {formatMoney(receiptTotal.total)} {receiptTotal.currency ?? ''}
-      </p>
     );
   }
   return null;

@@ -97,13 +97,23 @@ export function useReceiptPreparse({
 
   const result = parse.state.status === 'done' ? parse.state.result : undefined;
   const typed = parseDecimal(form.watch('amount'));
-  const itemsTotal = sumItems(items.map((row) => ({ price: parseDecimal(row.price) ?? 0 })));
-  const differs = (value: number) => Math.abs(value - result!.total!) >= 1;
+  const fieldCurrency = form.watch('currency');
+  // Only a total that came from the receipt, and only when it differs from the field by a currency unit
   const receiptTotal =
-    result?.total != null &&
-    (typed === null || differs(typed) || (itemsTotal > 0 && differs(itemsTotal)))
-      ? { total: result.total, currency: result.currency }
+    result?.total != null && (typed === null || Math.abs(typed - result.total) >= 1)
+      ? { total: result.total, currency: result.currency ?? fieldCurrency }
       : undefined;
+  const sameCurrency = !result?.currency || result.currency === fieldCurrency;
+
+  const applyTotal = () => {
+    if (result?.total == null) return;
+    const text = formatDecimalInput(String(result.total).replace('.', ','), {
+      maxDecimals: 2,
+      group: true,
+    });
+    form.setValue('amount', text, { shouldValidate: true });
+    setAiAmount(text);
+  };
 
   return {
     state: parse.state,
@@ -118,6 +128,8 @@ export function useReceiptPreparse({
     aiDate,
     aiAmount,
     receiptTotal,
+    /** «Подставить» is offered only when the receipt is in the currency of the field */
+    applyTotal: sameCurrency ? applyTotal : undefined,
     /** The values were saved: the marks belong to the previous expense */
     clearMarks: () => {
       setAiName(null);

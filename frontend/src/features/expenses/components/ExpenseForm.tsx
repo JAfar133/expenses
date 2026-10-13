@@ -33,6 +33,7 @@ import { useReceiptAllowed } from '../../receipts/hooks/useReceiptSettings.ts';
 import { useAiAvailable } from '../../ai/hooks/useAiStatus.ts';
 import { AiMark } from '../../ai/components/AiMark.tsx';
 import { AiNotice } from '../../ai/components/AiNotice.tsx';
+import { ReceiptTotalHint } from '../../ai/components/ReceiptTotalHint.tsx';
 import { PhotoParseStatus } from '../../ai/components/PhotoParseStatus.tsx';
 import { useReceiptPreparse } from '../hooks/useReceiptPreparse.ts';
 import { ReceiptItemsField } from '../../items/components/ReceiptItemsField.tsx';
@@ -343,9 +344,7 @@ export function ExpenseForm({
 
         {receiptAllowed && <ReceiptPicker photo={photo} onChange={setPhoto} />}
         {receiptAllowed && photo && ai.needsNotice && <AiNotice onConfirm={ai.confirmNotice} />}
-        {receiptAllowed && photo && (
-          <PhotoParseStatus state={ai.state} onRetry={ai.retry} receiptTotal={ai.receiptTotal} />
-        )}
+        {receiptAllowed && photo && <PhotoParseStatus state={ai.state} onRetry={ai.retry} />}
 
         <Field
           label={
@@ -375,6 +374,13 @@ export function ExpenseForm({
         rates={rates}
         aiAmount={ai.aiAmount !== null && typedAmount === ai.aiAmount}
       />
+      {ai.receiptTotal && (
+        <ReceiptTotalHint
+          total={ai.receiptTotal.total}
+          currency={ai.receiptTotal.currency}
+          onApply={ai.applyTotal}
+        />
+      )}
       {category && <CategoryLimitHint category={category} projected={projected} />}
       <div aria-busy={parsing} className={parsing ? 'animate-pulse' : undefined}>
         <ReceiptItemsField value={items} onChange={setItems} error={itemsError} />
