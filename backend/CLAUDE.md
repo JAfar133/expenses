@@ -18,6 +18,7 @@ Before finishing work: `typecheck`, `test`, `format`.
 ## Structure
 
 - `src/modules/<name>/` modules by task: `auth`, `groups` (groups, cards, access scope), `expenses`, `sync`, `rates`, `analytics` (aggregates and lists for the analytics page are computed by SQL; values only as parameters, sorting from an allowlist). Inside a module, routes, service, repository and types are separate.
+- Other v3 modules: `budgets` (limits), `receipts` (photos: files in `RECEIPTS_DIR`, rows in `expense_attachments`, nothing is ever erased).
 - `src/storage/` the expense repository (PostgreSQL), `src/infrastructure/` the database and migrations, backups, idempotency.
 - `src/services/` Excel (reading via ExcelJS, writing by targeted XML editing) and OneDrive (rclone).
 - `src/config/env.ts` all environment variables (zod). A new setting goes there, in both `.env.example` files, `docker-compose.yml` and the README.

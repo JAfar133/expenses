@@ -1,3 +1,6 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from 'fastify';
 import { buildApp } from '../../src/app.ts';
 import { AuthRepository } from '../../src/modules/auth/auth.repository.ts';
@@ -20,6 +23,9 @@ import { ExpenseEditor } from '../../src/modules/expenses/expense-editor.ts';
 import { ExpenseService } from '../../src/modules/expenses/expenses.service.ts';
 import type { BackupStatusService } from '../../src/modules/admin/backup-status.service.ts';
 import { BudgetsRepository } from '../../src/modules/budgets/budgets.repository.ts';
+import { ReceiptsRepository } from '../../src/modules/receipts/receipts.repository.ts';
+import { ReceiptsService } from '../../src/modules/receipts/receipts.service.ts';
+import { ReceiptStore } from '../../src/modules/receipts/receipts.store.ts';
 import { BudgetsService } from '../../src/modules/budgets/budgets.service.ts';
 import { ReportService } from '../../src/modules/reports/report.service.ts';
 import { SyncSwitch } from '../../src/modules/sync/sync-switch.ts';
@@ -162,6 +168,8 @@ export interface TestAppOptions {
   maxReportRows?: number;
   /** Clock of the invitations service */
   now?: () => Date;
+  /** Folder of receipt photos (a temporary folder by default) */
+  receiptsDir?: string;
 }
 
 /** "Today" in tests: a fixed date so calculations do not depend on the calendar. */
@@ -234,6 +242,12 @@ export async function createTestApp(
     expenseService: new ExpenseService(repository, { groups, currency: rates }),
     groups,
     invitations,
+    receipts: new ReceiptsService({
+      repository: new ReceiptsRepository(database),
+      store: new ReceiptStore(options.receiptsDir ?? mkdtempSync(path.join(tmpdir(), 'receipts-'))),
+      groups,
+      now: options.now,
+    }),
     budgets: new BudgetsService({
       repository: budgetsRepository,
       analytics: analyticsRepository,

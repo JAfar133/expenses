@@ -12,6 +12,9 @@ import { ensureDefaultGroup } from './modules/groups/default-group.ts';
 import { migrate } from './infrastructure/database/migrate.ts';
 import { IdempotencyService } from './infrastructure/idempotency/idempotency.service.ts';
 import { AnalyticsRepository } from './modules/analytics/analytics.repository.ts';
+import { ReceiptsRepository } from './modules/receipts/receipts.repository.ts';
+import { ReceiptsService } from './modules/receipts/receipts.service.ts';
+import { ReceiptStore } from './modules/receipts/receipts.store.ts';
 import { BudgetsRepository } from './modules/budgets/budgets.repository.ts';
 import { BudgetsService } from './modules/budgets/budgets.service.ts';
 import { ReportService } from './modules/reports/report.service.ts';
@@ -112,6 +115,11 @@ const analytics = new AnalyticsService({
   repository: new AnalyticsRepository(database, env.DEFAULT_CURRENCY),
   today: (timezone) => todayIn(timezone),
 });
+const receipts = new ReceiptsService({
+  repository: new ReceiptsRepository(database),
+  store: new ReceiptStore(env.RECEIPTS_DIR),
+  groups,
+});
 const budgetsRepository = new BudgetsRepository(database);
 const budgets = new BudgetsService({
   repository: budgetsRepository,
@@ -169,6 +177,7 @@ const app = buildApp({
   groups,
   invitations,
   budgets,
+  receipts,
   groupService: new GroupService(
     new GroupAdminRepository(database),
     invitations,

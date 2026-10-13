@@ -73,6 +73,8 @@ services:
       # Not set: Excel is disabled, expenses are stored in the database only
       ONEDRIVE_FILE_PATH: ${ONEDRIVE_FILE_PATH:-}
       BACKUP_DIR: /data/backups
+      # Receipt photos: in the same volume as the rest of the backend data (copied to OneDrive by scripts/backup-receipts.sh)
+      RECEIPTS_DIR: /data/receipts
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
       SYNC_INTERVAL_MINUTES: ${SYNC_INTERVAL_MINUTES:-5}
       SYNC_RETRY_SECONDS: ${SYNC_RETRY_SECONDS:-60}

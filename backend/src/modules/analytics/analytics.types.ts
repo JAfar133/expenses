@@ -132,6 +132,8 @@ export interface ExpenseListItem {
   deletedAt: string | null;
   deletedReason: 'excel' | 'app' | null;
   updatedBy: string | null;
+  /** A receipt photo is attached */
+  hasReceipt: boolean;
 }
 
 /** Who added expenses: login for the filter and name for display. */

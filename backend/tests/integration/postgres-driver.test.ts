@@ -73,6 +73,7 @@ describe('драйвер pg', () => {
       '0015_drop_can_edit_override.sql',
       '0016_member_edit_window.sql',
       '0017_budgets.sql',
+      '0018_receipts.sql',
     ]);
   });
 

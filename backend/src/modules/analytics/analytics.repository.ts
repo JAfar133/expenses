@@ -200,7 +200,9 @@ export class AnalyticsRepository {
                 excel_status, created_by, updated_by, excel_last_error, deleted_reason, excel_snapshot,
                 ${timestampText('deleted_at')} AS deleted_at,
                 original_amount::float8 AS original_amount, original_currency,
-                exchange_rate::float8 AS exchange_rate
+                exchange_rate::float8 AS exchange_rate,
+                EXISTS (SELECT 1 FROM expense_attachments a
+                         WHERE a.expense_id = expenses.id AND a.deleted_at IS NULL) AS has_receipt
            FROM ${EXPENSES_SOURCE} ${where.sql}
           ORDER BY ${options.sort === 'amount' ? where.amount : SORT_SQL[options.sort]} ${direction}, seq ${direction}
           LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -239,6 +241,7 @@ interface ListRow {
   original_amount: number | null;
   original_currency: string | null;
   exchange_rate: number | null;
+  has_receipt: boolean;
   display_amount: number;
   created_at: string;
   card_amount: number | null;
@@ -287,4 +290,5 @@ const toListItem = (row: ListRow, baseCurrency: string): ExpenseListItem => ({
   deletedAt: row.deleted_at,
   deletedReason: row.deleted_reason,
   updatedBy: row.updated_by,
+  hasReceipt: row.has_receipt,
 });

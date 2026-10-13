@@ -69,6 +69,7 @@ On startup the backend waits for the database, applies migrations, starts synchr
 | `TRUST_PROXY`                  | `false`                         | Behind Caddy: real IP and protocol from `X-Forwarded-*` (`true` in compose)                                          |
 | `ALLOWED_ORIGINS`              | empty                           | Additional allowed site addresses (Origin), comma-separated                                                          |
 | `BACKUP_DIR`                   | `./backups`                     | Excel backup folder                                                                                                  |
+| `RECEIPTS_DIR`                 | `./receipts`                    | Receipt photos (`/data/receipts` in compose); copied to OneDrive by `scripts/backup-receipts.sh`                     |
 | `BACKUP_RETENTION_DAYS`        | `30`                            | How many days to keep backups and idempotency keys                                                                   |
 | `CARDS`                        | `Миша,Настя`                    | Comma-separated list of cards                                                                                        |
 | `CATEGORIES`                   | `кафе,одежда,продукты,…`        | Initial categories; values from the database are added to them                                                       |
@@ -349,6 +350,20 @@ All routes below need login (the owner or the administrator), except the invitat
 | `POST /api/admin/users/:login/reset-password`                        | A password reset link for any user                                                                       |
 | `GET /api/invitations/:token`, `POST /api/invitations/:token/accept` | Public: what the link is for; create the account (or set the password) and sign in                       |
 
+## Receipt photos (v3)
+
+Off by default. The owner turns them on for the group and picks the categories where a photo may be attached
+(`PUT /api/group/receipts` `{enabled, categories}`; everybody reads `GET /api/receipts/settings`).
+
+| Request                            | Who                                                                                                                                                                                                                                 |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUT /api/expenses/:id/receipt`    | Raw body `image/jpeg`, `image/png` or `image/webp` (checked by the first bytes, up to 15 MB). The owner, or a member on their own expense within the edit window (at least 30 minutes, so a fresh expense can always get its photo) |
+| `GET /api/expenses/:id/receipt`    | Anyone who sees the expense (a member needs access to its card)                                                                                                                                                                     |
+| `DELETE /api/expenses/:id/receipt` | Same as `PUT`                                                                                                                                                                                                                       |
+
+Files lie in `RECEIPTS_DIR/<group>/<expense>/<id>.<ext>`, the table `expense_attachments` keeps what belongs to what.
+Nothing is erased: a replaced or removed photo only gets `deleted_at`, the file stays. The list items carry `hasReceipt`.
+
 ## Signing in to the app
 
 The users `misha` and `nastya` (the list is `AUTH_USERS`) log in with a username and password. Passwords are taken from `.env` (`AUTH_PASSWORD_<USERNAME>`): on every
@@ -472,6 +487,7 @@ src/
   config/env.ts               environment variables
   modules/expenses/           routes, validation schema, business logic
   modules/auth/               login: passwords (scrypt), tokens, sessions, route protection and CSRF, attempt limiting
+  modules/receipts/           receipt photos: settings, files on the disk, rights
   modules/sync/               synchronization cycle, reconciliation (reconcile), scheduler, routes
   storage/postgres/           expense repository (SQL)
   services/excel/             XLSX editing and reading

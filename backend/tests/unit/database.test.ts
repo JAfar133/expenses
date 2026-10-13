@@ -27,6 +27,7 @@ describe('миграции', () => {
       'categories',
       'exchange_rate_history',
       'exchange_rates',
+      'expense_attachments',
       'expense_changes',
       'expenses',
       'groups',

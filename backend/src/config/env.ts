@@ -56,6 +56,8 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
 
   BACKUP_DIR: z.string().default('./backups'),
+  /** Receipt photos (a folder that must survive restarts; the nightly copy to OneDrive is scripts/backup-receipts.sh) */
+  RECEIPTS_DIR: z.string().default('./receipts'),
   BACKUP_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
 
   // PostgreSQL ↔ Excel sync

@@ -14,6 +14,8 @@ import { ratesRoutes } from './modules/rates/rates.routes.ts';
 import type { RatesService } from './modules/rates/rates.service.ts';
 import type { BackupStatusService } from './modules/admin/backup-status.service.ts';
 import { budgetsRoutes } from './modules/budgets/budgets.routes.ts';
+import { receiptsRoutes } from './modules/receipts/receipts.routes.ts';
+import type { ReceiptsService } from './modules/receipts/receipts.service.ts';
 import type { BudgetsService } from './modules/budgets/budgets.service.ts';
 import type { GroupService } from './modules/groups/group.service.ts';
 import type { GroupsRepository } from './modules/groups/groups.repository.ts';
@@ -56,6 +58,7 @@ export interface AppDependencies {
   platformAdmin: PlatformAdminService;
   /** Spending limits */
   budgets: BudgetsService;
+  receipts: ReceiptsService;
   /** Invitation links */
   invitations: InvitationsService;
   /** Logins allowed to edit and delete */
@@ -94,6 +97,7 @@ export function buildApp({
   platformAdmin,
   invitations,
   budgets,
+  receipts,
   idempotency,
   sync,
   scheduler,
@@ -125,6 +129,13 @@ export function buildApp({
       done(Object.assign(error as Error, { statusCode: 400 }), undefined);
     }
   });
+
+  // A receipt photo comes as the raw request body: the parser only hands the bytes over, the service checks them
+  app.addContentTypeParser(
+    ['image/jpeg', 'image/png', 'image/webp'],
+    { parseAs: 'buffer' },
+    (_request, body, done) => done(null, body),
+  );
 
   app.addHook('onSend', async (request, reply) => {
     reply.header('X-Request-Id', request.id);
@@ -192,6 +203,7 @@ export function buildApp({
     { prefix: '/api' },
   );
   app.register(budgetsRoutes(budgets), { prefix: '/api' });
+  app.register(receiptsRoutes(receipts), { prefix: '/api' });
   app.register(groupRoutes(groupService), { prefix: '/api' });
   app.register(adminRoutes(platformAdmin, backupStatus), { prefix: '/api' });
   app.register(invitationRoutes(invitations, auth), { prefix: '/api' });
