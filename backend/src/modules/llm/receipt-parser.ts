@@ -55,10 +55,11 @@ export function receiptRequest(image: LlmRequest['image'], today: string): LlmRe
     schema: SCHEMA,
     prompt: [
       'You read a photo of a purchase receipt, bill or invoice. Return only JSON that matches the given schema.',
-      '- name: a short name of the shop, cafe or place (up to 60 characters), as printed on the receipt.',
+      'The receipt may be in any language (Armenian, Russian, English, ...). Write ALL text values in English: ' +
+        'translate product and dish names, transliterate shop names and brands with Latin letters.',
+      '- name: a short name of the shop, cafe or place (up to 60 characters).',
       '- date: the purchase date as YYYY-MM-DD. If the receipt has no year, assume the current one. null if no date is visible.',
-      '- items: the purchased goods or dishes. name: as printed on the receipt, in the original language ' +
-        '(fix obvious recognition typos, do not translate). ' +
+      '- items: the purchased goods or dishes. name: a clear English name (fix obvious recognition typos). ' +
         'price: the cost of the whole line (quantity already included) as a number, decimals with a dot. ' +
         'quantity: the amount (pieces or weight) if printed, otherwise 1.',
       '- total: the final amount to pay; currency: the currency code (AMD, RUB, USD, EUR) if visible.',

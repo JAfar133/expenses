@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { planReceipt, type CurrentExpense } from '../../src/modules/expense-ai/plan-receipt.ts';
 import { withSources } from '../../src/modules/items/keep-source.ts';
-import { parseReceiptAnswer } from '../../src/modules/llm/receipt-parser.ts';
+import { parseReceiptAnswer, receiptRequest } from '../../src/modules/llm/receipt-parser.ts';
 import { SecretBox } from '../../src/modules/llm/secret-box.ts';
 
 const TODAY = '2026-10-15';
@@ -154,5 +154,17 @@ describe('метки позиций', () => {
     expect(withSources([{ name: 'Хлеб', price: 10, quantity: 1 }], existing)[0]!.source).toBe(
       'manual',
     );
+  });
+});
+
+describe('запрос к модели', () => {
+  it('просит ответ на английском и передаёт сегодняшнюю дату', () => {
+    const request = receiptRequest(
+      { bytes: Buffer.from('x'), contentType: 'image/jpeg' },
+      '2026-10-15',
+    );
+
+    expect(request.prompt).toContain('Write ALL text values in English');
+    expect(request.prompt).toContain('Today is 2026-10-15');
   });
 });
