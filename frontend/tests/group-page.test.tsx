@@ -155,6 +155,8 @@ async function choose(person: Awaited<ReturnType<typeof renderGroup>>, row: stri
   await person.click(screen.getByRole('menuitem', { name: item }));
 }
 const dialog = () => within(screen.getByRole('dialog'));
+const confirmDialog = () =>
+  within(screen.getByRole('dialog', { name: 'Сменить валюту отчётности?' }));
 
 describe('страница «Группа»', () => {
   it('ровно четыре карточки в порядке: настройки, участники, карты, категории и лимиты', async () => {
@@ -183,11 +185,12 @@ describe('страница «Группа»', () => {
     await renderGroup();
     await screen.findByRole('heading', { name: 'Настройки группы' });
 
-    expect(card('Настройки группы').getAllByRole('button', { name: 'Подсказка' })).toHaveLength(1);
+    // The hint of the editing time lives inside its small window now
+    expect(card('Настройки группы').queryByRole('button', { name: 'Подсказка' })).toBeNull();
     expect(card(/^Категории и лимиты/).getAllByRole('button', { name: 'Подсказка' })).toHaveLength(
       1,
     );
-    expect(screen.getAllByRole('button', { name: 'Подсказка' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Подсказка' })).toHaveLength(1);
     expect(card(/^Участники/).queryByRole('button', { name: 'Подсказка' })).toBeNull();
     expect(card(/^Карты/).queryByRole('button', { name: 'Подсказка' })).toBeNull();
   });
@@ -257,13 +260,15 @@ describe('меню «⋯»', () => {
 describe('настройки группы', () => {
   const settings = () => card('Настройки группы');
 
-  it('название — текст с карандашом; поле открывается по клику, PUT /group', async () => {
+  it('название — строка со значением; окно открывается по нажатию, PUT /group', async () => {
     const person = await renderGroup();
     await screen.findByRole('heading', { name: 'Настройки группы' });
-    expect(settings().getByText('Семья')).toBeInTheDocument();
+    const row = settings().getByRole('button', { name: /^Название группы/ });
+    expect(row).toHaveTextContent('Семья');
+    expect(row).toHaveTextContent('Его видят все участники');
     expect(settings().queryByLabelText('Новое название группы')).toBeNull();
 
-    await person.click(settings().getByRole('button', { name: 'Изменить название группы' }));
+    await person.click(row);
     const field = settings().getByLabelText('Новое название группы');
     await person.clear(field);
     await person.type(field, 'Наш дом');
@@ -280,15 +285,21 @@ describe('настройки группы', () => {
         : undefined;
     const person = await renderGroup();
     await screen.findByRole('heading', { name: 'Настройки группы' });
-    const select = settings().getByLabelText('Валюта отчётности');
+    const row = settings().getByRole('button', { name: /^Валюта отчётности/ });
+    expect(row).toHaveTextContent('AMD');
+    await person.click(row);
+    const select = settings().getByRole('combobox', { name: 'Валюта отчётности' });
     expect(select).toHaveValue('AMD');
-    expect(settings().queryByRole('button', { name: 'Изменить' })).toBeNull();
 
     await person.selectOptions(select, 'USD');
 
-    const confirm = dialog();
-    expect(screen.getByRole('dialog')).toHaveTextContent('Все суммы пересчитаются в USD');
-    expect(screen.getByRole('dialog')).toHaveTextContent('Это нельзя отменить');
+    const confirm = confirmDialog();
+    expect(screen.getByRole('dialog', { name: 'Сменить валюту отчётности?' })).toHaveTextContent(
+      'Все суммы пересчитаются в USD',
+    );
+    expect(screen.getByRole('dialog', { name: 'Сменить валюту отчётности?' })).toHaveTextContent(
+      'Это нельзя отменить',
+    );
     expect(sent('PUT', '/api/group/reporting-currency')).toBeUndefined();
     await person.click(confirm.getByRole('button', { name: 'Сменить' }));
 
@@ -300,11 +311,15 @@ describe('настройки группы', () => {
     const person = await renderGroup();
     await screen.findByRole('heading', { name: 'Настройки группы' });
 
-    await person.selectOptions(settings().getByLabelText('Валюта отчётности'), 'USD');
-    await person.click(dialog().getByRole('button', { name: 'Отмена' }));
+    await person.click(settings().getByRole('button', { name: /^Валюта отчётности/ }));
+    await person.selectOptions(
+      settings().getByRole('combobox', { name: 'Валюта отчётности' }),
+      'USD',
+    );
+    await person.click(confirmDialog().getByRole('button', { name: 'Отмена' }));
 
     expect(sent('PUT', '/api/group/reporting-currency')).toBeUndefined();
-    expect(settings().getByLabelText('Валюта отчётности')).toHaveValue('AMD');
+    expect(settings().getByRole('combobox', { name: 'Валюта отчётности' })).toHaveValue('AMD');
   });
 
   it('ошибка смены валюты показывается, подтверждение закрывается', async () => {
@@ -315,11 +330,15 @@ describe('настройки группы', () => {
     const person = await renderGroup();
     await screen.findByRole('heading', { name: 'Настройки группы' });
 
-    await person.selectOptions(settings().getByLabelText('Валюта отчётности'), 'USD');
-    await person.click(dialog().getByRole('button', { name: 'Сменить' }));
+    await person.click(settings().getByRole('button', { name: /^Валюта отчётности/ }));
+    await person.selectOptions(
+      settings().getByRole('combobox', { name: 'Валюта отчётности' }),
+      'USD',
+    );
+    await person.click(confirmDialog().getByRole('button', { name: 'Сменить' }));
 
     expect(await settings().findByRole('alert')).toHaveTextContent('Курс валюты недоступен');
-    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Сменить валюту отчётности?' })).toBeNull();
   });
 
   it.each([
@@ -331,6 +350,13 @@ describe('настройки группы', () => {
   ])('окно правки «%s» сохраняется сразу: PUT с minutes %i', async (label, minutes) => {
     const person = await renderGroup();
     await screen.findByRole('heading', { name: 'Настройки группы' });
+    await person.click(settings().getByRole('button', { name: /^Правка своих трат участниками/ }));
+    expect(
+      within(screen.getByRole('dialog', { name: 'Правка своих трат участниками' })).getByRole(
+        'button',
+        { name: 'Подсказка' },
+      ),
+    ).toBeInTheDocument();
     const select = settings().getByLabelText('Сколько времени участник может править свои траты');
     if (minutes === 1440) await person.selectOptions(select, 'Неделя');
 
@@ -351,6 +377,7 @@ describe('настройки группы', () => {
     const person = await renderGroup();
     await screen.findByRole('heading', { name: 'Настройки группы' });
 
+    await person.click(settings().getByRole('button', { name: /^Правка своих трат участниками/ }));
     await person.selectOptions(
       settings().getByLabelText('Сколько времени участник может править свои траты'),
       'Выключено',

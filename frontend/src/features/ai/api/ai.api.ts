@@ -7,6 +7,10 @@ export interface AiStatus {
   groupEnabled: boolean;
   /** Both: the receipt can be parsed */
   available: boolean;
+  /** Receipts the group may parse per day (its own limit or the common one) */
+  dailyLimit?: number;
+  /** Parsed over the last 24 hours */
+  usedToday?: number;
 }
 
 export const fetchAiStatus = async () => (await apiRequest<AiStatus>('/ai/status')).data;

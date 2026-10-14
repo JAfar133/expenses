@@ -466,7 +466,7 @@ describe('«Фото чека»: разбор ИИ по категориям', (
 
     expect(group.getAllByRole('button').map((b) => b.textContent)).toEqual(['Еда', 'Жильё']);
     expect(group.getByRole('button', { name: 'Еда' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByText('Категории, где ИИ читает чеки')).toBeInTheDocument();
+    expect(screen.getByText('2 выбрано из 2')).toBeInTheDocument();
     expect(screen.getByText('Выключите для категорий, где это не нужно')).toBeInTheDocument();
   });
 
@@ -529,37 +529,92 @@ describe('«Фото чека»: разбор ИИ по категориям', (
   });
 });
 
-describe('«Настройки группы»: компоновка рядов с категориями', () => {
+describe('«Настройки группы»: карточки фото и ИИ', () => {
   beforeEach(() => {
     me = OWNER;
-    status = { installationReady: true, groupEnabled: true, available: true };
+    status = {
+      installationReady: true,
+      groupEnabled: true,
+      available: true,
+      dailyLimit: 30,
+      usedToday: 1,
+    } as typeof status;
     receiptSettings = { enabled: true, categories: ['Еда', 'Жильё'], aiCategories: ['Еда'] };
   });
 
-  it('у обоих рядов чипов есть подписи', async () => {
+  it('«Фото чеков»: подзаголовок, плашка про категории и «Категории — 2 выбрано из 3»', async () => {
     renderAt('/group');
 
-    expect(await screen.findByText('Категории, где можно прикреплять фото')).toBeInTheDocument();
-    expect(screen.getByText('Категории, где ИИ читает чеки')).toBeInTheDocument();
+    expect(await screen.findByText('К расходу можно прикреплять фото')).toBeInTheDocument();
+    expect(
+      screen.getByText('Участники смогут добавлять фото только для выбранных категорий'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('2 выбрано из 3')).toBeInTheDocument();
   });
 
-  it('ряд ИИ идёт сразу за рядом фото и принадлежит переключателю ИИ', async () => {
+  it('фото выключено: плашка, счётчик и чипы скрыты', async () => {
+    receiptSettings = { enabled: false, categories: [] };
     renderAt('/group');
-    await screen.findByRole('group', { name: 'Категории с разбором ИИ' });
+    await screen.findByText('К расходу можно прикреплять фото');
 
-    const rows = screen
-      .getAllByRole('switch')
-      .map((toggle) => toggle.closest<HTMLElement>('.py-3\\.5')!);
-    const [photo, ai] = [
-      rows.find((row) => within(row).queryByRole('switch', { name: 'Разрешить фото чеков' }))!,
-      rows.find((row) => within(row).queryByRole('switch', { name: 'Разбор чеков с помощью ИИ' }))!,
-    ];
-    expect(photo.nextElementSibling).toBe(ai);
-    expect(within(photo).getByRole('group', { name: 'Категории с фото чека' })).toBeInTheDocument();
-    expect(within(ai).getByRole('group', { name: 'Категории с разбором ИИ' })).toBeInTheDocument();
+    expect(screen.queryByText(/Участники смогут добавлять фото/)).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Категории с фото чека' })).toBeNull();
   });
 
-  it('чипы в обоих рядах одного стиля: выбранные заливкой, невыбранные контуром', async () => {
+  it('ИИ: счётчик только по категориям с фото («1 выбрано из 2»), чипы только по ним', async () => {
+    renderAt('/group');
+    const chips = within(await screen.findByRole('group', { name: 'Категории с разбором ИИ' }));
+
+    expect(chips.getAllByRole('button').map((b) => b.textContent)).toEqual(['Еда', 'Жильё']);
+    expect(screen.getByText('1 выбрано из 2')).toBeInTheDocument();
+    expect(chips.queryByRole('button', { name: 'Прочее' })).toBeNull();
+  });
+
+  it('плашка лимита с числами из /ai/status; не администратору — слова про администратора', async () => {
+    renderAt('/group');
+
+    const note = (await screen.findByText(/Лимит: 30 разборов в сутки на группу/)).closest(
+      '[role="note"]',
+    )!;
+    expect(note).toHaveTextContent('сегодня использовано 1.');
+    expect(note).toHaveTextContent('Лимит задаёт администратор приложения.');
+    expect(within(note as HTMLElement).queryByRole('link')).toBeNull();
+  });
+
+  it('администратору вместо слов — ссылка «Администрирование»', async () => {
+    me = { ...OWNER, isAdmin: true };
+    renderAt('/group');
+
+    const link = await screen.findByRole('link', { name: 'Администрирование' });
+    expect(link).toHaveAttribute('href', '/admin');
+    expect(screen.queryByText(/Лимит задаёт администратор приложения/)).toBeNull();
+  });
+
+  it('переключатель ИИ выключен: плашка и чипы скрыты', async () => {
+    status = {
+      installationReady: true,
+      groupEnabled: false,
+      available: false,
+      dailyLimit: 30,
+      usedToday: 1,
+    } as typeof status;
+    renderAt('/group');
+    await screen.findByRole('switch', { name: 'Разбор чеков с помощью ИИ' });
+
+    expect(screen.queryByText(/Лимит: 30/)).toBeNull();
+    expect(screen.queryByRole('group', { name: 'Категории с разбором ИИ' })).toBeNull();
+  });
+
+  it('ИИ не включён в установке: неактивный переключатель и «Выключено администратором»', async () => {
+    status = { installationReady: false, groupEnabled: true, available: false } as typeof status;
+    renderAt('/group');
+
+    expect(await screen.findByRole('switch', { name: 'Разбор чеков с помощью ИИ' })).toBeDisabled();
+    expect(screen.getByText('Выключено администратором')).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Категории с разбором ИИ' })).toBeNull();
+  });
+
+  it('чипы обоих рядов одного стиля: выбранные залиты, невыбранные в контуре', async () => {
     renderAt('/group');
     const ai = within(await screen.findByRole('group', { name: 'Категории с разбором ИИ' }));
     const photos = within(screen.getByRole('group', { name: 'Категории с фото чека' }));
@@ -568,23 +623,24 @@ describe('«Настройки группы»: компоновка рядов �
       ai.getByRole('button', { name: 'Еда' }),
       photos.getByRole('button', { name: 'Еда' }),
     ]) {
-      expect(chip.className).toContain('bg-indigo-600');
+      expect(chip.className).toContain('bg-violet-600');
     }
     for (const chip of [
       ai.getByRole('button', { name: 'Жильё' }),
       photos.getByRole('button', { name: 'Прочее' }),
     ]) {
       expect(chip.className).toContain('border-zinc-300');
-      expect(chip.className).not.toContain('bg-indigo-600');
+      expect(chip.className).not.toContain('bg-violet-600');
     }
   });
 
-  it('переключатель ИИ выключен: чипов ИИ нет', async () => {
-    status = { installationReady: true, groupEnabled: false, available: false };
+  it('карточка фото идёт перед карточкой ИИ, обе после основных настроек', async () => {
     renderAt('/group');
-    await screen.findByRole('group', { name: 'Категории с фото чека' });
+    const photo = (await screen.findByText('К расходу можно прикреплять фото')).closest('.py-4')!;
+    const ai = screen.getByText(/Фото чека отправляется в Google/).closest('.py-4')!;
+    const basic = screen.getByRole('region', { name: 'Основные настройки' });
 
-    expect(screen.queryByRole('group', { name: 'Категории с разбором ИИ' })).toBeNull();
-    expect(screen.queryByText('Категории, где ИИ читает чеки')).toBeNull();
+    expect(basic.nextElementSibling).toBe(photo);
+    expect(photo.nextElementSibling).toBe(ai);
   });
 });

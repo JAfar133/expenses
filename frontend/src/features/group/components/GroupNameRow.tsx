@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from 'react';
-import { PencilIcon } from '../../../shared/ui/icons.tsx';
+import { UsersIcon } from '../../../shared/ui/icons.tsx';
+import { Modal } from '../../../shared/ui/Modal.tsx';
 import { renameGroup } from '../api/group.api.ts';
 import { useGroupMutation } from '../hooks/useGroup.ts';
 import { ErrorNotice } from './ErrorNotice.tsx';
-import { SettingRow } from './SettingRow.tsx';
-import { compactInputClass, textButtonClass } from './styles.ts';
+import { LinkRow } from './LinkRow.tsx';
+import { compactInputClass } from './styles.ts';
 
-/** The name of the group: text with a pencil; the field opens on a click, not always. */
+/** The name of the group: a row with the value; a tap opens a small window with the field and «Сохранить». */
 export function GroupNameRow({ name }: { name: string }) {
   const rename = useGroupMutation(renameGroup);
   const [editing, setEditing] = useState(false);
@@ -20,50 +21,44 @@ export function GroupNameRow({ name }: { name: string }) {
       await rename.mutateAsync(trimmed);
       setEditing(false);
     } catch {
-      // The error is shown under the row; stay in the editor
+      // The error is shown in the window
     }
   }
 
   return (
-    <SettingRow
-      title="Название группы"
-      description="Его видят все участники"
-      below={
-        <>
-          {editing && (
-            <form onSubmit={(event) => void submit(event)} className="flex flex-wrap gap-2">
-              <input
-                autoFocus
-                aria-label="Новое название группы"
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-                className={`${compactInputClass} w-full sm:w-auto sm:flex-1`}
-              />
-              <button type="submit" className={textButtonClass}>
-                Сохранить
-              </button>
-              <button type="button" onClick={() => setEditing(false)} className={textButtonClass}>
-                Отмена
-              </button>
-            </form>
-          )}
-          <ErrorNotice mutations={[rename]} />
-        </>
-      }
-    >
-      <span className="max-w-40 truncate text-sm font-medium sm:max-w-64">{name}</span>
-      <button
-        type="button"
-        aria-label="Изменить название группы"
-        title="Изменить название группы"
-        onClick={() => {
+    <>
+      <LinkRow
+        icon={<UsersIcon />}
+        title="Название группы"
+        description="Его видят все участники"
+        value={name}
+        onOpen={() => {
           setValue(name);
+          rename.reset();
           setEditing(true);
         }}
-        className="flex size-10 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 sm:size-9 dark:text-indigo-300 dark:hover:bg-indigo-950/60"
-      >
-        <PencilIcon />
-      </button>
-    </SettingRow>
+      />
+      {editing && (
+        <Modal title="Название группы" onClose={() => setEditing(false)}>
+          <form onSubmit={(event) => void submit(event)} className="space-y-3 pb-2">
+            <input
+              aria-label="Новое название группы"
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              className={`${compactInputClass} w-full`}
+            />
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">Его видят все участники</p>
+            <button
+              type="submit"
+              disabled={rename.isPending || value.trim() === ''}
+              className="h-11 w-full rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Сохранить
+            </button>
+            <ErrorNotice mutations={[rename]} />
+          </form>
+        </Modal>
+      )}
+    </>
   );
 }
