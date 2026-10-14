@@ -18,7 +18,7 @@ Before finishing work: `typecheck`, `test`, `format`.
 ## Structure
 
 - `src/modules/<name>/` modules by task: `auth`, `groups` (groups, cards, access scope), `expenses`, `sync`, `rates`, `analytics` (aggregates and lists for the analytics page are computed by SQL; values only as parameters, sorting from an allowlist). Inside a module, routes, service, repository and types are separate.
-- v4: `items` (positions of an expense), `llm` (the only entry to the model: settings, encrypted key, daily limit, Gemini provider behind an interface), `expense-ai` (apply a parsed receipt; the AI never overwrites what a person entered, see `plan-receipt.ts`), `ai` (assembly). The API key is write-only: never return or log it.
+- v4: `items` (positions of an expense), `llm` (the only entry to the model: settings, encrypted key, daily limit, Gemini provider behind an interface), `expense-ai` (apply a parsed receipt; the AI never overwrites what a person entered, see `plan-receipt.ts`), `ai` (assembly). The API key is write-only: never return or log it. A group allows the languages of the names the AI returns (`ai_languages`, `en`/`ru`, at least one; prompt rule in `llm/receipt-parser.ts`); the model also returns the receipt currency.
 - Other v3 modules: `budgets` (limits), `receipts` (photos: files in `RECEIPTS_DIR`, rows in `expense_attachments`, nothing is ever erased).
 - `src/storage/` the expense repository (PostgreSQL), `src/infrastructure/` the database and migrations, backups, idempotency.
 - `src/services/` Excel (reading via ExcelJS, writing by targeted XML editing) and OneDrive (rclone).

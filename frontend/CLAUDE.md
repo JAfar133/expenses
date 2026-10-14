@@ -21,6 +21,7 @@ Before finishing work: `typecheck`, `test`, `format`.
 - User settings (chart views, etc.) are stored on the server: `features/preferences` (described in `model/preferences.ts`, the `usePreference` hook). The settings page `features/settings` is assembled from blocks.
 - `src/pages/` pages, `src/app/` the app root, routes (React Router) and the shared `AppShell` frame. The analytics page is loaded lazily.
 - `src/shared/` shared code: `api/http.ts` (requests), `ui/` (Button, Field, Notice), `utils/`.
+- An unsaved add-expense form (with photo and AI state) is kept in IndexedDB as a draft (`useFormDraft`, 24 h) and restored with a short `Toast`; writes to the draft store stay strictly ordered.
 - Server data goes through TanStack Query, forms through React Hook Form + zod.
 
 ## Rules
@@ -32,7 +33,7 @@ Before finishing work: `typecheck`, `test`, `format`.
 - Tokens are stored in HttpOnly cookies and are not in JS or `localStorage`. `localStorage` holds only conveniences (for example, the user's last category).
 - The default card is always the logged-in user's card (`user.card`); the last selected card is not remembered.
 - Excel on the server is optional: if `GET /api/sync/status` returned `enabled: false`, the sync icon is not shown and the status is not polled (also when an admin switched sync off on `/admin`; the switch invalidates the status query).
-- Works on a phone (PWA): fields no smaller than 16px, large controls, take the light and dark themes into account.
+- Works on a phone (PWA): fields no smaller than 16px, large controls, take the light and dark themes into account. The theme is the user preference `theme` (`system|light|dark`): an explicit choice sets `data-theme` on `<html>` (an inline script in `index.html` applies it before the first paint), `prefers-color-scheme` counts only without it. Write dark styles with Tailwind `dark:` / CSS variables, never read the scheme with `matchMedia`.
 - UI texts are in Russian, identifiers are in English.
 - The code is clean and structured: small components, one task per module, wrap long expressions (Prettier).
 - Tests live nearby by meaning in `tests/`; mock `fetch`, query elements by role and accessible name.
