@@ -1,11 +1,13 @@
+import { useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useAiPhotoFirst } from '../../ai/hooks/useAiPhotoFirst.ts';
 import { useAnyModalOpen } from '../../../shared/hooks/useScrollLock.ts';
 import { useKeyboardOpen } from '../../../shared/hooks/useKeyboardOpen.ts';
 import { CameraIcon, ChartIcon, PlusIcon } from '../../../shared/ui/icons.tsx';
-import { usePhotoFile } from '../hooks/usePhotoFile.ts';
+import { usePhotoSources } from '../hooks/usePhotoSources.ts';
 import { setPendingPhoto } from '../model/pending-photo.ts';
 import { PhotoInput } from './PhotoInput.tsx';
+import { PhotoSourceMenu } from './PhotoSourceMenu.tsx';
 
 /** Pages that have the button: «Добавить» and the analytics. */
 export const fabPage = (pathname: string) => pathname === '/' || pathname.startsWith('/analytics');
@@ -35,7 +37,9 @@ export function CameraFab() {
   const available = useCameraFabAvailable();
   const keyboard = useKeyboardOpen();
   const modal = useAnyModalOpen();
-  const file = usePhotoFile((photo) => {
+  const [menu, setMenu] = useState(false);
+  const anchor = useRef<HTMLButtonElement>(null);
+  const file = usePhotoSources((photo) => {
     setPendingPhoto(photo);
     if (pathname !== '/') navigate('/');
   });
@@ -46,9 +50,15 @@ export function CameraFab() {
   return (
     <div className="md:hidden">
       <PhotoInput
-        inputRef={file.input}
-        onChange={(event) => void file.onChange(event)}
+        inputRef={file.camera.input}
+        onChange={(event) => void file.camera.onChange(event)}
+        capture="environment"
         label="Снять чек"
+      />
+      <PhotoInput
+        inputRef={file.gallery.input}
+        onChange={(event) => void file.gallery.onChange(event)}
+        label="Выбрать чек из галереи"
       />
       {hidden ? null : (
         <>
@@ -80,14 +90,26 @@ export function CameraFab() {
               </NavLink>
               <button
                 type="button"
-                aria-label="Добавить чек (камера или галерея)"
-                title="Добавить чек (камера или галерея)"
+                ref={anchor}
+                aria-label="Добавить чек"
+                title="Добавить чек"
+                aria-haspopup="menu"
+                aria-expanded={menu}
                 disabled={file.busy}
-                onClick={file.open}
+                onClick={() => setMenu((open) => !open)}
                 className="absolute left-1/2 top-[-22px] z-10 flex size-16 -translate-x-1/2 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-500 disabled:opacity-60 [&>svg]:size-7"
               >
                 <CameraIcon />
               </button>
+              {menu && (
+                <PhotoSourceMenu
+                  anchor={anchor}
+                  onCamera={file.camera.open}
+                  onGallery={file.gallery.open}
+                  onClose={() => setMenu(false)}
+                  className="absolute bottom-[calc(100%+41px)] left-1/2 -translate-x-1/2"
+                />
+              )}
               <span aria-hidden="true" />
               <NavLink to="/analytics" className={itemClass}>
                 <span className="[&>svg]:size-[22px]">

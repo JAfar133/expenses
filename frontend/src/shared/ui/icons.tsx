@@ -368,3 +368,11 @@ export const ChartIcon = () => (
     <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
   </Icon>
 );
+
+export const ImageIcon = () => (
+  <Icon>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <circle cx="9" cy="10" r="1.6" />
+    <path d="M21 16l-5-5-8 9" />
+  </Icon>
+);

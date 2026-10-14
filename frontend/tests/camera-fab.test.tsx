@@ -60,7 +60,8 @@ function scenario({ confirmed = true } = {}) {
   if (confirmed) server.preferences = { 'ai.noticeSeen': true };
 }
 
-const fab = () => screen.queryByRole('button', { name: 'Добавить чек (камера или галерея)' });
+const fab = () => screen.queryByRole('button', { name: 'Добавить чек' });
+const galleryInput = () => screen.getByLabelText('Выбрать чек из галереи') as HTMLInputElement;
 const cameraInput = () => screen.getByLabelText('Снять чек') as HTMLInputElement;
 const shoot = (person: ReturnType<typeof userEvent.setup>) =>
   person.upload(cameraInput(), new File(['img'], 'check.jpg', { type: 'image/jpeg' }));
@@ -85,9 +86,10 @@ describe('круглая кнопка камеры', () => {
     renderAt('/');
     const bar = await screen.findByRole('navigation', { name: 'Нижняя навигация' });
 
-    const button = within(bar).getByRole('button', { name: 'Добавить чек (камера или галерея)' });
+    const button = within(bar).getByRole('button', { name: 'Добавить чек' });
 
-    expect(button).toHaveAttribute('title', 'Добавить чек (камера или галерея)');
+    expect(button).toHaveAttribute('title', 'Добавить чек');
+    expect(button).toHaveAttribute('aria-haspopup', 'menu');
     expect(button.className).toContain('size-16');
     expect(button.className).toContain('bg-indigo-600');
     expect(button.className).toContain('-translate-x-1/2');
@@ -126,22 +128,22 @@ describe('круглая кнопка камеры', () => {
     expect(bar.getByRole('link', { name: 'Добавить' }).className).toContain('text-indigo-600');
   });
 
-  it('скрытый input: accept=image/* без capture: система сама предлагает камеру или галерею', async () => {
+  it('два скрытых input: камера (capture=environment) и галерея (без capture), оба accept=image/*', async () => {
     scenario();
     renderAt('/');
-    await screen.findByRole('button', { name: 'Добавить чек (камера или галерея)' });
+    await screen.findByRole('button', { name: 'Добавить чек' });
 
     expect(cameraInput()).toHaveAttribute('accept', 'image/*');
-    expect(cameraInput()).not.toHaveAttribute('capture');
+    expect(cameraInput()).toHaveAttribute('capture', 'environment');
+    expect(galleryInput()).toHaveAttribute('accept', 'image/*');
+    expect(galleryInput()).not.toHaveAttribute('capture');
   });
 
   it('на страницах аналитики кнопка есть', async () => {
     scenario();
     renderAt('/analytics');
 
-    expect(
-      await screen.findByRole('button', { name: 'Добавить чек (камера или галерея)' }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Добавить чек' })).toBeInTheDocument();
   });
 
   it.each(['/group', '/admin', '/settings'])('на %s кнопки нет', async (path) => {
@@ -186,7 +188,7 @@ describe('круглая кнопка камеры', () => {
   it('у страницы нижний отступ под бар и горб (6rem + safe-area), чтобы контент не перекрывался', async () => {
     scenario();
     renderAt('/');
-    await screen.findByRole('button', { name: 'Добавить чек (камера или галерея)' });
+    await screen.findByRole('button', { name: 'Добавить чек' });
 
     expect(screen.getByRole('main').className).toContain(
       'pb-[calc(6rem+env(safe-area-inset-bottom))]',
@@ -205,7 +207,7 @@ describe('съёмка', () => {
   it('со страницы аналитики: переход на «Добавить» и разбор без категории, форма заполняется', async () => {
     scenario();
     const person = renderAt('/analytics');
-    await screen.findByRole('button', { name: 'Добавить чек (камера или галерея)' });
+    await screen.findByRole('button', { name: 'Добавить чек' });
 
     await shoot(person);
 
@@ -219,7 +221,7 @@ describe('съёмка', () => {
   it('плашка про Google, если не подтверждена: до подтверждения ничего не уходит', async () => {
     scenario({ confirmed: false });
     const person = renderAt('/analytics');
-    await screen.findByRole('button', { name: 'Добавить чек (камера или галерея)' });
+    await screen.findByRole('button', { name: 'Добавить чек' });
 
     await shoot(person);
 
@@ -234,7 +236,7 @@ describe('съёмка', () => {
   it('на «Добавить» заменяет текущее фото: новый разбор', async () => {
     scenario();
     const person = renderAt('/');
-    await screen.findByRole('button', { name: 'Добавить чек (камера или галерея)' });
+    await screen.findByRole('button', { name: 'Добавить чек' });
     await shoot(person);
     await waitFor(() => expect(server.photoParses()).toHaveLength(1));
     await screen.findByDisplayValue('Кофейня');
@@ -248,7 +250,7 @@ describe('съёмка', () => {
   it('отмена камеры (файла нет) ничего не делает', async () => {
     scenario();
     renderAt('/analytics');
-    await screen.findByRole('button', { name: 'Добавить чек (камера или галерея)' });
+    await screen.findByRole('button', { name: 'Добавить чек' });
 
     fireEvent.change(cameraInput(), { target: { files: [] } });
     await new Promise((resolve) => setTimeout(resolve, 30));
@@ -264,7 +266,7 @@ describe('съёмка', () => {
       vi.fn(async () => Promise.reject(new Error('decode'))),
     );
     const person = renderAt('/analytics');
-    await screen.findByRole('button', { name: 'Добавить чек (камера или галерея)' });
+    await screen.findByRole('button', { name: 'Добавить чек' });
 
     await shoot(person);
 
@@ -359,5 +361,133 @@ describe('верхние вкладки при нижнем баре', () => {
 
     expect(screen.getByRole('heading', { name: /Мои расходы/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Меню пользователя/ })).toBeInTheDocument();
+  });
+});
+
+describe('выбор источника фото', () => {
+  const openMenu = async (person: ReturnType<typeof userEvent.setup>) => {
+    await person.click(await screen.findByRole('button', { name: 'Добавить чек' }));
+    return within(await screen.findByRole('menu', { name: 'Источник фото' }));
+  };
+
+  it('нажатие на камеру открывает меню с двумя пунктами; кнопка не перекрыта', async () => {
+    scenario();
+    const person = renderAt('/');
+
+    const menu = await openMenu(person);
+
+    expect(menu.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'Сфотографировать',
+      'Выбрать из галереи',
+    ]);
+    const root = screen.getByRole('menu', { name: 'Источник фото' });
+    expect(root.className).toContain('bottom-[calc(100%+41px)]');
+    expect(screen.getByRole('button', { name: 'Добавить чек' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    for (const item of menu.getAllByRole('menuitem')) expect(item.className).toContain('min-h-11');
+  });
+
+  it('«Сфотографировать» кликает input с capture=environment, меню закрывается', async () => {
+    scenario();
+    const person = renderAt('/');
+    await screen.findByRole('button', { name: 'Добавить чек' });
+    const click = vi.spyOn(cameraInput(), 'click').mockImplementation(() => undefined);
+    const other = vi.spyOn(galleryInput(), 'click').mockImplementation(() => undefined);
+    const menu = await openMenu(person);
+
+    await person.click(menu.getByRole('menuitem', { name: 'Сфотографировать' }));
+
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(other).not.toHaveBeenCalled();
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('«Выбрать из галереи» кликает input без capture', async () => {
+    scenario();
+    const person = renderAt('/');
+    await screen.findByRole('button', { name: 'Добавить чек' });
+    const camera = vi.spyOn(cameraInput(), 'click').mockImplementation(() => undefined);
+    const gallery = vi.spyOn(galleryInput(), 'click').mockImplementation(() => undefined);
+    const menu = await openMenu(person);
+
+    await person.click(menu.getByRole('menuitem', { name: 'Выбрать из галереи' }));
+
+    expect(gallery).toHaveBeenCalledTimes(1);
+    expect(camera).not.toHaveBeenCalled();
+  });
+
+  it('Escape и клик вне закрывают меню', async () => {
+    scenario();
+    const person = renderAt('/');
+    await openMenu(person);
+
+    await person.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    await openMenu(person);
+    await person.click(document.body);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  it('файл из галереи идёт тем же путём: разбор запускается', async () => {
+    scenario();
+    const person = renderAt('/analytics');
+    await screen.findByRole('button', { name: 'Добавить чек' });
+
+    await person.upload(galleryInput(), new File(['img'], 'gallery.jpg', { type: 'image/jpeg' }));
+
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent(/^\/$/));
+    await waitFor(() => expect(server.photoParses()).toHaveLength(1));
+  });
+});
+
+describe('кнопка фото на форме «Добавить»', () => {
+  const stubPhone = () =>
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
+
+  it('на десктопе (мышь) — прямой выбор файла без меню', async () => {
+    scenario();
+    const person = renderAt('/');
+    const input = await screen.findByLabelText('Выбрать фото чека');
+    const click = vi.spyOn(input, 'click').mockImplementation(() => undefined);
+    await person.selectOptions(screen.getByLabelText('Категория'), 'кафе');
+
+    await person.click(await screen.findByRole('button', { name: 'Прикрепить фото чека' }));
+
+    expect(click).toHaveBeenCalled();
+    expect(screen.queryByRole('menu', { name: 'Источник фото' })).toBeNull();
+  });
+
+  it('на телефоне открывает меню «Сфотографировать / Выбрать из галереи»', async () => {
+    scenario();
+    stubPhone();
+    const person = renderAt('/');
+    await person.selectOptions(await screen.findByLabelText('Категория'), 'кафе');
+
+    await person.click(await screen.findByRole('button', { name: 'Прикрепить фото чека' }));
+
+    const menu = within(await screen.findByRole('menu', { name: 'Источник фото' }));
+    expect(menu.getByRole('menuitem', { name: 'Сфотографировать' })).toBeInTheDocument();
+    expect(menu.getByRole('menuitem', { name: 'Выбрать из галереи' })).toBeInTheDocument();
+  });
+
+  it('файл с камеры формы (capture) запускает разбор', async () => {
+    scenario();
+    stubPhone();
+    const person = renderAt('/');
+    await person.selectOptions(await screen.findByLabelText('Категория'), 'кафе');
+    const camera = await screen.findByLabelText('Снять чек на камеру');
+    expect(camera).toHaveAttribute('capture', 'environment');
+
+    await person.upload(camera, new File(['img'], 'c.jpg', { type: 'image/jpeg' }));
+
+    await waitFor(() => expect(server.photoParses()).toHaveLength(1));
   });
 });
