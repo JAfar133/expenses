@@ -644,17 +644,53 @@ describe('настройки аналитики', () => {
 describe('оформление: тема', () => {
   const appearance = () => within(section('Оформление'));
 
-  it('три варианта: «Как в системе» (по умолчанию), «Светлая», «Тёмная»', async () => {
+  it('три варианта: «Системная» (по умолчанию), «Светлая», «Тёмная»', async () => {
     renderSettings();
     await screen.findByRole('heading', { name: 'Оформление' });
 
-    const group = appearance().getByRole('radiogroup', { name: 'Тема' });
+    const group = appearance().getByRole('radiogroup', { name: 'Тема приложения' });
     expect(
       within(group)
         .getAllByRole('radio')
         .map((r) => r.textContent),
-    ).toEqual(['Как в системе', 'Светлая', 'Тёмная']);
-    expect(within(group).getByRole('radio', { name: 'Как в системе' })).toBeChecked();
+    ).toEqual(['Системная', 'Светлая', 'Тёмная']);
+    expect(within(group).getByRole('radio', { name: 'Системная' })).toBeChecked();
+  });
+
+  it('один округлый трек с тремя равными сегментами: иконка над подписью, выбранный — белая приподнятая плашка', async () => {
+    renderSettings();
+    await screen.findByRole('heading', { name: 'Оформление' });
+
+    const group = appearance().getByRole('radiogroup', { name: 'Тема приложения' });
+    expect(appearance().getByText('Тема приложения')).toBeInTheDocument();
+    expect(group.className).toContain('grid-cols-3');
+    expect(group.className).toContain('rounded-2xl');
+    expect(group.className).toContain('bg-zinc-100');
+    const [system, light] = within(group).getAllByRole('radio');
+    expect(system!.className).toContain('bg-white');
+    expect(system!.className).toContain('shadow-sm');
+    expect(system!.className).toContain('rounded-xl');
+    expect(light!.className).not.toContain('bg-white');
+    for (const radio of within(group).getAllByRole('radio')) {
+      expect(radio.querySelector('svg')).not.toBeNull();
+      expect(radio.className).toContain('min-h-16');
+      expect(radio.className).toContain('flex-col');
+    }
+  });
+
+  it('стрелки двигают выбор и сохраняют его; фокус переходит на новый сегмент', async () => {
+    const person = renderSettings();
+    await screen.findByRole('heading', { name: 'Оформление' });
+    const group = appearance().getByRole('radiogroup', { name: 'Тема приложения' });
+    within(group).getByRole('radio', { name: 'Системная' }).focus();
+
+    await person.keyboard('{ArrowRight}');
+
+    await waitFor(() => expect(puts().at(-1)?.body).toEqual({ theme: 'light' }));
+    expect(within(group).getByRole('radio', { name: 'Светлая' })).toBeChecked();
+    expect(within(group).getByRole('radio', { name: 'Светлая' })).toHaveFocus();
+    await person.keyboard('{ArrowLeft}{ArrowLeft}');
+    await waitFor(() => expect(puts().at(-1)?.body).toEqual({ theme: 'dark' }));
   });
 
   it('выбор сохраняется на сервере ключом theme и отражается в localStorage', async () => {

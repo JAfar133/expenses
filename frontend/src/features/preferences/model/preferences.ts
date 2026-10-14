@@ -79,7 +79,7 @@ export const PREFERENCES = {
     description: 'Оформление приложения на этом устройстве и на остальных',
     fallback: 'system',
     options: [
-      { value: 'system', label: 'Как в системе' },
+      { value: 'system', label: 'Системная' },
       { value: 'light', label: 'Светлая' },
       { value: 'dark', label: 'Тёмная' },
     ],

@@ -2,7 +2,7 @@
 
 /*
  * Dark theme: `data-theme="dark"` on <html> forces it, `data-theme="light"` forbids it, and without the attribute
- * (the choice «Как в системе») it follows prefers-color-scheme.
+ * (the choice «Системная») it follows prefers-color-scheme.
  */
 @custom-variant dark {
   &:where([data-theme='dark'], [data-theme='dark'] *) {

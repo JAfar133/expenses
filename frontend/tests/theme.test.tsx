@@ -72,7 +72,7 @@ describe('тема', () => {
     await waitFor(() => expect(root().getAttribute('data-theme')).toBe('light'));
   });
 
-  it('по умолчанию («Как в системе») атрибута нет', async () => {
+  it('по умолчанию («Системная») атрибута нет', async () => {
     renderProbe('system');
 
     await new Promise((resolve) => setTimeout(resolve, 30));
