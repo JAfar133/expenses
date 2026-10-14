@@ -666,21 +666,27 @@ describe('камера приложения', () => {
     expect(camera.stops).toHaveBeenCalledTimes(2);
   });
 
-  it('отказ в доступе: сообщение и кнопки «Выбрать из галереи» и «Закрыть»', async () => {
+  it('отказ в доступе: понятный текст про разрешение, кнопки; затвора и подсказки нет, ✕ на подложке', async () => {
     scenario();
     mockCamera(denied('NotAllowedError'));
     const person = renderAt('/');
-    await openCamera(person);
+    const layer = await openCamera(person);
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Нет доступа к камере. Разрешите её для этого сайта в настройках браузера или выберите фото из галереи',
+      'Доступ к камере запрещён. Разрешите камеру для этого сайта в настройках браузера (значок слева от адреса → Разрешения) или выберите фото из галереи',
     );
     expect(screen.getByRole('button', { name: 'Выбрать из галереи' })).toBeInTheDocument();
+    expect(within(layer).queryByRole('button', { name: 'Сделать снимок' })).toBeNull();
+    expect(screen.queryByText('Наведите камеру на чек')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Закрыть камеру' }).className).toContain(
+      'bg-black/60',
+    );
+    expect(screen.getByRole('heading', { name: 'Камера недоступна' })).toBeInTheDocument();
     await person.click(screen.getByRole('button', { name: 'Закрыть' }));
     expect(screen.queryByRole('dialog', { name: 'Камера' })).toBeNull();
   });
 
-  it('SecurityError — то же сообщение; «Выбрать из галереи» открывает input без capture', async () => {
+  it('SecurityError — тот же текст; «Выбрать из галереи» открывает input без capture', async () => {
     scenario();
     mockCamera(denied('SecurityError'));
     const person = renderAt('/');
@@ -688,20 +694,74 @@ describe('камера приложения', () => {
     const gallery = vi.spyOn(galleryInput(), 'click').mockImplementation(() => undefined);
     await openCamera(person);
 
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^Доступ к камере запрещён/);
     await person.click(await screen.findByRole('button', { name: 'Выбрать из галереи' }));
 
     expect(gallery).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('dialog', { name: 'Камера' })).toBeNull();
   });
 
-  it('нет mediaDevices (нет https): слой сразу показывает сообщение', async () => {
+  it('небезопасная страница (isSecureContext = false): текст про https', async () => {
+    scenario();
+    mockCamera();
+    Object.defineProperty(window, 'isSecureContext', { configurable: true, value: false });
+    const person = renderAt('/');
+    await openCamera(person);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Камера работает только на защищённых страницах (https). Откройте приложение по https-адресу или выберите фото из галереи',
+    );
+    Object.defineProperty(window, 'isSecureContext', { configurable: true, value: true });
+  });
+
+  it('нет mediaDevices: тоже текст про https', async () => {
     scenario();
     Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: undefined });
     const person = renderAt('/');
     await openCamera(person);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Нет доступа к камере');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /^Камера работает только на защищённых страницах/,
+    );
     expect(screen.getByRole('button', { name: 'Выбрать из галереи' })).toBeInTheDocument();
+  });
+
+  it('NotFoundError (после повтора): «Камера не найдена»', async () => {
+    scenario();
+    const getUserMedia = vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error('x'), { name: 'NotFoundError' }));
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia },
+    });
+    const person = renderAt('/');
+    await openCamera(person);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Камера не найдена. Выберите фото из галереи',
+    );
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+  });
+
+  it('NotReadableError: «Камера занята другим приложением»', async () => {
+    scenario();
+    mockCamera(denied('NotReadableError'));
+    const person = renderAt('/');
+    await openCamera(person);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Камера занята другим приложением. Закройте его или выберите фото из галереи',
+    );
+  });
+
+  it('прочая ошибка: общий текст', async () => {
+    scenario();
+    mockCamera(denied('AbortError'));
+    const person = renderAt('/');
+    await openCamera(person);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^Нет доступа к камере/);
   });
 
   it('OverconstrainedError: повтор с упрощёнными ограничениями (video: true)', async () => {
@@ -724,21 +784,5 @@ describe('камера приложения', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Сделать снимок' })).toBeEnabled(),
     );
-  });
-
-  it('NotFoundError и тут отказ: сообщение', async () => {
-    scenario();
-    const getUserMedia = vi
-      .fn()
-      .mockRejectedValue(Object.assign(new Error('x'), { name: 'NotFoundError' }));
-    Object.defineProperty(navigator, 'mediaDevices', {
-      configurable: true,
-      value: { getUserMedia },
-    });
-    const person = renderAt('/');
-    await openCamera(person);
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Нет доступа к камере');
-    expect(getUserMedia).toHaveBeenCalledTimes(2);
   });
 });
