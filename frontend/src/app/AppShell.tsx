@@ -5,6 +5,7 @@ import { UserBar } from '../features/auth/components/UserBar.tsx';
 import { SyncIndicator } from '../features/sync/components/SyncIndicator.tsx';
 import { OfflineBanner } from '../features/offline-queue/components/OfflineBanner.tsx';
 import { useQueueSync } from '../features/offline-queue/hooks/useQueueSync.ts';
+import { CameraFab, useCameraFabAvailable } from '../features/receipts/components/CameraFab.tsx';
 import { PlusIcon } from '../shared/ui/icons.tsx';
 
 /** «Добавить» is the main action: a filled button; on its own page it turns into a soft "you are here" pill. */
@@ -33,10 +34,12 @@ export function AppShell({ user }: { user: AuthUser }) {
   const medium = ['/settings', '/admin'].some((path) => pathname.startsWith(path));
   // The group page has wide rows with menus: a wider column on a desktop
   const group = pathname.startsWith('/group');
+  // On a phone the round camera button must not cover the last rows and the pagination
+  const fab = useCameraFabAvailable();
 
   return (
     <main
-      className={`mx-auto min-h-dvh w-full px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] ${
+      className={`mx-auto min-h-dvh w-full px-4 ${fab ? 'pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-[max(2rem,env(safe-area-inset-bottom))]' : 'pb-[max(2rem,env(safe-area-inset-bottom))]'} pt-[max(1.5rem,env(safe-area-inset-top))] ${
         wide ? 'max-w-5xl' : group ? 'max-w-3xl' : medium ? 'max-w-2xl' : 'max-w-[560px]'
       }`}
     >
@@ -48,7 +51,8 @@ export function AppShell({ user }: { user: AuthUser }) {
         </div>
         <nav
           aria-label="Разделы"
-          className="order-3 flex w-full items-center gap-5 sm:order-2 sm:w-auto"
+          // On a phone the bottom bar has the same two items: the tabs go away exactly when the bar is there
+          className={`order-3 flex w-full items-center gap-5 sm:order-2 sm:w-auto ${fab ? 'max-md:hidden' : ''}`}
         >
           <NavLink to="/" end className={addClass}>
             <PlusIcon />
@@ -71,6 +75,7 @@ export function AppShell({ user }: { user: AuthUser }) {
       >
         <Outlet />
       </Suspense>
+      <CameraFab />
     </main>
   );
 }

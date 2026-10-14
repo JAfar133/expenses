@@ -30,6 +30,7 @@ import { CardSelect } from './CardSelect.tsx';
 import { CategoryLimitHint } from '../../budgets/components/CategoryLimitHint.tsx';
 import { ReceiptPicker } from '../../receipts/components/ReceiptPicker.tsx';
 import { useReceiptAllowed } from '../../receipts/hooks/useReceiptSettings.ts';
+import { clearPendingPhoto, usePendingPhoto } from '../../receipts/model/pending-photo.ts';
 import { useAiPhotoFirst } from '../../ai/hooks/useAiPhotoFirst.ts';
 import { useAiInCategory } from '../../ai/hooks/useAiInCategory.ts';
 import { AiSuggestion } from '../../ai/components/AiSuggestion.tsx';
@@ -189,6 +190,14 @@ export function ExpenseForm({
   nameOptional.current = aiEligible && photo !== null;
   const attachedPhoto = showPhoto ? photo : null;
   const [photoWarning, setPhotoWarning] = useState<string>();
+  // A photo from the camera button (taken on another page or on this one) replaces the current one
+  const pendingPhoto = usePendingPhoto();
+  useEffect(() => {
+    if (!pendingPhoto) return;
+    setPhoto(pendingPhoto);
+    setPhotoWarning(undefined);
+    clearPendingPhoto();
+  }, [pendingPhoto]);
   const ai = useReceiptPreparse({
     form,
     photo: attachedPhoto,

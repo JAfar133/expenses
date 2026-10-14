@@ -362,3 +362,9 @@ export const ChevronRightSmallIcon = () => (
     <path d="M9 5l7 7-7 7" />
   </Icon>
 );
+
+export const ChartIcon = () => (
+  <Icon>
+    <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+  </Icon>
+);

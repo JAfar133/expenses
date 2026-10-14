@@ -4,16 +4,22 @@ import type { ChangeEvent, RefObject } from 'react';
 export function PhotoInput({
   inputRef,
   onChange,
+  capture,
+  label = 'Выбрать фото чека',
 }: {
   inputRef: RefObject<HTMLInputElement | null>;
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  /** Open the rear camera of the phone at once instead of offering the gallery */
+  capture?: 'environment';
+  label?: string;
 }) {
   return (
     <input
       ref={inputRef}
       type="file"
       accept="image/*"
-      aria-label="Выбрать фото чека"
+      capture={capture}
+      aria-label={label}
       tabIndex={-1}
       onChange={onChange}
       className="sr-only"

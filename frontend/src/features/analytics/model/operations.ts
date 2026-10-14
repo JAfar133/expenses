@@ -1,3 +1,4 @@
+import { addDays } from './periods.ts';
 import type { ExcelState, SortColumn, SortDirection } from '../api/operations.api.ts';
 
 export interface ExcelStateInfo {
@@ -138,6 +139,18 @@ const MONTHS_GENITIVE = [
 /** «13 октября 2026» for YYYY-MM-DD. */
 export const dayWords = (iso: string) =>
   `${Number(iso.slice(8, 10))} ${MONTHS_GENITIVE[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
+
+/**
+ * The title of a day plate: «Сегодня, 13 октября» and «Вчера, 12 октября» (the year only when it is not the current
+ * one), any other day in words with the year. `today` is the date in the user's time zone.
+ */
+export function dayLabel(iso: string, today: string): string {
+  const short = `${Number(iso.slice(8, 10))} ${MONTHS_GENITIVE[Number(iso.slice(5, 7)) - 1]}`;
+  const withYear = iso.slice(0, 4) === today.slice(0, 4) ? short : `${short} ${iso.slice(0, 4)}`;
+  if (iso === today) return `Сегодня, ${withYear}`;
+  if (iso === addDays(today, -1)) return `Вчера, ${withYear}`;
+  return dayWords(iso);
+}
 
 /** Consecutive records of one date (the list is sorted by date, so a day is one run). */
 export function groupByDate<T extends { date: string }>(

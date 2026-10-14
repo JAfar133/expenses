@@ -1,7 +1,12 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { OperationItem } from '../src/features/analytics/api/operations.api.ts';
-import { dayWords, groupByDate, recordsLabel } from '../src/features/analytics/model/operations.ts';
+import {
+  dayLabel,
+  dayWords,
+  groupByDate,
+  recordsLabel,
+} from '../src/features/analytics/model/operations.ts';
 import { shortCaption } from '../src/features/analytics/components/PeriodMenu.tsx';
 import {
   harness,
@@ -321,5 +326,38 @@ describe('таблица на десктопе: заголовки дней', ()
 
     expect(await table.findByRole('list', { name: 'Позиции' })).toBeInTheDocument();
     expect(table.getByRole('button', { name: 'Действия' })).toBeInTheDocument();
+  });
+});
+
+describe('заголовки «Сегодня» и «Вчера»', () => {
+  it('dayLabel: сегодня и вчера без года, остальные словами с годом', () => {
+    expect(dayLabel('2026-10-15', '2026-10-15')).toBe('Сегодня, 15 октября');
+    expect(dayLabel('2026-10-14', '2026-10-15')).toBe('Вчера, 14 октября');
+    expect(dayLabel('2026-10-13', '2026-10-15')).toBe('13 октября 2026');
+    expect(dayLabel('2025-12-31', '2026-01-01')).toBe('Вчера, 31 декабря 2025');
+  });
+
+  it('в списке: «Сегодня, 15 октября · сумма» и «Вчера, 14 октября · сумма» (сегодня 15.10.2026)', async () => {
+    serve(
+      [op(1, { date: '2026-10-15' }), op(2, { date: '2026-10-14' }), op(3, { date: '2026-10-13' })],
+      [
+        { period: '2026-10-15', total: 16620, count: 2 },
+        { period: '2026-10-14', total: 42176, count: 1 },
+        { period: '2026-10-13', total: 700, count: 1 },
+      ],
+    );
+    renderAnalytics('/analytics/operations');
+    const table = within(await screen.findByRole('table', { name: 'Операции' }));
+
+    expect(
+      await table.findByRole('heading', { name: 'Сегодня, 15 октября · 16 620 AMD' }),
+    ).toBeInTheDocument();
+    expect(
+      table.getByRole('heading', { name: 'Вчера, 14 октября · 42 176 AMD' }),
+    ).toBeInTheDocument();
+    expect(table.getByRole('heading', { name: '13 октября 2026 · 700 AMD' })).toBeInTheDocument();
+    expect(
+      within(await loaded()).getByRole('heading', { name: 'Сегодня, 15 октября · 16 620 AMD' }),
+    ).toBeInTheDocument();
   });
 });

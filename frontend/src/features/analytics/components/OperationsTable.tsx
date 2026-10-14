@@ -7,7 +7,8 @@ import { ParsingBadge } from '../../ai/components/ParsingBadge.tsx';
 import { ItemsCount } from '../../items/components/ItemsCount.tsx';
 import { ItemsPanel } from '../../items/components/ItemsPanel.tsx';
 import { ReceiptBadge } from '../../receipts/components/ReceiptBadge.tsx';
-import { capitalize, dayWords, groupByDate } from '../model/operations.ts';
+import { todayIso } from '../../../shared/utils/date.ts';
+import { capitalize, dayLabel, groupByDate } from '../model/operations.ts';
 import { formatShortDateTime } from '../../admin/model/backup.ts';
 import { ActionMenu, type MenuAction } from '../../../shared/ui/ActionMenu.tsx';
 import { CameraIcon, PencilIcon, TrashIcon, UndoIcon } from '../../../shared/ui/icons.tsx';
@@ -215,9 +216,10 @@ export function OperationsTable(props: OperationsTableProps) {
   const dayHeading = (date: string) => {
     const code = displayCurrency ?? currency;
     const total = dayTotals?.get(date);
+    const label = dayLabel(date, todayIso());
     return total === undefined
-      ? dayWords(date)
-      : `${dayWords(date)} · ${formatAmount(total, currencyDigits(code, baseCurrency))} ${code}`;
+      ? label
+      : `${label} · ${formatAmount(total, currencyDigits(code, baseCurrency))} ${code}`;
   };
   const tableRows = useOpenRows();
   const cardRows = useOpenRows();

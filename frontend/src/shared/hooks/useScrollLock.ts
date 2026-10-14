@@ -1,10 +1,25 @@
-import { useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 
 /** How many windows are open now: the page is unlocked only when the last one closes. */
 let locks = 0;
 let saved: { scrollY: number; style: Partial<CSSStyleDeclaration> } | undefined;
 
 const KEYS = ['position', 'top', 'left', 'right', 'width', 'overflow', 'paddingRight'] as const;
+
+const modalListeners = new Set<() => void>();
+const notifyModals = () => modalListeners.forEach((listener) => listener());
+
+/** Is any modal window or sheet open now (what floating buttons must stay under). */
+export function useAnyModalOpen(): boolean {
+  return useSyncExternalStore(
+    (listener) => {
+      modalListeners.add(listener);
+      return () => modalListeners.delete(listener);
+    },
+    () => locks > 0,
+    () => false,
+  );
+}
 
 function lock() {
   const { body, documentElement } = document;
@@ -37,9 +52,11 @@ export function useScrollLock(active = true) {
     if (!active) return;
     if (locks === 0) lock();
     locks += 1;
+    notifyModals();
     return () => {
       locks -= 1;
       if (locks === 0) unlock();
+      notifyModals();
     };
   }, [active]);
 }
