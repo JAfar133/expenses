@@ -3,6 +3,7 @@ import { CameraIcon, CloseIcon } from '../../../shared/ui/icons.tsx';
 import { usePhotoMenuNeeded } from '../../../shared/hooks/usePhotoMenuNeeded.ts';
 import { usePhotoSources } from '../hooks/usePhotoSources.ts';
 import { ReceiptViewer } from './ReceiptViewer.tsx';
+import { CameraCapture } from './CameraCapture.tsx';
 import { PhotoInput } from './PhotoInput.tsx';
 import { PhotoSourceMenu } from './PhotoSourceMenu.tsx';
 
@@ -22,6 +23,7 @@ export function ReceiptPicker({ photo, onChange, status }: ReceiptPickerProps) {
   // On a phone the app asks «camera or gallery» itself (Android offers only the gallery); on a desktop the file dialog
   const menuNeeded = usePhotoMenuNeeded();
   const [menu, setMenu] = useState(false);
+  const [camera, setCamera] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null);
   const pick = () => (menuNeeded ? setMenu((open) => !open) : file.gallery.open());
   const [viewing, setViewing] = useState(false);
@@ -37,12 +39,13 @@ export function ReceiptPicker({ photo, onChange, status }: ReceiptPickerProps) {
         inputRef={file.gallery.input}
         onChange={(event) => void file.gallery.onChange(event)}
       />
-      <PhotoInput
-        inputRef={file.camera.input}
-        onChange={(event) => void file.camera.onChange(event)}
-        capture="environment"
-        label="Снять чек на камеру"
-      />
+      {camera && (
+        <CameraCapture
+          onCapture={file.capture}
+          onGallery={file.gallery.open}
+          onClose={() => setCamera(false)}
+        />
+      )}
       {preview ? (
         <>
           <div className="flex items-start gap-3">
@@ -85,7 +88,7 @@ export function ReceiptPicker({ photo, onChange, status }: ReceiptPickerProps) {
             {menu && (
               <PhotoSourceMenu
                 anchor={anchor}
-                onCamera={file.camera.open}
+                onCamera={() => setCamera(true)}
                 onGallery={file.gallery.open}
                 onClose={() => setMenu(false)}
                 className="absolute left-0 top-full mt-1"
@@ -108,7 +111,7 @@ export function ReceiptPicker({ photo, onChange, status }: ReceiptPickerProps) {
           {menu && (
             <PhotoSourceMenu
               anchor={anchor}
-              onCamera={file.camera.open}
+              onCamera={() => setCamera(true)}
               onGallery={file.gallery.open}
               onClose={() => setMenu(false)}
               className="absolute left-0 top-full mt-1"

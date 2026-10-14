@@ -10,11 +10,8 @@ export function usePhotoFile(onPhoto: (photo: Blob) => void | Promise<void>) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
-  const onChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    // The same file can be chosen again later
-    event.target.value = '';
-    if (!file) return;
+  /** Compresses a picture and hands it over: the road of a file from the gallery and of a frame from the camera. */
+  const process = async (file: Blob) => {
     setBusy(true);
     setError(undefined);
     try {
@@ -26,5 +23,13 @@ export function usePhotoFile(onPhoto: (photo: Blob) => void | Promise<void>) {
     }
   };
 
-  return { input, open: () => input.current?.click(), onChange, busy, error };
+  const onChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // The same file can be chosen again later
+    event.target.value = '';
+    if (!file) return;
+    await process(file);
+  };
+
+  return { input, open: () => input.current?.click(), onChange, process, busy, error };
 }

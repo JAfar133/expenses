@@ -7,6 +7,7 @@ import { CameraIcon, ChartIcon, PlusIcon } from '../../../shared/ui/icons.tsx';
 import { usePhotoMenuNeeded } from '../../../shared/hooks/usePhotoMenuNeeded.ts';
 import { usePhotoSources } from '../hooks/usePhotoSources.ts';
 import { setPendingPhoto } from '../model/pending-photo.ts';
+import { CameraCapture } from './CameraCapture.tsx';
 import { PhotoInput } from './PhotoInput.tsx';
 import { PhotoSourceMenu } from './PhotoSourceMenu.tsx';
 
@@ -39,6 +40,7 @@ export function CameraFab() {
   const keyboard = useKeyboardOpen();
   const modal = useAnyModalOpen();
   const [menu, setMenu] = useState(false);
+  const [camera, setCamera] = useState(false);
   // iOS and Samsung Internet show the system choice for a plain input: no menu of our own there
   const menuNeeded = usePhotoMenuNeeded({ phone: true });
   const anchor = useRef<HTMLButtonElement>(null);
@@ -52,12 +54,13 @@ export function CameraFab() {
 
   return (
     <div className="md:hidden">
-      <PhotoInput
-        inputRef={file.camera.input}
-        onChange={(event) => void file.camera.onChange(event)}
-        capture="environment"
-        label="Снять чек"
-      />
+      {camera && (
+        <CameraCapture
+          onCapture={file.capture}
+          onGallery={file.gallery.open}
+          onClose={() => setCamera(false)}
+        />
+      )}
       <PhotoInput
         inputRef={file.gallery.input}
         onChange={(event) => void file.gallery.onChange(event)}
@@ -107,7 +110,7 @@ export function CameraFab() {
               {menu && (
                 <PhotoSourceMenu
                   anchor={anchor}
-                  onCamera={file.camera.open}
+                  onCamera={() => setCamera(true)}
                   onGallery={file.gallery.open}
                   onClose={() => setMenu(false)}
                   className="absolute bottom-[calc(100%+41px)] left-1/2 -translate-x-1/2"

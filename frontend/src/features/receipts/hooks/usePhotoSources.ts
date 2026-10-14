@@ -1,16 +1,16 @@
 import { usePhotoFile } from './usePhotoFile.ts';
 
 /**
- * Two ways to get the same photo: the camera of the phone and the gallery (two file inputs, one with `capture`).
- * Whatever the source, the file takes the same road: compression in the browser, then `onPhoto`.
+ * The photo of a receipt comes from the gallery (a file input) or from the camera of the app (`CameraCapture`).
+ * Whatever the source, it takes the same road: compression in the browser, then `onPhoto`.
  */
 export function usePhotoSources(onPhoto: (photo: Blob) => void | Promise<void>) {
-  const camera = usePhotoFile(onPhoto);
   const gallery = usePhotoFile(onPhoto);
   return {
-    camera,
     gallery,
-    busy: camera.busy || gallery.busy,
-    error: camera.error ?? gallery.error,
+    /** A frame from the camera of the app */
+    capture: gallery.process,
+    busy: gallery.busy,
+    error: gallery.error,
   };
 }

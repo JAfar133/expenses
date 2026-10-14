@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
@@ -16,6 +16,15 @@ import {
 } from './helpers/offline-harness.tsx';
 
 setupOfflineHarness();
+
+/** A fake camera: getUserMedia gives a stream whose tracks can be counted. */
+function mockCamera(behaviour?: (constraints: MediaStreamConstraints) => Promise<MediaStream>) {
+  const stops = vi.fn();
+  const stream = { getTracks: () => [{ stop: stops }, { stop: stops }] } as unknown as MediaStream;
+  const getUserMedia = vi.fn(behaviour ?? (async () => stream));
+  Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia } });
+  return { getUserMedia, stops, stream };
+}
 
 function Where() {
   const location = useLocation();
@@ -62,9 +71,8 @@ function scenario({ confirmed = true } = {}) {
 
 const fab = () => screen.queryByRole('button', { name: 'Добавить чек' });
 const galleryInput = () => screen.getByLabelText('Выбрать чек из галереи') as HTMLInputElement;
-const cameraInput = () => screen.getByLabelText('Снять чек') as HTMLInputElement;
 const shoot = (person: ReturnType<typeof userEvent.setup>) =>
-  person.upload(cameraInput(), new File(['img'], 'check.jpg', { type: 'image/jpeg' }));
+  person.upload(galleryInput(), new File(['img'], 'check.jpg', { type: 'image/jpeg' }));
 
 describe('круглая кнопка камеры', () => {
   it('на «Добавить» при доступном сценарии: нижний бар на всю ширину, только на телефоне', async () => {
@@ -128,15 +136,14 @@ describe('круглая кнопка камеры', () => {
     expect(bar.getByRole('link', { name: 'Добавить' }).className).toContain('text-indigo-600');
   });
 
-  it('два скрытых input: камера (capture=environment) и галерея (без capture), оба accept=image/*', async () => {
+  it('скрытый input галереи: accept=image/*, без capture; input с capture больше нет', async () => {
     scenario();
     renderAt('/');
     await screen.findByRole('button', { name: 'Добавить чек' });
 
-    expect(cameraInput()).toHaveAttribute('accept', 'image/*');
-    expect(cameraInput()).toHaveAttribute('capture', 'environment');
     expect(galleryInput()).toHaveAttribute('accept', 'image/*');
     expect(galleryInput()).not.toHaveAttribute('capture');
+    expect(screen.queryByLabelText('Снять чек')).toBeNull();
   });
 
   it('на страницах аналитики кнопка есть', async () => {
@@ -252,7 +259,7 @@ describe('съёмка', () => {
     renderAt('/analytics');
     await screen.findByRole('button', { name: 'Добавить чек' });
 
-    fireEvent.change(cameraInput(), { target: { files: [] } });
+    fireEvent.change(galleryInput(), { target: { files: [] } });
     await new Promise((resolve) => setTimeout(resolve, 30));
 
     expect(screen.getByTestId('path')).toHaveTextContent('/analytics');
@@ -389,17 +396,17 @@ describe('выбор источника фото', () => {
     for (const item of menu.getAllByRole('menuitem')) expect(item.className).toContain('min-h-11');
   });
 
-  it('«Сфотографировать» кликает input с capture=environment, меню закрывается', async () => {
+  it('«Сфотографировать» открывает камеру приложения, меню закрывается, input галереи не кликается', async () => {
     scenario();
+    mockCamera();
     const person = renderAt('/');
     await screen.findByRole('button', { name: 'Добавить чек' });
-    const click = vi.spyOn(cameraInput(), 'click').mockImplementation(() => undefined);
     const other = vi.spyOn(galleryInput(), 'click').mockImplementation(() => undefined);
     const menu = await openMenu(person);
 
     await person.click(menu.getByRole('menuitem', { name: 'Сфотографировать' }));
 
-    expect(click).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole('dialog', { name: 'Камера' })).toBeInTheDocument();
     expect(other).not.toHaveBeenCalled();
     expect(screen.queryByRole('menu')).toBeNull();
   });
@@ -408,14 +415,13 @@ describe('выбор источника фото', () => {
     scenario();
     const person = renderAt('/');
     await screen.findByRole('button', { name: 'Добавить чек' });
-    const camera = vi.spyOn(cameraInput(), 'click').mockImplementation(() => undefined);
     const gallery = vi.spyOn(galleryInput(), 'click').mockImplementation(() => undefined);
     const menu = await openMenu(person);
 
     await person.click(menu.getByRole('menuitem', { name: 'Выбрать из галереи' }));
 
     expect(gallery).toHaveBeenCalledTimes(1);
-    expect(camera).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'Камера' })).toBeNull();
   });
 
   it('Escape и клик вне закрывают меню', async () => {
@@ -478,17 +484,20 @@ describe('кнопка фото на форме «Добавить»', () => {
     expect(menu.getByRole('menuitem', { name: 'Выбрать из галереи' })).toBeInTheDocument();
   });
 
-  it('файл с камеры формы (capture) запускает разбор', async () => {
+  it('«Сфотографировать» из меню формы открывает камеру, снимок запускает разбор', async () => {
     scenario();
     stubPhone();
+    const camera = mockCamera();
     const person = renderAt('/');
     await person.selectOptions(await screen.findByLabelText('Категория'), 'кафе');
-    const camera = await screen.findByLabelText('Снять чек на камеру');
-    expect(camera).toHaveAttribute('capture', 'environment');
+    await person.click(await screen.findByRole('button', { name: 'Прикрепить фото чека' }));
 
-    await person.upload(camera, new File(['img'], 'c.jpg', { type: 'image/jpeg' }));
+    await person.click(await screen.findByRole('menuitem', { name: 'Сфотографировать' }));
+    await person.click(await screen.findByRole('button', { name: 'Сделать снимок' }));
 
     await waitFor(() => expect(server.photoParses()).toHaveLength(1));
+    expect(camera.stops).toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'Камера' })).toBeNull();
   });
 });
 
@@ -514,12 +523,11 @@ describe('меню только там, где оно нужно', () => {
       const person = renderAt('/');
       await screen.findByRole('button', { name: 'Добавить чек' });
       const gallery = vi.spyOn(galleryInput(), 'click').mockImplementation(() => undefined);
-      const camera = vi.spyOn(cameraInput(), 'click').mockImplementation(() => undefined);
 
       await person.click(screen.getByRole('button', { name: 'Добавить чек' }));
 
       expect(gallery).toHaveBeenCalledTimes(1);
-      expect(camera).not.toHaveBeenCalled();
+      expect(screen.queryByRole('dialog', { name: 'Камера' })).toBeNull();
       expect(screen.queryByRole('menu')).toBeNull();
     },
   );
@@ -551,5 +559,186 @@ describe('меню только там, где оно нужно', () => {
 
     expect(click).toHaveBeenCalled();
     expect(screen.queryByRole('menu', { name: 'Источник фото' })).toBeNull();
+  });
+});
+
+describe('камера приложения', () => {
+  const openCamera = async (person: ReturnType<typeof userEvent.setup>) => {
+    await person.click(await screen.findByRole('button', { name: 'Добавить чек' }));
+    await person.click(await screen.findByRole('menuitem', { name: 'Сфотографировать' }));
+    return screen.findByRole('dialog', { name: 'Камера' });
+  };
+  const denied = (name: string) => async () => {
+    throw Object.assign(new Error(name), { name });
+  };
+
+  it('просит заднюю камеру (environment), без звука; слой полноэкранный, выше бара и окон', async () => {
+    scenario();
+    const camera = mockCamera();
+    const person = renderAt('/');
+
+    const layer = await openCamera(person);
+
+    await waitFor(() => expect(camera.getUserMedia).toHaveBeenCalledTimes(1));
+    expect(camera.getUserMedia).toHaveBeenCalledWith({
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 2560 },
+        height: { ideal: 1440 },
+      },
+      audio: false,
+    });
+    expect(layer.className).toContain('z-[60]');
+    expect(layer.className).toContain('bg-black');
+    expect(screen.getByText('Наведите камеру на чек')).toBeInTheDocument();
+    const video = layer.querySelector('video')!;
+    expect(video).toHaveAttribute('playsinline');
+    expect(video.muted).toBe(true);
+  });
+
+  it('пока камера запускается — «Запускаем камеру…», затвор неактивен', async () => {
+    scenario();
+    mockCamera(() => new Promise<MediaStream>(() => undefined));
+    const person = renderAt('/');
+
+    await openCamera(person);
+
+    expect(screen.getByText('Запускаем камеру…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Сделать снимок' })).toBeDisabled();
+  });
+
+  it('затвор отдаёт JPEG в путь добавления фото, закрывает слой и останавливает треки', async () => {
+    scenario();
+    const camera = mockCamera();
+    const person = renderAt('/analytics');
+    await openCamera(person);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Сделать снимок' })).toBeEnabled(),
+    );
+
+    await person.click(screen.getByRole('button', { name: 'Сделать снимок' }));
+
+    expect(screen.queryByRole('dialog', { name: 'Камера' })).toBeNull();
+    expect(camera.stops).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent(/^\/$/));
+    await waitFor(() => expect(server.photoParses()).toHaveLength(1));
+    expect(server.photoParses()[0]!.headers.get('Content-Type')).toBe('image/jpeg');
+  });
+
+  it('закрытие крестиком останавливает треки', async () => {
+    scenario();
+    const camera = mockCamera();
+    const person = renderAt('/');
+    await openCamera(person);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Сделать снимок' })).toBeEnabled(),
+    );
+
+    await person.click(screen.getByRole('button', { name: 'Закрыть камеру' }));
+
+    expect(screen.queryByRole('dialog', { name: 'Камера' })).toBeNull();
+    expect(camera.stops).toHaveBeenCalledTimes(2);
+    expect(server.photoParses()).toHaveLength(0);
+  });
+
+  it('Escape закрывает слой', async () => {
+    scenario();
+    mockCamera();
+    const person = renderAt('/');
+    await openCamera(person);
+
+    await person.keyboard('{Escape}');
+
+    expect(screen.queryByRole('dialog', { name: 'Камера' })).toBeNull();
+  });
+
+  it('размонтирование останавливает треки', async () => {
+    scenario();
+    const camera = mockCamera();
+    const person = renderAt('/');
+    await openCamera(person);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Сделать снимок' })).toBeEnabled(),
+    );
+
+    cleanup();
+
+    expect(camera.stops).toHaveBeenCalledTimes(2);
+  });
+
+  it('отказ в доступе: сообщение и кнопки «Выбрать из галереи» и «Закрыть»', async () => {
+    scenario();
+    mockCamera(denied('NotAllowedError'));
+    const person = renderAt('/');
+    await openCamera(person);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Нет доступа к камере. Разрешите её для этого сайта в настройках браузера или выберите фото из галереи',
+    );
+    expect(screen.getByRole('button', { name: 'Выбрать из галереи' })).toBeInTheDocument();
+    await person.click(screen.getByRole('button', { name: 'Закрыть' }));
+    expect(screen.queryByRole('dialog', { name: 'Камера' })).toBeNull();
+  });
+
+  it('SecurityError — то же сообщение; «Выбрать из галереи» открывает input без capture', async () => {
+    scenario();
+    mockCamera(denied('SecurityError'));
+    const person = renderAt('/');
+    await screen.findByRole('button', { name: 'Добавить чек' });
+    const gallery = vi.spyOn(galleryInput(), 'click').mockImplementation(() => undefined);
+    await openCamera(person);
+
+    await person.click(await screen.findByRole('button', { name: 'Выбрать из галереи' }));
+
+    expect(gallery).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog', { name: 'Камера' })).toBeNull();
+  });
+
+  it('нет mediaDevices (нет https): слой сразу показывает сообщение', async () => {
+    scenario();
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: undefined });
+    const person = renderAt('/');
+    await openCamera(person);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Нет доступа к камере');
+    expect(screen.getByRole('button', { name: 'Выбрать из галереи' })).toBeInTheDocument();
+  });
+
+  it('OverconstrainedError: повтор с упрощёнными ограничениями (video: true)', async () => {
+    scenario();
+    const stops = vi.fn();
+    const stream = { getTracks: () => [{ stop: stops }] } as unknown as MediaStream;
+    const getUserMedia = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error('x'), { name: 'OverconstrainedError' }))
+      .mockResolvedValueOnce(stream);
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia },
+    });
+    const person = renderAt('/');
+    await openCamera(person);
+
+    await waitFor(() => expect(getUserMedia).toHaveBeenCalledTimes(2));
+    expect(getUserMedia).toHaveBeenLastCalledWith({ video: true, audio: false });
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Сделать снимок' })).toBeEnabled(),
+    );
+  });
+
+  it('NotFoundError и тут отказ: сообщение', async () => {
+    scenario();
+    const getUserMedia = vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error('x'), { name: 'NotFoundError' }));
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia },
+    });
+    const person = renderAt('/');
+    await openCamera(person);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Нет доступа к камере');
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
   });
 });
