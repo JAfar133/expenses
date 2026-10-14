@@ -1,4 +1,5 @@
 import { QueueUnavailableError, type QueuedExpense, type QueueStore } from './queue-types.ts';
+import { readBytes } from './blob-bytes.ts';
 import { notifyQueueChanged } from './queue-signal.ts';
 
 /** How a record lies in IndexedDB: the photo as bytes (Safari is unreliable with Blobs in IndexedDB). */
@@ -6,17 +7,18 @@ type StoredExpense = Omit<QueuedExpense, 'photo'> & {
   photo?: { bytes: ArrayBuffer; type: string };
 };
 
-function readBytes(blob: Blob): Promise<ArrayBuffer> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as ArrayBuffer);
-    reader.onerror = () => reject(new QueueUnavailableError());
-    reader.readAsArrayBuffer(blob);
-  });
-}
-
 async function toStored({ photo, ...rest }: QueuedExpense): Promise<StoredExpense> {
-  return photo ? { ...rest, photo: { bytes: await readBytes(photo), type: photo.type } } : rest;
+  return photo
+    ? {
+        ...rest,
+        photo: {
+          bytes: await readBytes(photo).catch(() => {
+            throw new QueueUnavailableError();
+          }),
+          type: photo.type,
+        },
+      }
+    : rest;
 }
 
 function fromStored({ photo, ...rest }: StoredExpense): QueuedExpense {

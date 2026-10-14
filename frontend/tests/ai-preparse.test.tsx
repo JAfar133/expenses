@@ -987,3 +987,115 @@ describe('подсказка названия от ИИ', () => {
     expect(lastPost()).toMatchObject({ name: 'Магаз', aiParseId: 'p1' });
   });
 });
+
+describe('валюта чека', () => {
+  const RATES = {
+    base: 'AMD',
+    currencies: ['AMD', 'RUB', 'USD'],
+    rates: [{ currency: 'RUB', rate: 4.8, fetchedAt: '2026-10-15T00:00:00Z' }],
+  };
+  const receipt = (patch: Record<string, unknown>) => () =>
+    ok({
+      parseId: 'p1',
+      category: null,
+      name: 'Магазин',
+      date: null,
+      items: [],
+      total: 3810,
+      currency: 'RUB',
+      dropped: 0,
+      ...patch,
+    });
+  const amount = () => screen.getByLabelText('Стоимость');
+  const currency = () => screen.getByLabelText('Валюта') as HTMLSelectElement;
+
+  it('чек в рублях при карте в драмах: валюта ввода переключается на RUB, подставляется итог с пометкой AI, курс подтянут', async () => {
+    server.rates = RATES;
+    server.parsePhoto = receipt({});
+    const { person } = await ready();
+    expect(await screen.findByLabelText('Валюта')).toHaveValue('AMD');
+
+    await pickPhoto(person);
+
+    await waitFor(() => expect(amount()).toHaveValue('3 810'));
+    expect(currency()).toHaveValue('RUB');
+    expect(within(labelOf('Стоимость')).getByRole('img', { name: AI })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Курс/)).toHaveValue('4,8');
+    expect(screen.queryByText(/По чеку:/)).toBeNull();
+  });
+
+  it('итога нет: сумма позиций в валюте чека', async () => {
+    server.rates = RATES;
+    server.parsePhoto = receipt({
+      total: null,
+      items: [
+        { name: 'Сыр', price: 1000.5, quantity: 1 },
+        { name: 'Хлеб', price: 2809.5, quantity: 1 },
+      ],
+    });
+    const { person } = await ready();
+
+    await pickPhoto(person);
+
+    await waitFor(() => expect(amount()).toHaveValue('3 810'));
+    expect(currency()).toHaveValue('RUB');
+  });
+
+  it('валюты чека нет среди доступных: суммы нет, только подсказка с этой валютой без «Подставить»', async () => {
+    server.rates = RATES;
+    server.parsePhoto = receipt({ currency: 'GBP' });
+    const { person } = await ready();
+
+    await pickPhoto(person);
+
+    expect(await screen.findByText(/По чеку: 3 810 GBP/)).toBeInTheDocument();
+    expect(amount()).toHaveValue('');
+    expect(currency()).toHaveValue('AMD');
+    expect(screen.queryByRole('button', { name: 'Подставить' })).toBeNull();
+  });
+
+  it('сумма введена руками: не трогается; «Подставить» переключает валюту и ставит сумму', async () => {
+    server.rates = RATES;
+    server.parsePhoto = receipt({});
+    const { person } = await ready();
+    await person.type(amount(), '2000');
+
+    await pickPhoto(person);
+
+    const hint = (await screen.findByText(/По чеку: 3 810 RUB/)).closest('p')!;
+    expect(amount()).toHaveValue('2 000');
+    expect(currency()).toHaveValue('AMD');
+
+    await person.click(within(hint).getByRole('button', { name: 'Подставить' }));
+
+    expect(currency()).toHaveValue('RUB');
+    expect(amount()).toHaveValue('3 810');
+    expect(within(labelOf('Стоимость')).getByRole('img', { name: AI })).toBeInTheDocument();
+  });
+
+  it('в ответе нет валюты: считается валютой ввода, она не меняется', async () => {
+    server.rates = RATES;
+    server.parsePhoto = receipt({ currency: null });
+    const { person } = await ready();
+
+    await pickPhoto(person);
+
+    await waitFor(() => expect(amount()).toHaveValue('3 810'));
+    expect(currency()).toHaveValue('AMD');
+  });
+
+  it('сумма позиций и расхождение считаются в валюте ввода (RUB после переключения)', async () => {
+    server.rates = RATES;
+    server.parsePhoto = receipt({ items: [{ name: 'Сыр', price: 3800, quantity: 1 }] });
+    const { person } = await ready();
+
+    await pickPhoto(person);
+    await waitFor(() => expect(currency()).toHaveValue('RUB'));
+    await person.click(screen.getByRole('button', { name: /^Позиции чека/ }));
+
+    expect(screen.getByText('Сумма позиций 3 800,00 RUB')).toBeInTheDocument();
+    expect(
+      screen.getByText('Сумма расхода отличается от суммы позиций на 10,00 RUB'),
+    ).toBeInTheDocument();
+  });
+});

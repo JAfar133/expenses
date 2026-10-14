@@ -12,6 +12,7 @@ import type { PhotoParse } from '../../ai/api/ai.api.ts';
 import { useAiNotice } from '../../ai/hooks/useAiNotice.ts';
 import { usePhotoParse } from '../../ai/hooks/usePhotoParse.ts';
 import { isAiGenerated, parsedToDrafts, type DraftItem } from '../../items/model/draft-items.ts';
+import type { DraftAiState } from '../model/form-draft.ts';
 import { sumItems } from '../../items/model/items-sum.ts';
 import type { ExpenseFormValues } from '../schemas/expense-form.schema.ts';
 
@@ -30,6 +31,8 @@ interface Options {
   setItems: Dispatch<SetStateAction<DraftItem[]>>;
   /** The person changed the date by hand: the AI must not replace it */
   dateTouched: MutableRefObject<boolean>;
+  /** The currencies the amount field can take now, and how to switch it (the rate follows as for a manual choice) */
+  currencies: { available: () => string[]; switchTo: (code: string) => void };
 }
 
 /** The amount for the field: a fractional one always with two decimals («1 500,50»), a whole one without. */
@@ -52,6 +55,7 @@ export function useReceiptPreparse({
   items,
   setItems,
   dateTouched,
+  currencies,
 }: Options) {
   const notice = useAiNotice();
   const [aiName, setAiName] = useState<string | null>(null);
@@ -80,15 +84,16 @@ export function useReceiptPreparse({
       form.setValue('date', result.date);
       setAiDate(result.date);
     }
-    // The amount: the receipt total, else the sum of the positions; never over what the person typed, and not in
-    // another currency than the one chosen in the field
+    // The amount: the receipt total, else the sum of the positions, in the currency of the receipt (the currency of
+    // the field when the receipt names none); never over what the person typed, and only in a currency the form has
     const amount = result.total ?? positionsSum(result.items);
-    const sameCurrency = !result.currency || result.currency === current.currency;
+    const receiptCurrency = result.currency ?? current.currency;
     if (
       amount &&
-      sameCurrency &&
+      currencies.available().includes(receiptCurrency) &&
       (!current.amount.trim() || current.amount === marks.current.amount)
     ) {
+      if (receiptCurrency !== current.currency) currencies.switchTo(receiptCurrency);
       const text = amountText(amount);
       form.setValue('amount', text, { shouldValidate: true });
       setAiAmount(text);
@@ -106,7 +111,16 @@ export function useReceiptPreparse({
   const keepResult = useRef(false);
   const lastPhoto = useRef<Blob | null>(null);
 
+  // The photo that came back from a draft together with its finished parse: it is not read a second time
+  const skipStart = useRef<Blob | null>(null);
+
   useEffect(() => {
+    if (photo && photo === skipStart.current) {
+      skipStart.current = null;
+      lastPhoto.current = photo;
+      keepResult.current = true;
+      return;
+    }
     if (photo !== lastPhoto.current) keepResult.current = false;
     lastPhoto.current = photo;
     if (!photo) return reset();
@@ -127,14 +141,18 @@ export function useReceiptPreparse({
   const typed = parseDecimal(form.watch('amount'));
   const fieldCurrency = form.watch('currency');
   // Only a total that came from the receipt, and only when it differs from the field by a currency unit
+  const receiptCurrency = result?.currency ?? fieldCurrency;
+  // Amounts in different currencies cannot be compared: then the receipt total is always shown
   const receiptTotal =
-    result?.total != null && (typed === null || Math.abs(typed - result.total) >= 1)
-      ? { total: result.total, currency: result.currency ?? fieldCurrency }
+    result?.total != null &&
+    (receiptCurrency !== fieldCurrency || typed === null || Math.abs(typed - result.total) >= 1)
+      ? { total: result.total, currency: receiptCurrency }
       : undefined;
-  const sameCurrency = !result?.currency || result.currency === fieldCurrency;
+  const receiptCurrencyKnown = currencies.available().includes(receiptCurrency);
 
   const applyTotal = () => {
     if (result?.total == null) return;
+    if (receiptCurrency !== form.getValues('currency')) currencies.switchTo(receiptCurrency);
     const text = amountText(result.total);
     form.setValue('amount', text, { shouldValidate: true });
     setAiAmount(text);
@@ -165,7 +183,35 @@ export function useReceiptPreparse({
     setAiName(suggestedName);
   };
 
+  /** What a draft has to remember of the AI: the marks and how the parse stood. */
+  const snapshot: DraftAiState = {
+    name: aiName,
+    date: aiDate,
+    amount: aiAmount,
+    category: aiCategory,
+    parse:
+      parse.state.status === 'done'
+        ? { status: 'done', result: parse.state.result }
+        : parse.state.status === 'running'
+          ? { status: 'running' }
+          : { status: 'idle' },
+  };
+
+  /** Puts the marks and the finished parse back; a parse that was still running starts again by itself. */
+  const restore = (saved: DraftAiState, restoredPhoto: Blob | undefined) => {
+    setAiName(saved.name);
+    setAiDate(saved.date);
+    setAiAmount(saved.amount);
+    setAiCategory(saved.category);
+    if (saved.parse.status === 'done' && restoredPhoto) {
+      skipStart.current = restoredPhoto;
+      parse.restore({ status: 'done', result: saved.parse.result });
+    }
+  };
+
   return {
+    snapshot,
+    restore,
     state: parse.state,
     suggestedName,
     chooseSuggestedName,
@@ -185,8 +231,8 @@ export function useReceiptPreparse({
     /** The receipt was read without a category and the AI found none: the person chooses */
     askForCategory: result !== undefined && result.category === null && !category,
     receiptTotal,
-    /** «Подставить» is offered only when the receipt is in the currency of the field */
-    applyTotal: sameCurrency ? applyTotal : undefined,
+    /** «Подставить» is offered only when the currency of the receipt is one the form has */
+    applyTotal: receiptCurrencyKnown ? applyTotal : undefined,
     /** The values were saved: the marks belong to the previous expense */
     clearMarks: () => {
       setAiName(null);

@@ -25,7 +25,7 @@ import { useNameSuggestions } from '../hooks/useNameSuggestions.ts';
 import { useRates } from '../hooks/useRates.ts';
 import { createExpenseFormSchema, type ExpenseFormValues } from '../schemas/expense-form.schema.ts';
 import { pickSuggestions } from '../utils/pick-suggestions.ts';
-import { AmountFields } from './AmountFields.tsx';
+import { AmountFields, rateText } from './AmountFields.tsx';
 import { CardSelect } from './CardSelect.tsx';
 import { CategoryLimitHint } from '../../budgets/components/CategoryLimitHint.tsx';
 import { ReceiptPicker } from '../../receipts/components/ReceiptPicker.tsx';
@@ -38,6 +38,7 @@ import { AiMark } from '../../ai/components/AiMark.tsx';
 import { AiNotice } from '../../ai/components/AiNotice.tsx';
 import { ReceiptTotalHint } from '../../ai/components/ReceiptTotalHint.tsx';
 import { PhotoParseStatus } from '../../ai/components/PhotoParseStatus.tsx';
+import { useFormDraft } from '../hooks/useFormDraft.ts';
 import { useReceiptPreparse } from '../hooks/useReceiptPreparse.ts';
 import { ReceiptItemsField } from '../../items/components/ReceiptItemsField.tsx';
 import { draftsToInputs, inputsToDrafts, type DraftItem } from '../../items/model/draft-items.ts';
@@ -207,6 +208,30 @@ export function ExpenseForm({
     items,
     setItems,
     dateTouched,
+    currencies: {
+      available: () => [
+        ...new Set([cardCurrencyOf(form.getValues('card')), ...(rates?.currencies ?? [])]),
+      ],
+      switchTo: (code) => {
+        const card = cardCurrencyOf(form.getValues('card'));
+        // As a manual choice in the field: the rate follows
+        form.setValue('currency', code);
+        form.setValue('rate', code !== baseCurrency && code !== card ? rateText(rates, code) : '', {
+          shouldValidate: false,
+        });
+      },
+    },
+  });
+  const draftState = useFormDraft({
+    username: user.username,
+    form,
+    items,
+    setItems,
+    photo,
+    setPhoto,
+    dateTouched,
+    ai,
+    blocked: draft !== undefined,
   });
   const parsing = ai.state.status === 'running';
 
@@ -295,6 +320,7 @@ export function ExpenseForm({
     setPhoto(null);
     setItems([]);
     ai.clearMarks();
+    draftState.markSaved();
     writeStored(lastCategoryKey(user.username), values.category);
     // The next expense is a new operation: a new key (the old one lives on in the queue record)
     idempotencyKey.current = newRequestId();
@@ -321,6 +347,14 @@ export function ExpenseForm({
 
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-5">
+      {draftState.restored && (
+        <Notice variant="info">
+          Восстановлен несохранённый черновик{' '}
+          <button type="button" onClick={draftState.discard} className="font-semibold underline">
+            Очистить
+          </button>
+        </Notice>
+      )}
       <Field
         label={<LabelWithMark text="Дата" ai={ai.aiDate !== null && typedDate === ai.aiDate} />}
         htmlFor="date"

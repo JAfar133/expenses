@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { clearAllDrafts } from '../../offline-queue/model/draft-store.ts';
 import { fetchCurrentUser, login, logout, type AuthUser } from '../api/auth.api.ts';
 
 export const CURRENT_USER_KEY = ['auth', 'current-user'];
@@ -38,6 +39,10 @@ export function useLogout() {
 
   return useMutation({
     mutationFn: logout,
-    onSuccess: () => resetCacheFor(queryClient, null),
+    onSuccess: () => {
+      resetCacheFor(queryClient, null);
+      // The unsaved form of the signed-out person does not stay on the device
+      void clearAllDrafts();
+    },
   });
 }

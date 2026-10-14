@@ -501,3 +501,58 @@ describe('раскрытые позиции: вид как в форме', () =>
     expect(total.className).toContain('font-semibold');
   });
 });
+
+describe('валюта позиций в операциях', () => {
+  const converted = (patch: Partial<OperationItem> = {}) =>
+    operation({
+      itemsCount: 1,
+      amount: 38000,
+      currency: 'AMD',
+      original: { amount: 100, currency: 'USD', rate: 380 },
+      ...patch,
+    });
+
+  it('в списке: позиции в валюте ввода (USD), сравнение с исходной суммой', async () => {
+    serve(converted());
+    itemsOnServer = [
+      { id: 'i1', position: 1, name: 'Хлеб', price: 95, quantity: 1, source: 'manual' },
+    ];
+    const user = renderAnalytics(OPS);
+    await waitFor(() => within(table()).getByText('Супермаркет'));
+
+    await user.click(within(table()).getByRole('button', { name: '1 позиция' }));
+
+    const list = await screen.findByRole('list', { name: 'Позиции' });
+    const block = list.closest<HTMLElement>('.rounded-xl')!;
+    expect(within(block).getByText('Сумма позиций 95,00 USD')).toBeInTheDocument();
+    expect(
+      within(block).getByText('Сумма позиций 95,00, на 5,00 меньше суммы операции'),
+    ).toBeInTheDocument();
+  });
+
+  it('в диалоге правки то же: валюта и сумма исходные', async () => {
+    const { dialog } = await openEditor(converted());
+    itemsOnServer = lines;
+
+    const section = await within(dialog).findByRole('region', { name: 'Позиции' });
+
+    // 100 USD against positions of 12 340,50: the difference is in USD, not in drams
+    expect(
+      within(section).getByText(/Сумма позиций 12 340,50, на 12 240,50 больше/),
+    ).toBeInTheDocument();
+  });
+
+  it('без исходной валюты — валюта и сумма карты', async () => {
+    serve(operation({ itemsCount: 1, amount: 12460.5, currency: 'AMD', original: null }));
+    itemsOnServer = lines;
+    const user = renderAnalytics(OPS);
+    await waitFor(() => within(table()).getByText('Супермаркет'));
+
+    await user.click(within(table()).getByRole('button', { name: '1 позиция' }));
+
+    const list = await screen.findByRole('list', { name: 'Позиции' });
+    expect(
+      within(list.closest<HTMLElement>('.rounded-xl')!).getByText('Сумма позиций 12 340,50 AMD'),
+    ).toBeInTheDocument();
+  });
+});

@@ -11,8 +11,13 @@ import { FeatureHeader } from '../../group/components/FeatureHeader.tsx';
 import { InfoNote } from '../../group/components/InfoNote.tsx';
 import { useReceiptSettings } from '../../receipts/hooks/useReceiptSettings.ts';
 import { useSaveReceiptSettings } from '../../receipts/hooks/useSaveReceiptSettings.ts';
-import { setGroupAi } from '../api/ai.api.ts';
+import { setGroupAi, type AiLanguage } from '../api/ai.api.ts';
 import { AI_STATUS_KEY, useAiStatus } from '../hooks/useAiStatus.ts';
+
+const LANGUAGES: { id: AiLanguage; name: string }[] = [
+  { id: 'en', name: 'English' },
+  { id: 'ru', name: 'Русский' },
+];
 
 /**
  * «Разбор чеков с помощью ИИ» (owner): off and disabled while the administrator has not turned the AI on.
@@ -33,6 +38,17 @@ export function GroupAiRow({ categories }: { categories: GroupCategory[] }) {
   if (!status) return null;
 
   const on = status.groupEnabled && status.installationReady;
+  const languages = status.languages ?? LANGUAGES.map((item) => item.id);
+  // The chips speak in names; the server in codes
+  const codeOf = (name: string) => LANGUAGES.find((item) => item.name === name)!.id;
+  const toggleLanguage = (name: string) => {
+    const language = codeOf(name);
+    const next = languages.includes(language)
+      ? languages.filter((item) => item !== language)
+      : [...languages, language];
+    // At least one language stays
+    if (next.length > 0) save.mutate({ languages: next });
+  };
   const photoCategories = categories.filter(
     (category) => !category.archived && receipts?.categories.includes(category.name),
   );
@@ -64,7 +80,7 @@ export function GroupAiRow({ categories }: { categories: GroupCategory[] }) {
           checked={on}
           label="Разбор чеков с помощью ИИ"
           disabled={!status.installationReady || save.isPending}
-          onChange={(enabled) => save.mutate(enabled)}
+          onChange={(enabled) => save.mutate({ enabled })}
         />
       </FeatureHeader>
       {on && (
@@ -85,6 +101,17 @@ export function GroupAiRow({ categories }: { categories: GroupCategory[] }) {
               )}
             </InfoNote>
           )}
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Язык названий</div>
+            <CategoryChips
+              label="Язык названий"
+              categories={LANGUAGES}
+              isChosen={(name) => languages.includes(codeOf(name))}
+              onToggle={toggleLanguage}
+              disabled={save.isPending}
+              hint="На каком языке ИИ записывает название магазина и позиций. Если разрешены оба, чек на русском или английском остаётся как есть, остальные (например, армянский) переводятся на английский"
+            />
+          </div>
           {receipts?.enabled && photoCategories.length > 0 && (
             <>
               <CategoriesCount

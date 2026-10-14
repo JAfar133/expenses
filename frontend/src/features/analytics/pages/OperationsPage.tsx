@@ -268,7 +268,8 @@ export default function OperationsPage() {
               <ItemsSection
                 key={`items-${editing.id}`}
                 item={editing}
-                currency={editing.currency || currency}
+                // The prices are in the currency the expense was typed in
+                currency={editing.original?.currency ?? (editing.currency || currency)}
                 baseCurrency={baseCurrency}
                 onChanged={(message) => {
                   done(message);

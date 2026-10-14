@@ -51,6 +51,13 @@ export function usePhotoParse(onResult: (result: PhotoParse) => void) {
     settle();
   }, []);
 
+  /** A state saved earlier (the draft): an answer still on its way is not wanted any more. */
+  const restore = useCallback((next: PhotoParseState) => {
+    token.current += 1;
+    setState(next);
+    settle();
+  }, []);
+
   const retry = useCallback(
     (category?: string) => {
       // The category may have changed since: the caller passes the current one
@@ -61,5 +68,5 @@ export function usePhotoParse(onResult: (result: PhotoParse) => void) {
 
   const wait = useCallback(() => new Promise<void>((resolve) => waiters.current.push(resolve)), []);
 
-  return { state, start, reset, retry, wait };
+  return { state, start, reset, restore, retry, wait };
 }

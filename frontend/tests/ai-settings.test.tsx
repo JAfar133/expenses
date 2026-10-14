@@ -644,3 +644,80 @@ describe('«Настройки группы»: карточки фото и ИИ
     expect(photo.nextElementSibling).toBe(ai);
   });
 });
+
+describe('«Язык названий»', () => {
+  beforeEach(() => {
+    me = OWNER;
+    status = {
+      installationReady: true,
+      groupEnabled: true,
+      available: true,
+      languages: ['en', 'ru'],
+    } as typeof status;
+    receiptSettings = { enabled: true, categories: ['Еда'], aiCategories: ['Еда'] };
+  });
+  const chips = async () => within(await screen.findByRole('group', { name: 'Язык названий' }));
+
+  it('два чипа «English» и «Русский» отражают разрешённые языки, с подсказкой', async () => {
+    status = { ...status, languages: ['ru'] } as typeof status;
+    renderAt('/group');
+    const group = await chips();
+
+    expect(group.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'false');
+    expect(group.getByRole('button', { name: 'Русский' })).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      screen.getByText(/На каком языке ИИ записывает название магазина и позиций/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/остальные \(например, армянский\) переводятся на английский/),
+    ).toBeInTheDocument();
+  });
+
+  it('снятие языка отправляет PUT с languages', async () => {
+    const user = renderAt('/group');
+    const group = await chips();
+
+    await user.click(group.getByRole('button', { name: 'English' }));
+
+    await waitFor(() => expect(sent('PUT', '/api/group/ai')).toEqual({ languages: ['ru'] }));
+  });
+
+  it('выбор языка добавляет его в список', async () => {
+    status = { ...status, languages: ['ru'] } as typeof status;
+    const user = renderAt('/group');
+    const group = await chips();
+
+    await user.click(group.getByRole('button', { name: 'English' }));
+
+    await waitFor(() => expect(sent('PUT', '/api/group/ai')).toEqual({ languages: ['ru', 'en'] }));
+  });
+
+  it('последний выбранный язык снять нельзя', async () => {
+    status = { ...status, languages: ['ru'] } as typeof status;
+    const user = renderAt('/group');
+    const group = await chips();
+
+    await user.click(group.getByRole('button', { name: 'Русский' }));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    expect(did('PUT', '/api/group/ai')).toBe(false);
+    expect(group.getByRole('button', { name: 'Русский' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('без поля languages в ответе считаются разрешёнными оба', async () => {
+    status = { installationReady: true, groupEnabled: true, available: true } as typeof status;
+    renderAt('/group');
+    const group = await chips();
+
+    expect(group.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
+    expect(group.getByRole('button', { name: 'Русский' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('переключатель ИИ выключен: строки языка нет', async () => {
+    status = { installationReady: true, groupEnabled: false, available: false } as typeof status;
+    renderAt('/group');
+    await screen.findByRole('switch', { name: 'Разбор чеков с помощью ИИ' });
+
+    expect(screen.queryByRole('group', { name: 'Язык названий' })).toBeNull();
+  });
+});

@@ -227,9 +227,10 @@ export function OperationsTable(props: OperationsTableProps) {
     <ItemsPanel
       expenseId={item.id}
       open={open}
-      currency={item.currency || currency}
+      // The prices are in the currency the expense was typed in
+      currency={item.original?.currency ?? (item.currency || currency)}
       baseCurrency={baseCurrency}
-      operationAmount={item.amount}
+      operationAmount={item.original?.amount ?? item.amount}
     />
   );
   // Actions follow the server's verdict per record: `editable` (live records), restore only for the owner

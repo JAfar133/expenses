@@ -84,7 +84,10 @@ function ItemsForm({
     item.dateSource === 'ai';
   const filled = drafts.filter((row) => row.name.trim() || row.price.trim() || row.quantity.trim());
   const sum = sumItems(filled.map((row) => ({ price: parseDecimal(row.price) ?? 0 })));
-  const note = filled.length > 0 ? discrepancyNote(item.amount, sum, currency, baseCurrency) : null;
+  const note =
+    filled.length > 0
+      ? discrepancyNote(item.original?.amount ?? item.amount, sum, currency, baseCurrency)
+      : null;
   const changed = JSON.stringify(drafts) !== JSON.stringify(itemsToDrafts(saved));
   const failure = [save, parse, accept].find((mutation) => mutation.isError)?.error;
 

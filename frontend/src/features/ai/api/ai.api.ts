@@ -1,5 +1,7 @@
 import { apiRequest } from '../../../shared/api/http.ts';
 
+export type AiLanguage = 'en' | 'ru';
+
 export interface AiStatus {
   /** The administrator turned the AI on and the key is set */
   installationReady: boolean;
@@ -11,13 +13,15 @@ export interface AiStatus {
   dailyLimit?: number;
   /** Parsed over the last 24 hours */
   usedToday?: number;
+  /** The languages the AI may write names in (the owner's choice) */
+  languages?: AiLanguage[];
 }
 
 export const fetchAiStatus = async () => (await apiRequest<AiStatus>('/ai/status')).data;
 
 /** Owner only. */
-export const setGroupAi = (enabled: boolean) =>
-  apiRequest('/group/ai', { method: 'PUT', body: JSON.stringify({ enabled }) });
+export const setGroupAi = (patch: { enabled?: boolean; languages?: AiLanguage[] }) =>
+  apiRequest('/group/ai', { method: 'PUT', body: JSON.stringify(patch) });
 
 export interface ParseResult {
   nameFilled: boolean;
