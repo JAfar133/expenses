@@ -648,7 +648,52 @@ describe('разбор фото до сохранения траты', () => {
     await call('PUT', '/api/admin/ai', { dailyLimit: 1 });
     await draft();
 
-    expect((await draft()).statusCode).toBe(429);
+    expect((await draft(Buffer.concat([JPEG, Buffer.from('другое фото')]))).statusCode).toBe(429);
+  });
+
+  describe('то же фото повторно (перезагрузка, приложение открыли снова)', () => {
+    it('отдаёт сохранённый ответ: модель не спрашивают и лимит не тратят', async () => {
+      await call('PUT', '/api/admin/ai', { dailyLimit: 1 });
+      const first = (await draft()).json().data;
+
+      const again = await draft();
+
+      expect(again.statusCode).toBe(200);
+      expect(again.json().data).toEqual(first);
+      expect(t.llmProvider.calls).toHaveLength(1);
+    });
+
+    it('одновременные запросы с тем же фото делят один вызов модели', async () => {
+      const [a, b] = await Promise.all([draft(), draft()]);
+
+      expect(a.json().data.parseId).toBe(b.json().data.parseId);
+      expect(t.llmProvider.calls).toHaveLength(1);
+    });
+
+    it('другое фото или другой пользователь читаются заново', async () => {
+      await draft();
+      await draft(Buffer.concat([JPEG, Buffer.from('другое фото')]));
+      await draft(JPEG, 'nastya');
+
+      expect(t.llmProvider.calls).toHaveLength(3);
+    });
+
+    it('разбор, который уже взяла трата, повторно не отдаётся: то же фото читается заново', async () => {
+      const { parseId } = (await draft()).json().data;
+      await addExpense({ name: 'Carrefour', aiParseId: parseId });
+
+      const again = (await draft()).json().data;
+
+      expect(again.parseId).not.toBe(parseId);
+      expect(t.llmProvider.calls).toHaveLength(2);
+    });
+
+    it('после выключения ИИ сохранённый ответ не отдаётся', async () => {
+      await draft();
+      await call('PUT', '/api/group/ai', { enabled: false });
+
+      expect((await draft()).statusCode).toBe(409);
+    });
   });
 });
 

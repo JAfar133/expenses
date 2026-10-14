@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { AppError, validationError } from '../../errors/app-error.ts';
 import { todayIn } from '../analytics/date-math.ts';
 import type { AuthUser } from '../auth/auth.types.ts';
@@ -27,7 +28,7 @@ export interface ReceiptDraft {
 
 export interface ReceiptDraftOptions {
   llm: Pick<LlmService, 'status' | 'parseReceipt'>;
-  repository: Pick<LlmRepository, 'saveResult'>;
+  repository: Pick<LlmRepository, 'saveResult' | 'findReusable'>;
   /** Which categories the owner allowed the AI for */
   categories: Pick<ReceiptsRepository, 'aiAllowed' | 'photoAiCategories'>;
   now?: () => Date;
@@ -35,6 +36,9 @@ export interface ReceiptDraftOptions {
 
 /** Reads a receipt photo for the "Add" form: nothing is saved except the attempt and its result in the usage log. */
 export class ReceiptDraftService {
+  /** Parsings in progress by request key: the app reopened while the model is still reading joins the same call. */
+  private readonly running = new Map<string, Promise<ReceiptDraft>>();
+
   constructor(private readonly options: ReceiptDraftOptions) {}
 
   /**
@@ -58,13 +62,42 @@ export class ReceiptDraftService {
       throw validationError('INVALID_RECEIPT', 'Нужна фотография в формате JPEG, PNG или WebP');
     }
 
+    const status = await this.options.llm.status(user.groupId);
+    const key = requestKey(bytes, category, candidates, status.languages);
+    const owner = `${user.groupId}:${user.username}:${key}`;
+    // The same photo asked again (a reload, the app reopened) is answered from the saved result or joins the call
+    // that is still running: the model is not asked twice and the daily limit is not spent twice.
+    const reusable = status.available
+      ? await this.options.repository.findReusable(user.groupId, user.username, key)
+      : undefined;
+    if (reusable) return { ...(reusable.result as ReceiptDraft), parseId: reusable.id };
+    const inFlight = this.running.get(owner);
+    if (inFlight) return inFlight;
+
+    const task = this.read(user, user.groupId, bytes, type.contentType, candidates, key);
+    this.running.set(owner, task);
+    try {
+      return await task;
+    } finally {
+      this.running.delete(owner);
+    }
+  }
+
+  private async read(
+    user: AuthUser,
+    groupId: string,
+    bytes: Buffer,
+    contentType: string,
+    candidates: string[],
+    key: string,
+  ): Promise<ReceiptDraft> {
     const today = todayIn(user.timezone, this.options.now?.());
     const { receipt, usageId } = await this.options.llm.parseReceipt({
-      groupId: user.groupId,
+      groupId,
       username: user.username,
       expenseId: null,
       categories: candidates,
-      image: { bytes, contentType: type.contentType },
+      image: { bytes, contentType },
       today,
     });
     const draft: ReceiptDraft = {
@@ -77,7 +110,20 @@ export class ReceiptDraftService {
       currency: receipt.currency ?? null,
       dropped: receipt.dropped,
     };
-    await this.options.repository.saveResult(usageId, draft);
+    await this.options.repository.saveResult(usageId, draft, key);
     return draft;
   }
+}
+
+/** What was asked: the photo and everything that shapes the answer. */
+function requestKey(
+  bytes: Buffer,
+  category: string | undefined,
+  candidates: string[],
+  languages: string[],
+): string {
+  return createHash('sha256')
+    .update(bytes)
+    .update(JSON.stringify([category ?? null, [...candidates].sort(), [...languages].sort()]))
+    .digest('hex');
 }

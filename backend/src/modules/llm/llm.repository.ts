@@ -109,11 +109,30 @@ export class LlmRepository {
     return row!.id;
   }
 
-  async saveResult(usageId: string, result: unknown): Promise<void> {
-    await this.database.query('UPDATE ai_usage SET result = $2::jsonb WHERE id = $1', [
-      usageId,
-      JSON.stringify(result),
-    ]);
+  async saveResult(usageId: string, result: unknown, requestKey: string | null): Promise<void> {
+    await this.database.query(
+      'UPDATE ai_usage SET result = $2::jsonb, request_key = $3 WHERE id = $1',
+      [usageId, JSON.stringify(result), requestKey],
+    );
+  }
+
+  /**
+   * A fresh successful parsing of the same request by the same user that no expense has taken yet: the answer is
+   * reused instead of asking the model again (and does not count against the daily limit).
+   */
+  async findReusable(
+    groupId: string,
+    username: string,
+    requestKey: string,
+  ): Promise<{ id: string; result: unknown } | undefined> {
+    const [row] = await this.database.query<{ id: string; result: unknown }>(
+      `SELECT id, result FROM ai_usage
+        WHERE group_id = $1 AND created_by = $2 AND request_key = $3 AND expense_id IS NULL
+          AND status = 'ok' AND result IS NOT NULL AND created_at > now() - interval '24 hours'
+        ORDER BY created_at DESC LIMIT 1`,
+      [groupId, username, requestKey],
+    );
+    return row;
   }
 
   /**
