@@ -720,7 +720,7 @@ describe('камера приложения', () => {
     const layer = await openCamera(person);
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Доступ к камере запрещён. Разрешите камеру для этого сайта в настройках браузера (значок слева от адреса → Разрешения) или выберите фото из галереи',
+      'Доступ к камере запрещён. Разрешите камеру для этого сайта (значок слева от адреса → Разрешения). На Android также проверьте Настройки телефона → Приложения → Chrome → Разрешения → Камера. Или выберите фото из галереи',
     );
     expect(screen.getByRole('button', { name: 'Выбрать из галереи' })).toBeInTheDocument();
     expect(within(layer).queryByRole('button', { name: 'Сделать снимок' })).toBeNull();
