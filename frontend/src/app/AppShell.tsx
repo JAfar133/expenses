@@ -39,7 +39,7 @@ export function AppShell({ user }: { user: AuthUser }) {
 
   return (
     <main
-      className={`mx-auto min-h-dvh w-full px-4 ${fab ? 'pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-[max(2rem,env(safe-area-inset-bottom))]' : 'pb-[max(2rem,env(safe-area-inset-bottom))]'} pt-[max(1.5rem,env(safe-area-inset-top))] ${
+      className={`mx-auto min-h-dvh w-full px-4 ${fab ? 'pb-[calc(6rem+env(safe-area-inset-bottom))]' : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))]'} md:pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] ${
         wide ? 'max-w-5xl' : group ? 'max-w-3xl' : medium ? 'max-w-2xl' : 'max-w-[560px]'
       }`}
     >
@@ -51,8 +51,8 @@ export function AppShell({ user }: { user: AuthUser }) {
         </div>
         <nav
           aria-label="Разделы"
-          // On a phone the bottom bar has the same two items: the tabs go away exactly when the bar is there
-          className={`order-3 flex w-full items-center gap-5 sm:order-2 sm:w-auto ${fab ? 'max-md:hidden' : ''}`}
+          // On a phone the bottom bar (always there) has the same two items: the tabs are for the wide screens
+          className="order-3 flex w-full items-center gap-5 sm:order-2 sm:w-auto max-md:hidden"
         >
           <NavLink to="/" end className={addClass}>
             <PlusIcon />

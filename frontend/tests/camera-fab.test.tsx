@@ -26,6 +26,14 @@ function mockCamera(behaviour?: (constraints: MediaStreamConstraints) => Promise
   return { getUserMedia, stops, stream };
 }
 
+/** The bar with the camera: its settings are loaded after the bar itself (the flat bar comes first). */
+async function cameraBar() {
+  await screen.findByRole('button', { name: 'Добавить чек' });
+  return screen.getByRole('navigation', { name: 'Нижняя навигация' });
+}
+
+const flatBar = () => screen.getByRole('navigation', { name: 'Нижняя навигация' });
+
 function Where() {
   const location = useLocation();
   return <output data-testid="path">{location.pathname}</output>;
@@ -79,7 +87,7 @@ describe('круглая кнопка камеры', () => {
     scenario();
     renderAt('/');
 
-    const bar = await screen.findByRole('navigation', { name: 'Нижняя навигация' });
+    const bar = await cameraBar();
 
     expect(bar.className).toContain('fixed');
     expect(bar.className).toContain('inset-x-0');
@@ -92,7 +100,7 @@ describe('круглая кнопка камеры', () => {
   it('камера внутри бара: круглая 64px, по центру, aria-label и title', async () => {
     scenario();
     renderAt('/');
-    const bar = await screen.findByRole('navigation', { name: 'Нижняя навигация' });
+    const bar = await cameraBar();
 
     const button = within(bar).getByRole('button', { name: 'Добавить чек' });
 
@@ -108,7 +116,7 @@ describe('круглая кнопка камеры', () => {
   it('пункты «Добавить» слева и «Аналитика» справа ведут на свои страницы, высота не меньше 44px', async () => {
     scenario();
     renderAt('/analytics');
-    const bar = within(await screen.findByRole('navigation', { name: 'Нижняя навигация' }));
+    const bar = within(await cameraBar());
 
     const add = bar.getByRole('link', { name: 'Добавить' });
     const analytics = bar.getByRole('link', { name: 'Аналитика' });
@@ -122,7 +130,7 @@ describe('круглая кнопка камеры', () => {
   it('активный пункт подсвечен основным цветом, другой серый', async () => {
     scenario();
     renderAt('/analytics');
-    const bar = within(await screen.findByRole('navigation', { name: 'Нижняя навигация' }));
+    const bar = within(await cameraBar());
 
     expect(bar.getByRole('link', { name: 'Аналитика' }).className).toContain('text-indigo-600');
     expect(bar.getByRole('link', { name: 'Добавить' }).className).toContain('text-zinc-500');
@@ -131,7 +139,7 @@ describe('круглая кнопка камеры', () => {
   it('на «Добавить» активен пункт «Добавить»', async () => {
     scenario();
     renderAt('/');
-    const bar = within(await screen.findByRole('navigation', { name: 'Нижняя навигация' }));
+    const bar = within(await cameraBar());
 
     expect(bar.getByRole('link', { name: 'Добавить' }).className).toContain('text-indigo-600');
   });
@@ -158,7 +166,7 @@ describe('круглая кнопка камеры', () => {
     async (path) => {
       scenario();
       renderAt(path);
-      const bar = within(await screen.findByRole('navigation', { name: 'Нижняя навигация' }));
+      const bar = within(await cameraBar());
 
       expect(bar.getByRole('button', { name: 'Добавить чек' })).toBeInTheDocument();
       for (const name of ['Добавить', 'Аналитика']) {
@@ -172,14 +180,22 @@ describe('круглая кнопка камеры', () => {
     },
   );
 
-  it.each(['/group', '/admin', '/settings'])('на %s без сценария бара нет', async (path) => {
-    allowPhotos();
-    renderAt(path);
-    await screen.findByRole('navigation', { name: 'Разделы' });
-    await new Promise((resolve) => setTimeout(resolve, 30));
+  it.each(['/group', '/admin', '/settings'])(
+    'на %s без сценария бар плоский: два пункта, без камеры',
+    async (path) => {
+      allowPhotos();
+      renderAt(path);
+      await screen.findByRole('navigation', { name: 'Разделы' });
+      await new Promise((resolve) => setTimeout(resolve, 30));
 
-    expect(screen.queryByRole('navigation', { name: 'Нижняя навигация' })).toBeNull();
-  });
+      expect(
+        within(flatBar())
+          .getAllByRole('link')
+          .map((link) => link.textContent),
+      ).toEqual(['Добавить', 'Аналитика']);
+      expect(fab()).toBeNull();
+    },
+  );
 
   it.each(['/group', '/admin', '/settings'])(
     'камера с %s ведёт на «Добавить» и запускает разбор',
@@ -195,14 +211,20 @@ describe('круглая кнопка камеры', () => {
     },
   );
 
-  it('без ИИ бара нет вообще', async () => {
+  it('без ИИ бар всё равно есть, но плоский: два пункта поровну, без горба и камеры', async () => {
     allowPhotos();
     renderAt('/');
     await screen.findByRole('button', { name: 'Добавить расход' });
     await new Promise((resolve) => setTimeout(resolve, 30));
 
+    const element = flatBar();
+    expect(within(element).getAllByRole('link')).toHaveLength(2);
+    expect(element.querySelector('.grid')!.className).toContain('grid-cols-2');
+    expect(element.querySelector('.grid')!.className).toContain('h-14');
+    expect(element.querySelector('[aria-hidden="true"].overflow-hidden')).toBeNull();
+    expect(element.className).toContain('pb-[env(safe-area-inset-bottom)]');
     expect(fab()).toBeNull();
-    expect(screen.queryByRole('navigation', { name: 'Нижняя навигация' })).toBeNull();
+    expect(screen.queryByLabelText('Выбрать чек из галереи')).toBeNull();
   });
 
   it('фото чеков выключены: кнопки нет', async () => {
@@ -235,10 +257,13 @@ describe('круглая кнопка камеры', () => {
     );
   });
 
-  it('без кнопки обычный отступ', async () => {
+  it('без камеры отступ меньше: высота бара + safe-area', async () => {
     renderAt('/group');
-    await screen.findByRole('navigation', { name: 'Разделы' });
+    await screen.findByRole('navigation', { name: 'Нижняя навигация' });
 
+    expect(screen.getByRole('main').className).toContain(
+      'pb-[calc(4.5rem+env(safe-area-inset-bottom))]',
+    );
     expect(screen.getByRole('main').className).not.toContain('6rem');
   });
 });
@@ -359,29 +384,29 @@ describe('верхние вкладки при нижнем баре', () => {
   it('бар есть: верхние вкладки скрыты на телефоне и всегда видны от md', async () => {
     scenario();
     renderAt('/');
-    await screen.findByRole('navigation', { name: 'Нижняя навигация' });
+    await cameraBar();
 
     expect(tabs().className).toContain('max-md:hidden');
     // Only below md: on a desktop (md and up) the tabs stay as they were
     expect(tabs().className).not.toMatch(/(^|\s)hidden(\s|$)/);
   });
 
-  it('бара нет (без ИИ): вкладки остаются и на телефоне', async () => {
+  it('без ИИ верхние вкладки на телефоне тоже скрыты (бар есть всегда), для десктопа остаются', async () => {
     allowPhotos();
     renderAt('/');
     await screen.findByRole('button', { name: 'Добавить расход' });
-    await new Promise((resolve) => setTimeout(resolve, 30));
 
-    expect(tabs().className).not.toContain('max-md:hidden');
+    expect(tabs().className).toContain('max-md:hidden');
+    expect(tabs().className).not.toMatch(/(^|\s)hidden(\s|$)/);
     expect(within(tabs()).getByRole('link', { name: 'Добавить' })).toBeInTheDocument();
   });
 
-  it('пока статус ИИ не получен, вкладки показаны (без мигания)', async () => {
+  it('верхние вкладки не мигают: скрыты на телефоне и до загрузки статуса ИИ', async () => {
     scenario();
     renderAt('/');
 
-    expect(tabs().className).not.toContain('max-md:hidden');
-    await screen.findByRole('navigation', { name: 'Нижняя навигация' });
+    expect(tabs().className).toContain('max-md:hidden');
+    await cameraBar();
     expect(tabs().className).toContain('max-md:hidden');
   });
 
@@ -390,28 +415,16 @@ describe('верхние вкладки при нижнем баре', () => {
     async (path) => {
       scenario();
       renderAt(path);
-      await screen.findByRole('navigation', { name: 'Нижняя навигация' });
+      await cameraBar();
 
       expect(tabs().className).toContain('max-md:hidden');
-    },
-  );
-
-  it.each(['/group', '/admin', '/settings'])(
-    'на %s без сценария верхние вкладки на месте',
-    async (path) => {
-      allowPhotos();
-      renderAt(path);
-      await screen.findByRole('navigation', { name: 'Разделы' });
-      await new Promise((resolve) => setTimeout(resolve, 30));
-
-      expect(tabs().className).not.toContain('max-md:hidden');
     },
   );
 
   it('шапка и меню пользователя на месте', async () => {
     scenario();
     renderAt('/');
-    await screen.findByRole('navigation', { name: 'Нижняя навигация' });
+    await cameraBar();
 
     expect(screen.getByRole('heading', { name: /Мои расходы/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Меню пользователя/ })).toBeInTheDocument();

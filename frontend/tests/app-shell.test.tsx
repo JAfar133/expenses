@@ -76,8 +76,12 @@ describe('AppShell', () => {
 
   it('отмечает текущий раздел и переключает страницы', async () => {
     const person = renderShell('/');
-    const form = screen.getByRole('link', { name: 'Добавить' });
-    const analysis = screen.getByRole('link', { name: 'Аналитика' });
+    const form = within(screen.getByRole('navigation', { name: 'Разделы' })).getByRole('link', {
+      name: 'Добавить',
+    });
+    const analysis = within(screen.getByRole('navigation', { name: 'Разделы' })).getByRole('link', {
+      name: 'Аналитика',
+    });
     expect(form).toHaveAttribute('aria-current', 'page');
     expect(analysis).not.toHaveAttribute('aria-current');
 
@@ -107,8 +111,13 @@ describe('AppShell', () => {
 
   it('«Добавить» — заметная кнопка, «Аналитика» — текст; активная аналитика с линией, не закрашена', async () => {
     const person = renderShell('/');
-    const add = screen.getByRole('link', { name: 'Добавить' });
-    const analytics = screen.getByRole('link', { name: 'Аналитика' });
+    const add = within(screen.getByRole('navigation', { name: 'Разделы' })).getByRole('link', {
+      name: 'Добавить',
+    });
+    const analytics = within(screen.getByRole('navigation', { name: 'Разделы' })).getByRole(
+      'link',
+      { name: 'Аналитика' },
+    );
     // On its own page the main button turns into a soft pill: the user sees where they are
     expect(add).toHaveClass('bg-indigo-100', 'text-indigo-700');
     expect(add).not.toHaveClass('bg-indigo-600');
