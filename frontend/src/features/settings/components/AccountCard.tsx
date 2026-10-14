@@ -74,7 +74,9 @@ export function AccountCard({ user }: { user: AuthUser }) {
   };
 
   const cardNames = cards.data?.map((card) => card.name) ?? [];
-  const cardOptions = cardNames.includes(values.card) ? cardNames : [values.card, ...cardNames];
+  // A default card that no longer exists (renamed, archived, set in the server config) is not offered: the form falls
+  // back to the first card, and the choice shows that instead of a card the person cannot use
+  const cardIsStale = cards.data !== undefined && !cardNames.includes(values.card);
   const zones = timezoneChoices(user.timezone, deviceTimezone(), user.defaultTimezone);
 
   return (
@@ -104,10 +106,15 @@ export function AccountCard({ user }: { user: AuthUser }) {
             <select
               id="profile-card"
               className={`${fieldClass} ${selectPadding}`}
-              value={values.card}
+              value={cardIsStale ? '' : values.card}
               onChange={(event) => set('card')(event.target.value)}
             >
-              {cardOptions.map((card) => (
+              {cardIsStale && (
+                <option value="" disabled>
+                  Не выбрана (будет первая карта)
+                </option>
+              )}
+              {cardNames.map((card) => (
                 <option key={card} value={card}>
                   {card}
                 </option>

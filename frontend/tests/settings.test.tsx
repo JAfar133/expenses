@@ -25,6 +25,10 @@ const MISHA = {
 };
 
 let user = MISHA;
+let cardsList = [
+  { name: 'Миша', currency: 'AMD' },
+  { name: 'Настя', currency: 'AMD' },
+];
 let server: Record<string, string>;
 let requests: { method: string; url: string; body?: unknown }[];
 let passwordResponse: () => Response | Promise<Response>;
@@ -33,6 +37,10 @@ let profileResponse: ((body: Record<string, unknown>) => Response) | undefined;
 
 beforeEach(() => {
   user = MISHA;
+  cardsList = [
+    { name: 'Миша', currency: 'AMD' },
+    { name: 'Настя', currency: 'AMD' },
+  ];
   server = {};
   requests = [];
   passwordResponse = () => json({ success: true });
@@ -47,11 +55,7 @@ beforeEach(() => {
       requests.push({ method, url, body });
 
       if (url === '/api/auth/me') return ok({ user });
-      if (url === '/api/cards')
-        return ok([
-          { name: 'Миша', currency: 'AMD' },
-          { name: 'Настя', currency: 'AMD' },
-        ]);
+      if (url === '/api/cards') return ok(cardsList);
       if (url === '/api/auth/profile' && method === 'PATCH') {
         if (profileResponse) return profileResponse(body);
         user = {
@@ -131,6 +135,33 @@ describe('аккаунт', () => {
     ).not.toBeNull();
     expect(account().getByLabelText('Часовой пояс')).toHaveValue('Asia/Yerevan');
     expect(account().getByText('Сегодня определяется по этому часовому поясу')).toBeInTheDocument();
+  });
+
+  it('карты по умолчанию, которой уже нет, в списке нет: показывается «Не выбрана», выбор сохраняется', async () => {
+    cardsList = [
+      { name: 'Visa Digital (IDBank)', currency: 'AMD' },
+      { name: 'Миша (Т-Банк)', currency: 'RUB' },
+    ];
+    const person = renderSettings();
+    await screen.findByRole('heading', { name: 'Аккаунт' });
+
+    const select = await account().findByLabelText('Карта по умолчанию');
+    await waitFor(() => expect(select).toHaveValue(''));
+    const options = within(select)
+      .getAllByRole('option')
+      .map((option) => option.textContent);
+    expect(options).toEqual([
+      'Не выбрана (будет первая карта)',
+      'Visa Digital (IDBank)',
+      'Миша (Т-Банк)',
+    ]);
+    expect(account().getByRole('button', { name: 'Сохранить' })).toBeDisabled();
+
+    await person.selectOptions(select, 'Миша (Т-Банк)');
+    await person.click(account().getByRole('button', { name: 'Сохранить' }));
+
+    const call = requests.find((r) => r.url === '/api/auth/profile')!;
+    expect(call.body).toMatchObject({ card: 'Миша (Т-Банк)' });
   });
 
   it('часовой пояс — один селект: «По умолчанию», «Как на этом устройстве (…)», затем популярные зоны со смещением', async () => {
