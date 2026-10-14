@@ -1,6 +1,31 @@
 import { z } from 'zod';
 import { aiBadResponse, type LlmRequest } from './llm.types.ts';
 
+/** Languages the names may be returned in (the owner picks a subset per group). */
+export const AI_LANGUAGES = ['en', 'ru'] as const;
+export type AiLanguage = (typeof AI_LANGUAGES)[number];
+
+const LANGUAGE_NAMES: Record<AiLanguage, string> = { en: 'English', ru: 'Russian' };
+
+/** The instruction about the language of the names, for the languages the group allows. */
+export function languageInstruction(languages: readonly AiLanguage[]): string {
+  const allowed = AI_LANGUAGES.filter((language) => languages.includes(language));
+  const [only] = allowed;
+  if (allowed.length === 1 && only) {
+    const name = LANGUAGE_NAMES[only];
+    return (
+      `Write ALL text values in ${name}: translate product and dish names to ${name}, ` +
+      `transliterate shop names and brands to ${only === 'en' ? 'Latin' : 'Cyrillic'} letters.`
+    );
+  }
+  return (
+    'Write the shop name and the item names in the language of the receipt when it is English or Russian ' +
+    '(keep Russian names in Russian and English names in English). For a receipt in any other language ' +
+    '(for example Armenian) translate product and dish names to English and transliterate shop names and brands ' +
+    'with Latin letters.'
+  );
+}
+
 export const MAX_RECEIPT_ITEMS = 100;
 export const MAX_ITEM_NAME = 200;
 export const MAX_EXPENSE_NAME = 255;
@@ -68,14 +93,16 @@ export function receiptRequest(
   today: string,
   /** Category names the model may choose from; none: the category is not asked for */
   categories: string[] = [],
+  /** The languages the names may be returned in */
+  languages: readonly AiLanguage[] = AI_LANGUAGES,
 ): LlmRequest {
   return {
     image,
     schema: schemaFor(categories),
     prompt: [
       'You read a photo of a purchase receipt, bill or invoice. Return only JSON that matches the given schema.',
-      'The receipt may be in any language (Armenian, Russian, English, ...). Write ALL text values in English: ' +
-        'translate product and dish names, transliterate shop names and brands with Latin letters.',
+      'The receipt may be in any language (Armenian, Russian, English, ...). ' +
+        languageInstruction(languages),
       '- name: a short name of the shop, cafe or place (up to 60 characters).',
       '- date: the purchase date as YYYY-MM-DD. If the receipt has no year, assume the current one. null if no date is visible.',
       '- items: the purchased goods or dishes. name: a clear English name (fix obvious recognition typos). ' +

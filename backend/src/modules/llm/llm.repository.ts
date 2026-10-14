@@ -1,4 +1,5 @@
 import type { Database, SqlExecutor } from '../../infrastructure/database/database.ts';
+import type { AiLanguage } from './receipt-parser.ts';
 
 export interface UsageSummary {
   today: number;
@@ -10,12 +11,26 @@ export interface UsageSummary {
 export class LlmRepository {
   constructor(private readonly database: Database) {}
 
-  async groupState(groupId: string): Promise<{ enabled: boolean; dailyLimit: number | null }> {
-    const [row] = await this.database.query<{ ai_enabled: boolean; ai_daily_limit: number | null }>(
-      'SELECT ai_enabled, ai_daily_limit FROM groups WHERE id = $1',
-      [groupId],
-    );
-    return { enabled: row?.ai_enabled ?? false, dailyLimit: row?.ai_daily_limit ?? null };
+  async groupState(
+    groupId: string,
+  ): Promise<{ enabled: boolean; dailyLimit: number | null; languages: AiLanguage[] }> {
+    const [row] = await this.database.query<{
+      ai_enabled: boolean;
+      ai_daily_limit: number | null;
+      ai_languages: AiLanguage[];
+    }>('SELECT ai_enabled, ai_daily_limit, ai_languages FROM groups WHERE id = $1', [groupId]);
+    return {
+      enabled: row?.ai_enabled ?? false,
+      dailyLimit: row?.ai_daily_limit ?? null,
+      languages: row?.ai_languages ?? ['en', 'ru'],
+    };
+  }
+
+  async setGroupLanguages(groupId: string, languages: AiLanguage[]): Promise<void> {
+    await this.database.query('UPDATE groups SET ai_languages = $2::text[] WHERE id = $1', [
+      groupId,
+      languages,
+    ]);
   }
 
   async setGroupEnabled(groupId: string, enabled: boolean): Promise<void> {

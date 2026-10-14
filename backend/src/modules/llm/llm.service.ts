@@ -8,7 +8,13 @@ import {
   type LlmImage,
   type LlmProvider,
 } from './llm.types.ts';
-import { parseReceiptAnswer, receiptRequest, type ParsedReceipt } from './receipt-parser.ts';
+import {
+  AI_LANGUAGES,
+  parseReceiptAnswer,
+  receiptRequest,
+  type AiLanguage,
+  type ParsedReceipt,
+} from './receipt-parser.ts';
 
 /** Whether the AI can be used by a group right now, and why not. */
 export interface AiStatus {
@@ -20,6 +26,8 @@ export interface AiStatus {
   /** Parsings the group may make per day (its own limit or the installation default) and how many it used in 24 hours */
   dailyLimit: number;
   usedToday: number;
+  /** The languages the group allows for the names the AI returns */
+  languages: AiLanguage[];
 }
 
 export interface ParsedByModel {
@@ -55,6 +63,7 @@ export class LlmService {
       available: installationReady && groupEnabled,
       dailyLimit: group?.dailyLimit ?? settings.dailyLimit,
       usedToday: groupId ? await this.options.repository.countLastDay(groupId) : 0,
+      languages: group?.languages ?? [...AI_LANGUAGES],
     };
   }
 
@@ -103,7 +112,7 @@ export class LlmService {
     };
     try {
       const answer = await provider.generateJson(
-        receiptRequest(request.image, request.today, request.categories),
+        receiptRequest(request.image, request.today, request.categories, group.languages),
         { apiKey: config.apiKey, model: config.model },
       );
       const receipt = parseReceiptAnswer(answer, request.categories);

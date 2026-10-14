@@ -107,6 +107,7 @@ describe('включение и ключ', () => {
       available: false,
       dailyLimit: 30,
       usedToday: 0,
+      languages: ['en', 'ru'],
     });
   });
 
@@ -787,3 +788,44 @@ const draftWithCategory = () =>
     headers: { 'content-type': 'image/jpeg' },
     payload: JPEG,
   });
+
+describe('языки названий', () => {
+  beforeEach(enableAi);
+
+  it('по умолчанию разрешены английский и русский; владелец меняет, участник нет', async () => {
+    expect((await dataOf(call('GET', '/api/ai/status'))).languages).toEqual(['en', 'ru']);
+
+    expect((await call('PUT', '/api/group/ai', { languages: ['ru'] }, 'nastya')).statusCode).toBe(
+      403,
+    );
+    expect((await call('PUT', '/api/group/ai', { languages: ['ru'] })).statusCode).toBe(200);
+
+    expect((await dataOf(call('GET', '/api/ai/status', undefined, 'nastya'))).languages).toEqual([
+      'ru',
+    ]);
+    expect((await dataOf(call('GET', '/api/ai/status'))).groupEnabled).toBe(true);
+  });
+
+  it.each([[[]], [['de']], [{}], [['ru', 5]]])(
+    'некорректный список языков отклоняется %#',
+    async (languages) => {
+      expect((await call('PUT', '/api/group/ai', { languages })).statusCode).toBe(422);
+      expect((await dataOf(call('GET', '/api/ai/status'))).languages).toEqual(['en', 'ru']);
+    },
+  );
+
+  it('повторы в списке убираются', async () => {
+    await call('PUT', '/api/group/ai', { languages: ['ru', 'ru'] });
+
+    expect((await dataOf(call('GET', '/api/ai/status'))).languages).toEqual(['ru']);
+  });
+
+  it('разбор чека просит язык, разрешённый группой', async () => {
+    await call('PUT', '/api/group/ai', { languages: ['ru'] });
+    const id = await withPhoto();
+
+    await parse(id);
+
+    expect(t.llmProvider.calls[0]!.request.prompt).toContain('Write ALL text values in Russian');
+  });
+});

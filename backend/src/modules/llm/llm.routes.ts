@@ -4,6 +4,7 @@ import { forbiddenError, validationError } from '../../errors/app-error.ts';
 import type { LlmRepository } from './llm.repository.ts';
 import type { LlmService } from './llm.service.ts';
 import type { LlmSettingsRepository } from './llm.settings.ts';
+import { AI_LANGUAGES } from './receipt-parser.ts';
 
 const settingsBody = z
   .object({
@@ -14,7 +15,13 @@ const settingsBody = z
   .partial()
   .strict();
 const keyBody = z.object({ apiKey: z.string() }).strict();
-const groupBody = z.object({ enabled: z.boolean() }).strict();
+const groupBody = z
+  .object({
+    enabled: z.boolean().optional(),
+    languages: z.array(z.enum(AI_LANGUAGES)).min(1).max(AI_LANGUAGES.length).optional(),
+  })
+  .strict()
+  .refine((body) => body.enabled !== undefined || body.languages !== undefined);
 const limitBody = z.object({ limit: z.number().int().min(0).max(100_000).nullable() }).strict();
 
 const adminOnly = (request: FastifyRequest) => {
@@ -49,7 +56,11 @@ export const llmRoutes =
     app.put('/group/ai', async (request) => {
       const user = request.user!;
       if (user.role !== 'owner' || !user.groupId) throw forbiddenError();
-      await repository.setGroupEnabled(user.groupId, bodyOf(groupBody, request.body).enabled);
+      const body = bodyOf(groupBody, request.body);
+      if (body.enabled !== undefined) await repository.setGroupEnabled(user.groupId, body.enabled);
+      if (body.languages) {
+        await repository.setGroupLanguages(user.groupId, [...new Set(body.languages)]);
+      }
       return { success: true };
     });
 

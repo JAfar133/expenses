@@ -158,14 +158,22 @@ describe('метки позиций', () => {
 });
 
 describe('запрос к модели', () => {
-  it('просит ответ на английском и передаёт сегодняшнюю дату', () => {
-    const request = receiptRequest(
-      { bytes: Buffer.from('x'), contentType: 'image/jpeg' },
-      '2026-10-15',
-    );
+  const image = { bytes: Buffer.from('x'), contentType: 'image/jpeg' };
 
-    expect(request.prompt).toContain('Write ALL text values in English');
-    expect(request.prompt).toContain('Today is 2026-10-15');
+  it('передаёт сегодняшнюю дату', () => {
+    expect(receiptRequest(image, '2026-10-15').prompt).toContain('Today is 2026-10-15');
+  });
+
+  it('язык названий зависит от разрешённых языков группы', () => {
+    const prompt = (languages: ('en' | 'ru')[]) =>
+      receiptRequest(image, '2026-10-15', [], languages).prompt;
+
+    expect(prompt(['en'])).toContain('Write ALL text values in English');
+    expect(prompt(['ru'])).toContain('Write ALL text values in Russian');
+    expect(prompt(['ru'])).toContain('Cyrillic');
+    const both = prompt(['en', 'ru']);
+    expect(both).toContain('in the language of the receipt when it is English or Russian');
+    expect(both).toContain('translate product and dish names to English');
   });
 });
 
