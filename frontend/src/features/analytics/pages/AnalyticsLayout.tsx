@@ -39,7 +39,8 @@ function AnalyticsFrame() {
       <div className="space-y-3">
         <nav
           aria-label="Виды анализа"
-          className="flex gap-1 overflow-x-auto border-b border-zinc-200 dark:border-zinc-800"
+          // overflow-y-hidden: the tabs overlap the border by 1px, which would otherwise add a vertical scrollbar
+          className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-zinc-200 dark:border-zinc-800"
         >
           <NavLink to={{ pathname: '/analytics', search }} end className={tabClass}>
             Обзор
