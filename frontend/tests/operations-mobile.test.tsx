@@ -245,3 +245,81 @@ describe('шапка на узкой ширине', () => {
     expect(download.className).toContain('size-10');
   });
 });
+
+describe('таблица на десктопе: заголовки дней', () => {
+  const tableOf = async () => within(await screen.findByRole('table', { name: 'Операции' }));
+  const days = [
+    { period: '2026-10-10', total: 16620, count: 7 },
+    { period: '2026-10-09', total: 500, count: 1 },
+  ];
+
+  it('при сортировке по дате: строка-заголовок дня на всю ширину с суммой за день', async () => {
+    serve([op(1, { date: '2026-10-10' }), op(2, { date: '2026-10-09' })], days);
+    renderAnalytics('/analytics/operations');
+    const table = await tableOf();
+
+    const heading = await table.findByRole('heading', { name: '10 октября 2026 · 16 620 AMD' });
+    expect(table.getByRole('heading', { name: '9 октября 2026 · 500 AMD' })).toBeInTheDocument();
+    const cell = heading.closest('td')!;
+    expect(cell).toHaveAttribute('colspan', '7');
+    expect(heading.className).toContain('bg-zinc-100');
+    // The header of the columns and the date column stay
+    expect(table.getByRole('columnheader', { name: /Дата/ })).toBeInTheDocument();
+  });
+
+  it('суммы за день из timeseries по дням с теми же фильтрами; без данных — только дата', async () => {
+    serve([op(1, { date: '2026-10-10' })], []);
+    renderAnalytics('/analytics/operations');
+    const table = await tableOf();
+
+    expect(await table.findByRole('heading', { name: '10 октября 2026' })).toBeInTheDocument();
+    expect(dayTimeseries().at(-1)).toContain('currency=AMD');
+  });
+
+  it('другая сортировка: плоская таблица без заголовков дней и без запроса по дням', async () => {
+    serve([op(1, { date: '2026-10-10' })], days);
+    renderAnalytics('/analytics/operations?sort=amount&dir=desc');
+    const table = await tableOf();
+    await waitFor(() => expect(table.getAllByRole('row').length).toBeGreaterThan(1));
+
+    expect(table.queryByRole('heading')).toBeNull();
+    expect(dayTimeseries()).toHaveLength(0);
+  });
+
+  it('день, разбитый границей страницы, получает заголовок и на следующей странице (с полной суммой)', async () => {
+    harness.handlers['/api/analytics/timeseries'] = () => ok(days);
+    harness.handlers['/api/expenses'] = (url) => {
+      const second = url.searchParams.get('offset') === '50';
+      const items = second
+        ? [op(3, { date: '2026-10-10' }), op(4, { date: '2026-10-09' })]
+        : [op(1, { date: '2026-10-10' }), op(2, { date: '2026-10-10' })];
+      return ok({ items, total: 60, totalAmount: 10000 });
+    };
+    const user = renderAnalytics('/analytics/operations');
+    const table = await tableOf();
+    expect(await table.findAllByRole('heading')).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: /Вперёд/ }));
+
+    await waitFor(() => expect(table.getByText('Покупка 3')).toBeInTheDocument());
+    expect(
+      table.getByRole('heading', { name: '10 октября 2026 · 16 620 AMD' }),
+    ).toBeInTheDocument();
+    expect(table.getByRole('heading', { name: '9 октября 2026 · 500 AMD' })).toBeInTheDocument();
+  });
+
+  it('раскрытие позиций и меню строки работают в сгруппированной таблице', async () => {
+    serve([op(1, { date: '2026-10-10', itemsCount: 2 })], days);
+    harness.handlers['/api/expenses/:id/items'] = () =>
+      ok([{ id: 'i1', position: 1, name: 'Хлеб', price: 100, quantity: 1, source: 'manual' }]);
+    harness.handlers['/api/ai/status'] = () =>
+      ok({ installationReady: false, groupEnabled: false, available: false });
+    const user = renderAnalytics('/analytics/operations');
+    const table = await tableOf();
+
+    await user.click(await table.findByRole('button', { name: '2 позиции' }));
+
+    expect(await table.findByRole('list', { name: 'Позиции' })).toBeInTheDocument();
+    expect(table.getByRole('button', { name: 'Действия' })).toBeInTheDocument();
+  });
+});

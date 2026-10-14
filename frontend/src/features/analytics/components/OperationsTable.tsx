@@ -210,6 +210,15 @@ export function OperationsTable(props: OperationsTableProps) {
     displayCurrency,
     currentUsername,
   } = props;
+  // The day plates (phone and table): the date in words and the whole-day total, when there is one
+  const dayGroups = groupByDay ? groupByDate(items) : [{ date: null, items }];
+  const dayHeading = (date: string) => {
+    const code = displayCurrency ?? currency;
+    const total = dayTotals?.get(date);
+    return total === undefined
+      ? dayWords(date)
+      : `${dayWords(date)} · ${formatAmount(total, currencyDigits(code, baseCurrency))} ${code}`;
+  };
   const tableRows = useOpenRows();
   const cardRows = useOpenRows();
   const panelOf = (item: OperationItem, open: boolean) => (
@@ -276,59 +285,70 @@ export function OperationsTable(props: OperationsTableProps) {
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
-              <Fragment key={item.id}>
-                <tr className="border-b border-zinc-100 align-top dark:border-zinc-800">
-                  <td className="py-2.5 pr-4 tabular-nums whitespace-nowrap">
-                    {formatDate(item.date)}
+            {dayGroups.flatMap((group) => [
+              group.date && (
+                <tr key={`day-${group.date}`}>
+                  <td colSpan={COLUMNS.length + (showActions ? 1 : 0)} className="pb-1 pt-3">
+                    <h3 className="rounded-lg bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                      {dayHeading(group.date)}
+                    </h3>
                   </td>
-                  <td className="py-2.5 pr-4">{item.card}</td>
-                  <td className="py-2.5 pr-4">{item.category}</td>
-                  <th scope="row" className={`py-2.5 pr-4 font-normal ${nameClass(item)}`}>
-                    {/* The camera sits in a flex line with the name: an inline-flex button in a table cell would sit on the
-                      text baseline and push the row apart */}
-                    <div className="flex items-center gap-1">
-                      <span>{item.name}</span>
-                      {item.nameSource === 'ai' && <AiMark />}
-                      {item.hasReceipt && props.onViewReceipt && (
-                        <ReceiptBadge onClick={() => props.onViewReceipt?.(item)} />
-                      )}
-                    </div>
-                    <RowExtras
-                      item={item}
-                      open={tableRows.open.has(item.id)}
-                      onToggle={() => tableRows.toggle(item.id)}
-                      excelEnabled={excelEnabled}
-                    />
-                  </th>
-                  <td className="py-2.5 pr-4 text-right whitespace-nowrap">
-                    <Amount item={item} currency={currency} baseCurrency={baseCurrency} />
-                  </td>
-                  <td className="py-2.5 pr-4">{authorLabel(item.createdBy)}</td>
-                  {showActions && <td className="py-2.5 text-right">{actions(item)}</td>}
                 </tr>
-                {tableRows.opened.has(item.id) && (
-                  <tr>
-                    <td colSpan={COLUMNS.length + (showActions ? 1 : 0)} className="p-0">
-                      {panelOf(item, tableRows.open.has(item.id))}
+              ),
+              ...group.items.map((item) => (
+                <Fragment key={item.id}>
+                  <tr className="border-b border-zinc-100 align-top dark:border-zinc-800">
+                    <td
+                      className={`py-2.5 pr-4 tabular-nums whitespace-nowrap ${group.date ? 'text-zinc-500 dark:text-zinc-400' : ''}`}
+                    >
+                      {formatDate(item.date)}
                     </td>
+                    <td className="py-2.5 pr-4">{item.card}</td>
+                    <td className="py-2.5 pr-4">{item.category}</td>
+                    <th scope="row" className={`py-2.5 pr-4 font-normal ${nameClass(item)}`}>
+                      {/* The camera sits in a flex line with the name: an inline-flex button in a table cell would sit on the
+                      text baseline and push the row apart */}
+                      <div className="flex items-center gap-1">
+                        <span>{item.name}</span>
+                        {item.nameSource === 'ai' && <AiMark />}
+                        {item.hasReceipt && props.onViewReceipt && (
+                          <ReceiptBadge onClick={() => props.onViewReceipt?.(item)} />
+                        )}
+                      </div>
+                      <RowExtras
+                        item={item}
+                        open={tableRows.open.has(item.id)}
+                        onToggle={() => tableRows.toggle(item.id)}
+                        excelEnabled={excelEnabled}
+                      />
+                    </th>
+                    <td className="py-2.5 pr-4 text-right whitespace-nowrap">
+                      <Amount item={item} currency={currency} baseCurrency={baseCurrency} />
+                    </td>
+                    <td className="py-2.5 pr-4">{authorLabel(item.createdBy)}</td>
+                    {showActions && <td className="py-2.5 text-right">{actions(item)}</td>}
                   </tr>
-                )}
-              </Fragment>
-            ))}
+                  {tableRows.opened.has(item.id) && (
+                    <tr>
+                      <td colSpan={COLUMNS.length + (showActions ? 1 : 0)} className="p-0">
+                        {panelOf(item, tableRows.open.has(item.id))}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              )),
+            ])}
           </tbody>
         </table>
       </div>
 
       <ul className="md:hidden" aria-label="Операции">
-        {(groupByDay ? groupByDate(items) : [{ date: null, items }]).map((group) => (
+        {dayGroups.map((group) => (
           <Fragment key={group.date ?? 'all'}>
             {group.date && (
               <li className="pt-2 first:pt-0">
                 <h3 className="rounded-lg bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                  {dayWords(group.date)}
-                  {dayTotals?.has(group.date) &&
-                    ` · ${formatAmount(dayTotals.get(group.date)!, currencyDigits(displayCurrency ?? currency, baseCurrency))} ${displayCurrency ?? currency}`}
+                  {dayHeading(group.date)}
                 </h3>
               </li>
             )}
