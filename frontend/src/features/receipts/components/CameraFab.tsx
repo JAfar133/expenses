@@ -4,6 +4,7 @@ import { useAiPhotoFirst } from '../../ai/hooks/useAiPhotoFirst.ts';
 import { useAnyModalOpen } from '../../../shared/hooks/useScrollLock.ts';
 import { useKeyboardOpen } from '../../../shared/hooks/useKeyboardOpen.ts';
 import { CameraIcon, ChartIcon, PlusIcon } from '../../../shared/ui/icons.tsx';
+import { usePhotoMenuNeeded } from '../../../shared/hooks/usePhotoMenuNeeded.ts';
 import { usePhotoSources } from '../hooks/usePhotoSources.ts';
 import { setPendingPhoto } from '../model/pending-photo.ts';
 import { PhotoInput } from './PhotoInput.tsx';
@@ -38,6 +39,8 @@ export function CameraFab() {
   const keyboard = useKeyboardOpen();
   const modal = useAnyModalOpen();
   const [menu, setMenu] = useState(false);
+  // iOS and Samsung Internet show the system choice for a plain input: no menu of our own there
+  const menuNeeded = usePhotoMenuNeeded({ phone: true });
   const anchor = useRef<HTMLButtonElement>(null);
   const file = usePhotoSources((photo) => {
     setPendingPhoto(photo);
@@ -93,10 +96,10 @@ export function CameraFab() {
                 ref={anchor}
                 aria-label="Добавить чек"
                 title="Добавить чек"
-                aria-haspopup="menu"
-                aria-expanded={menu}
+                aria-haspopup={menuNeeded ? 'menu' : undefined}
+                aria-expanded={menuNeeded ? menu : undefined}
                 disabled={file.busy}
-                onClick={() => setMenu((open) => !open)}
+                onClick={() => (menuNeeded ? setMenu((open) => !open) : file.gallery.open())}
                 className="absolute left-1/2 top-[-22px] z-10 flex size-16 -translate-x-1/2 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-500 disabled:opacity-60 [&>svg]:size-7"
               >
                 <CameraIcon />

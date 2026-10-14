@@ -491,3 +491,65 @@ describe('кнопка фото на форме «Добавить»', () => {
     await waitFor(() => expect(server.photoParses()).toHaveLength(1));
   });
 });
+
+describe('меню только там, где оно нужно', () => {
+  const UA = {
+    iphone:
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 Version/17.4 Mobile/15E148 Safari/604.1',
+    samsung:
+      'Mozilla/5.0 (Linux; Android 14; SAMSUNG SM-S918B) AppleWebKit/537.36 SamsungBrowser/25.0 Chrome/121.0.0.0 Mobile Safari/537.36',
+    chrome:
+      'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36',
+  };
+  const withUa = (value: string) => vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(value);
+
+  it.each([
+    ['iPhone', UA.iphone],
+    ['Samsung Internet', UA.samsung],
+  ])(
+    '%s: нажатие на камеру сразу открывает простой input без capture, меню нет',
+    async (_name, ua) => {
+      scenario();
+      withUa(ua);
+      const person = renderAt('/');
+      await screen.findByRole('button', { name: 'Добавить чек' });
+      const gallery = vi.spyOn(galleryInput(), 'click').mockImplementation(() => undefined);
+      const camera = vi.spyOn(cameraInput(), 'click').mockImplementation(() => undefined);
+
+      await person.click(screen.getByRole('button', { name: 'Добавить чек' }));
+
+      expect(gallery).toHaveBeenCalledTimes(1);
+      expect(camera).not.toHaveBeenCalled();
+      expect(screen.queryByRole('menu')).toBeNull();
+    },
+  );
+
+  it('Chrome на Android: остаётся меню из двух пунктов', async () => {
+    scenario();
+    withUa(UA.chrome);
+    const person = renderAt('/');
+    await person.click(await screen.findByRole('button', { name: 'Добавить чек' }));
+
+    expect(await screen.findByRole('menu', { name: 'Источник фото' })).toBeInTheDocument();
+  });
+
+  it('форма на телефоне: iPhone и Samsung — «Прикрепить фото чека» открывает выбор сразу', async () => {
+    scenario();
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
+    withUa(UA.samsung);
+    const person = renderAt('/');
+    await person.selectOptions(await screen.findByLabelText('Категория'), 'кафе');
+    const input = await screen.findByLabelText('Выбрать фото чека');
+    const click = vi.spyOn(input, 'click').mockImplementation(() => undefined);
+
+    await person.click(await screen.findByRole('button', { name: 'Прикрепить фото чека' }));
+
+    expect(click).toHaveBeenCalled();
+    expect(screen.queryByRole('menu', { name: 'Источник фото' })).toBeNull();
+  });
+});
