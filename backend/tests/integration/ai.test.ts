@@ -105,7 +105,24 @@ describe('включение и ключ', () => {
       installationReady: false,
       groupEnabled: false,
       available: false,
+      dailyLimit: 30,
+      usedToday: 0,
     });
+  });
+
+  it('в статусе виден лимит группы и сколько уже разобрано', async () => {
+    await enableAi();
+    await call('PUT', '/api/admin/ai', { dailyLimit: 7 });
+    await parse(await withPhoto());
+
+    expect(await dataOf(call('GET', '/api/ai/status'))).toMatchObject({
+      dailyLimit: 7,
+      usedToday: 1,
+    });
+
+    const [group] = await database.query<{ id: string }>('SELECT id FROM groups');
+    await call('PUT', `/api/admin/groups/${group!.id}/ai-limit`, { limit: 3 });
+    expect((await dataOf(call('GET', '/api/ai/status'))).dailyLimit).toBe(3);
   });
 
   it('настройки и ключ видит только администратор', async () => {

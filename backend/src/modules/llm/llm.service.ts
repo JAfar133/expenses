@@ -17,6 +17,9 @@ export interface AiStatus {
   groupEnabled: boolean;
   /** Both switches are on and the key is set: parsing buttons may be shown */
   available: boolean;
+  /** Parsings the group may make per day (its own limit or the installation default) and how many it used in 24 hours */
+  dailyLimit: number;
+  usedToday: number;
 }
 
 export interface ParsedByModel {
@@ -46,7 +49,13 @@ export class LlmService {
     const installationReady = settings.enabled && settings.apiKey !== undefined;
     const group = groupId ? await this.options.repository.groupState(groupId) : undefined;
     const groupEnabled = group?.enabled ?? false;
-    return { installationReady, groupEnabled, available: installationReady && groupEnabled };
+    return {
+      installationReady,
+      groupEnabled,
+      available: installationReady && groupEnabled,
+      dailyLimit: group?.dailyLimit ?? settings.dailyLimit,
+      usedToday: groupId ? await this.options.repository.countLastDay(groupId) : 0,
+    };
   }
 
   async adminView(): Promise<LlmSettingsView & { usage: UsageSummary }> {
