@@ -22,6 +22,8 @@ export const preferencesSchema = z
     'analytics.currency': z.enum(['AMD', 'RUB', 'USD', 'EUR']),
     /** The person has seen the notice that a receipt photo is sent to the AI service (shown once) */
     'ai.noticeSeen': z.boolean(),
+    /** Color theme: follow the system or force light/dark */
+    theme: z.enum(['system', 'light', 'dark']),
   })
   .partial()
   .strict();

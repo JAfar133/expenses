@@ -74,6 +74,16 @@ export const PREFERENCES = {
       { value: '24', label: '24 мес.' },
     ],
   }),
+  theme: define({
+    label: 'Тема',
+    description: 'Оформление приложения на этом устройстве и на остальных',
+    fallback: 'system',
+    options: [
+      { value: 'system', label: 'Как в системе' },
+      { value: 'light', label: 'Светлая' },
+      { value: 'dark', label: 'Тёмная' },
+    ],
+  }),
   'analytics.currency': define({
     label: 'Валюта на странице анализа',
     description: 'Суммы хранятся в драммах и пересчитываются по текущему курсу ЦБ Армении',

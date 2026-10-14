@@ -11,6 +11,17 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/png" href="/icons/icon-192.png" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <script>
+      // The chosen theme before the first paint (no flash). 'analytics.theme' is the mirror of the user preference.
+      try {
+        var theme = localStorage.getItem('analytics.theme');
+        if (theme === 'light' || theme === 'dark') {
+          document.documentElement.setAttribute('data-theme', theme);
+        }
+      } catch (error) {
+        // No storage: the system theme
+      }
+    </script>
     <title>Expenses Tracker</title>
   </head>
   <body>

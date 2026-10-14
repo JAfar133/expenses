@@ -43,7 +43,9 @@ export function AnalyticsSettingsCard() {
           confirmLabel="Сбросить"
           onCancel={() => setConfirming(false)}
           onConfirm={() => {
-            void save(defaultPreferences());
+            // The theme is not an analytics setting: it stays
+            const { theme: _theme, ...analytics } = defaultPreferences();
+            void save(analytics);
             setConfirming(false);
           }}
         />

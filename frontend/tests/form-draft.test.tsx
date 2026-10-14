@@ -1,4 +1,4 @@
-import { cleanup, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import {
   DRAFT_TTL_MS,
@@ -154,7 +154,7 @@ describe('черновик формы «Добавить»', () => {
     expect(screen.getByLabelText('Стоимость')).toHaveValue('2 500');
     expect(screen.getByLabelText('Карта')).toHaveValue('Настя');
     expect(screen.getByLabelText('Категория')).toHaveValue('кафе');
-    expect(screen.getByText(/Восстановлен несохранённый черновик/)).toBeInTheDocument();
+    expect(screen.getByText('Восстановлен несохранённый черновик')).toBeInTheDocument();
   });
 
   it('восстанавливается вместе с фото: миниатюра на месте', async () => {
@@ -311,5 +311,121 @@ describe('черновик формы «Добавить»', () => {
     await renderApp();
 
     expect(await screen.findByDisplayValue('Вчерашний набросок')).toBeInTheDocument();
+  });
+});
+
+describe('уведомление о восстановленном черновике', () => {
+  const toast = () =>
+    screen.getByText('Восстановлен несохранённый черновик').closest('[role="status"]')!;
+  async function restored() {
+    await saveDraft(USER, draftOf({ name: 'Набросок' }));
+    return renderApp();
+  }
+
+  it('короткое всплывающее уведомление сверху: не двигает форму и не прячется за нижним баром', async () => {
+    await restored();
+    await screen.findByDisplayValue('Набросок');
+
+    const element = toast();
+    expect(element.className).toContain('fixed');
+    expect(element.className).toContain('top-[max(0.75rem,env(safe-area-inset-top))]');
+    expect(element.className).not.toContain('bottom-');
+    expect(element.className).toContain('z-40');
+  });
+
+  it('исчезает само: таймер на 4 секунды', async () => {
+    const timers = vi.spyOn(globalThis, 'setTimeout');
+    await restored();
+    await screen.findByText('Восстановлен несохранённый черновик');
+
+    const call = timers.mock.calls.find(([, delay]) => delay === 4000);
+    expect(call).toBeDefined();
+    await act(async () => (call![0] as () => void)());
+
+    // It fades out first, then goes away
+    await waitFor(() =>
+      expect(screen.queryByText('Восстановлен несохранённый черновик')).toBeNull(),
+    );
+    // The form keeps what was restored
+    expect(screen.getByLabelText('Наименование')).toHaveValue('Набросок');
+  });
+
+  it('появляется и уходит плавно: прозрачность и сдвиг с переходом, уважает reduce-motion', async () => {
+    await restored();
+    await screen.findByText('Восстановлен несохранённый черновик');
+
+    const element = toast();
+    expect(element.className).toContain('transition');
+    expect(element.className).toContain('duration-200');
+    expect(element.className).toContain('motion-reduce:transition-none');
+    await waitFor(() => expect(toast().className).toContain('opacity-100'));
+    const person = (await import('@testing-library/user-event')).default.setup();
+    await person.click(document.body);
+    await waitFor(() => expect(toast().className).toContain('opacity-0'));
+  });
+
+  it('смахивается жестом вверх: уходит; короткий сдвиг возвращается на место', async () => {
+    await restored();
+    await screen.findByText('Восстановлен несохранённый черновик');
+
+    fireEvent.pointerDown(toast(), { clientY: 100 });
+    fireEvent.pointerMove(toast(), { clientY: 90 });
+    fireEvent.pointerUp(toast());
+    await waitFor(() => expect((toast() as HTMLElement).style.transform).toBe(''));
+    expect(screen.queryByText('Восстановлен несохранённый черновик')).not.toBeNull();
+
+    fireEvent.pointerDown(toast(), { clientY: 100 });
+    fireEvent.pointerMove(toast(), { clientY: 40 });
+    expect((toast() as HTMLElement).style.transform).toBe('translateY(-60px)');
+    fireEvent.pointerUp(toast());
+
+    await waitFor(() =>
+      expect(screen.queryByText('Восстановлен несохранённый черновик')).toBeNull(),
+    );
+  });
+
+  it('вниз не тянется: сдвиг только вверх', async () => {
+    await restored();
+    await screen.findByText('Восстановлен несохранённый черновик');
+
+    fireEvent.pointerDown(toast(), { clientY: 100 });
+    fireEvent.pointerMove(toast(), { clientY: 160 });
+
+    expect((toast() as HTMLElement).style.transform).toBe('');
+    fireEvent.pointerUp(toast());
+  });
+
+  it('исчезает при правке поля', async () => {
+    const { person } = await restored();
+    await screen.findByText('Восстановлен несохранённый черновик');
+
+    await person.type(screen.getByLabelText('Стоимость'), '5');
+
+    await waitFor(() =>
+      expect(screen.queryByText('Восстановлен несохранённый черновик')).toBeNull(),
+    );
+  });
+
+  it('исчезает по касанию вне уведомления', async () => {
+    const { person } = await restored();
+    await screen.findByText('Восстановлен несохранённый черновик');
+
+    await person.click(document.body);
+
+    await waitFor(() =>
+      expect(screen.queryByText('Восстановлен несохранённый черновик')).toBeNull(),
+    );
+    expect(screen.getByLabelText('Наименование')).toHaveValue('Набросок');
+  });
+
+  it('«Очистить» внутри уведомления сбрасывает форму и черновик', async () => {
+    const { person } = await restored();
+    await screen.findByText('Восстановлен несохранённый черновик');
+
+    await person.click(within(toast() as HTMLElement).getByRole('button', { name: 'Очистить' }));
+
+    expect(screen.queryByText('Восстановлен несохранённый черновик')).toBeNull();
+    expect(screen.getByLabelText('Наименование')).toHaveValue('');
+    await waitFor(async () => expect(await loadDraft(USER)).toBeNull());
   });
 });

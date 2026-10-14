@@ -1,7 +1,28 @@
 @import 'tailwindcss';
 
+/*
+ * Dark theme: `data-theme="dark"` on <html> forces it, `data-theme="light"` forbids it, and without the attribute
+ * (the choice «Как в системе») it follows prefers-color-scheme.
+ */
+@custom-variant dark {
+  &:where([data-theme='dark'], [data-theme='dark'] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme]), :root:not([data-theme]) *) {
+      @slot;
+    }
+  }
+}
+
 :root {
   color-scheme: light dark;
+}
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 body {
@@ -42,7 +63,7 @@ input[type='date']::-webkit-date-and-time-value {
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --chart-surface: #18181b;
     --chart-grid: #3f3f46;
     --chart-axis: #a1a1aa;
@@ -56,6 +77,19 @@ input[type='date']::-webkit-date-and-time-value {
     --series-7: #9085e9;
   }
 }
+:root[data-theme='dark'] {
+  --chart-surface: #18181b;
+  --chart-grid: #3f3f46;
+  --chart-axis: #a1a1aa;
+  --chart-other: #71717a;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+}
 
 /* Date range picker calendar */
 .rdp-root {
@@ -68,10 +102,16 @@ input[type='date']::-webkit-date-and-time-value {
 }
 
 @media (prefers-color-scheme: dark) {
-  .rdp-root {
+  :root:not([data-theme]) .rdp-root {
     --rdp-accent-color: #818cf8;
     --rdp-accent-background-color: #312e81;
     --rdp-range_start-color: #18181b;
     --rdp-range_end-color: #18181b;
   }
+}
+:root[data-theme='dark'] .rdp-root {
+  --rdp-accent-color: #818cf8;
+  --rdp-accent-background-color: #312e81;
+  --rdp-range_start-color: #18181b;
+  --rdp-range_end-color: #18181b;
 }

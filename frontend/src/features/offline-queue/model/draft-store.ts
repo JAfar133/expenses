@@ -30,16 +30,20 @@ function open(): Promise<IDBDatabase> {
   });
 }
 
-const inflight = new Set<Promise<unknown>>();
+/**
+ * Writes go one after another in the order they were asked for: a slow save (the photo is read first) must not land
+ * after the «clear» that came later and bring the draft back.
+ */
+let chain: Promise<unknown> = Promise.resolve();
+
+function serial<T>(operation: () => Promise<T>): Promise<T> {
+  const next = chain.then(operation, operation);
+  chain = next.catch(() => undefined);
+  return next;
+}
 
 /** For tests: waits until the writes under way are done (before the storage is replaced). */
-export const settleDraftWrites = () => Promise.all([...inflight]);
-
-function track<T>(promise: Promise<T>): Promise<T> {
-  inflight.add(promise);
-  void promise.finally(() => inflight.delete(promise));
-  return promise;
-}
+export const settleDraftWrites = () => chain;
 
 async function run<T>(
   mode: IDBTransactionMode,
@@ -61,7 +65,7 @@ async function run<T>(
 
 /** Saves the draft of the user (one per user). A storage that does not work is not an error for the form. */
 export function saveDraft(user: string, data: FormDraftData, now = Date.now()): Promise<void> {
-  return track(write(user, data, now));
+  return serial(() => write(user, data, now));
 }
 
 async function write(user: string, data: FormDraftData, now: number): Promise<void> {
@@ -80,7 +84,7 @@ async function write(user: string, data: FormDraftData, now: number): Promise<vo
 
 export async function clearDraft(user: string): Promise<void> {
   try {
-    await track(run('readwrite', (store) => store.delete(user)));
+    await serial(() => run('readwrite', (store) => store.delete(user)));
   } catch {
     // See above
   }
@@ -89,7 +93,7 @@ export async function clearDraft(user: string): Promise<void> {
 /** Sign-out: no draft stays on the device. */
 export async function clearAllDrafts(): Promise<void> {
   try {
-    await run('readwrite', (store) => store.clear());
+    await serial(() => run('readwrite', (store) => store.clear()));
   } catch {
     // See above
   }

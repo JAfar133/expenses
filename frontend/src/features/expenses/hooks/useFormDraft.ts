@@ -124,6 +124,8 @@ export function useFormDraft({
 
   return {
     restored,
+    /** The notice about the restored draft goes away (the draft itself stays) */
+    dismissNotice: () => setRestored(false),
     /** The expense is saved (or queued): the draft is done */
     markSaved: () => {
       setRestored(false);

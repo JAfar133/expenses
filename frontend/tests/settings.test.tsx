@@ -98,12 +98,18 @@ const puts = () => requests.filter((r) => r.method === 'PUT' && r.url === '/api/
 const section = (name: string) => screen.getByRole('heading', { name }).closest('section')!;
 
 describe('страница настроек', () => {
-  it('три карточки: аккаунт, безопасность, настройки аналитики; прав пользователей нет', async () => {
+  it('четыре карточки: аккаунт, безопасность, оформление, настройки аналитики; прав пользователей нет', async () => {
     renderSettings();
 
     expect(await screen.findByRole('heading', { name: 'Настройки' })).toBeInTheDocument();
     const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
-    expect(headings).toEqual(['Настройки', 'Аккаунт', 'Безопасность', 'Настройки аналитики']);
+    expect(headings).toEqual([
+      'Настройки',
+      'Аккаунт',
+      'Безопасность',
+      'Оформление',
+      'Настройки аналитики',
+    ]);
     expect(screen.queryByRole('heading', { name: 'Права пользователей' })).toBeNull();
     expect(requests.some((r) => r.url === '/api/users')).toBe(false);
   });
@@ -564,7 +570,8 @@ describe('настройки аналитики', () => {
       'Период',
       'Тип графика',
     ]);
-    expect(labels).toHaveLength(PREFERENCE_KEYS.length);
+    // The theme has its own card
+    expect(labels).toHaveLength(PREFERENCE_KEYS.length - 1);
   });
 
   it('выбор сразу сохраняется на сервере (только изменённая настройка)', async () => {
@@ -596,7 +603,7 @@ describe('настройки аналитики', () => {
     expect(puts()).toHaveLength(0);
   });
 
-  it('подтверждённый сброс отправляет значения по умолчанию для всех настроек', async () => {
+  it('подтверждённый сброс отправляет значения по умолчанию для настроек аналитики, тему не трогает', async () => {
     server = { 'daily.type': 'area', 'category.type': 'pie' };
     const person = renderSettings();
     await screen.findByRole('heading', { name: 'Настройки аналитики' });
@@ -608,7 +615,10 @@ describe('настройки аналитики', () => {
 
     await waitFor(() => {
       const body = puts().at(-1)?.body as Record<string, string>;
-      expect(Object.keys(body).sort()).toEqual([...PREFERENCE_KEYS].sort());
+      // The reset is for the analytics settings: the theme stays
+      expect(Object.keys(body).sort()).toEqual(
+        PREFERENCE_KEYS.filter((key) => key !== 'theme').sort(),
+      );
       expect(body['daily.type']).toBe('bars');
       expect(body['category.type']).toBe('donut');
     });
@@ -628,5 +638,41 @@ describe('настройки аналитики', () => {
       'сохранён только в этом браузере',
     );
     expect(localStorage.getItem('analytics.daily.type')).toBe('area');
+  });
+});
+
+describe('оформление: тема', () => {
+  const appearance = () => within(section('Оформление'));
+
+  it('три варианта: «Как в системе» (по умолчанию), «Светлая», «Тёмная»', async () => {
+    renderSettings();
+    await screen.findByRole('heading', { name: 'Оформление' });
+
+    const group = appearance().getByRole('radiogroup', { name: 'Тема' });
+    expect(
+      within(group)
+        .getAllByRole('radio')
+        .map((r) => r.textContent),
+    ).toEqual(['Как в системе', 'Светлая', 'Тёмная']);
+    expect(within(group).getByRole('radio', { name: 'Как в системе' })).toBeChecked();
+  });
+
+  it('выбор сохраняется на сервере ключом theme и отражается в localStorage', async () => {
+    const person = renderSettings();
+    await screen.findByRole('heading', { name: 'Оформление' });
+
+    await person.click(appearance().getByRole('radio', { name: 'Тёмная' }));
+
+    await waitFor(() => expect(puts().at(-1)?.body).toEqual({ theme: 'dark' }));
+    expect(localStorage.getItem('analytics.theme')).toBe('dark');
+    expect(appearance().getByRole('radio', { name: 'Тёмная' })).toBeChecked();
+  });
+
+  it('сохранённая на сервере тема показана выбранной', async () => {
+    server = { theme: 'light' };
+    renderSettings();
+    await screen.findByRole('heading', { name: 'Оформление' });
+
+    await waitFor(() => expect(appearance().getByRole('radio', { name: 'Светлая' })).toBeChecked());
   });
 });

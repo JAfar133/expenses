@@ -54,6 +54,11 @@ describe('настройки пользователя', () => {
     expect((await get('nastya')).json().data['daily.type']).toBe('area');
   });
 
+  it('тема сохраняется, неизвестное значение отвергается', async () => {
+    expect((await put({ theme: 'dark' })).json().data).toEqual({ theme: 'dark' });
+    expect((await put({ theme: 'blue' })).statusCode).toBe(422);
+  });
+
   it('пустой запрос ничего не меняет', async () => {
     await put({ 'daily.mode': 'cumulative' });
 

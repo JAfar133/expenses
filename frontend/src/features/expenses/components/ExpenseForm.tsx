@@ -5,6 +5,7 @@ import type { AuthUser } from '../../auth/api/auth.api.ts';
 import { Button } from '../../../shared/ui/Button.tsx';
 import { Field, inputClassName } from '../../../shared/ui/Field.tsx';
 import { SelectBox, selectPadding } from '../../../shared/ui/SelectBox.tsx';
+import { Toast } from '../../../shared/ui/Toast.tsx';
 import { Notice } from '../../../shared/ui/Notice.tsx';
 import { todayIso } from '../../../shared/utils/date.ts';
 import { crossRate, currencyDigits } from '../../../shared/utils/conversion.ts';
@@ -348,12 +349,16 @@ export function ExpenseForm({
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-5">
       {draftState.restored && (
-        <Notice variant="info">
-          Восстановлен несохранённый черновик{' '}
-          <button type="button" onClick={draftState.discard} className="font-semibold underline">
+        <Toast onDismiss={draftState.dismissNotice}>
+          <span className="flex-1">Восстановлен несохранённый черновик</span>
+          <button
+            type="button"
+            onClick={draftState.discard}
+            className="shrink-0 rounded-lg px-2 py-1 font-semibold text-indigo-600 hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-950/60"
+          >
             Очистить
           </button>
-        </Notice>
+        </Toast>
       )}
       <Field
         label={<LabelWithMark text="Дата" ai={ai.aiDate !== null && typedDate === ai.aiDate} />}

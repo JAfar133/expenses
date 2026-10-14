@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import type { AuthUser } from '../features/auth/api/auth.api.ts';
 import { UserBar } from '../features/auth/components/UserBar.tsx';
+import { useTheme } from '../features/preferences/hooks/useTheme.ts';
 import { SyncIndicator } from '../features/sync/components/SyncIndicator.tsx';
 import { OfflineBanner } from '../features/offline-queue/components/OfflineBanner.tsx';
 import { useQueueSync } from '../features/offline-queue/hooks/useQueueSync.ts';
@@ -28,6 +29,7 @@ const sectionClass = ({ isActive }: { isActive: boolean }) =>
  */
 export function AppShell({ user }: { user: AuthUser }) {
   useQueueSync();
+  useTheme();
   // The form fits a narrow column; the analytics page uses the full width
   const { pathname } = useLocation();
   const wide = pathname.startsWith('/analytics');
