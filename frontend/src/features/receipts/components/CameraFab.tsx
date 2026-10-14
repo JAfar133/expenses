@@ -11,14 +11,12 @@ import { CameraCapture } from './CameraCapture.tsx';
 import { PhotoInput } from './PhotoInput.tsx';
 import { PhotoSourceMenu } from './PhotoSourceMenu.tsx';
 
-/** Pages that have the button: «Добавить» and the analytics. */
-export const fabPage = (pathname: string) => pathname === '/' || pathname.startsWith('/analytics');
-
-/** Does this page have the camera button now: the photo-first scenario is possible and the page is one of those. */
+/**
+ * Does the bar exist now: the photo-first scenario is possible. The bar belongs to the frame of the signed-in app
+ * (the sign-in and invitation pages have no frame), so every page inside it has the bar.
+ */
 export function useCameraFabAvailable(): boolean {
-  const { pathname } = useLocation();
-  const photoFirst = useAiPhotoFirst();
-  return photoFirst && fabPage(pathname);
+  return useAiPhotoFirst();
 }
 
 const itemClass = ({ isActive }: { isActive: boolean }) =>

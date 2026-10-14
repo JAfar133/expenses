@@ -146,21 +146,54 @@ describe('круглая кнопка камеры', () => {
     expect(screen.queryByLabelText('Снять чек')).toBeNull();
   });
 
-  it('на страницах аналитики кнопка есть', async () => {
+  it('на страницах аналитики бар есть', async () => {
     scenario();
     renderAt('/analytics');
 
     expect(await screen.findByRole('button', { name: 'Добавить чек' })).toBeInTheDocument();
   });
 
-  it.each(['/group', '/admin', '/settings'])('на %s кнопки нет', async (path) => {
-    scenario();
+  it.each(['/group', '/admin', '/settings'])(
+    'на %s бар есть, оба пункта неактивны',
+    async (path) => {
+      scenario();
+      renderAt(path);
+      const bar = within(await screen.findByRole('navigation', { name: 'Нижняя навигация' }));
+
+      expect(bar.getByRole('button', { name: 'Добавить чек' })).toBeInTheDocument();
+      for (const name of ['Добавить', 'Аналитика']) {
+        const item = bar.getByRole('link', { name });
+        expect(item.className).toContain('text-zinc-500');
+        expect(item.className).not.toContain('text-indigo-600');
+      }
+      expect(screen.getByRole('main').className).toContain(
+        'pb-[calc(6rem+env(safe-area-inset-bottom))]',
+      );
+    },
+  );
+
+  it.each(['/group', '/admin', '/settings'])('на %s без сценария бара нет', async (path) => {
+    allowPhotos();
     renderAt(path);
     await screen.findByRole('navigation', { name: 'Разделы' });
     await new Promise((resolve) => setTimeout(resolve, 30));
 
-    expect(fab()).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Нижняя навигация' })).toBeNull();
   });
+
+  it.each(['/group', '/admin', '/settings'])(
+    'камера с %s ведёт на «Добавить» и запускает разбор',
+    async (path) => {
+      scenario();
+      const person = renderAt(path);
+      await screen.findByRole('button', { name: 'Добавить чек' });
+
+      await person.upload(galleryInput(), new File(['img'], 'c.jpg', { type: 'image/jpeg' }));
+
+      await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent(/^\/$/));
+      await waitFor(() => expect(server.photoParses()).toHaveLength(1));
+    },
+  );
 
   it('без ИИ бара нет вообще', async () => {
     allowPhotos();
@@ -352,14 +385,28 @@ describe('верхние вкладки при нижнем баре', () => {
     expect(tabs().className).toContain('max-md:hidden');
   });
 
-  it.each(['/group', '/admin', '/settings'])('на %s вкладки остаются', async (path) => {
-    scenario();
-    renderAt(path);
-    await screen.findByRole('navigation', { name: 'Разделы' });
-    await new Promise((resolve) => setTimeout(resolve, 30));
+  it.each(['/group', '/admin', '/settings'])(
+    'на %s при баре верхние вкладки скрыты на телефоне',
+    async (path) => {
+      scenario();
+      renderAt(path);
+      await screen.findByRole('navigation', { name: 'Нижняя навигация' });
 
-    expect(tabs().className).not.toContain('max-md:hidden');
-  });
+      expect(tabs().className).toContain('max-md:hidden');
+    },
+  );
+
+  it.each(['/group', '/admin', '/settings'])(
+    'на %s без сценария верхние вкладки на месте',
+    async (path) => {
+      allowPhotos();
+      renderAt(path);
+      await screen.findByRole('navigation', { name: 'Разделы' });
+      await new Promise((resolve) => setTimeout(resolve, 30));
+
+      expect(tabs().className).not.toContain('max-md:hidden');
+    },
+  );
 
   it('шапка и меню пользователя на месте', async () => {
     scenario();
