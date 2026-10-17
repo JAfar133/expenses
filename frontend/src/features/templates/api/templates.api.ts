@@ -16,8 +16,8 @@ export interface Template {
   category: string;
   /** The card chosen in the template; null: «моя карта» */
   card: string | null;
-  /** The card the expense goes to for this user (the template's one if they may add to it, else their own) */
-  effectiveCard: string;
+  /** The card the expense goes to for this user (the template's one if they may add to it, else their own); null: neither is a card they may add to */
+  effectiveCard: string | null;
   /** Display name of whoever made the template */
   author: string;
   /** Display name of whoever changed it last; null: never changed since creation */

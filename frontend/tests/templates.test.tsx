@@ -47,6 +47,7 @@ const template = (overrides: Partial<Template> = {}): Template => ({
 
 let templates: Template[];
 let orderFails = false;
+let createFailsWithCard = false;
 let role: 'owner' | 'member';
 let preferences: Record<string, unknown>;
 let calls: { method: string; url: string; body?: Record<string, unknown> }[];
@@ -54,6 +55,7 @@ let calls: { method: string; url: string; body?: Record<string, unknown> }[];
 beforeEach(() => {
   templates = [];
   orderFails = false;
+  createFailsWithCard = false;
   role = 'member';
   preferences = {};
   calls = [];
@@ -85,6 +87,12 @@ beforeEach(() => {
       if (url === '/api/templates' && method === 'GET') return ok(templates);
       if (url === '/api/templates' && method === 'POST') return ok({ id: 'new' }, 201);
       if (url.startsWith('/api/templates/')) return ok(null);
+      if (url === '/api/expenses' && method === 'POST' && createFailsWithCard) {
+        return json(400, {
+          success: false,
+          error: { code: 'INVALID_CARD', message: 'Выберите карту из списка' },
+        });
+      }
       if (url === '/api/expenses' && method === 'POST') {
         return ok(
           { id: 'e1', excelStatus: 'synced', ...body, currency: 'AMD', original: null },
@@ -1308,5 +1316,67 @@ describe('панель «Быстрые траты»: порядок как у �
       .getAllByRole('listitem')
       .map((item) => item.textContent?.match(/Такси|Аренда|Кофе/)?.[0]);
     expect(order).toEqual(['Такси', 'Аренда', 'Кофе']);
+  });
+});
+
+describe('у пользователя нет подходящей карты (effectiveCard = null)', () => {
+  const NO_CARD =
+    'Карта не выбрана: проверьте карту в форме. Выбрать карту по умолчанию можно в «Настройки»';
+  const noCard = () =>
+    template({
+      id: 'a',
+      name: 'Автобус',
+      expenseName: 'Автобус',
+      amount: 150,
+      effectiveCard: null,
+    });
+
+  it('тап по шаблону с суммой не создаёт расход: заполняет форму и показывает подсказку', async () => {
+    templates = [noCard()];
+    const person = await renderPage();
+
+    await person.click(await screen.findByRole('button', { name: /Автобус/ }));
+
+    expect(await screen.findByText(NO_CARD)).toBeInTheDocument();
+    expect(posted()).toHaveLength(0);
+    await waitFor(() => expect(screen.getByLabelText('Наименование')).toHaveValue('Автобус'));
+    expect(screen.getByLabelText('Стоимость')).toHaveValue('150');
+  });
+
+  it('«Добавить» в панели делает то же самое', async () => {
+    templates = [noCard()];
+    const person = await renderPage();
+
+    await person.click(await screen.findByRole('button', { name: /Все/ }));
+    await person.click(await screen.findByRole('button', { name: 'Автобус: добавить сразу' }));
+
+    expect(await screen.findByText(NO_CARD)).toBeInTheDocument();
+    expect(posted()).toHaveLength(0);
+    await waitFor(() => expect(screen.getByLabelText('Наименование')).toHaveValue('Автобус'));
+  });
+
+  it('с картой шаблон по-прежнему создаёт расход, подсказки нет', async () => {
+    templates = [noCard()];
+    templates[0] = { ...templates[0]!, effectiveCard: 'Миша' };
+    const person = await renderPage();
+
+    await person.click(await screen.findByRole('button', { name: /Автобус/ }));
+
+    await screen.findByText(/Добавлено · Автобус/);
+    expect(screen.queryByText(NO_CARD)).toBeNull();
+  });
+
+  it('ошибка INVALID_CARD при создании по шаблону объясняется понятным текстом', async () => {
+    createFailsWithCard = true;
+    templates = [template({ id: 'a', name: 'Автобус', amount: 150, effectiveCard: 'Старая' })];
+    const person = await renderPage();
+
+    await person.click(await screen.findByRole('button', { name: /Автобус/ }));
+
+    expect(
+      await screen.findByText(
+        'Не удалось определить карту. Укажите карту по умолчанию в «Настройки» или выберите её в форме',
+      ),
+    ).toBeInTheDocument();
   });
 });

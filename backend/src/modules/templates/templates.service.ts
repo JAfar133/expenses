@@ -36,8 +36,11 @@ export interface TemplateView {
   category: string;
   /** The card chosen in the template; null: "my default card" */
   card: string | null;
-  /** The card the expense will go to for this user (the template's one if they may add to it, else their own) */
-  effectiveCard: string;
+  /**
+   * The card the expense will go to for this user: the template's one if they may add to it, else their own default.
+   * null: neither is a card they may add to, so the template cannot create an expense at once (the form picks one).
+   */
+  effectiveCard: string | null;
   expenseName: string;
   amount: number | null;
   currency: string | null;
@@ -244,7 +247,7 @@ export class TemplatesService {
       emoji: row.emoji,
       category: row.category,
       card: row.card,
-      effectiveCard: usable ? row.card! : user.card,
+      effectiveCard: usable ? row.card! : editableCards.includes(user.card) ? user.card : null,
       expenseName: row.expenseName,
       amount: row.amount,
       currency: row.currency,

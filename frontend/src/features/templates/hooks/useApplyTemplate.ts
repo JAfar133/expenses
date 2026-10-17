@@ -10,6 +10,9 @@ import { formatMoney } from '../../../shared/utils/money.ts';
 import { newRequestId } from '../../../shared/utils/request-id.ts';
 import type { Template } from '../api/templates.api.ts';
 
+export const NO_CARD_TEXT =
+  'Карта не выбрана: проверьте карту в форме. Выбрать карту по умолчанию можно в «Настройки»';
+
 export interface TemplateNotice {
   kind: 'added' | 'info' | 'error';
   text: string;
@@ -28,6 +31,12 @@ export function useApplyTemplate(onFill: (template: Template) => void) {
   const busy = useRef(false);
 
   const apply = async (template: Template) => {
+    // Without a card the server would refuse the expense: the form is filled and shows which card it picked
+    if (template.amount !== null && template.effectiveCard === null) {
+      onFill(template);
+      setNotice({ kind: 'info', text: NO_CARD_TEXT });
+      return;
+    }
     if (template.amount === null || !isBrowserOnline()) return onFill(template);
     if (busy.current) return;
     busy.current = true;
@@ -35,7 +44,7 @@ export function useApplyTemplate(onFill: (template: Template) => void) {
       const created = await createExpense(
         {
           date: todayIso(),
-          card: template.effectiveCard,
+          card: template.effectiveCard!,
           category: template.category,
           name: template.expenseName,
           amount: template.amount,

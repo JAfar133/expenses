@@ -121,6 +121,12 @@ export function AccountCard({ user }: { user: AuthUser }) {
               ))}
             </select>
           </SelectBox>
+          {cardIsStale && (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              Карта по умолчанию не выбрана. Шаблоны и новые расходы будут использовать первую
+              доступную карту
+            </p>
+          )}
         </Field>
 
         <Field label="Часовой пояс" htmlFor="profile-timezone">

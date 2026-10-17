@@ -142,6 +142,7 @@ describe('аккаунт', () => {
     ).not.toBeNull();
     expect(account().getByLabelText('Часовой пояс')).toHaveValue('Asia/Yerevan');
     expect(account().getByText('Сегодня определяется по этому часовому поясу')).toBeInTheDocument();
+    expect(account().queryByText(/Карта по умолчанию не выбрана/)).toBeNull();
   });
 
   it('карты по умолчанию, которой уже нет, в списке нет: показывается «Не выбрана», выбор сохраняется', async () => {
@@ -163,6 +164,11 @@ describe('аккаунт', () => {
       'Миша (Т-Банк)',
     ]);
     expect(account().getByRole('button', { name: 'Сохранить' })).toBeDisabled();
+    expect(
+      account().getByText(
+        'Карта по умолчанию не выбрана. Шаблоны и новые расходы будут использовать первую доступную карту',
+      ),
+    ).toBeInTheDocument();
 
     await person.selectOptions(select, 'Миша (Т-Банк)');
     await person.click(account().getByRole('button', { name: 'Сохранить' }));

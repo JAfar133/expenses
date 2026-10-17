@@ -288,9 +288,11 @@ export function ExpenseForm({
   // A template: its card, category, name and, if it has one, the amount go into the form
   useEffect(() => {
     if (!template) return;
-    const card = cardNames.includes(template.effectiveCard)
-      ? template.effectiveCard
-      : getValues('card');
+    // No usable card in the template: the form keeps its own choice
+    const card =
+      template.effectiveCard && cardNames.includes(template.effectiveCard)
+        ? template.effectiveCard
+        : getValues('card');
     const cardCurrency = cardCurrencyOf(card);
     // A template replaces what it defines; without an amount it keeps the amount (and currency) the user typed
     const keepTyped = template.amount === null && getValues('amount').trim() !== '';

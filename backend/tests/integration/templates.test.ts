@@ -33,7 +33,7 @@ const list = async (as: string) =>
     name: string;
     scope: string;
     pending: boolean;
-    effectiveCard: string;
+    effectiveCard: string | null;
     card: string | null;
     amount: number | null;
     currency: string | null;
@@ -66,6 +66,13 @@ describe('личные шаблоны', () => {
       { name: 'Кофе', scope: 'personal', amount: 1200, currency: 'AMD', editable: true },
     ]);
     expect(await list('nastya')).toEqual([]);
+  });
+
+  it('если карта по умолчанию не карта группы, карта шаблона не определена (null)', async () => {
+    await create('nastya');
+    await database.query("UPDATE users SET custom_card = 'Нет такой' WHERE username = 'nastya'");
+
+    expect((await list('nastya'))[0]).toMatchObject({ card: null, effectiveCard: null });
   });
 
   it('без карты берётся карта пользователя по умолчанию', async () => {
@@ -129,7 +136,7 @@ describe('личные шаблоны', () => {
     expect(rows).toHaveLength(1);
   });
 
-  it('карта, на которую нет права добавлять, заменяется картой по умолчанию', async () => {
+  it('карта, на которую нет права добавлять, заменяется картой по умолчанию, а если и её нет, остаётся не определённой', async () => {
     await create('nastya', { card: 'Миша' });
     expect((await list('nastya'))[0]).toMatchObject({ card: 'Миша', effectiveCard: 'Миша' });
 
@@ -137,7 +144,8 @@ describe('личные шаблоны', () => {
       "UPDATE card_access SET level = 'view' WHERE user_id = (SELECT id FROM users WHERE username = 'nastya')",
     );
 
-    expect((await list('nastya'))[0]).toMatchObject({ card: 'Миша', effectiveCard: 'Настя' });
+    // Права добавлять нет ни на какую карту: определить карту нельзя
+    expect((await list('nastya'))[0]).toMatchObject({ card: 'Миша', effectiveCard: null });
   });
 
   it('шаблон архивной категории помечен как недоступный', async () => {
