@@ -19,6 +19,8 @@ import { ReceiptsService } from './modules/receipts/receipts.service.ts';
 import { ReceiptStore } from './modules/receipts/receipts.store.ts';
 import { BudgetsRepository } from './modules/budgets/budgets.repository.ts';
 import { BudgetsService } from './modules/budgets/budgets.service.ts';
+import { NotificationsRepository } from './modules/notifications/notifications.repository.ts';
+import { NotificationsService } from './modules/notifications/notifications.service.ts';
 import { createBankImportModule } from './modules/bank-import/bank-import.module.ts';
 import { TemplatesRepository } from './modules/templates/templates.repository.ts';
 import { TemplatesService } from './modules/templates/templates.service.ts';
@@ -188,8 +190,12 @@ const expenseService = new ExpenseService(expenses, {
   },
   logger: { warn: (object, message) => app.log.warn(object, message) },
 });
+const notifications = new NotificationsService(new NotificationsRepository(database), {
+  warn: (object, message) => app.log.warn(object, message),
+});
 const bankImport = createBankImportModule({
   database,
+  notifications,
   expenses: expenseService,
   editor,
   groups,
@@ -225,6 +231,7 @@ const app = buildApp({
   receipts,
   templates,
   bankImport,
+  notifications,
   ai,
   groupService: new GroupService(
     new GroupAdminRepository(database),
@@ -267,11 +274,12 @@ async function runMaintenance(): Promise<void> {
   const removedKeys = await idempotency.deleteOlderThan(
     new Date(Date.now() - env.BACKUP_RETENTION_DAYS * DAY_MS),
   );
+  const removedNotifications = await notifications.deleteOld();
   const removedImportLog = await bankImport.log.deleteOlderThan(
     new Date(Date.now() - IMPORT_LOG_DAYS * DAY_MS),
   );
   app.log.info(
-    { removedBackups, removedKeys, removedSessions, removedImportLog },
+    { removedBackups, removedKeys, removedSessions, removedImportLog, removedNotifications },
     'Maintenance completed',
   );
 }

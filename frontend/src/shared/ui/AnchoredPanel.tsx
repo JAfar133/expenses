@@ -21,6 +21,8 @@ interface AnchoredPanelProps {
   children: ReactNode;
   /** Desktop width of the panel */
   widthClass?: string;
+  /** Which edge of the button the desktop popover lines up with (a button at the right edge needs `right`) */
+  align?: 'left' | 'right';
   /** Layout classes of the wrapper (it is a flex child of the row) */
   className?: string;
 }
@@ -37,6 +39,7 @@ export function AnchoredPanel({
   trigger,
   children,
   widthClass = 'sm:w-96',
+  align = 'left',
   className = '',
 }: AnchoredPanelProps) {
   const wide = useIsWide();
@@ -81,7 +84,7 @@ export function AnchoredPanel({
           <div
             role="dialog"
             aria-label={label}
-            className={`fixed inset-x-0 bottom-0 z-40 flex max-h-[90dvh] flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-0 sm:top-full sm:mt-2 sm:max-h-[75dvh] sm:rounded-2xl sm:border sm:border-zinc-200 sm:shadow-lg dark:bg-zinc-900 sm:dark:border-zinc-700 ${widthClass}`}
+            className={`fixed inset-x-0 bottom-0 z-40 flex max-h-[90dvh] flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:absolute sm:inset-x-auto sm:bottom-auto ${align === 'right' ? 'sm:right-0' : 'sm:left-0'} sm:top-full sm:mt-2 sm:max-h-[75dvh] sm:rounded-2xl sm:border sm:border-zinc-200 sm:shadow-lg dark:bg-zinc-900 sm:dark:border-zinc-700 ${widthClass}`}
           >
             <div className="flex shrink-0 items-center justify-between gap-2 bg-white px-4 pt-3 pb-1 dark:bg-zinc-900">
               <h3 className="text-base font-semibold">{title ?? label}</h3>

@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { validationError } from '../../errors/app-error.ts';
+import type { NotificationsService } from '../notifications/notifications.service.ts';
 import type { SyncService } from '../sync/sync.service.ts';
 import { MAX_RECEIPT_BYTES } from '../receipts/receipts.service.ts';
 import type { ReceiptAnalysisService } from './receipt-analysis.service.ts';
@@ -15,6 +16,7 @@ export const expenseAiRoutes =
     service: ReceiptAnalysisService,
     drafts: ReceiptDraftService,
     sync: Pick<SyncService, 'requestCycle' | 'enabled'>,
+    notifications?: Pick<NotificationsService, 'emit'>,
   ): FastifyPluginAsync =>
   async (app) => {
     const parseId = (params: unknown) => {
@@ -57,6 +59,23 @@ export const expenseAiRoutes =
       );
       // The name or the date may have changed: let the Excel mirror catch up
       if (sync.enabled && (data.nameFilled || data.dateFilled)) void sync.requestCycle();
+      // The person who asked hears that the receipt is read (it may take a while on a slow connection)
+      const user = request.user!;
+      if (notifications && user.groupId) {
+        const total =
+          data.total !== null && data.currency
+            ? `${data.total.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${data.currency}`
+            : null;
+        const parts = [total, data.itemsFilled > 0 ? `позиций: ${data.itemsFilled}` : null];
+        void notifications.emit({
+          type: 'receipt_parsed',
+          title: 'Чек распознан',
+          body: parts.filter(Boolean).join(' · ') || 'Данные чека добавлены к расходу',
+          link: '/analytics/operations',
+          data: { expenseId: id },
+          audience: { type: 'user', groupId: user.groupId, userId: user.id },
+        });
+      }
       return { success: true, data };
     });
 

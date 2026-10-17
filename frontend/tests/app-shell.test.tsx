@@ -132,14 +132,21 @@ describe('AppShell', () => {
     expect(add).toHaveClass('bg-indigo-600', 'text-white');
   });
 
-  it('навигация одна и стоит в шапке рядом с названием (на телефоне уходит на вторую строку)', () => {
+  it('навигация одна и стоит в шапке рядом с названием; шапка в одну строку, колокольчик и меню справа одной группой', () => {
     renderShell('/');
 
     const nav = screen.getByRole('navigation', { name: 'Разделы' });
     expect(nav.closest('header')).toContainElement(
       screen.getByRole('heading', { name: /Мои расходы/ }),
     );
-    expect(nav).toHaveClass('w-full', 'sm:w-auto');
+    // One row that never wraps; the nav is hidden below md (the bottom bar has it)
+    const header = nav.closest('header')!;
+    expect(header).not.toHaveClass('flex-wrap');
+    expect(nav).toHaveClass('max-md:hidden');
+    const group = screen.getByRole('button', { name: /^Уведомления/ }).parentElement!
+      .parentElement!;
+    expect(group).toHaveClass('ml-auto', 'shrink-0', 'flex', 'items-center');
+    expect(group).toContainElement(screen.getByRole('button', { name: /Меню пользователя/ }));
   });
 
   describe('меню пользователя', () => {

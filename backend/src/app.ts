@@ -18,6 +18,8 @@ import {
   bankImportRoutes,
   type BankImportRoutesDeps,
 } from './modules/bank-import/bank-import.routes.ts';
+import { notificationsRoutes } from './modules/notifications/notifications.routes.ts';
+import type { NotificationsService } from './modules/notifications/notifications.service.ts';
 import { templatesRoutes } from './modules/templates/templates.routes.ts';
 import type { TemplatesService } from './modules/templates/templates.service.ts';
 import { receiptsRoutes } from './modules/receipts/receipts.routes.ts';
@@ -73,6 +75,8 @@ export interface AppDependencies {
   templates: TemplatesService;
   /** Expenses from bank notifications (v5) */
   bankImport: BankImportRoutesDeps;
+  /** The notification feed, the bell (v5) */
+  notifications: NotificationsService;
   /** Items of expenses and receipt parsing with the AI (v4) */
   ai: AiModule;
   /** Invitation links */
@@ -116,6 +120,7 @@ export function buildApp({
   receipts,
   templates,
   bankImport,
+  notifications,
   ai,
   idempotency,
   sync,
@@ -224,9 +229,10 @@ export function buildApp({
   app.register(budgetsRoutes(budgets), { prefix: '/api' });
   app.register(templatesRoutes(templates), { prefix: '/api' });
   app.register(bankImportRoutes(bankImport), { prefix: '/api' });
+  app.register(notificationsRoutes(notifications), { prefix: '/api' });
   app.register(receiptsRoutes(receipts), { prefix: '/api' });
   app.register(itemsRoutes(ai.itemsService), { prefix: '/api' });
-  app.register(expenseAiRoutes(ai.analysis, ai.drafts, sync), { prefix: '/api' });
+  app.register(expenseAiRoutes(ai.analysis, ai.drafts, sync, notifications), { prefix: '/api' });
   app.register(
     llmRoutes({ service: ai.llm, settings: ai.llmSettings, repository: ai.llmRepository }),
     { prefix: '/api' },

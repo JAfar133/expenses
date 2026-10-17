@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { AppError } from '../../errors/app-error.ts';
 import type { Database, SqlExecutor } from '../../infrastructure/database/database.ts';
+import type { NotificationsService } from '../notifications/notifications.service.ts';
 import type { ExpenseEditor } from '../expenses/expense-editor.ts';
 import type { ExpenseService } from '../expenses/expenses.service.ts';
 import type { GroupsRepository } from '../groups/groups.repository.ts';
@@ -43,7 +44,14 @@ export type ImportResult =
 
 /** How a purchase ended inside the transaction (the log and the answer are made from it). */
 type Outcome =
-  | { status: 'created'; transactionId: string; merged: string[] }
+  | {
+      status: 'created';
+      transactionId: string;
+      merged: string[];
+      /** What the expense is now, for the notification */
+      name: string;
+      card: string;
+    }
   | {
       status: 'duplicate';
       transactionId: string | null;
@@ -66,6 +74,8 @@ export interface BankImportOptions {
   editor: Pick<ExpenseEditor, 'update'>;
   groups: Pick<GroupsRepository, 'categoryNames'>;
   sync: Pick<SyncService, 'requestCycle' | 'enabled'>;
+  /** The bell of the app: who should hear about a new expense or a problem */
+  notifications?: Pick<NotificationsService, 'emit' | 'retract'>;
   now?: () => Date;
 }
 
@@ -94,7 +104,7 @@ export class BankImportService {
     source: string,
     reason: string,
   ): Promise<string> {
-    return this.options.log.add({
+    const importId = await this.options.log.add({
       groupId: key.groupId,
       keyId: key.id,
       source: source.slice(0, 40) || 'unknown',
@@ -102,6 +112,8 @@ export class BankImportService {
       status: 'invalid_request',
       error: reason,
     });
+    await this.announceProblem(key.groupId, source, 'invalid_request', reason, importId);
+    return importId;
   }
 
   async import(key: ActiveKey, payload: NotificationPayload): Promise<ImportResult> {
@@ -153,6 +165,7 @@ export class BankImportService {
         expenseId: outcome.transactionId,
         match: outcome.merged.length > 0 ? { mergedWalletEvents: outcome.merged } : null,
       });
+      await this.announceExpense(key, source, purchase, outcome);
       return { status: 'created', transactionId: outcome.transactionId };
     }
     if (outcome.status === 'duplicate') {
@@ -186,6 +199,7 @@ export class BankImportService {
       error: message,
       parsed,
     });
+    await this.announceProblem(entry.groupId, entry.source, status, message, importId);
     if (wallet) return { status: 'unrecognized', importId, message };
     return { status: status as Exclude<ImportStatus, 'created'>, message, importId };
   }
@@ -295,7 +309,13 @@ export class BankImportService {
     await imports.attachExpense(claimed, saved.id, tx);
     const merged = waiting.map((event) => event.id);
     await log.markMerged(merged, saved.id, tx);
-    return { status: 'created', transactionId: saved.id, merged };
+    return {
+      status: 'created',
+      transactionId: saved.id,
+      merged,
+      name: name.slice(0, 255),
+      card: card.name,
+    };
   }
 
   /** An earlier import from another source that is this purchase: the same amount, near in time, alike by shop or card. */
@@ -413,6 +433,48 @@ export class BankImportService {
     return first;
   }
 
+  /** Everyone who may see the card hears about the new expense; Wallet requests it took over stop being «problems». */
+  private async announceExpense(
+    key: ActiveKey,
+    source: string,
+    purchase: ParsedPurchase,
+    created: Extract<Outcome, { status: 'created' }>,
+  ): Promise<void> {
+    const notify = this.options.notifications;
+    if (!notify) return;
+    await notify.retract(created.merged.map((id) => `import_problem:${id}`));
+    await notify.emit({
+      type: 'expense_imported',
+      title: 'Расход добавлен',
+      body: `${money(purchase.amount, purchase.currency)} · ${created.name} · ${created.card} · из ${sourceLabel(source)}`,
+      link: '/analytics/operations',
+      data: { expenseId: created.transactionId, source },
+      dedupeKey: `expense_imported:${created.transactionId}`,
+      audience: { type: 'card', groupId: key.groupId, card: created.card },
+    });
+  }
+
+  /** The owners hear about a request that made no expense (not about kinds of notices that are simply not imported). */
+  private async announceProblem(
+    groupId: string,
+    source: string,
+    status: string,
+    message: string,
+    importId: string,
+  ): Promise<void> {
+    const notify = this.options.notifications;
+    if (!notify || status === 'unsupported') return;
+    await notify.emit({
+      type: 'import_problem',
+      title: 'Не удалось добавить расход',
+      body: `${sourceLabel(source)}: ${message}`,
+      link: '/group',
+      data: { importId, status, source },
+      dedupeKey: `import_problem:${importId}`,
+      audience: { type: 'owners', groupId },
+    });
+  }
+
   /** The expense of another source gets the preferred shop name, if nobody changed it. Never fails the request. */
   private async rename(
     key: ActiveKey,
@@ -430,6 +492,13 @@ export class BankImportService {
     }
   }
 }
+
+const sourceLabel = (source: string): string =>
+  source === 'apple_wallet' ? 'Wallet' : source === 'idbank' ? 'IDBank' : source;
+
+/** «2 150 AMD», «12,50 USD» */
+const money = (amount: number, currency: string): string =>
+  `${amount.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${currency}`;
 
 const renameOf = (match: CrossSourceMatch, to: string): Rename | undefined =>
   match.expenseName === to

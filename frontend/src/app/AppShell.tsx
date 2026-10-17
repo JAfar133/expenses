@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router';
 import type { AuthUser } from '../features/auth/api/auth.api.ts';
 import { UserBar } from '../features/auth/components/UserBar.tsx';
 import { useTheme } from '../features/preferences/hooks/useTheme.ts';
+import { NotificationBell } from '../features/notifications/components/NotificationBell.tsx';
 import { SyncIndicator } from '../features/sync/components/SyncIndicator.tsx';
 import { OfflineBanner } from '../features/offline-queue/components/OfflineBanner.tsx';
 import { useQueueSync } from '../features/offline-queue/hooks/useQueueSync.ts';
@@ -24,8 +25,8 @@ const sectionClass = ({ isActive }: { isActive: boolean }) =>
     : 'border-transparent text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-50');
 
 /**
- * Common page frame. Line 1: the title, on a wide screen the main navigation, the sync icon and the user menu.
- * On a phone the navigation moves to its own second line.
+ * Common page frame. One header row: the title, on a wide screen the main navigation, and at the right the sync icon,
+ * the bell and the user menu (a phone has the navigation in the bottom bar).
  */
 export function AppShell({ user }: { user: AuthUser }) {
   useQueueSync();
@@ -45,16 +46,14 @@ export function AppShell({ user }: { user: AuthUser }) {
         wide ? 'max-w-5xl' : group ? 'max-w-3xl' : medium ? 'max-w-2xl' : 'max-w-[560px]'
       }`}
     >
-      <header className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <h1 className="order-1 text-2xl font-bold">💳 Мои расходы</h1>
-        <div className="order-2 ml-auto flex items-center gap-2 sm:order-3">
-          <SyncIndicator />
-          <UserBar user={user} />
-        </div>
+      <header className="mb-4 flex items-center gap-x-3">
+        <h1 className="min-w-0 truncate text-xl font-bold sm:text-2xl md:text-xl">
+          💳 Мои расходы
+        </h1>
         <nav
           aria-label="Разделы"
           // On a phone the bottom bar (always there) has the same two items: the tabs are for the wide screens
-          className="order-3 flex w-full items-center gap-5 sm:order-2 sm:w-auto max-md:hidden"
+          className="flex shrink-0 items-center gap-3 max-md:hidden"
         >
           <NavLink to="/" end className={addClass}>
             <PlusIcon />
@@ -64,6 +63,12 @@ export function AppShell({ user }: { user: AuthUser }) {
             Аналитика
           </NavLink>
         </nav>
+        {/* One group that never wraps: the sync icon, the bell and the user menu */}
+        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+          <SyncIndicator />
+          <NotificationBell />
+          <UserBar user={user} />
+        </div>
       </header>
 
       <OfflineBanner />

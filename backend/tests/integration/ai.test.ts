@@ -276,6 +276,22 @@ describe('разбор чека', () => {
     ]);
   });
 
+  it('человек, который запросил разбор, получает уведомление «Чек распознан»', async () => {
+    const id = await withPhoto();
+
+    await parse(id);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const feed = await dataOf(call('GET', '/api/notifications'));
+    expect(feed.items).toEqual([
+      expect.objectContaining({
+        type: 'receipt_parsed',
+        title: 'Чек распознан',
+        body: expect.stringContaining('позиций: 2'),
+      }),
+    ]);
+  });
+
   it('сумма, карта и категория остаются как были', async () => {
     const id = await withPhoto();
     await parse(id);

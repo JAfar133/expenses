@@ -604,3 +604,6 @@ If the personal choice is reset (`null`), the value from the configuration appli
 
 - **Time zone** is personal: it determines "today" in the analysis (spend per day, charts by day) and in the expense form. `APP_TIMEZONE` sets the default zone.
 - **Rights.** Only editors can change rights; the last editor cannot be stripped of the right (`409 LAST_EDITOR`).
+  | `GET /api/notifications` | The signed-in user's own notification feed (the bell), `?limit=&before=`: `{items, unread}`. Events: a new expense from the bank/Wallet (for everyone who sees the card), an import problem (owners), a parsed receipt (who asked). Same purchase from two sources: one notification |
+  | `GET /api/notifications/unread-count` | `{unread}` for the badge (polled) |
+  | `POST /api/notifications/read` | `{ids?}`: mark read (no ids: all of them) |

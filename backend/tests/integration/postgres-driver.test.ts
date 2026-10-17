@@ -86,6 +86,7 @@ describe('драйвер pg', () => {
       '0028_bank_import.sql',
       '0029_api_key_category.sql',
       '0030_import_log.sql',
+      '0031_notifications.sql',
     ]);
   });
 

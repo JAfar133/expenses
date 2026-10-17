@@ -29,6 +29,8 @@ import { ReceiptsRepository } from '../../src/modules/receipts/receipts.reposito
 import { ReceiptsService } from '../../src/modules/receipts/receipts.service.ts';
 import { ReceiptStore } from '../../src/modules/receipts/receipts.store.ts';
 import { BudgetsService } from '../../src/modules/budgets/budgets.service.ts';
+import { NotificationsRepository } from '../../src/modules/notifications/notifications.repository.ts';
+import { NotificationsService } from '../../src/modules/notifications/notifications.service.ts';
 import { createBankImportModule } from '../../src/modules/bank-import/bank-import.module.ts';
 import { TemplatesRepository } from '../../src/modules/templates/templates.repository.ts';
 import { TemplatesService } from '../../src/modules/templates/templates.service.ts';
@@ -270,8 +272,10 @@ export async function createTestApp(
     items: ai.items,
     aiParse: ai.aiParse,
   });
+  const notifications = new NotificationsService(new NotificationsRepository(database));
   const bankImport = createBankImportModule({
     database,
+    notifications,
     expenses: expenseService,
     editor,
     groups,
@@ -285,6 +289,7 @@ export async function createTestApp(
     backupStatus: options.backupStatus,
     expenseService,
     bankImport,
+    notifications,
     groups,
     invitations,
     receipts,
