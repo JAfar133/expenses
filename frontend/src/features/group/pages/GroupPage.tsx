@@ -5,11 +5,12 @@ import { CardsCard } from '../components/CardsCard.tsx';
 import { CategoriesCard } from '../components/CategoriesCard.tsx';
 import { GroupSettingsCard } from '../components/GroupSettingsCard.tsx';
 import { MembersCard } from '../components/MembersCard.tsx';
+import { IntegrationsCard } from '../../integrations/components/IntegrationsCard.tsx';
 import { GroupTemplatesCard } from '../../templates/components/GroupTemplatesCard.tsx';
 import { useGroup } from '../hooks/useGroup.ts';
 import { toErrorMessage } from '../model/error-message.ts';
 
-/** Owner's page: five cards: the group settings, members, cards, categories with limits, and the group's templates. */
+/** Owner's page: six cards: the group settings, members, cards, categories with limits, the group's templates and integrations. */
 export default function GroupPage() {
   const { data: user } = useCurrentUser();
   if (!user) return null;
@@ -41,13 +42,16 @@ function GroupContent({ currentUsername }: { currentUsername: string }) {
         cards={data.cards}
         currentUsername={currentUsername}
       />
-      <CardsCard
-        cards={data.cards}
-        currencies={currencies}
-        reportingCurrency={data.group.reportingCurrency}
-      />
+      <div id="group-cards">
+        <CardsCard
+          cards={data.cards}
+          currencies={currencies}
+          reportingCurrency={data.group.reportingCurrency}
+        />
+      </div>
       <CategoriesCard categories={data.categories} />
       <GroupTemplatesCard />
+      <IntegrationsCard cards={data.cards} />
     </div>
   );
 }

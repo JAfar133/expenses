@@ -78,6 +78,8 @@ let override: (method: string, url: string) => Response | undefined;
 let budgetsList: Record<string, unknown>[];
 let receipts: { enabled: boolean; categories: string[] };
 let templatesList: Record<string, unknown>[];
+let apiKeys: Record<string, unknown>[];
+let importsList: Record<string, unknown>[];
 
 const budget = (overrides: Record<string, unknown> = {}) => ({
   id: 'b1',
@@ -102,6 +104,8 @@ beforeEach(() => {
   budgetsList = [];
   receipts = { enabled: false, categories: [] };
   templatesList = [];
+  apiKeys = [];
+  importsList = [];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -112,6 +116,11 @@ beforeEach(() => {
       const forced = override(method, url);
       if (forced) return forced;
       if (url === '/api/group' && method === 'GET') return ok(overview());
+      if (url === '/api/group/api-keys' && method === 'GET') return ok(apiKeys);
+      if (url === '/api/group/api-keys' && method === 'POST')
+        return ok({ id: 'k9', key: 'etk_FULLSECRETKEY123' }, 201);
+      if (url.startsWith('/api/group/api-keys/') && method === 'DELETE') return ok({});
+      if (url === '/api/group/imports') return ok(importsList);
       if (url === '/api/templates' && method === 'GET') return ok(templatesList);
       if (url === '/api/cards') return ok([{ name: 'Миша', currency: 'AMD' }]);
       if (url === '/api/categories') return ok(['Еда']);
@@ -166,7 +175,7 @@ const confirmDialog = () =>
   within(screen.getByRole('dialog', { name: 'Сменить валюту отчётности?' }));
 
 describe('страница «Группа»', () => {
-  it('ровно пять карточек в порядке: настройки, участники, карты, категории и лимиты, шаблоны группы', async () => {
+  it('ровно шесть карточек в порядке: настройки, участники, карты, категории и лимиты, шаблоны группы, интеграции', async () => {
     await renderGroup();
     await screen.findByRole('heading', { name: 'Настройки группы' });
 
@@ -178,6 +187,7 @@ describe('страница «Группа»', () => {
       'Карты (2)',
       'Категории и лимиты (1)',
       'Шаблоны группы',
+      'Интеграции',
     ]);
   });
 
@@ -233,7 +243,7 @@ describe('меню «⋯»', () => {
 
     expect(button).toHaveAttribute('aria-expanded', 'true');
     const items = screen.getAllByRole('menuitem').map((item) => item.textContent);
-    expect(items).toEqual(['Переименовать', 'Сменить валюту', 'В архив']);
+    expect(items).toEqual(['Переименовать', 'Сменить валюту', 'Цифры карты', 'В архив']);
     // The focus moves into the menu
     expect(screen.getByRole('menuitem', { name: 'Переименовать' })).toHaveFocus();
   });
@@ -1175,5 +1185,270 @@ describe('карточка «Шаблоны группы»', () => {
     await person.click(await screen.findByRole('button', { name: 'Изменить шаблон: Аренда' }));
 
     expect(screen.getByRole('dialog', { name: 'Изменить шаблон' })).toBeInTheDocument();
+  });
+});
+
+describe('карточка «Интеграции»', () => {
+  const key = (overrides: Record<string, unknown> = {}) => ({
+    id: 'k1',
+    name: 'iPhone — IDBank',
+    prefix: 'etk_ab12',
+    createdAt: '2026-10-17T10:00:00.000Z',
+    lastUsedAt: null,
+    revokedAt: null,
+    createdBy: 'Миша',
+    ...overrides,
+  });
+  const integrations = async () => {
+    await renderGroup();
+    return within(
+      (await screen.findByRole('heading', { name: 'Интеграции', level: 2 })).closest('section')!,
+    );
+  };
+
+  it('участник её не видит и ключи не запрашиваются', async () => {
+    me = { ...OWNER, role: 'member' };
+    await renderGroup();
+
+    expect(await screen.findByText('Главная')).toBeInTheDocument();
+    expect(requests.some((r) => r.url === '/api/group/api-keys')).toBe(false);
+    expect(screen.queryByText('Интеграции')).toBeNull();
+  });
+
+  it('подзаголовок, подсказка про цифры карты, пустой список ключей', async () => {
+    const card = await integrations();
+
+    expect(
+      card.getByText('Автоматическое добавление расходов из уведомлений банка'),
+    ).toBeInTheDocument();
+    expect(card.getByText(/укажите последние 4 цифры в настройках карты/)).toBeInTheDocument();
+    expect(await card.findByText(/Ключей пока нет/)).toBeInTheDocument();
+  });
+
+  it('подсказки про цифры нет, когда у карты они указаны', async () => {
+    const original = overview;
+    templatesList = [];
+    override = (method, url) => {
+      if (url === '/api/group' && method === 'GET') {
+        const data = original();
+        data.cards[0] = { ...data.cards[0]!, last4: '5386' } as (typeof data.cards)[0];
+        return ok(data);
+      }
+      return undefined;
+    };
+    const card = await integrations();
+
+    expect(card.queryByText(/укажите последние 4 цифры/)).toBeNull();
+    expect(screen.getByText('•5386')).toBeInTheDocument();
+  });
+
+  it('список ключей: имя, маска, даты, статусы; отозванные внизу и приглушены', async () => {
+    apiKeys = [
+      key({ id: 'k0', name: 'Старый', prefix: 'etk_zz99', revokedAt: '2026-10-16T10:00:00.000Z' }),
+      key({ lastUsedAt: new Date().toISOString() }),
+      key({ id: 'k2', name: 'Планшет', lastUsedAt: '2026-10-15T10:00:00.000Z' }),
+    ];
+    const card = await integrations();
+
+    expect(await card.findByText('Создан 17.10.2026 · использован сегодня')).toBeInTheDocument();
+    expect(card.getByText('Создан 17.10.2026 · использован 15.10.2026')).toBeInTheDocument();
+    expect(card.getAllByText('etk_ab12…')).toHaveLength(2);
+    expect(card.getByText('etk_zz99…')).toBeInTheDocument();
+    expect(card.getAllByText('Активен')).toHaveLength(2);
+    expect(card.getByText('Отозван')).toBeInTheDocument();
+    const names = card
+      .getAllByRole('listitem')
+      .map((item) => item.textContent ?? '')
+      .filter((text) => text.includes('Создан '));
+    expect(names[names.length - 1]).toContain('Старый');
+    expect(card.queryByRole('button', { name: 'Действия: Старый' })).toBeNull();
+  });
+
+  it('отзыв: подтверждение с текстом, потом DELETE', async () => {
+    apiKeys = [key()];
+    const person = await renderGroup();
+
+    await person.click(await screen.findByRole('button', { name: 'Действия: iPhone — IDBank' }));
+    await person.click(screen.getByRole('menuitem', { name: 'Отозвать' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Отозвать ключ?' }));
+    expect(
+      dialog.getByText(
+        'Отозвать ключ «iPhone — IDBank»? Автоматизация на телефоне сразу перестанет работать',
+      ),
+    ).toBeInTheDocument();
+    expect(requests.some((r) => r.method === 'DELETE')).toBe(false);
+    await person.click(dialog.getByRole('button', { name: 'Отозвать' }));
+
+    await waitFor(() =>
+      expect(
+        requests.some((r) => r.method === 'DELETE' && r.url === '/api/group/api-keys/k1'),
+      ).toBe(true),
+    );
+  });
+
+  it('создание: имя по умолчанию, ключ показывается один раз и исчезает после закрытия', async () => {
+    const person = await renderGroup();
+
+    await person.click(await screen.findByRole('button', { name: 'Создать API-ключ' }));
+    const name = screen.getByLabelText('Название ключа');
+    expect(name).toHaveValue('iPhone — IDBank');
+    expect(name).toHaveAttribute('maxlength', '60');
+    await person.click(screen.getByRole('button', { name: 'Создать' }));
+
+    const dialog = within(await screen.findByRole('dialog', { name: 'Ключ создан' }));
+    expect(sent('POST', '/api/group/api-keys')).toEqual({ name: 'iPhone — IDBank' });
+    expect(
+      dialog.getByText('Ключ показывается один раз. Сохраните его сейчас'),
+    ).toBeInTheDocument();
+    expect(dialog.getByLabelText('API-ключ')).toHaveValue('etk_FULLSECRETKEY123');
+    expect(dialog.getByLabelText('Адрес для запроса (URL)')).toHaveValue(
+      `${window.location.origin}/api/v1/transactions/import`,
+    );
+    expect(dialog.getByText('Как настроить автоматизацию на iPhone')).toBeInTheDocument();
+
+    await person.click(dialog.getByRole('button', { name: 'Готово, ключ сохранён' }));
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.body.innerHTML).not.toContain('etk_FULLSECRETKEY123');
+    expect(JSON.stringify(Object.entries(localStorage))).not.toContain('FULLSECRET');
+  });
+
+  it('кнопки «Копировать» кладут ключ и адрес в буфер и пишут «Скопировано»', async () => {
+    const writeText = vi.fn(async () => undefined);
+    const person = await renderGroup();
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    await person.click(await screen.findByRole('button', { name: 'Создать API-ключ' }));
+    await person.click(screen.getByRole('button', { name: 'Создать' }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Ключ создан' }));
+
+    await person.click(dialog.getByRole('button', { name: 'Копировать: API-ключ' }));
+    expect(writeText).toHaveBeenCalledWith('etk_FULLSECRETKEY123');
+    expect(await dialog.findByText('Скопировано')).toBeInTheDocument();
+    await person.click(dialog.getByRole('button', { name: 'Копировать: Адрес для запроса (URL)' }));
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/api/v1/transactions/import`);
+  });
+
+  it('инструкция закрыта по умолчанию, внутри шаги и примечание', async () => {
+    const card = await integrations();
+    const details = card.getByText('Как настроить автоматизацию на iPhone').closest('details')!;
+
+    expect(details).not.toHaveAttribute('open');
+    expect(
+      within(details).getByText(/триггер «Уведомление», приложение IDBank/),
+    ).toBeInTheDocument();
+    expect(within(details).getByText(/Это переменные Команд/)).toBeInTheDocument();
+    expect(within(details).getByText(/проверьте на реальном уведомлении/)).toBeInTheDocument();
+    expect(within(details).getAllByRole('listitem')).toHaveLength(6);
+  });
+
+  it('последние импорты: счётчик и статусы простыми словами', async () => {
+    const base = { createdAt: '2026-10-17T10:00:00.000Z', source: 'idbank', expenseId: null };
+    importsList = [
+      {
+        ...base,
+        id: 'i1',
+        status: 'created',
+        merchant: 'Sorriso',
+        amount: 1500,
+        currency: 'AMD',
+        cardLast4: '5386',
+      },
+      {
+        ...base,
+        id: 'i2',
+        status: 'parse_error',
+        merchant: null,
+        amount: null,
+        currency: null,
+        cardLast4: null,
+      },
+      {
+        ...base,
+        id: 'i3',
+        status: 'unsupported',
+        merchant: 'Реклама',
+        amount: null,
+        currency: null,
+        cardLast4: null,
+      },
+      {
+        ...base,
+        id: 'i4',
+        status: 'card_not_found',
+        merchant: 'Кафе',
+        amount: 900,
+        currency: 'AMD',
+        cardLast4: '5386',
+      },
+      {
+        ...base,
+        id: 'i5',
+        status: 'card_ambiguous',
+        merchant: 'Метро',
+        amount: 300,
+        currency: 'AMD',
+        cardLast4: '1111',
+      },
+      {
+        ...base,
+        id: 'i6',
+        status: 'error',
+        merchant: 'Такси',
+        amount: 700,
+        currency: 'AMD',
+        cardLast4: '5386',
+      },
+    ];
+    const card = await integrations();
+
+    const summary = await card.findByText('Последние импорты');
+    expect(summary.closest('details')).not.toHaveAttribute('open');
+    await waitFor(() => expect(summary.parentElement).toHaveTextContent('6'));
+    expect(card.getByText('Добавлено')).toBeInTheDocument();
+    expect(card.getByText('Не распознано')).toBeInTheDocument();
+    expect(card.getByText('Другой вид уведомления')).toBeInTheDocument();
+    const warn = card.getByText('Нет карты с цифрами 5386 · укажите их в настройках карты');
+    expect(warn.closest('li')).toHaveAttribute('data-tone', 'warn');
+    expect(card.getByText('Несколько карт с цифрами 1111')).toBeInTheDocument();
+    expect(card.getByText('Ошибка')).toBeInTheDocument();
+    expect(card.getAllByText(/•5386/).length).toBeGreaterThan(0);
+  });
+});
+
+describe('цифры карты', () => {
+  it('поле в меню карты: подсказка, ввод только цифр, проверка, сохранение через PATCH', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Карты/ });
+
+    await choose(person, 'Общая', 'Цифры карты');
+    const field = screen.getByLabelText('Последние 4 цифры карты');
+    expect(field).toHaveAttribute('inputmode', 'numeric');
+    expect(field).toHaveAttribute('maxlength', '4');
+    expect(
+      screen.getByText('Нужны, чтобы расходы из банка попадали на эту карту'),
+    ).toBeInTheDocument();
+
+    await person.type(field, '12ab3');
+    expect(field).toHaveValue('123');
+    await person.click(screen.getByRole('button', { name: 'Сохранить' }));
+    expect(await screen.findByText('Укажите последние четыре цифры карты')).toBeInTheDocument();
+    expect(requests.some((r) => r.method === 'PATCH' && r.url === '/api/group/cards/11')).toBe(
+      false,
+    );
+
+    await person.type(field, '4');
+    await person.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() => expect(sent('PATCH', '/api/group/cards/11')).toEqual({ last4: '1234' }));
+  });
+
+  it('пустое поле очищает цифры (null)', async () => {
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: /^Карты/ });
+
+    await choose(person, 'Общая', 'Цифры карты');
+    await person.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() => expect(sent('PATCH', '/api/group/cards/11')).toEqual({ last4: null }));
   });
 });

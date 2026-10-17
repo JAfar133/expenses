@@ -20,8 +20,10 @@ describe('миграции', () => {
 
     expect(tables.map((t) => t.table_name)).toEqual([
       'ai_usage',
+      'api_keys',
       'app_settings',
       'auth_sessions',
+      'bank_imports',
       'budgets',
       'card_access',
       'cards',

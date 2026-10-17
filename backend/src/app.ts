@@ -14,6 +14,10 @@ import { ratesRoutes } from './modules/rates/rates.routes.ts';
 import type { RatesService } from './modules/rates/rates.service.ts';
 import type { BackupStatusService } from './modules/admin/backup-status.service.ts';
 import { budgetsRoutes } from './modules/budgets/budgets.routes.ts';
+import {
+  bankImportRoutes,
+  type BankImportRoutesDeps,
+} from './modules/bank-import/bank-import.routes.ts';
 import { templatesRoutes } from './modules/templates/templates.routes.ts';
 import type { TemplatesService } from './modules/templates/templates.service.ts';
 import { receiptsRoutes } from './modules/receipts/receipts.routes.ts';
@@ -67,6 +71,8 @@ export interface AppDependencies {
   receipts: ReceiptsService;
   /** Quick-action templates (v5) */
   templates: TemplatesService;
+  /** Expenses from bank notifications (v5) */
+  bankImport: BankImportRoutesDeps;
   /** Items of expenses and receipt parsing with the AI (v4) */
   ai: AiModule;
   /** Invitation links */
@@ -109,6 +115,7 @@ export function buildApp({
   budgets,
   receipts,
   templates,
+  bankImport,
   ai,
   idempotency,
   sync,
@@ -216,6 +223,7 @@ export function buildApp({
   );
   app.register(budgetsRoutes(budgets), { prefix: '/api' });
   app.register(templatesRoutes(templates), { prefix: '/api' });
+  app.register(bankImportRoutes(bankImport), { prefix: '/api' });
   app.register(receiptsRoutes(receipts), { prefix: '/api' });
   app.register(itemsRoutes(ai.itemsService), { prefix: '/api' });
   app.register(expenseAiRoutes(ai.analysis, ai.drafts, sync), { prefix: '/api' });

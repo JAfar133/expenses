@@ -17,6 +17,8 @@ export interface GroupCard {
   name: string;
   currency: string;
   archived: boolean;
+  /** The last four digits of the bank card: bank notifications find the card by them */
+  last4?: string | null;
   access: { userId: string; level: AccessLevel }[];
 }
 
@@ -76,7 +78,7 @@ export const createCard = (name: string, currency?: string) =>
 /** The currency of a card can change only while it has no records (409 CARD_HAS_EXPENSES otherwise). */
 export const updateCard = (
   id: string,
-  patch: { name?: string; archived?: boolean; currency?: string },
+  patch: { name?: string; archived?: boolean; currency?: string; last4?: string | null },
 ) => apiRequest(`/group/cards/${id}`, { method: 'PATCH', ...json(patch) });
 
 /** Replaces the access of all members: those not listed lose access to the card. */

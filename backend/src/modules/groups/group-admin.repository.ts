@@ -28,6 +28,8 @@ export interface CardInfo {
   name: string;
   currency: string;
   archived: boolean;
+  /** The last four digits of the card: bank notifications are matched to the card by them */
+  last4: string | null;
   /** Access of members (owners see every card without a row) */
   access: { userId: string; level: CardLevel }[];
 }
@@ -96,8 +98,14 @@ export class GroupAdminRepository {
           ORDER BY (m.role = 'owner') DESC, u.username`,
         [groupId],
       ),
-      this.database.query<{ id: string; name: string; currency: string; archived: boolean }>(
-        `SELECT id, name, currency, (archived_at IS NOT NULL) AS archived
+      this.database.query<{
+        id: string;
+        name: string;
+        currency: string;
+        archived: boolean;
+        last4: string | null;
+      }>(
+        `SELECT id, name, currency, last4, (archived_at IS NOT NULL) AS archived
            FROM cards WHERE group_id = $1 ORDER BY (archived_at IS NOT NULL), position, name`,
         [groupId],
       ),
@@ -173,10 +181,13 @@ export class GroupAdminRepository {
    */
   async updateCard(
     cardId: string,
-    patch: { name?: string; archived?: boolean; currency?: string },
+    patch: { name?: string; archived?: boolean; currency?: string; last4?: string | null },
   ): Promise<void> {
     await this.unique(() =>
       this.database.transaction(async (tx) => {
+        if (patch.last4 !== undefined) {
+          await tx.query('UPDATE cards SET last4 = $2 WHERE id = $1', [cardId, patch.last4]);
+        }
         if (patch.name !== undefined) {
           await tx.query('UPDATE cards SET name = $2 WHERE id = $1', [cardId, patch.name]);
           await tx.query('UPDATE expenses SET card = $2 WHERE card_id = $1 AND card <> $2', [

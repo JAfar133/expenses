@@ -12,6 +12,7 @@ import { updateCard, type GroupCard } from '../api/group.api.ts';
 import { useGroupMutation } from '../hooks/useGroup.ts';
 import { AddButton } from './AddButton.tsx';
 import { AddCardDialog } from './AddCardDialog.tsx';
+import { CardDigitsDialog } from './CardDigitsDialog.tsx';
 import { CardCurrencyDialog } from './CardCurrencyDialog.tsx';
 import { ErrorNotice } from './ErrorNotice.tsx';
 import { GroupRow } from './GroupRow.tsx';
@@ -39,9 +40,15 @@ export function CardsCard({ cards, currencies, reportingCurrency }: CardsCardPro
   const [adding, setAdding] = useState(false);
   const [renaming, setRenaming] = useState<GroupCard | null>(null);
   const [currencyOf, setCurrencyOf] = useState<GroupCard | null>(null);
+  const [digitsOf, setDigitsOf] = useState<GroupCard | null>(null);
   const update = useGroupMutation(
-    ({ id, patch }: { id: string; patch: { name?: string; archived?: boolean } }) =>
-      updateCard(id, patch),
+    ({
+      id,
+      patch,
+    }: {
+      id: string;
+      patch: { name?: string; archived?: boolean; last4?: string | null };
+    }) => updateCard(id, patch),
   );
   const active = cards.filter((card) => !card.archived);
   const archived = cards.filter((card) => card.archived);
@@ -57,7 +64,16 @@ export function CardsCard({ cards, currencies, reportingCurrency }: CardsCardPro
           <GroupRow
             key={card.id}
             lead={<CardBadge />}
-            main={<div className="truncate text-sm font-medium">{card.name}</div>}
+            main={
+              <div className="truncate text-sm font-medium">
+                {card.name}
+                {card.last4 && (
+                  <span className="ml-1.5 font-mono text-xs font-normal text-zinc-500 dark:text-zinc-400">
+                    •{card.last4}
+                  </span>
+                )}
+              </div>
+            }
             trailing={
               <span className="text-sm text-zinc-500 dark:text-zinc-400">{card.currency}</span>
             }
@@ -79,6 +95,11 @@ export function CardsCard({ cards, currencies, reportingCurrency }: CardsCardPro
                         },
                       ]
                     : []),
+                  {
+                    label: 'Цифры карты',
+                    icon: <CreditCardIcon />,
+                    onSelect: () => setDigitsOf(card),
+                  },
                   {
                     label: 'В архив',
                     icon: <ArchiveIcon />,
@@ -126,6 +147,14 @@ export function CardsCard({ cards, currencies, reportingCurrency }: CardsCardPro
           currencies={currencies}
           reportingCurrency={reportingCurrency}
           onClose={() => setAdding(false)}
+        />
+      )}
+      {digitsOf && (
+        <CardDigitsDialog
+          cardName={digitsOf.name}
+          initial={digitsOf.last4 ?? null}
+          onClose={() => setDigitsOf(null)}
+          onSubmit={(last4) => update.mutateAsync({ id: digitsOf.id, patch: { last4 } })}
         />
       )}
       {renaming && (

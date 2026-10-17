@@ -19,6 +19,7 @@ import { ReceiptsService } from './modules/receipts/receipts.service.ts';
 import { ReceiptStore } from './modules/receipts/receipts.store.ts';
 import { BudgetsRepository } from './modules/budgets/budgets.repository.ts';
 import { BudgetsService } from './modules/budgets/budgets.service.ts';
+import { createBankImportModule } from './modules/bank-import/bank-import.module.ts';
 import { TemplatesRepository } from './modules/templates/templates.repository.ts';
 import { TemplatesService } from './modules/templates/templates.service.ts';
 import { ReportService } from './modules/reports/report.service.ts';
@@ -176,6 +177,19 @@ const sync = new SyncService({
   },
 });
 
+const expenseService = new ExpenseService(expenses, {
+  groups,
+  items: ai.items,
+  aiParse: ai.aiParse,
+  currency: {
+    base: env.DEFAULT_CURRENCY,
+    currencies: env.CURRENCIES,
+    rateOf: (currency) => rates.rateOf(currency),
+  },
+  logger: { warn: (object, message) => app.log.warn(object, message) },
+});
+const bankImport = createBankImportModule({ database, expenses: expenseService, groups, sync });
+
 const scheduler = new SyncScheduler({
   sync,
   intervalMs: env.SYNC_INTERVAL_MINUTES * 60_000,
@@ -204,6 +218,7 @@ const app = buildApp({
   budgets,
   receipts,
   templates,
+  bankImport,
   ai,
   groupService: new GroupService(
     new GroupAdminRepository(database),
@@ -233,17 +248,7 @@ const app = buildApp({
   syncSwitch,
   backupStatus,
   inlineExcelWaitMs: env.SYNC_INLINE_WAIT_SECONDS * 1000,
-  expenseService: new ExpenseService(expenses, {
-    groups,
-    items: ai.items,
-    aiParse: ai.aiParse,
-    currency: {
-      base: env.DEFAULT_CURRENCY,
-      currencies: env.CURRENCIES,
-      rateOf: (currency) => rates.rateOf(currency),
-    },
-    logger: { warn: (object, message) => app.log.warn(object, message) },
-  }),
+  expenseService,
 });
 
 /** Removes stale backups and idempotency keys. */

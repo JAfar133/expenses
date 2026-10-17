@@ -29,6 +29,7 @@ import { ReceiptsRepository } from '../../src/modules/receipts/receipts.reposito
 import { ReceiptsService } from '../../src/modules/receipts/receipts.service.ts';
 import { ReceiptStore } from '../../src/modules/receipts/receipts.store.ts';
 import { BudgetsService } from '../../src/modules/budgets/budgets.service.ts';
+import { createBankImportModule } from '../../src/modules/bank-import/bank-import.module.ts';
 import { TemplatesRepository } from '../../src/modules/templates/templates.repository.ts';
 import { TemplatesService } from '../../src/modules/templates/templates.service.ts';
 import { ReportService } from '../../src/modules/reports/report.service.ts';
@@ -172,6 +173,8 @@ export interface TestAppOptions {
   backupStatus?: BackupStatusService;
   /** Row limit of the Excel report */
   maxReportRows?: number;
+  /** Request limits of the notification import endpoint */
+  importLimits?: { perKey: number; badKeysPerAddress: number };
   /** Clock of the invitations service */
   now?: () => Date;
   /** Folder of receipt photos (a temporary folder by default) */
@@ -261,16 +264,26 @@ export async function createTestApp(
     now: options.now,
   });
 
+  const expenseService = new ExpenseService(repository, {
+    groups,
+    currency: rates,
+    items: ai.items,
+    aiParse: ai.aiParse,
+  });
+  const bankImport = createBankImportModule({
+    database,
+    expenses: expenseService,
+    groups,
+    sync,
+    limits: options.importLimits,
+  });
+
   const app = buildApp({
     syncSwitch,
     now: options.now,
     backupStatus: options.backupStatus,
-    expenseService: new ExpenseService(repository, {
-      groups,
-      currency: rates,
-      items: ai.items,
-      aiParse: ai.aiParse,
-    }),
+    expenseService,
+    bankImport,
     groups,
     invitations,
     receipts,

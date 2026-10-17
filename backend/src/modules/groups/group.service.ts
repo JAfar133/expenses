@@ -96,10 +96,18 @@ export class GroupService {
   async updateCard(
     owner: AuthUser,
     cardId: string,
-    patch: { name?: unknown; archived?: unknown; currency?: unknown },
+    patch: { name?: unknown; archived?: unknown; currency?: unknown; last4?: unknown },
   ): Promise<void> {
     await this.requireCard(owner, cardId);
-    const update: { name?: string; archived?: boolean; currency?: string } = {};
+    const update: { name?: string; archived?: boolean; currency?: string; last4?: string | null } =
+      {};
+    if (patch.last4 !== undefined) {
+      const digits = patch.last4 === null || patch.last4 === '' ? null : String(patch.last4).trim();
+      if (digits !== null && !/^\d{4}$/.test(digits)) {
+        throw validationError('INVALID_LAST4', 'Укажите последние четыре цифры карты');
+      }
+      update.last4 = digits;
+    }
     if (patch.name !== undefined) update.name = cleanName(patch.name, 'Название карты');
     if (patch.archived !== undefined) update.archived = patch.archived === true;
     if (patch.currency !== undefined) {

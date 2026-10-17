@@ -70,6 +70,7 @@ export const groupRoutes =
         name: body.name,
         archived: body.archived,
         currency: body.currency,
+        last4: body.last4,
       });
       return { success: true };
     });

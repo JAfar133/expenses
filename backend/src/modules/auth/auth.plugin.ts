@@ -13,6 +13,8 @@ declare module 'fastify' {
   interface FastifyContextConfig {
     /** The route is accessible without login */
     public?: boolean;
+    /** The route is called by a program with its own key, not by a browser: there is no Origin and no cookie to protect */
+    apiKey?: boolean;
   }
 }
 
@@ -38,6 +40,7 @@ export const authPlugin = fp(
     app.addHook('onRequest', async (request) => {
       if (
         !SAFE_METHODS.has(request.method) &&
+        !request.routeOptions.config?.apiKey &&
         !isAllowedOrigin(request, options.allowedOrigins ?? [])
       ) {
         throw forbiddenOriginError();
