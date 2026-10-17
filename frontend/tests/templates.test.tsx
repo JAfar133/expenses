@@ -176,7 +176,7 @@ describe('полоска шаблонов над формой', () => {
     expect(posted()).toHaveLength(0);
   });
 
-  it('«Все»: панель делит шаблоны на «Мои» и «Группа», «В форму» кладёт шаблон с суммой в форму', async () => {
+  it('«Все»: один плоский список без разделов, «В форму» кладёт шаблон с суммой в форму', async () => {
     templates = [
       template(),
       template({
@@ -194,8 +194,9 @@ describe('полоска шаблонов над формой', () => {
 
     await person.click(await screen.findByRole('button', { name: /Все/ }));
     const dialog = await screen.findByRole('dialog', { name: 'Быстрые траты' });
-    expect(within(dialog).getByRole('region', { name: 'Мои' })).toHaveTextContent('Кофе');
-    expect(within(dialog).getByRole('region', { name: 'Группа' })).toHaveTextContent('Аренда');
+    expect(within(dialog).queryByRole('region')).toBeNull();
+    expect(within(dialog).queryByRole('heading', { level: 3 })).toBeNull();
+    expect(within(dialog).getAllByText('Группа')).toHaveLength(1);
 
     await person.click(within(dialog).getByRole('button', { name: 'Аренда: открыть в форме' }));
 
@@ -1179,5 +1180,133 @@ describe('полоска над формой: горизонтальная пр�
     const strip = await screen.findByRole('group', { name: 'Быстрые траты' });
     expect(within(strip).getAllByRole('button')).toHaveLength(4);
     expect(within(strip).queryByTestId('strip-fade')).toBeNull();
+  });
+});
+
+describe('шаблон поверх формы: форма ничего не запрещает', () => {
+  const nameField = () => screen.getByLabelText('Наименование');
+  const amountField = () => screen.getByLabelText('Стоимость');
+  const withAmount = (patch: Partial<Template> = {}) =>
+    template({
+      id: 'a',
+      name: 'Кофе',
+      expenseName: 'Кофе',
+      category: 'кафе',
+      amount: 1200,
+      ...patch,
+    });
+  const noAmount = () =>
+    template({
+      id: 'b',
+      name: 'Магазин',
+      expenseName: 'Продукты',
+      category: 'продукты',
+      amount: null,
+      currency: null,
+    });
+
+  it('форма заполнена: шаблон с суммой всё равно создаёт расход, форма не тронута, тоста про поля нет', async () => {
+    templates = [withAmount()];
+    const person = await renderPage();
+    await person.type(nameField(), 'Мой текст');
+    await person.type(amountField(), '777');
+
+    await person.click(await screen.findByRole('button', { name: /Кофе/ }));
+
+    await screen.findByText(/Добавлено · Кофе/);
+    expect(posted()).toHaveLength(1);
+    expect(nameField()).toHaveValue('Мой текст');
+    expect(amountField()).toHaveValue('777');
+    expect(screen.queryByText(/пустые поля|Поля уже заполнены/)).toBeNull();
+  });
+
+  it('шаблон без суммы заменяет название и категорию, но оставляет набранную сумму', async () => {
+    templates = [noAmount()];
+    const person = await renderPage();
+    await person.type(nameField(), 'Мой текст');
+    await person.type(amountField(), '777');
+
+    await person.click(await screen.findByRole('button', { name: 'Магазин' }));
+
+    await waitFor(() => expect(nameField()).toHaveValue('Продукты'));
+    expect(amountField()).toHaveValue('777');
+    expect(screen.getByLabelText('Категория')).toHaveValue('продукты');
+    expect(posted()).toHaveLength(0);
+  });
+
+  it('несколько шаблонов подряд: второй «В форму» заменяет первый, потом «Добавить» создаёт расход', async () => {
+    templates = [
+      withAmount(),
+      withAmount({
+        id: 'c',
+        name: 'Метро',
+        expenseName: 'Метро',
+        category: 'продукты',
+        amount: 300,
+      }),
+    ];
+    const person = await renderPage();
+
+    await person.click(await screen.findByRole('button', { name: /Все/ }));
+    await person.click(await screen.findByRole('button', { name: 'Кофе: открыть в форме' }));
+    await waitFor(() => expect(nameField()).toHaveValue('Кофе'));
+    expect(amountField()).toHaveValue('1 200');
+
+    await person.click(await screen.findByRole('button', { name: /Все/ }));
+    await person.click(await screen.findByRole('button', { name: 'Метро: открыть в форме' }));
+    await waitFor(() => expect(nameField()).toHaveValue('Метро'));
+    expect(amountField()).toHaveValue('300');
+    expect(posted()).toHaveLength(0);
+
+    await person.click(await screen.findByRole('button', { name: /Все/ }));
+    await person.click(await screen.findByRole('button', { name: 'Кофе: добавить сразу' }));
+    await screen.findByText(/Добавлено · Кофе/);
+    expect(posted()).toHaveLength(1);
+    expect(nameField()).toHaveValue('Метро');
+  });
+
+  it('в панели у шаблона с суммой две кнопки, у шаблона без суммы только нажатие', async () => {
+    templates = [withAmount(), noAmount()];
+    const person = await renderPage();
+
+    await person.click(await screen.findByRole('button', { name: /Все/ }));
+
+    expect(screen.getByRole('button', { name: 'Кофе: добавить сразу' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Кофе: открыть в форме' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Магазин: добавить сразу' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Магазин: открыть в форме' })).toBeNull();
+  });
+
+  it('чипы можно нажимать один за другим: создание после заполнения и заполнение после заполнения', async () => {
+    templates = [withAmount(), noAmount()];
+    const person = await renderPage();
+
+    await person.click(await screen.findByRole('button', { name: 'Магазин' }));
+    await waitFor(() => expect(nameField()).toHaveValue('Продукты'));
+    await person.click(screen.getByRole('button', { name: /Кофе/ }));
+    await screen.findByText(/Добавлено · Кофе/);
+    await person.click(screen.getByRole('button', { name: 'Магазин' }));
+
+    expect(posted()).toHaveLength(1);
+    expect(nameField()).toHaveValue('Продукты');
+  });
+});
+
+describe('панель «Быстрые траты»: порядок как у полоски', () => {
+  it('порядок строк тот же, что прислал сервер: групповой шаблон не уезжает в конец', async () => {
+    templates = [
+      template({ id: 'a', name: 'Такси' }),
+      template({ id: 'g', scope: 'group', name: 'Аренда', mine: false, editable: false }),
+      template({ id: 'b', name: 'Кофе' }),
+    ];
+    const person = await renderPage();
+
+    await person.click(await screen.findByRole('button', { name: /Все/ }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Быстрые траты' }));
+
+    const order = dialog
+      .getAllByRole('listitem')
+      .map((item) => item.textContent?.match(/Такси|Аренда|Кофе/)?.[0]);
+    expect(order).toEqual(['Такси', 'Аренда', 'Кофе']);
   });
 });

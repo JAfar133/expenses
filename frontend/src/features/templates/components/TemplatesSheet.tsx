@@ -11,35 +11,41 @@ interface TemplatesSheetProps {
   onClose: () => void;
 }
 
-function Section({
-  title,
-  templates,
-  onApply,
-  onOpenInForm,
-}: Omit<TemplatesSheetProps, 'onClose'> & { title: string }) {
+/** One flat list in the user's own order (the same as the strip over the form). */
+function TemplateList({ templates, onApply, onOpenInForm }: Omit<TemplatesSheetProps, 'onClose'>) {
   if (templates.length === 0) return null;
   return (
-    <section aria-label={title}>
-      <h3 className="mt-3 mb-1 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
-        {title}
-      </h3>
-      <ul>
-        {templates.map((template) => (
-          <li
-            key={template.id}
-            className="flex items-center gap-2 border-b border-zinc-100 last:border-0 dark:border-zinc-800"
+    <ul>
+      {templates.map((template) => (
+        <li
+          key={template.id}
+          className="flex items-center gap-2 border-b border-zinc-100 last:border-0 dark:border-zinc-800"
+        >
+          <button
+            type="button"
+            onClick={() => onApply(template)}
+            className="min-h-14 min-w-0 flex-1 py-2 text-left"
           >
-            <button
-              type="button"
-              onClick={() => onApply(template)}
-              className="min-h-14 min-w-0 flex-1 py-2 text-left"
-            >
-              <span className="block truncate font-semibold">{templateLabel(template)}</span>
-              <span className="block truncate text-sm text-zinc-500 dark:text-zinc-400">
-                {template.category} · {amountText(template)}
-              </span>
-            </button>
-            {template.amount !== null && (
+            <span className="block truncate font-semibold">{templateLabel(template)}</span>
+            <span className="block truncate text-sm text-zinc-500 dark:text-zinc-400">
+              {template.scope === 'group' && (
+                <span className="mr-1.5 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                  Группа
+                </span>
+              )}
+              {template.category} · {amountText(template)}
+            </span>
+          </button>
+          {template.amount !== null && (
+            <>
+              <button
+                type="button"
+                onClick={() => onApply(template)}
+                aria-label={`${template.name}: добавить сразу`}
+                className="h-10 shrink-0 rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white hover:bg-indigo-500"
+              >
+                Добавить
+              </button>
               <button
                 type="button"
                 onClick={() => onOpenInForm(template)}
@@ -48,15 +54,15 @@ function Section({
               >
                 В форму
               </button>
-            )}
-          </li>
-        ))}
-      </ul>
-    </section>
+            </>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 
-/** «Быстрые траты»: every template the user can use, their own first and then the group's. */
+/** «Быстрые траты»: every template the user can use, in the user's own order. */
 export function TemplatesSheet({ templates, onApply, onOpenInForm, onClose }: TemplatesSheetProps) {
   const choose = (action: (template: Template) => void) => (template: Template) => {
     onClose();
@@ -66,16 +72,7 @@ export function TemplatesSheet({ templates, onApply, onOpenInForm, onClose }: Te
 
   return (
     <Modal title="Быстрые траты" onClose={onClose}>
-      <Section
-        title="Мои"
-        templates={templates.filter((template) => template.scope === 'personal')}
-        {...common}
-      />
-      <Section
-        title="Группа"
-        templates={templates.filter((template) => template.scope === 'group')}
-        {...common}
-      />
+      <TemplateList templates={templates} {...common} />
       <Link
         to="/settings"
         onClick={onClose}

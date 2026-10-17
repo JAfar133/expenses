@@ -292,7 +292,13 @@ export function ExpenseForm({
       ? template.effectiveCard
       : getValues('card');
     const cardCurrency = cardCurrencyOf(card);
-    const typed = template.amount !== null ? (template.currency ?? cardCurrency) : cardCurrency;
+    // A template replaces what it defines; without an amount it keeps the amount (and currency) the user typed
+    const keepTyped = template.amount === null && getValues('amount').trim() !== '';
+    const typed = keepTyped
+      ? getValues('currency')
+      : template.amount !== null
+        ? (template.currency ?? cardCurrency)
+        : cardCurrency;
     setValue('card', card);
     setValue('category', categories.includes(template.category) ? template.category : '', {
       shouldValidate: true,
@@ -303,15 +309,15 @@ export function ExpenseForm({
       'rate',
       typed !== baseCurrency && typed !== cardCurrency ? rateText(rates, typed) : '',
     );
-    setValue(
-      'amount',
-      template.amount === null
-        ? ''
-        : formatDecimalInput(String(template.amount), { maxDecimals: 2, group: true }),
-      { shouldValidate: template.amount !== null },
-    );
+    if (template.amount !== null) {
+      setValue(
+        'amount',
+        formatDecimalInput(String(template.amount), { maxDecimals: 2, group: true }),
+        { shouldValidate: true },
+      );
+    }
     resetState();
-    if (template.amount === null) setFocus('amount');
+    if (template.amount === null && !keepTyped) setFocus('amount');
     onTemplateApplied?.();
     // Only a new template matters
     // eslint-disable-next-line react-hooks/exhaustive-deps
