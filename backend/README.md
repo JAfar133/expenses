@@ -613,4 +613,5 @@ If the personal choice is reset (`null`), the value from the configuration appli
   | `GET/POST /api/push/subscriptions`, `DELETE /api/push/subscriptions/:id`, `POST /api/push/subscriptions/unsubscribe` | The person's own devices (a browser subscription: only known push services are accepted as endpoints; endpoint and keys are never returned) |
   | `GET /api/notifications/stream` | Server-Sent Events for the badge: the current unread number, then every change (open by the app; a comment every 25 s) |
   | `GET /api/notifications/recipients`, `GET /api/notifications/broadcasts`, `POST /api/notifications/broadcast` | Messages: the owner of a group writes to its members, the administrator to anyone (type `announcement`); others get 403 |
+  | `POST /api/notifications/dismiss`, `POST /api/notifications/restore` | Hide notifications (`{ids?}`, none: all; answers with the hidden ids) and undo (`{ids}`); a hidden row is not shown or counted and the same event never comes back |
   | `POST /api/notifications/read` | `{ids?}`: mark read (no ids: all of them) |
