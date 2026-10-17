@@ -217,6 +217,32 @@ describe('импорт уведомления IDBank', () => {
     );
   });
 
+  it('SMS IDBank (без «IDBank:», карта 4703***7181, время отдельной строкой) тоже импортируется', async () => {
+    const { key } = await createKey();
+    await setLast4('Миша', '7181');
+
+    const response = await send(
+      key,
+      notification(
+        '5,632.00 AMD\n4703***7181,\nYEREVAN CITY AVAN ARINJ, AM\n17.10.2026 19:40\nMNACORD: 94,218.04 AMD'.replace(
+          /^/,
+          'GNUM\n',
+        ),
+        'IDBank',
+      ),
+    );
+
+    expect(response.statusCode).toBe(201);
+    expect(await expenses()).toEqual([
+      expect.objectContaining({
+        name: 'YEREVAN CITY AVAN ARINJ',
+        amount: 5632,
+        card: 'Миша',
+        date: '2026-10-17',
+      }),
+    ]);
+  });
+
   it('другая валюта сохраняется в своей валюте', async () => {
     const { key } = await createKey();
 

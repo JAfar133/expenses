@@ -71,6 +71,36 @@ describe('парсер IDBank: покупка (GNUM)', () => {
   });
 });
 
+describe('парсер IDBank: покупка по SMS', () => {
+  const SMS =
+    'GNUM\n5,632.00 AMD\n4703***7181,\nYEREVAN CITY AVAN ARINJ, AM\n17.10.2026 19:40\nMNACORD: 94,218.04 AMD';
+
+  it('читает сумму покупки (не остаток), цифры карты, продавца и время', () => {
+    const result = read('IDBank', SMS);
+
+    expect(result.kind).toBe('expense');
+    if (result.kind !== 'expense') return;
+    expect(result.purchase).toMatchObject({
+      amount: 5632,
+      currency: 'AMD',
+      merchant: 'YEREVAN CITY AVAN ARINJ',
+      cardLast4: '7181',
+      localDate: '2026-10-17',
+    });
+    expect(result.purchase.occurredAt.toISOString()).toBe('2026-10-17T15:40:00.000Z');
+  });
+
+  it('отправитель в заголовке может быть любым, а другой вид SMS не импортируется', () => {
+    expect(read('', SMS).kind).toBe('expense');
+    expect(read('IDBank', SMS.replace('GNUM', 'MTUM')).kind).toBe('unsupported');
+  });
+
+  it('текст SMS без нужных строк: ошибка, а не неполная операция', () => {
+    expect(read('IDBank', 'GNUM\n5,632.00 AMD').kind).toBe('error');
+    expect(read('IDBank', SMS.replace('17.10.2026 19:40\n', '')).kind).toBe('error');
+  });
+});
+
 describe('реестр банков', () => {
   it('находит парсер по источнику без учёта регистра, неизвестный банк даёт undefined', () => {
     expect(parserFor('IDBank')?.source).toBe('idbank');
