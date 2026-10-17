@@ -211,3 +211,86 @@ describe('лента: чтение и права', () => {
     expect(removed).toBe(1);
   });
 });
+
+describe('поток: счётчик меняется сразу, без опроса', () => {
+  /** Opens the stream like the app does and collects the `unread` numbers it sends. */
+  const openStream = async (as: 'misha' | 'nastya') => {
+    await t.app.listen({ port: 0, host: '127.0.0.1' });
+    const address = t.app.server.address() as { port: number };
+    const cookies = await t.sessionCookies(as);
+    const controller = new AbortController();
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/notifications/stream`, {
+      headers: { cookie: `et_access=${cookies.et_access}` },
+      signal: controller.signal,
+    });
+    const reader = response.body!.getReader();
+    const seen: number[] = [];
+    let buffer = '';
+    const pump = (async () => {
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) return;
+          buffer += new TextDecoder().decode(value);
+          for (let end = buffer.indexOf('\n\n'); end >= 0; end = buffer.indexOf('\n\n')) {
+            const message = buffer.slice(0, end);
+            buffer = buffer.slice(end + 2);
+            const data = /^event: unread\ndata: (\{.*\})$/.exec(message);
+            if (data) seen.push((JSON.parse(data[1]!) as { unread: number }).unread);
+          }
+        }
+      } catch {
+        // closed
+      }
+    })();
+    const waitFor = async (count: number) => {
+      for (let attempt = 0; attempt < 100 && seen.length < count; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    };
+    return { response, seen, waitFor, close: () => (controller.abort(), pump) };
+  };
+
+  it('первым сообщением приходит текущее число, потом каждое изменение: новое уведомление и прочтение', async () => {
+    const stream = await openStream('misha');
+    expect(stream.response.headers.get('content-type')).toContain('text/event-stream');
+    await stream.waitFor(1);
+
+    await send(BANK);
+    await stream.waitFor(2);
+    await call('POST', '/api/notifications/read', 'misha', {});
+    await stream.waitFor(3);
+
+    expect(stream.seen).toEqual([0, 1, 0]);
+    await stream.close();
+  });
+
+  it('человек слышит только своё: чужие уведомления его счётчик не меняют; без входа потока нет', async () => {
+    await database.query(
+      "DELETE FROM card_access WHERE user_id = (SELECT id FROM users WHERE username = 'nastya')",
+    );
+    const stream = await openStream('nastya');
+    await stream.waitFor(1);
+
+    await send(BANK);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    expect(stream.seen).toEqual([0]);
+    await stream.close();
+    const anonymous = await t.app.inject({ method: 'GET', url: '/api/notifications/stream' });
+    expect(anonymous.statusCode).toBe(401);
+  });
+
+  it('закрытое приложение перестаёт слушать', async () => {
+    const stream = await openStream('misha');
+    await stream.waitFor(1);
+    expect(t.notifications.hub.size).toBe(1);
+
+    await stream.close();
+    for (let attempt = 0; attempt < 50 && t.notifications.hub.size > 0; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+
+    expect(t.notifications.hub.size).toBe(0);
+  });
+});

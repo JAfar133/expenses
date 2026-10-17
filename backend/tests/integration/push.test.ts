@@ -359,29 +359,12 @@ describe('устройство пропало или не отвечает', () 
   });
 });
 
-describe('тестовое уведомление', () => {
-  it('уходит на устройства человека; чужое устройство по номеру недоступно', async () => {
-    const mine = (await subscribe('misha', 'm1')).json().data.id;
-    await subscribe('nastya', 'n1');
-
-    const response = await call('POST', '/api/push/test', 'misha', {});
-    const other = await call('POST', '/api/push/test', 'nastya', { id: mine });
-
-    expect(response.json().data).toEqual({ sent: 1, removed: 0 });
-    expect(sentTo()).toEqual([endpoint('m1')]);
-    expect(t.pushSender.sent[0]!.payload).toMatchObject({ title: 'Тестовое уведомление' });
-    expect(other.statusCode).toBe(404);
-  });
-
-  it('не чаще пяти раз в минуту', async () => {
+describe('тестовых уведомлений нет', () => {
+  it('маршрут для тестового уведомления удалён', async () => {
     await subscribe('misha', 'm1');
 
-    const statuses: number[] = [];
-    for (let index = 0; index < 6; index += 1) {
-      statuses.push((await call('POST', '/api/push/test', 'misha', {})).statusCode);
-    }
-
-    expect(statuses).toEqual([200, 200, 200, 200, 200, 429]);
+    expect((await call('POST', '/api/push/test', 'misha', {})).statusCode).toBe(404);
+    expect(t.pushSender.sent).toHaveLength(0);
   });
 });
 
@@ -390,7 +373,12 @@ describe('настройки уведомлений', () => {
     const initial = (await call('GET', '/api/notifications/settings', 'misha')).json().data;
     expect(initial).toEqual({
       push: {
-        types: { expense_imported: true, import_problem: true, receipt_parsed: false },
+        types: {
+          expense_imported: true,
+          import_problem: true,
+          receipt_parsed: false,
+          announcement: true,
+        },
         hideAmounts: false,
       },
     });
@@ -400,7 +388,12 @@ describe('настройки уведомлений', () => {
     });
 
     expect(saved.json().data.push).toEqual({
-      types: { expense_imported: true, import_problem: true, receipt_parsed: true },
+      types: {
+        expense_imported: true,
+        import_problem: true,
+        receipt_parsed: true,
+        announcement: true,
+      },
       hideAmounts: true,
     });
     // У другого человека свои

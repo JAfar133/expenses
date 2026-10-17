@@ -611,5 +611,6 @@ If the personal choice is reset (`null`), the value from the configuration appli
   | `GET/PUT /api/notifications/settings` | What is sent as Web Push for the person: `{push:{types:{expense_imported,import_problem,receipt_parsed}, hideAmounts}}` (defaults: expenses and problems on, a parsed receipt off, amounts shown) |
   | `GET /api/push/config` | `{enabled, publicKey}`: whether Web Push is configured on the server and the public key for the browser |
   | `GET/POST /api/push/subscriptions`, `DELETE /api/push/subscriptions/:id`, `POST /api/push/subscriptions/unsubscribe` | The person's own devices (a browser subscription: only known push services are accepted as endpoints; endpoint and keys are never returned) |
-  | `POST /api/push/test` | `{id?}`: a test push to the person's devices |
+  | `GET /api/notifications/stream` | Server-Sent Events for the badge: the current unread number, then every change (open by the app; a comment every 25 s) |
+  | `GET /api/notifications/recipients`, `GET /api/notifications/broadcasts`, `POST /api/notifications/broadcast` | Messages: the owner of a group writes to its members, the administrator to anyone (type `announcement`); others get 403 |
   | `POST /api/notifications/read` | `{ids?}`: mark read (no ids: all of them) |

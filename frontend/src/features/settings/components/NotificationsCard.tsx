@@ -4,7 +4,6 @@ import { Notice } from '../../../shared/ui/Notice.tsx';
 import { BellIcon, EyeIcon, EyeOffIcon } from '../../../shared/ui/icons.tsx';
 import { ConfirmDialog } from '../../analytics/components/ConfirmDialog.tsx';
 import { useCurrentUser } from '../../auth/hooks/useAuth.ts';
-import { ApiError } from '../../../shared/api/http.ts';
 import type { PushDevice } from '../../push/api/push.api.ts';
 import {
   useNotificationSettings,
@@ -35,7 +34,6 @@ export function NotificationsCard() {
   const actions = usePushActions(push.refresh);
   const { query: settings, save } = useNotificationSettings();
   const [removing, setRemoving] = useState<PushDevice | null>(null);
-  const [testResult, setTestResult] = useState<string>();
   const root = useRef<HTMLDivElement>(null);
   const { hash } = useLocation();
 
@@ -109,29 +107,6 @@ export function NotificationsCard() {
             <div className="flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
-                disabled={actions.test.isPending}
-                onClick={() =>
-                  actions.test.mutate(push.deviceId ?? undefined, {
-                    onSuccess: ({ sent }) =>
-                      setTestResult(
-                        sent > 0
-                          ? `Отправлено на ${sent} ${sent === 1 ? 'устройство' : 'устройств'}`
-                          : 'Не удалось отправить: устройств нет',
-                      ),
-                    onError: (error) =>
-                      setTestResult(
-                        error instanceof ApiError
-                          ? error.message
-                          : 'Не удалось отправить тестовое уведомление',
-                      ),
-                  })
-                }
-                className={secondary}
-              >
-                Отправить тестовое
-              </button>
-              <button
-                type="button"
                 disabled={actions.disableThisDevice.isPending}
                 onClick={() => actions.disableThisDevice.mutate(push.deviceId)}
                 className={secondary}
@@ -139,11 +114,10 @@ export function NotificationsCard() {
                 Отключить на этом устройстве
               </button>
             </div>
-            {testResult && (
-              <p role="status" className="text-sm text-zinc-600 dark:text-zinc-300">
-                {testResult}
-              </p>
-            )}
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Если уведомления не приходят: на iPhone проверьте режим «Не беспокоить» / «Фокус»
+              (Настройки → Фокус) и добавьте приложение «Расходы» в исключения
+            </p>
           </div>
         );
     }
@@ -243,6 +217,13 @@ export function NotificationsCard() {
                       }
                     />
                   )}
+                  <TypeChoice
+                    title="Сообщения владельца и администратора"
+                    on={types.announcement}
+                    explainOn="Придёт уведомление, когда владелец группы или администратор отправит вам сообщение"
+                    explainOff="Не присылаем. Сообщения останутся в колокольчике"
+                    onChange={(value) => save.mutate({ push: { types: { announcement: value } } })}
+                  />
                   <TypeChoice
                     title="Распознанные чеки"
                     on={types.receipt_parsed}

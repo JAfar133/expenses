@@ -32,7 +32,6 @@ let config: { enabled: boolean; publicKey: string | null };
 let devices: Record<string, unknown>[];
 let settings: { push: { types: Record<string, boolean>; hideAmounts: boolean } };
 let pushError: Response | null;
-let testResult: { sent: number; removed: number };
 
 let browserSub: ReturnType<typeof makeSub> | null;
 let permission: NotificationPermission;
@@ -105,12 +104,16 @@ beforeEach(() => {
   devices = [];
   settings = {
     push: {
-      types: { expense_imported: true, import_problem: true, receipt_parsed: false },
+      types: {
+        expense_imported: true,
+        import_problem: true,
+        receipt_parsed: false,
+        announcement: true,
+      },
       hideAmounts: false,
     },
   };
   pushError = null;
-  testResult = { sent: 1, removed: 0 };
   browserSub = null;
   permission = 'default';
   requestPermission.mockReset().mockImplementation(async () => {
@@ -141,7 +144,6 @@ beforeEach(() => {
       }
       if (url.startsWith('/api/push/subscriptions/') && method === 'DELETE') return ok({});
       if (url === '/api/push/subscriptions/unsubscribe') return ok({});
-      if (url === '/api/push/test') return ok(testResult);
       if (url === '/api/notifications/settings' && method === 'GET') return ok(settings);
       if (url === '/api/notifications/settings' && method === 'PUT') {
         const patch = body as { push?: { types?: Record<string, boolean>; hideAmounts?: boolean } };
@@ -346,13 +348,22 @@ describe('включено на этом устройстве', () => {
     expect(screen.getByText(/последнее уведомление 18 окт\./)).toBeInTheDocument();
   });
 
-  it('«Отправить тестовое» шлёт id этого устройства и показывает итог', async () => {
-    const person = renderCard();
+  it('кнопки «Отправить тестовое» больше нет, запрос /push/test не существует', async () => {
+    renderCard();
 
-    await person.click(await screen.findByRole('button', { name: 'Отправить тестовое' }));
+    await screen.findByText('Уведомления включены на этом устройстве');
+    expect(screen.queryByRole('button', { name: /тестовое/ })).toBeNull();
+    expect(calls.some((c) => c.url === '/api/push/test')).toBe(false);
+  });
 
-    expect(await screen.findByText('Отправлено на 1 устройство')).toBeInTheDocument();
-    expect(sent('POST', '/api/push/test')).toEqual({ id: 'd1' });
+  it('подсказка про «Не беспокоить» и «Фокус» под состоянием «включено»', async () => {
+    renderCard();
+
+    expect(
+      await screen.findByText(
+        'Если уведомления не приходят: на iPhone проверьте режим «Не беспокоить» / «Фокус» (Настройки → Фокус) и добавьте приложение «Расходы» в исключения',
+      ),
+    ).toBeInTheDocument();
   });
 
   it('«Отключить на этом устройстве»: DELETE на сервере и отписка в браузере', async () => {
@@ -423,6 +434,28 @@ describe('что присылать и приватность', () => {
     await screen.findByText('Ошибки импорта');
     expect(screen.getByText('Расходы из банка и Wallet')).toBeInTheDocument();
     expect(screen.getByText('Распознанные чеки')).toBeInTheDocument();
+  });
+
+  it('строка «Сообщения владельца и администратора»: по умолчанию «Присылать», пояснение и PUT', async () => {
+    const person = renderCard();
+    const rows = await screen.findByRole('region', { name: 'Что присылать' });
+    const group = within(
+      await within(rows).findByRole('radiogroup', { name: 'Сообщения владельца и администратора' }),
+    );
+
+    expect(group.getByRole('radio', { name: 'Присылать' })).toBeChecked();
+    expect(
+      within(rows).getByText(
+        'Придёт уведомление, когда владелец группы или администратор отправит вам сообщение',
+      ),
+    ).toBeInTheDocument();
+    await person.click(group.getByRole('radio', { name: 'Не присылать' }));
+
+    await waitFor(() =>
+      expect(sent('PUT', '/api/notifications/settings')).toEqual({
+        push: { types: { announcement: false } },
+      }),
+    );
   });
 
   it('участник: строки «Ошибки импорта» нет', async () => {

@@ -20,6 +20,8 @@ import { ReceiptStore } from './modules/receipts/receipts.store.ts';
 import { BudgetsRepository } from './modules/budgets/budgets.repository.ts';
 import { BudgetsService } from './modules/budgets/budgets.service.ts';
 import { NotificationSettingsRepository } from './modules/notifications/notification-settings.ts';
+import { BroadcastRepository } from './modules/notifications/broadcast.repository.ts';
+import { BroadcastService } from './modules/notifications/broadcast.service.ts';
 import { PushRepository } from './modules/push/push.repository.ts';
 import { PushService } from './modules/push/push.service.ts';
 import { WebPushSender } from './modules/push/web-push.sender.ts';
@@ -229,6 +231,7 @@ const notifications = new NotificationsService(
   push,
   notificationSettings,
 );
+const broadcast = new BroadcastService(new BroadcastRepository(database), notifications);
 const bankImport = createBankImportModule({
   database,
   notifications,
@@ -268,6 +271,7 @@ const app = buildApp({
   templates,
   bankImport,
   notifications,
+  broadcast,
   push,
   ai,
   groupService: new GroupService(

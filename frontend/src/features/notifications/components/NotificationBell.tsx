@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { AnchoredPanel } from '../../../shared/ui/AnchoredPanel.tsx';
 import { BellIcon } from '../../../shared/ui/icons.tsx';
-import { useUnreadCount } from '../hooks/useNotifications.ts';
+import { useNotificationStream, useUnreadCount } from '../hooks/useNotifications.ts';
 import { badgeText } from '../model/time.ts';
 import { NotificationPanel } from './NotificationPanel.tsx';
 
@@ -11,6 +11,7 @@ import { NotificationPanel } from './NotificationPanel.tsx';
  */
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
+  useNotificationStream();
   const { data } = useUnreadCount();
   const unread = data ?? 0;
   const badge = badgeText(unread);

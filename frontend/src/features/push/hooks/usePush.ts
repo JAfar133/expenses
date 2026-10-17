@@ -8,7 +8,6 @@ import {
   fetchPushConfig,
   fetchPushDevices,
   saveNotificationSettings,
-  sendPushTest,
   type NotificationSettings,
   type NotificationSettingsPatch,
 } from '../api/push.api.ts';
@@ -160,7 +159,7 @@ function enableError(error: unknown): string {
   return 'Не удалось подключить уведомления на этом устройстве. Попробуйте ещё раз';
 }
 
-/** Switching this device on and off, the test message and removing a device. */
+/** Switching this device on and off and removing a device. */
 export function usePushActions(onChanged: () => Promise<void>) {
   const queryClient = useQueryClient();
   const refreshDevices = () => queryClient.invalidateQueries({ queryKey: DEVICES_KEY });
@@ -243,9 +242,7 @@ export function usePushActions(onChanged: () => Promise<void>) {
     },
   });
 
-  const test = useMutation({ retry: false, mutationFn: (id?: string) => sendPushTest(id) });
-
-  return { enable, disableThisDevice, removeDevice, test };
+  return { enable, disableThisDevice, removeDevice };
 }
 
 /** «Что присылать» and the privacy choice; a change shows at once and an error puts the old value back. */

@@ -12,7 +12,6 @@ const subscribeSchema = z.object({
   label: z.string().max(80).optional(),
 });
 const unsubscribeSchema = z.object({ endpoint: z.string().min(1).max(1000) });
-const testSchema = z.object({ id: z.uuid().optional() });
 
 /** The devices of the signed-in person. Nobody reaches the devices of another person. */
 export const pushRoutes =
@@ -50,10 +49,5 @@ export const pushRoutes =
       const { endpoint } = parse(unsubscribeSchema, request.body);
       await service.unsubscribe(request.user!.id, endpoint);
       return { success: true };
-    });
-
-    app.post('/push/test', async (request) => {
-      const { id } = parse(testSchema, request.body);
-      return { success: true, data: await service.sendTest(request.user!.id, id) };
     });
   };

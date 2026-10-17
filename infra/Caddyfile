@@ -3,6 +3,13 @@
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
 
+	# The live notification stream (Server-Sent Events) must reach the browser at once, not in buffered pieces
+	handle /api/notifications/stream {
+		reverse_proxy backend:3000 {
+			flush_interval -1
+		}
+	}
+
 	# API: requests go to the backend, which is not published on a separate port
 	handle /api/* {
 		reverse_proxy backend:3000

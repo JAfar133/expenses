@@ -40,6 +40,7 @@ describe('миграции', () => {
       'import_log',
       'invitations',
       'memberships',
+      'notification_broadcasts',
       'notification_settings',
       'notifications',
       'push_subscriptions',

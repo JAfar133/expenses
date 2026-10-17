@@ -492,3 +492,11 @@ export const BellIcon = () => (
     <path d="M10 20a2 2 0 0 0 4 0" />
   </Icon>
 );
+
+/** A megaphone: a message from the owner or the administrator */
+export const MegaphoneIcon = () => (
+  <Icon>
+    <path d="M3 10v4a1 1 0 0 0 1 1h3l8 4V5L7 9H4a1 1 0 0 0-1 1z" />
+    <path d="M19 9.5a3.5 3.5 0 0 1 0 5M7 15l1.2 4.2a1 1 0 0 0 1 .8h.6" />
+  </Icon>
+);

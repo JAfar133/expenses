@@ -166,12 +166,12 @@ describe('колокольчик', () => {
 describe('опрос счётчика', () => {
   const polls = () => calls.filter((c) => c.url === '/api/notifications/unread-count').length;
 
-  it('раз в минуту, пока вкладка видна; на скрытой вкладке не опрашивает', async () => {
+  it('раз в 30 секунд, пока вкладка видна; на скрытой вкладке не опрашивает', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     renderBell();
     await waitFor(() => expect(polls()).toBe(1));
 
-    await act(() => vi.advanceTimersByTimeAsync(61_000));
+    await act(() => vi.advanceTimersByTimeAsync(31_000));
     await waitFor(() => expect(polls()).toBe(2));
 
     Object.defineProperty(document, 'hidden', { value: true, configurable: true });
@@ -239,6 +239,28 @@ describe('панель', () => {
     expect(within(rows[0]!).getByRole('img', { name: 'Не прочитано' })).toBeInTheDocument();
     expect(within(rows[1]!).getByText('5 мин назад')).toBeInTheDocument();
     expect(within(rows[1]!).queryByRole('img', { name: 'Не прочитано' })).toBeNull();
+  });
+
+  it('сообщение владельца: значок, «Отправитель: <имя>» под заголовком; без имени строки нет', async () => {
+    feed = [
+      note(1, {
+        type: 'announcement',
+        title: 'Сообщение · Миша',
+        body: 'Завтра обновление',
+        link: null,
+        data: { senderName: 'Миша' },
+      }),
+      note(2, { type: 'announcement', title: 'Без имени', body: 'Текст', link: null, data: null }),
+    ];
+    unread = 2;
+    const person = renderBell();
+    const panel = await openPanel(person);
+
+    const rows = await panel.findAllByRole('listitem');
+    expect(rows[0]).toHaveAttribute('data-type', 'announcement');
+    expect(within(rows[0]!).getByText('Отправитель: Миша')).toBeInTheDocument();
+    expect(within(rows[0]!).getByText('Завтра обновление')).toBeInTheDocument();
+    expect(within(rows[1]!).queryByText(/^От /)).toBeNull();
   });
 
   it('проблема импорта выделена как предупреждение', async () => {
@@ -416,5 +438,145 @@ describe('значок на иконке и ссылка на настройки
 
     expect(screen.getByTestId('where')).toHaveTextContent('/settings');
     expect(screen.queryByRole('dialog', { name: 'Уведомления' })).toBeNull();
+  });
+});
+
+describe('живая линия (SSE)', () => {
+  class FakeEventSource {
+    static instances: FakeEventSource[] = [];
+    listeners = new Map<string, ((event: Event) => void)[]>();
+    close = vi.fn();
+    constructor(public url: string) {
+      FakeEventSource.instances.push(this);
+    }
+    addEventListener(type: string, handler: (event: Event) => void) {
+      this.listeners.set(type, [...(this.listeners.get(type) ?? []), handler]);
+    }
+    removeEventListener(type: string, handler: (event: Event) => void) {
+      this.listeners.set(
+        type,
+        (this.listeners.get(type) ?? []).filter((item) => item !== handler),
+      );
+    }
+    emit(type: string, data: string) {
+      for (const handler of this.listeners.get(type) ?? []) handler({ data } as unknown as Event);
+    }
+  }
+  const polls = () => calls.filter((c) => c.url === '/api/notifications/unread-count').length;
+
+  beforeEach(() => {
+    FakeEventSource.instances = [];
+    vi.stubGlobal('EventSource', FakeEventSource);
+  });
+
+  it('подключается один раз к /api/notifications/stream', async () => {
+    renderBell();
+
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    expect(FakeEventSource.instances[0]!.url).toBe('/api/notifications/stream');
+  });
+
+  it('событие unread меняет бейдж сразу, без опроса', async () => {
+    renderBell();
+    await waitFor(() => expect(polls()).toBe(1));
+    const stream = FakeEventSource.instances[0]!;
+
+    await act(async () => stream.emit('unread', JSON.stringify({ unread: 4 })));
+
+    expect(
+      await screen.findByRole('button', { name: 'Уведомления, непрочитанных: 4' }),
+    ).toBeInTheDocument();
+    expect(polls()).toBe(1);
+    await act(async () => stream.emit('unread', JSON.stringify({ unread: 0 })));
+    await waitFor(() => expect(screen.queryByTestId('bell-badge')).toBeNull());
+  });
+
+  it('сломанное сообщение пропускается', async () => {
+    unread = 2;
+    renderBell();
+    await screen.findByRole('button', { name: 'Уведомления, непрочитанных: 2' });
+
+    await act(async () => {
+      FakeEventSource.instances[0]!.emit('unread', 'не json');
+      FakeEventSource.instances[0]!.emit('unread', JSON.stringify({ unread: 'много' }));
+    });
+
+    expect(
+      screen.getByRole('button', { name: 'Уведомления, непрочитанных: 2' }),
+    ).toBeInTheDocument();
+  });
+
+  it('при открытой панели новое событие обновляет ленту', async () => {
+    feed = [note(1)];
+    unread = 1;
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findByText('1 540 AMD · Магазин 1');
+    const feedRequests = () => calls.filter((c) => c.url.startsWith('/api/notifications?')).length;
+    const before = feedRequests();
+    feed = [note(2), note(1)];
+    unread = 2;
+
+    await act(async () =>
+      FakeEventSource.instances[0]!.emit('unread', JSON.stringify({ unread: 2 })),
+    );
+
+    await waitFor(() => expect(feedRequests()).toBeGreaterThan(before));
+    expect(await panel.findByText('1 540 AMD · Магазин 2')).toBeInTheDocument();
+  });
+
+  it('закрытая панель: ленту не запрашивает', async () => {
+    renderBell();
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+
+    await act(async () =>
+      FakeEventSource.instances[0]!.emit('unread', JSON.stringify({ unread: 3 })),
+    );
+
+    expect(calls.some((c) => c.url.startsWith('/api/notifications?'))).toBe(false);
+  });
+
+  it('закрывается при размонтировании; без EventSource ничего не ломается', async () => {
+    const { unmount } = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <NotificationBell />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    unmount();
+    expect(FakeEventSource.instances[0]!.close).toHaveBeenCalled();
+
+    vi.stubGlobal('EventSource', undefined);
+    unread = 1;
+    renderBell();
+    expect(
+      await screen.findByRole('button', { name: 'Уведомления, непрочитанных: 1' }),
+    ).toBeInTheDocument();
+  });
+
+  it('число на иконке приложения следует за числом из потока', async () => {
+    const setAppBadge = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'setAppBadge', { value: setAppBadge, configurable: true });
+    renderBell();
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+
+    await act(async () =>
+      FakeEventSource.instances[0]!.emit('unread', JSON.stringify({ unread: 6 })),
+    );
+
+    await waitFor(() => expect(setAppBadge).toHaveBeenCalledWith(6));
+    delete (navigator as unknown as Record<string, unknown>).setAppBadge;
+  });
+
+  it('опрос остаётся запасным: раз в 30 секунд', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    renderBell();
+    await waitFor(() => expect(polls()).toBe(1));
+
+    await act(() => vi.advanceTimersByTimeAsync(31_000));
+
+    await waitFor(() => expect(polls()).toBe(2));
   });
 });

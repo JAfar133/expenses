@@ -5,12 +5,13 @@ import { CardsCard } from '../components/CardsCard.tsx';
 import { CategoriesCard } from '../components/CategoriesCard.tsx';
 import { GroupSettingsCard } from '../components/GroupSettingsCard.tsx';
 import { MembersCard } from '../components/MembersCard.tsx';
+import { BroadcastCard } from '../../notifications/components/BroadcastCard.tsx';
 import { IntegrationsCard } from '../../integrations/components/IntegrationsCard.tsx';
 import { GroupTemplatesCard } from '../../templates/components/GroupTemplatesCard.tsx';
 import { useGroup } from '../hooks/useGroup.ts';
 import { toErrorMessage } from '../model/error-message.ts';
 
-/** Owner's page: six cards: the group settings, members, cards, categories with limits, the group's templates and integrations. */
+/** Owner's page: seven cards: the group settings, members, cards, categories with limits, the group's templates, integrations and the message to members. */
 export default function GroupPage() {
   const { data: user } = useCurrentUser();
   if (!user) return null;
@@ -52,6 +53,7 @@ function GroupContent({ currentUsername }: { currentUsername: string }) {
       <CategoriesCard categories={data.categories} />
       <GroupTemplatesCard />
       <IntegrationsCard cards={data.cards} categories={data.categories} />
+      <BroadcastCard mode="owner" groupId={data.group.id} />
     </div>
   );
 }

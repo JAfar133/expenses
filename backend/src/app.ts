@@ -20,6 +20,7 @@ import {
 } from './modules/bank-import/bank-import.routes.ts';
 import { pushRoutes } from './modules/push/push.routes.ts';
 import type { PushService } from './modules/push/push.service.ts';
+import type { BroadcastService } from './modules/notifications/broadcast.service.ts';
 import { notificationsRoutes } from './modules/notifications/notifications.routes.ts';
 import type { NotificationsService } from './modules/notifications/notifications.service.ts';
 import { templatesRoutes } from './modules/templates/templates.routes.ts';
@@ -79,6 +80,8 @@ export interface AppDependencies {
   bankImport: BankImportRoutesDeps;
   /** The notification feed, the bell (v5) */
   notifications: NotificationsService;
+  /** Messages from owners and the administrator (v5) */
+  broadcast: BroadcastService;
   /** Web Push: the devices of a person (v5) */
   push: PushService;
   /** Items of expenses and receipt parsing with the AI (v4) */
@@ -125,6 +128,7 @@ export function buildApp({
   templates,
   bankImport,
   notifications,
+  broadcast,
   push,
   ai,
   idempotency,
@@ -234,7 +238,7 @@ export function buildApp({
   app.register(budgetsRoutes(budgets), { prefix: '/api' });
   app.register(templatesRoutes(templates), { prefix: '/api' });
   app.register(bankImportRoutes(bankImport), { prefix: '/api' });
-  app.register(notificationsRoutes(notifications), { prefix: '/api' });
+  app.register(notificationsRoutes(notifications, broadcast), { prefix: '/api' });
   app.register(pushRoutes(push), { prefix: '/api' });
   app.register(receiptsRoutes(receipts), { prefix: '/api' });
   app.register(itemsRoutes(ai.itemsService), { prefix: '/api' });

@@ -1,4 +1,10 @@
-export const NOTIFICATION_TYPES = ['expense_imported', 'import_problem', 'receipt_parsed'] as const;
+export const NOTIFICATION_TYPES = [
+  'expense_imported',
+  'import_problem',
+  'receipt_parsed',
+  /** A message the owner of a group or the administrator sent from the app */
+  'announcement',
+] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
 /** Who should get an event. */
@@ -8,7 +14,9 @@ export type Audience =
   /** The owners of the group (they manage keys and see the import log) */
   | { type: 'owners'; groupId: string }
   /** One person */
-  | { type: 'user'; groupId: string; userId: string };
+  | { type: 'user'; groupId: string; userId: string }
+  /** Chosen people (a message from the owner or the administrator); the group is only for the record */
+  | { type: 'users'; groupId: string | null; userIds: string[] };
 
 export interface NotificationEvent {
   type: NotificationType;

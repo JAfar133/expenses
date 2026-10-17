@@ -9,7 +9,7 @@ export interface PushSettings {
 }
 
 /** Defaults: the person sees a receipt they parsed themselves, so it is not pushed unless they ask. */
-const DEFAULT_ON: NotificationType[] = ['expense_imported', 'import_problem'];
+const DEFAULT_ON: NotificationType[] = ['expense_imported', 'import_problem', 'announcement'];
 
 const asTypes = (enabled: string[]): Record<NotificationType, boolean> =>
   Object.fromEntries(NOTIFICATION_TYPES.map((type) => [type, enabled.includes(type)])) as Record<

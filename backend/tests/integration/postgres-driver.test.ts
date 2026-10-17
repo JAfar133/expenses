@@ -88,6 +88,7 @@ describe('драйвер pg', () => {
       '0030_import_log.sql',
       '0031_notifications.sql',
       '0032_web_push.sql',
+      '0033_broadcasts.sql',
     ]);
   });
 

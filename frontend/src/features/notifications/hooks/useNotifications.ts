@@ -19,10 +19,12 @@ export const NOTIFICATIONS_KEY = ['notifications'];
 const UNREAD_KEY = [...NOTIFICATIONS_KEY, 'unread'];
 const FEED_KEY = [...NOTIFICATIONS_KEY, 'feed'];
 
-const POLL_MS = 60_000;
+// The stream brings the number at once; the poll is a fallback (a lost connection, a sleeping phone)
+// (29 s, not 30: the offline queue has its own 30 s timer and its tests tell the two apart by the delay)
+const POLL_MS = 29_000;
 
 /**
- * The number on the bell. It polls once a minute while the tab is visible and refetches when the person comes back
+ * The number on the bell. It polls about every 30 seconds while the tab is visible and refetches when the person comes back
  * to the tab; a failed poll is silent (the old number stays).
  */
 export function useUnreadCount() {
@@ -108,4 +110,35 @@ export function useMarkRead() {
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: UNREAD_KEY }),
   });
+}
+
+/**
+ * A live line to the server (Server-Sent Events): the badge changes the moment a notification arrives or is read in
+ * another tab, and an open panel gets the new row. The browser reconnects by itself, so errors are ignored. One
+ * stream per app: the effect closes it on cleanup (also between the two mounts of React strict mode).
+ */
+export function useNotificationStream() {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (typeof EventSource === 'undefined') return;
+    const stream = new EventSource('/api/notifications/stream');
+    const onUnread = (event: Event) => {
+      try {
+        const { unread } = JSON.parse((event as MessageEvent<string>).data) as { unread?: unknown };
+        if (typeof unread !== 'number') return;
+        queryClient.setQueryData(UNREAD_KEY, unread);
+        // Only a feed that is loaded (the panel is open) is refreshed; a closed one is read on opening
+        if (queryClient.getQueryState(FEED_KEY)) {
+          void queryClient.invalidateQueries({ queryKey: FEED_KEY });
+        }
+      } catch {
+        // A broken message is skipped
+      }
+    };
+    stream.addEventListener('unread', onUnread);
+    return () => {
+      stream.removeEventListener('unread', onUnread);
+      stream.close();
+    };
+  }, [queryClient]);
 }

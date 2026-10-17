@@ -16,7 +16,12 @@ export interface PushDevice {
 
 export interface NotificationSettings {
   push: {
-    types: { expense_imported: boolean; import_problem: boolean; receipt_parsed: boolean };
+    types: {
+      expense_imported: boolean;
+      import_problem: boolean;
+      receipt_parsed: boolean;
+      announcement: boolean;
+    };
     hideAmounts: boolean;
   };
 }
@@ -49,14 +54,6 @@ export const deletePushDevice = (id: string) =>
 /** By the address of this browser's subscription: for the logout. */
 export const unsubscribePush = (endpoint: string) =>
   apiRequest('/push/subscriptions/unsubscribe', { method: 'POST', ...json({ endpoint }) });
-
-export const sendPushTest = async (id?: string) =>
-  (
-    await apiRequest<{ sent: number; removed: number }>('/push/test', {
-      method: 'POST',
-      ...json(id ? { id } : {}),
-    })
-  ).data;
 
 export const fetchNotificationSettings = async () =>
   (await apiRequest<NotificationSettings>('/notifications/settings')).data;

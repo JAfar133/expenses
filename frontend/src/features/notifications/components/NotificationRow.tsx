@@ -1,5 +1,10 @@
 import type { ReactNode } from 'react';
-import { CreditCardIcon, DocumentIcon, WarningIcon } from '../../../shared/ui/icons.tsx';
+import {
+  CreditCardIcon,
+  DocumentIcon,
+  MegaphoneIcon,
+  WarningIcon,
+} from '../../../shared/ui/icons.tsx';
 import type { AppNotification, NotificationType } from '../api/notifications.api.ts';
 import { relativeTime } from '../model/time.ts';
 
@@ -7,6 +12,7 @@ const ICONS: Record<NotificationType, ReactNode> = {
   expense_imported: <CreditCardIcon />,
   import_problem: <WarningIcon />,
   receipt_parsed: <DocumentIcon />,
+  announcement: <MegaphoneIcon />,
 };
 
 /** One notification: the type in a soft circle, title, body, time and a dot while it is unread. */
@@ -50,6 +56,11 @@ export function NotificationRow({
           >
             {item.title}
           </span>
+          {typeof item.data?.senderName === 'string' && item.data.senderName && (
+            <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+              Отправитель: {item.data.senderName}
+            </span>
+          )}
           <span className="line-clamp-2 block text-sm text-zinc-600 dark:text-zinc-300">
             {item.body}
           </span>

@@ -8,6 +8,14 @@ export class NotificationsRepository {
   /** The people an event is for. Disabled accounts get nothing. */
   async recipients(audience: Audience, db: SqlExecutor = this.database): Promise<string[]> {
     if (audience.type === 'user') return [audience.userId];
+    if (audience.type === 'users') {
+      if (audience.userIds.length === 0) return [];
+      const rows = await db.query<{ id: string }>(
+        'SELECT id FROM users WHERE id = ANY($1::uuid[]) AND disabled_at IS NULL',
+        [audience.userIds],
+      );
+      return rows.map((row) => row.id);
+    }
     if (audience.type === 'owners') {
       const rows = await db.query<{ user_id: string }>(
         `SELECT m.user_id FROM memberships m JOIN users u ON u.id = m.user_id
@@ -31,7 +39,7 @@ export class NotificationsRepository {
   async add(
     entry: {
       userIds: string[];
-      groupId: string;
+      groupId: string | null;
       type: NotificationType;
       title: string;
       body: string;

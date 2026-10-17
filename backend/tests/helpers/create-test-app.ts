@@ -38,6 +38,8 @@ import type {
   PushTarget,
   SendResult,
 } from '../../src/modules/push/push.types.ts';
+import { BroadcastRepository } from '../../src/modules/notifications/broadcast.repository.ts';
+import { BroadcastService } from '../../src/modules/notifications/broadcast.service.ts';
 import { NotificationsRepository } from '../../src/modules/notifications/notifications.repository.ts';
 import { NotificationsService } from '../../src/modules/notifications/notifications.service.ts';
 import { createBankImportModule } from '../../src/modules/bank-import/bank-import.module.ts';
@@ -185,6 +187,8 @@ export interface TestApp {
   /** The fake push service and the push service of the app (Web Push is on in tests) */
   pushSender: FakePushSender;
   push: PushService;
+  /** The notification centre (its hub shows who has the app open) */
+  notifications: NotificationsService;
   /** A request as the logged-in user (misha by default): with login cookies and the site Origin header */
   inject: (options: InjectOptions, as?: TestUsername) => Promise<LightMyRequestResponse>;
   /** Login cookies for a user: creates a session directly, without checking the password */
@@ -313,6 +317,7 @@ export async function createTestApp(
     push,
     notificationSettings,
   );
+  const broadcast = new BroadcastService(new BroadcastRepository(database), notifications);
   const bankImport = createBankImportModule({
     database,
     notifications,
@@ -330,6 +335,7 @@ export async function createTestApp(
     expenseService,
     bankImport,
     notifications,
+    broadcast,
     push,
     groups,
     invitations,
@@ -426,6 +432,7 @@ export async function createTestApp(
     llmProvider,
     pushSender,
     push,
+    notifications,
     inject,
     sessionCookies,
   };

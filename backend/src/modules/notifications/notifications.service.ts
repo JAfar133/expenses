@@ -1,3 +1,4 @@
+import { NotificationHub } from './notification-hub.ts';
 import type { NotificationSettingsRepository, PushSettings } from './notification-settings.ts';
 import type { NotificationsRepository } from './notifications.repository.ts';
 import type { DeliveryItem, NotificationEvent, NotificationView } from './notifications.types.ts';
@@ -17,6 +18,8 @@ export class NotificationsService {
     /** Other channels fed from the same events (Web Push) */
     private readonly delivery?: { deliver(items: DeliveryItem[]): void },
     private readonly settings?: NotificationSettingsRepository,
+    /** The people with the app open: their badge changes at once */
+    readonly hub: NotificationHub = new NotificationHub(),
   ) {}
 
   /** Stores the event for everyone it concerns. Returns how many people got it. */
@@ -42,15 +45,20 @@ export class NotificationsService {
     }
   }
 
-  /** Hands the new entries to the other channels (their sending runs on in the background); never throws. */
+  /**
+   * Tells the open apps of the recipients the new number at once and hands the entries to the other channels (their
+   * sending runs on in the background); never throws.
+   */
   private async forward(
     event: NotificationEvent,
     added: { id: string; userId: string; createdAt: Date }[],
   ): Promise<void> {
-    if (!this.delivery || added.length === 0) return;
+    if (added.length === 0) return;
     try {
       const items: DeliveryItem[] = [];
       for (const row of added) {
+        const unread = await this.repository.unreadCount(row.userId);
+        this.hub.publish(row.userId, { unread });
         items.push({
           id: row.id,
           userId: row.userId,
@@ -60,10 +68,10 @@ export class NotificationsService {
           privateBody: event.privateBody,
           link: event.link,
           createdAt: row.createdAt,
-          unread: await this.repository.unreadCount(row.userId),
+          unread,
         });
       }
-      this.delivery.deliver(items);
+      this.delivery?.deliver(items);
     } catch (error) {
       this.logger?.warn({ err: error, type: event.type }, 'Failed to hand a notification on');
     }
@@ -116,8 +124,10 @@ export class NotificationsService {
     return this.repository.unreadCount(userId);
   }
 
-  markRead(userId: string, ids?: string[]): Promise<void> {
-    return this.repository.markRead(userId, ids);
+  /** Marks read and tells the person's other open tabs the new number. */
+  async markRead(userId: string, ids?: string[]): Promise<void> {
+    await this.repository.markRead(userId, ids);
+    this.hub.publish(userId, { unread: await this.repository.unreadCount(userId) });
   }
 
   deleteOld(now: Date = new Date()): Promise<number> {

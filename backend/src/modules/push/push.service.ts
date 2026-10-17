@@ -39,7 +39,6 @@ export interface SubscribeInput {
 export class PushService {
   private readonly pending = new Set<Promise<void>>();
   private readonly perUser = new RateLimiter(MAX_PER_MINUTE, 60_000);
-  private readonly tests = new RateLimiter(5, 60_000);
   private readonly changes = new RateLimiter(30, 60_000);
 
   constructor(private readonly options: PushServiceOptions) {}
@@ -84,28 +83,6 @@ export class PushService {
   /** The device that is signing out stops getting this person's messages. */
   unsubscribe(userId: string, endpoint: string): Promise<void> {
     return this.options.repository.removeByEndpoint(userId, endpoint);
-  }
-
-  /** A test message to the person's devices (one, if `id` is given). Returns how many devices answered. */
-  async sendTest(userId: string, id?: string): Promise<{ sent: number; removed: number }> {
-    this.requireEnabled();
-    if (!this.tests.allow(userId)) throw tooMany();
-    const targets = await this.options.repository.targets(userId, id);
-    if (id && targets.length === 0) throw notFoundError();
-    const payload: PushPayload = {
-      id: `test-${Date.now()}`,
-      type: 'test',
-      title: 'Тестовое уведомление',
-      body: 'Если вы это видите, уведомления работают',
-      url: '/settings',
-      unread: 0,
-      ts: Date.now(),
-    };
-    const results = await Promise.all(targets.map((target) => this.deliverTo(target, payload)));
-    return {
-      sent: results.filter((result) => result === 'sent').length,
-      removed: results.filter((result) => result === 'gone').length,
-    };
   }
 
   /** Sends the new feed entries as push in the background. Never throws. */
