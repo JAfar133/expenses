@@ -9,7 +9,7 @@ export function SecurityCard() {
   const [changed, setChanged] = useState(false);
 
   return (
-    <SettingsSection title="Безопасность" compact>
+    <SettingsSection title="Безопасность" embeddedTitle="label" compact>
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="text-sm font-medium">Пароль</div>

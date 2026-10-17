@@ -34,8 +34,8 @@ function SignedInApp() {
           <Route element={<AppShell user={user} />}>
             <Route index element={<AddExpensePage user={user} />} />
             <Route path="analytics/*" element={<AnalyticsRoutes />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="group" element={<GroupPage />} />
+            <Route path="settings/*" element={<SettingsPage />} />
+            <Route path="group/*" element={<GroupPage />} />
             <Route path="admin" element={<AdminPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

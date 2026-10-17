@@ -115,7 +115,7 @@ function renderAt(path: string) {
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="admin" element={<AdminPage />} />
-          <Route path="group" element={<GroupPage />} />
+          <Route path="group/*" element={<GroupPage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -411,7 +411,7 @@ describe('«Настройки группы»: разбор чеков с пом
   });
 
   it('админ включил ИИ: переключатель доступен с пояснением про Google (Gemini)', async () => {
-    renderAt('/group');
+    renderAt('/group/receipts');
 
     const toggle = await row();
     expect(toggle).toBeEnabled();
@@ -420,7 +420,7 @@ describe('«Настройки группы»: разбор чеков с пом
   });
 
   it('переключение шлёт PUT /group/ai', async () => {
-    const user = renderAt('/group');
+    const user = renderAt('/group/receipts');
 
     await user.click(await row());
 
@@ -429,7 +429,7 @@ describe('«Настройки группы»: разбор чеков с пом
 
   it('включено в группе: переключатель отмечен', async () => {
     status = { installationReady: true, groupEnabled: true, available: true };
-    renderAt('/group');
+    renderAt('/group/receipts');
 
     expect(await row()).toBeChecked();
   });
@@ -437,7 +437,7 @@ describe('«Настройки группы»: разбор чеков с пом
   it('ИИ не включён администратором или нет ключа: переключатель неактивен, подпись «Выключено администратором»', async () => {
     me = OWNER;
     status = { installationReady: false, groupEnabled: true, available: false };
-    renderAt('/group');
+    renderAt('/group/receipts');
 
     const toggle = await row();
     expect(toggle).toBeDisabled();
@@ -461,7 +461,7 @@ describe('«Фото чека»: разбор ИИ по категориям', (
     within(await screen.findByRole('group', { name: 'Категории с разбором ИИ' }));
 
   it('ИИ готов: показывает только категории с фото, с подсказкой; включены те, что в aiCategories', async () => {
-    renderAt('/group');
+    renderAt('/group/receipts');
     const group = await aiGroup();
 
     expect(group.getAllByRole('button').map((b) => b.textContent)).toEqual(['Еда', 'Жильё']);
@@ -471,7 +471,7 @@ describe('«Фото чека»: разбор ИИ по категориям', (
   });
 
   it('выключение категории сохраняется с aiCategories (фото-категории не меняются)', async () => {
-    const user = renderAt('/group');
+    const user = renderAt('/group/receipts');
     const group = await aiGroup();
 
     await user.click(group.getByRole('button', { name: 'Жильё' }));
@@ -487,7 +487,7 @@ describe('«Фото чека»: разбор ИИ по категориям', (
 
   it('включение обратно добавляет категорию в aiCategories', async () => {
     receiptSettings = { enabled: true, categories: ['Еда', 'Жильё'], aiCategories: ['Еда'] };
-    const user = renderAt('/group');
+    const user = renderAt('/group/receipts');
     const group = await aiGroup();
     expect(group.getByRole('button', { name: 'Жильё' })).toHaveAttribute('aria-pressed', 'false');
 
@@ -499,7 +499,7 @@ describe('«Фото чека»: разбор ИИ по категориям', (
   });
 
   it('переключение фото-категории шлёт и актуальный список aiCategories', async () => {
-    const user = renderAt('/group');
+    const user = renderAt('/group/receipts');
     const photos = within(await screen.findByRole('group', { name: 'Категории с фото чека' }));
 
     await user.click(await photos.findByRole('button', { name: 'Прочее' }));
@@ -514,7 +514,7 @@ describe('«Фото чека»: разбор ИИ по категориям', (
 
   it('ИИ не готов (не включён администратором): блока выбора нет', async () => {
     status = { installationReady: false, groupEnabled: false, available: false };
-    renderAt('/group');
+    renderAt('/group/receipts');
     await screen.findByRole('group', { name: 'Категории с фото чека' });
 
     expect(screen.queryByRole('group', { name: 'Категории с разбором ИИ' })).toBeNull();
@@ -522,7 +522,7 @@ describe('«Фото чека»: разбор ИИ по категориям', (
 
   it('без категорий с фото блока выбора нет', async () => {
     receiptSettings = { enabled: true, categories: [], aiCategories: [] };
-    renderAt('/group');
+    renderAt('/group/receipts');
     await screen.findByRole('group', { name: 'Категории с фото чека' });
 
     expect(screen.queryByRole('group', { name: 'Категории с разбором ИИ' })).toBeNull();
@@ -543,7 +543,7 @@ describe('«Настройки группы»: карточки фото и ИИ
   });
 
   it('«Фото чеков»: подзаголовок, плашка про категории и «Категории — 2 выбрано из 3»', async () => {
-    renderAt('/group');
+    renderAt('/group/receipts');
 
     expect(await screen.findByText('К расходу можно прикреплять фото')).toBeInTheDocument();
     expect(
@@ -554,7 +554,7 @@ describe('«Настройки группы»: карточки фото и ИИ
 
   it('фото выключено: плашка, счётчик и чипы скрыты', async () => {
     receiptSettings = { enabled: false, categories: [] };
-    renderAt('/group');
+    renderAt('/group/receipts');
     await screen.findByText('К расходу можно прикреплять фото');
 
     expect(screen.queryByText(/Участники смогут добавлять фото/)).toBeNull();
@@ -562,7 +562,7 @@ describe('«Настройки группы»: карточки фото и ИИ
   });
 
   it('ИИ: счётчик только по категориям с фото («1 выбрано из 2»), чипы только по ним', async () => {
-    renderAt('/group');
+    renderAt('/group/receipts');
     const chips = within(await screen.findByRole('group', { name: 'Категории с разбором ИИ' }));
 
     expect(chips.getAllByRole('button').map((b) => b.textContent)).toEqual(['Еда', 'Жильё']);
@@ -571,7 +571,7 @@ describe('«Настройки группы»: карточки фото и ИИ
   });
 
   it('плашка лимита с числами из /ai/status; не администратору — слова про администратора', async () => {
-    renderAt('/group');
+    renderAt('/group/receipts');
 
     const note = (await screen.findByText(/Лимит: 30 разборов в сутки на группу/)).closest(
       '[role="note"]',
@@ -583,7 +583,7 @@ describe('«Настройки группы»: карточки фото и ИИ
 
   it('администратору вместо слов — ссылка «Администрирование»', async () => {
     me = { ...OWNER, isAdmin: true };
-    renderAt('/group');
+    renderAt('/group/receipts');
 
     const link = await screen.findByRole('link', { name: 'Администрирование' });
     expect(link).toHaveAttribute('href', '/admin');
@@ -598,7 +598,7 @@ describe('«Настройки группы»: карточки фото и ИИ
       dailyLimit: 30,
       usedToday: 1,
     } as typeof status;
-    renderAt('/group');
+    renderAt('/group/receipts');
     await screen.findByRole('switch', { name: 'Разбор чеков с помощью ИИ' });
 
     expect(screen.queryByText(/Лимит: 30/)).toBeNull();
@@ -607,7 +607,7 @@ describe('«Настройки группы»: карточки фото и ИИ
 
   it('ИИ не включён в установке: неактивный переключатель и «Выключено администратором»', async () => {
     status = { installationReady: false, groupEnabled: true, available: false } as typeof status;
-    renderAt('/group');
+    renderAt('/group/receipts');
 
     expect(await screen.findByRole('switch', { name: 'Разбор чеков с помощью ИИ' })).toBeDisabled();
     expect(screen.getByText('Выключено администратором')).toBeInTheDocument();
@@ -615,7 +615,7 @@ describe('«Настройки группы»: карточки фото и ИИ
   });
 
   it('чипы обоих рядов одного стиля: выбранные залиты, невыбранные в контуре', async () => {
-    renderAt('/group');
+    renderAt('/group/receipts');
     const ai = within(await screen.findByRole('group', { name: 'Категории с разбором ИИ' }));
     const photos = within(screen.getByRole('group', { name: 'Категории с фото чека' }));
 
@@ -634,13 +634,11 @@ describe('«Настройки группы»: карточки фото и ИИ
     }
   });
 
-  it('карточка фото идёт перед карточкой ИИ, обе после основных настроек', async () => {
-    renderAt('/group');
+  it('в разделе «Чеки и ИИ» сначала фото, потом ИИ', async () => {
+    renderAt('/group/receipts');
     const photo = (await screen.findByText('К расходу можно прикреплять фото')).closest('.py-4')!;
     const ai = screen.getByText(/Фото чека отправляется в Google/).closest('.py-4')!;
-    const basic = screen.getByRole('region', { name: 'Основные настройки' });
 
-    expect(basic.nextElementSibling).toBe(photo);
     expect(photo.nextElementSibling).toBe(ai);
   });
 });
@@ -660,7 +658,7 @@ describe('«Язык названий»', () => {
 
   it('два чипа «English» и «Русский» отражают разрешённые языки, с подсказкой', async () => {
     status = { ...status, languages: ['ru'] } as typeof status;
-    renderAt('/group');
+    renderAt('/group/receipts');
     const group = await chips();
 
     expect(group.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'false');
@@ -674,7 +672,7 @@ describe('«Язык названий»', () => {
   });
 
   it('снятие языка отправляет PUT с languages', async () => {
-    const user = renderAt('/group');
+    const user = renderAt('/group/receipts');
     const group = await chips();
 
     await user.click(group.getByRole('button', { name: 'English' }));
@@ -684,7 +682,7 @@ describe('«Язык названий»', () => {
 
   it('выбор языка добавляет его в список', async () => {
     status = { ...status, languages: ['ru'] } as typeof status;
-    const user = renderAt('/group');
+    const user = renderAt('/group/receipts');
     const group = await chips();
 
     await user.click(group.getByRole('button', { name: 'English' }));
@@ -694,7 +692,7 @@ describe('«Язык названий»', () => {
 
   it('последний выбранный язык снять нельзя', async () => {
     status = { ...status, languages: ['ru'] } as typeof status;
-    const user = renderAt('/group');
+    const user = renderAt('/group/receipts');
     const group = await chips();
 
     await user.click(group.getByRole('button', { name: 'Русский' }));
@@ -706,7 +704,7 @@ describe('«Язык названий»', () => {
 
   it('без поля languages в ответе считаются разрешёнными оба', async () => {
     status = { installationReady: true, groupEnabled: true, available: true } as typeof status;
-    renderAt('/group');
+    renderAt('/group/receipts');
     const group = await chips();
 
     expect(group.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
@@ -715,7 +713,7 @@ describe('«Язык названий»', () => {
 
   it('переключатель ИИ выключен: строки языка нет', async () => {
     status = { installationReady: true, groupEnabled: false, available: false } as typeof status;
-    renderAt('/group');
+    renderAt('/group/receipts');
     await screen.findByRole('switch', { name: 'Разбор чеков с помощью ИИ' });
 
     expect(screen.queryByRole('group', { name: 'Язык названий' })).toBeNull();

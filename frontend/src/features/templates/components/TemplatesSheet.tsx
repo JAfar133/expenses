@@ -74,7 +74,7 @@ export function TemplatesSheet({ templates, onApply, onOpenInForm, onClose }: Te
     <Modal title="Быстрые траты" onClose={onClose}>
       <TemplateList templates={templates} {...common} />
       <Link
-        to="/settings"
+        to="/settings/templates"
         onClick={onClose}
         className="mt-3 inline-block py-2 text-sm font-medium text-indigo-600 dark:text-indigo-300"
       >

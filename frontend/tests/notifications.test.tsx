@@ -444,7 +444,7 @@ describe('значок на иконке и ссылка на настройки
     const panel = await openPanel(person);
 
     const link = await panel.findByRole('link', { name: 'Настроить уведомления' });
-    expect(link).toHaveAttribute('href', '/settings#notifications');
+    expect(link).toHaveAttribute('href', '/settings/notifications');
     await person.click(link);
 
     expect(screen.getByTestId('where')).toHaveTextContent('/settings');

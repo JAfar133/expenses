@@ -38,16 +38,16 @@ export function AppShell({ user }: { user: AuthUser }) {
   // The form fits a narrow column; the analytics page uses the full width
   const { pathname } = useLocation();
   const wide = pathname.startsWith('/analytics');
-  const medium = ['/settings', '/admin'].some((path) => pathname.startsWith(path));
-  // The group page has wide rows with menus: a wider column on a desktop
-  const group = pathname.startsWith('/group');
+  const medium = pathname.startsWith('/admin');
+  // The settings and the group have a menu on the left on a desktop: a wider column
+  const settings = pathname.startsWith('/settings') || pathname.startsWith('/group');
   // On a phone the round camera button must not cover the last rows and the pagination
   const fab = useCameraFabAvailable();
 
   return (
     <main
       className={`mx-auto min-h-dvh w-full px-4 ${fab ? 'pb-[calc(6rem+env(safe-area-inset-bottom))]' : 'pb-[calc(4.5rem+env(safe-area-inset-bottom))]'} md:pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] ${
-        wide ? 'max-w-5xl' : group ? 'max-w-3xl' : medium ? 'max-w-2xl' : 'max-w-[560px]'
+        wide ? 'max-w-5xl' : settings ? 'max-w-4xl' : medium ? 'max-w-2xl' : 'max-w-[560px]'
       }`}
     >
       <header className="mb-4 flex items-center gap-x-3">

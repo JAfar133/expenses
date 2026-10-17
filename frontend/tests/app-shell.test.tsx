@@ -98,9 +98,9 @@ describe('AppShell', () => {
     expect(screen.getByRole('main')).toHaveClass('max-w-5xl');
   });
 
-  it('страница группы шире настроек: max-w-3xl, настройки остаются max-w-2xl', () => {
+  it('настройки и группа с меню слева: max-w-4xl', () => {
     renderShell('/group');
-    expect(screen.getByRole('main')).toHaveClass('max-w-3xl');
+    expect(screen.getByRole('main')).toHaveClass('max-w-4xl');
   });
 
   it('страница формы остаётся узкой колонкой', () => {
@@ -199,7 +199,8 @@ describe('AppShell', () => {
 
       expect(await screen.findByText('Страница настроек')).toBeInTheDocument();
       expect(screen.queryByRole('menu')).toBeNull();
-      expect(screen.getByRole('main')).toHaveClass('max-w-2xl');
+      // The settings have a menu next to the section: a wider column
+      expect(screen.getByRole('main')).toHaveClass('max-w-4xl');
     });
 
     it('участник: имя, роль «Участник», только «Настройки» и «Выйти»', async () => {

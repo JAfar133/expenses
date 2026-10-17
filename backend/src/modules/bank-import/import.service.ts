@@ -470,7 +470,7 @@ export class BankImportService {
       title: 'Не удалось добавить расход',
       body: `${sourceLabel(source)}: ${message}`,
       privateBody: 'Откройте приложение, чтобы посмотреть причину',
-      link: '/group',
+      link: '/group/integrations',
       data: { importId, status, source },
       dedupeKey: `import_problem:${importId}`,
       audience: { type: 'owners', groupId },

@@ -120,7 +120,7 @@ export function NotificationPanel({
         </button>
       )}
       <Link
-        to="/settings#notifications"
+        to="/settings/notifications"
         onClick={onClose}
         className="flex h-11 items-center justify-center text-sm font-medium text-indigo-600 dark:text-indigo-300"
       >

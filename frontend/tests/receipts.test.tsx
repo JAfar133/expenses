@@ -489,15 +489,15 @@ describe('«Фото чеков» в настройках группы', () => {
       <QueryClientProvider
         client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
       >
-        <MemoryRouter initialEntries={['/group']}>
+        <MemoryRouter initialEntries={['/group/receipts']}>
           <Routes>
-            <Route path="group" element={<GroupPage />} />
+            <Route path="group/*" element={<GroupPage />} />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    const heading = await screen.findByRole('heading', { name: 'Настройки группы' });
-    return { person: userEvent.setup(), box: within(heading.closest('section')!) };
+    const region = await screen.findByRole('region', { name: 'Чеки и ИИ' });
+    return { person: userEvent.setup(), box: within(region) };
   }
   const puts = () => requests.filter((r) => r.method === 'PUT' && r.url === '/api/group/receipts');
 

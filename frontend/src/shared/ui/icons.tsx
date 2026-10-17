@@ -500,3 +500,28 @@ export const MegaphoneIcon = () => (
     <path d="M19 9.5a3.5 3.5 0 0 1 0 5M7 15l1.2 4.2a1 1 0 0 0 1 .8h.6" />
   </Icon>
 );
+
+export const UserIcon = () => (
+  <Icon>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 20c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5" />
+  </Icon>
+);
+
+/** A palette: «Оформление» */
+export const PaletteIcon = () => (
+  <Icon>
+    <path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.8 1.8-1.7 0-1-.9-1.5-.9-2.4 0-.9.7-1.4 1.6-1.4H17a4 4 0 0 0 4-4C21 6.8 17 3 12 3z" />
+    <circle cx="7.5" cy="11" r="1" />
+    <circle cx="10" cy="7.2" r="1" />
+    <circle cx="14.5" cy="7.2" r="1" />
+  </Icon>
+);
+
+/** A price tag: categories */
+export const TagIcon = () => (
+  <Icon>
+    <path d="M3 12V4h8l10 10-8 8L3 12z" />
+    <circle cx="7.5" cy="8.5" r="1.2" />
+  </Icon>
+);

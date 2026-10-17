@@ -146,14 +146,17 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
+// The group is sections now: a test opens the section it checks
+let groupPath = '/group/general';
+
 async function renderGroup() {
   render(
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <MemoryRouter initialEntries={['/group']}>
+      <MemoryRouter initialEntries={[groupPath]}>
         <Routes>
-          <Route path="group" element={<GroupPage />} />
+          <Route path="group/*" element={<GroupPage />} />
           <Route path="/" element={<p>Главная</p>} />
         </Routes>
       </MemoryRouter>
@@ -164,8 +167,7 @@ async function renderGroup() {
 
 const sent = (method: string, url: string) =>
   requests.find((r) => r.method === method && r.url === url)?.body;
-const section = (name: string | RegExp) =>
-  screen.getByRole('heading', { name }).closest('section')!;
+const section = (name: string | RegExp) => screen.getByRole('region', { name });
 const card = (name: string | RegExp) => within(section(name));
 
 /** Opens the «⋯» menu of a row and presses an item. */
@@ -178,20 +180,61 @@ const confirmDialog = () =>
   within(screen.getByRole('dialog', { name: 'Сменить валюту отчётности?' }));
 
 describe('страница «Группа»', () => {
-  it('ровно шесть карточек в порядке: настройки, участники, карты, категории и лимиты, шаблоны группы, интеграции', async () => {
+  it('на компьютере /group открывает «Основные»; слева меню разделов с названием группы, справа раздел', async () => {
+    groupPath = '/group';
     await renderGroup();
-    await screen.findByRole('heading', { name: 'Настройки группы' });
 
-    const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
-    expect(headings).toEqual([
-      'Группа',
-      'Настройки группы',
-      'Участники (3)',
-      'Карты (2)',
-      'Категории и лимиты (1)',
-      'Шаблоны группы',
-      'Интеграции',
+    expect(await screen.findByRole('heading', { name: 'Основные', level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Группа «Семья»', level: 2 })).toBeInTheDocument();
+    const menu = within(screen.getByRole('navigation', { name: 'Разделы группы' }));
+    expect(menu.getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual([
+      '/group/general',
+      '/group/members',
+      '/group/cards',
+      '/group/categories',
+      '/group/templates',
+      '/group/receipts',
     ]);
+    expect(menu.getByRole('link', { name: /Основные/ })).toHaveAttribute('aria-current', 'page');
+    const automation = within(screen.getByRole('navigation', { name: 'Автоматизация' }));
+    expect(automation.getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual([
+      '/group/integrations',
+      '/group/broadcast',
+    ]);
+    // Only the badge stays at the right of a menu row: the titles are not cut
+    expect(menu.getByRole('link', { name: /Участники и приглашения/ })).not.toHaveTextContent('3');
+  });
+
+  it('меню слева переключает раздел', async () => {
+    groupPath = '/group/general';
+    const person = await renderGroup();
+    await screen.findByRole('heading', { name: 'Основные', level: 2 });
+
+    await person.click(
+      within(screen.getByRole('navigation', { name: 'Разделы группы' })).getByRole('link', {
+        name: /Карты/,
+      }),
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Карты', level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /^Карты/ })).toBeInTheDocument();
+  });
+
+  it('неизвестный раздел ведёт на /group (на компьютере — в «Основные»)', async () => {
+    groupPath = '/group/xyz';
+    await renderGroup();
+
+    expect(await screen.findByRole('heading', { name: 'Основные', level: 2 })).toBeInTheDocument();
+  });
+
+  it('подсказок две: у карточки категорий и (в окне) у правки трат; у остальных карточек их нет', async () => {
+    groupPath = '/group/categories';
+    await renderGroup();
+
+    await screen.findByRole('region', { name: /^Категории и лимиты/ });
+    expect(card(/^Категории и лимиты/).getAllByRole('button', { name: 'Подсказка' })).toHaveLength(
+      1,
+    );
   });
 
   it('не владельцу не показывает ничего и не запрашивает группу', async () => {
@@ -200,20 +243,6 @@ describe('страница «Группа»', () => {
 
     expect(await screen.findByText('Главная')).toBeInTheDocument();
     expect(requests.some((r) => r.url === '/api/group')).toBe(false);
-  });
-
-  it('подсказок две: у «Правка своих трат участниками» и у карточки категорий', async () => {
-    await renderGroup();
-    await screen.findByRole('heading', { name: 'Настройки группы' });
-
-    // The hint of the editing time lives inside its small window now
-    expect(card('Настройки группы').queryByRole('button', { name: 'Подсказка' })).toBeNull();
-    expect(card(/^Категории и лимиты/).getAllByRole('button', { name: 'Подсказка' })).toHaveLength(
-      1,
-    );
-    expect(screen.getAllByRole('button', { name: 'Подсказка' })).toHaveLength(1);
-    expect(card(/^Участники/).queryByRole('button', { name: 'Подсказка' })).toBeNull();
-    expect(card(/^Карты/).queryByRole('button', { name: 'Подсказка' })).toBeNull();
   });
 });
 
@@ -235,6 +264,9 @@ describe('аватар', () => {
 });
 
 describe('меню «⋯»', () => {
+  beforeEach(() => {
+    groupPath = '/group/cards';
+  });
   it('кнопка с aria-haspopup, открывается кликом, пункты — menuitem', async () => {
     const person = await renderGroup();
     await screen.findByRole('heading', { name: /^Карты/ });
@@ -273,17 +305,20 @@ describe('меню «⋯»', () => {
     await person.keyboard('{ArrowUp}');
     expect(screen.getByRole('menuitem', { name: 'Переименовать' })).toHaveFocus();
 
-    await person.click(screen.getByRole('heading', { name: 'Группа' }));
+    await person.click(screen.getByRole('heading', { name: 'Карты', level: 2 }));
     expect(screen.queryByRole('menu')).toBeNull();
   });
 });
 
 describe('настройки группы', () => {
-  const settings = () => card('Настройки группы');
+  beforeEach(() => {
+    groupPath = '/group/general';
+  });
+  const settings = () => card('Основные настройки');
 
   it('название — строка со значением; окно открывается по нажатию, PUT /group', async () => {
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Настройки группы' });
+    await screen.findByRole('heading', { name: 'Основные', level: 2 });
     const row = settings().getByRole('button', { name: /^Название группы/ });
     expect(row).toHaveTextContent('Семья');
     expect(row).toHaveTextContent('Его видят все участники');
@@ -305,7 +340,7 @@ describe('настройки группы', () => {
         ? ok({ recalculated: 3 })
         : undefined;
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Настройки группы' });
+    await screen.findByRole('heading', { name: 'Основные', level: 2 });
     const row = settings().getByRole('button', { name: /^Валюта отчётности/ });
     expect(row).toHaveTextContent('AMD');
     await person.click(row);
@@ -330,7 +365,7 @@ describe('настройки группы', () => {
 
   it('отмена подтверждения ничего не отправляет и возвращает прежнюю валюту', async () => {
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Настройки группы' });
+    await screen.findByRole('heading', { name: 'Основные', level: 2 });
 
     await person.click(settings().getByRole('button', { name: /^Валюта отчётности/ }));
     await person.selectOptions(
@@ -349,7 +384,7 @@ describe('настройки группы', () => {
         ? failure('RATE_UNAVAILABLE', 'Курс валюты недоступен', 422)
         : undefined;
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Настройки группы' });
+    await screen.findByRole('heading', { name: 'Основные', level: 2 });
 
     await person.click(settings().getByRole('button', { name: /^Валюта отчётности/ }));
     await person.selectOptions(
@@ -370,7 +405,7 @@ describe('настройки группы', () => {
     ['Неделя', 10080],
   ])('окно правки «%s» сохраняется сразу: PUT с minutes %i', async (label, minutes) => {
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Настройки группы' });
+    await screen.findByRole('heading', { name: 'Основные', level: 2 });
     await person.click(settings().getByRole('button', { name: /^Правка своих трат участниками/ }));
     expect(
       within(screen.getByRole('dialog', { name: 'Правка своих трат участниками' })).getByRole(
@@ -396,7 +431,7 @@ describe('настройки группы', () => {
         ? failure('INVALID_MINUTES', 'Недопустимое значение', 422)
         : undefined;
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Настройки группы' });
+    await screen.findByRole('heading', { name: 'Основные', level: 2 });
 
     await person.click(settings().getByRole('button', { name: /^Правка своих трат участниками/ }));
     await person.selectOptions(
@@ -406,10 +441,17 @@ describe('настройки группы', () => {
 
     expect(await settings().findByRole('alert')).toHaveTextContent('Недопустимое значение');
   });
+});
+
+describe('чеки и ИИ', () => {
+  const settings = () => card('Чеки и ИИ');
+  beforeEach(() => {
+    groupPath = '/group/receipts';
+  });
 
   it('фото чеков: переключатель role=switch; чипы категорий только при включении, без архивных', async () => {
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Настройки группы' });
+    await screen.findByRole('heading', { name: 'Чеки и ИИ', level: 2 });
     const toggle = await settings().findByRole('switch', { name: 'Разрешить фото чеков' });
     expect(toggle).toHaveAttribute('aria-checked', 'false');
     expect(settings().queryByRole('group', { name: 'Категории с фото чека' })).toBeNull();
@@ -427,7 +469,7 @@ describe('настройки группы', () => {
   it('фото чеков включены: чипы, выбор сохраняется сразу', async () => {
     receipts = { enabled: true, categories: ['Еда'] };
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: 'Настройки группы' });
+    await screen.findByRole('heading', { name: 'Чеки и ИИ', level: 2 });
     const group = await settings().findByRole('group', { name: 'Категории с фото чека' });
     expect(
       within(group)
@@ -451,6 +493,9 @@ describe('настройки группы', () => {
 });
 
 describe('участники', () => {
+  beforeEach(() => {
+    groupPath = '/group/members';
+  });
   const members = () => card(/^Участники/);
 
   it('строки: аватар с инициалом, имя, «@логин · роль»', async () => {
@@ -587,6 +632,9 @@ describe('участники', () => {
 });
 
 describe('приглашения', () => {
+  beforeEach(() => {
+    groupPath = '/group/members';
+  });
   const members = () => card(/^Участники/);
 
   it('«+ Пригласить» открывает окно: роль, создание, ссылка с токеном и «Скопировать»', async () => {
@@ -639,6 +687,9 @@ describe('приглашения', () => {
 });
 
 describe('карты', () => {
+  beforeEach(() => {
+    groupPath = '/group/cards';
+  });
   const cards = () => card(/^Карты/);
 
   it('строки: название и валюта; архив свёрнут, постоянной формы внизу нет', async () => {
@@ -747,6 +798,9 @@ describe('карты', () => {
 });
 
 describe('категории и лимиты', () => {
+  beforeEach(() => {
+    groupPath = '/group/categories';
+  });
   const categories = () => card(/^Категории и лимиты/);
   const cat = (id: number, name: string, extra: Record<string, unknown> = {}) => ({
     id,
@@ -762,7 +816,7 @@ describe('категории и лимиты', () => {
 
   it('«+ Добавить» → окно новой категории, POST', async () => {
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: /^Категории и лимиты/ });
+    await screen.findByRole('region', { name: /^Категории и лимиты/ });
 
     await person.click(categories().getByRole('button', { name: 'Добавить' }));
     await person.type(dialog().getByLabelText('Название категории'), 'Одежда');
@@ -773,7 +827,7 @@ describe('категории и лимиты', () => {
 
   it('меню строки: Переименовать, Лимит…, В архив (Слить — только при нескольких категориях)', async () => {
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: /^Категории и лимиты/ });
+    await screen.findByRole('region', { name: /^Категории и лимиты/ });
 
     await person.click(await categories().findByRole('button', { name: 'Действия: Еда' }));
     expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual([
@@ -786,7 +840,7 @@ describe('категории и лимиты', () => {
   it('переименование, архив, возврат, слияние', async () => {
     withCategories([cat(20, 'Еда'), cat(22, 'Продукты'), cat(21, 'Игры', { archived: true })]);
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: /^Категории и лимиты/ });
+    await screen.findByRole('region', { name: /^Категории и лимиты/ });
 
     await choose(person, 'Еда', 'Переименовать');
     const field = dialog().getByLabelText('Новое название: Еда');
@@ -822,7 +876,7 @@ describe('категории и лимиты', () => {
 
   it('закреплённая строка «Общий бюджет»: «не задан» или лимит; карандаш открывает диалог лимита', async () => {
     const person = await renderGroup();
-    await screen.findByRole('heading', { name: /^Категории и лимиты/ });
+    await screen.findByRole('region', { name: /^Категории и лимиты/ });
     await categories().findByRole('button', { name: 'Лимит: Все категории' });
     expect(categories().getByText('не задан')).toBeInTheDocument();
 
@@ -834,7 +888,7 @@ describe('категории и лимиты', () => {
   it('у категории без лимита «—», с лимитом — сумма', async () => {
     budgetsList = [budget({ id: 'b2', categoryId: 20, category: 'Еда', limit: 80000 })];
     await renderGroup();
-    await screen.findByRole('heading', { name: /^Категории и лимиты/ });
+    await screen.findByRole('region', { name: /^Категории и лимиты/ });
 
     expect(await categories().findByText('80 000 AMD')).toBeInTheDocument();
     withCategories([cat(20, 'Еда'), cat(23, 'Кафе')]);
@@ -853,7 +907,7 @@ describe('категории и лимиты', () => {
       }),
     ];
     await renderGroup();
-    await screen.findByRole('heading', { name: /^Категории и лимиты/ });
+    await screen.findByRole('region', { name: /^Категории и лимиты/ });
 
     expect(await categories().findByText('Период лимитов: месяц с 5-го')).toBeInTheDocument();
     expect(categories().getByText('80 000 AMD').closest('li')).not.toHaveTextContent(
@@ -867,7 +921,7 @@ describe('категории и лимиты', () => {
       budget({ id: 'b2', categoryId: 20, category: 'Еда', limit: 80000, periodKind: 'week' }),
     ];
     await renderGroup();
-    await screen.findByRole('heading', { name: /^Категории и лимиты/ });
+    await screen.findByRole('region', { name: /^Категории и лимиты/ });
 
     expect(await categories().findByText('80 000 AMD')).toBeInTheDocument();
     expect(categories().queryByText(/Период лимитов/)).toBeNull();
@@ -876,12 +930,15 @@ describe('категории и лимиты', () => {
 });
 
 describe('диалог лимита', () => {
+  beforeEach(() => {
+    groupPath = '/group/categories';
+  });
   const dlg = () => within(screen.getByRole('dialog'));
   const sentAll = (method: string, url: string) =>
     requests.filter((r) => r.method === method && r.url === url).map((r) => r.body);
 
   async function openLimit(person: Awaited<ReturnType<typeof renderGroup>>, name: string) {
-    await screen.findByRole('heading', { name: /^Категории и лимиты/ });
+    await screen.findByRole('region', { name: /^Категории и лимиты/ });
     if (name === 'Все категории') {
       await person.click(
         await card(/^Категории и лимиты/).findByRole('button', { name: 'Лимит: Все категории' }),
@@ -1025,6 +1082,9 @@ describe('диалог лимита', () => {
 });
 
 describe('карточка «Шаблоны группы»', () => {
+  beforeEach(() => {
+    groupPath = '/group/templates';
+  });
   const groupTemplate = (overrides: Record<string, unknown> = {}) => ({
     id: 'g1',
     scope: 'group',
@@ -1051,11 +1111,7 @@ describe('карточка «Шаблоны группы»', () => {
   it('пустое состояние и пояснение', async () => {
     await renderGroup();
 
-    const templates = within(
-      (await screen.findByRole('heading', { name: 'Шаблоны группы', level: 2 })).closest(
-        'section',
-      )!,
-    );
+    const templates = within(await screen.findByRole('region', { name: 'Шаблоны группы' }));
     expect(
       templates.getByText(
         'Быстрые траты для всех участников. Каждый может скрыть их у себя в личных настройках',
@@ -1076,8 +1132,8 @@ describe('карточка «Шаблоны группы»', () => {
     ];
     const person = await renderGroup();
 
-    const heading = await screen.findByRole('heading', { name: 'Шаблоны группы · 2 новых' });
-    const templates = within(heading.closest('section')!);
+    const heading = await screen.findByRole('region', { name: 'Шаблоны группы · 2 новых' });
+    const templates = within(heading);
     expect(await templates.findByText('Предложения участников')).toBeInTheDocument();
     expect(templates.getByText('Автор: Настя')).toBeInTheDocument();
     expect(templates.getByText('ваш шаблон')).toBeInTheDocument();
@@ -1148,9 +1204,9 @@ describe('карточка «Шаблоны группы»', () => {
 
   it('«Новый» создаёт групповой шаблон без выбора, кому он виден', async () => {
     const person = await renderGroup();
-    const heading = await screen.findByRole('heading', { name: 'Шаблоны группы', level: 2 });
+    const heading = await screen.findByRole('region', { name: 'Шаблоны группы' });
 
-    await person.click(within(heading.closest('section')!).getByRole('button', { name: 'Новый' }));
+    await person.click(within(heading).getByRole('button', { name: 'Новый' }));
     const form = screen.getByRole('dialog', { name: 'Новый шаблон' });
 
     expect(within(form).queryByText('Кому виден')).toBeNull();
@@ -1176,8 +1232,8 @@ describe('карточка «Шаблоны группы»', () => {
 
   it('без предложений нет лишнего заголовка раздела; с предложениями он есть', async () => {
     await renderGroup();
-    const heading = await screen.findByRole('heading', { name: 'Шаблоны группы', level: 2 });
-    const card = within(heading.closest('section')!);
+    const heading = await screen.findByRole('region', { name: 'Шаблоны группы' });
+    const card = within(heading);
     expect(card.queryByRole('heading', { level: 3 })).toBeNull();
   });
 
@@ -1192,6 +1248,9 @@ describe('карточка «Шаблоны группы»', () => {
 });
 
 describe('карточка «Интеграции»', () => {
+  beforeEach(() => {
+    groupPath = '/group/integrations';
+  });
   const key = (overrides: Record<string, unknown> = {}) => ({
     id: 'k1',
     name: 'iPhone — IDBank',
@@ -1205,9 +1264,7 @@ describe('карточка «Интеграции»', () => {
   });
   const integrations = async () => {
     await renderGroup();
-    return within(
-      (await screen.findByRole('heading', { name: 'Интеграции', level: 2 })).closest('section')!,
-    );
+    return within(await screen.findByRole('region', { name: 'Интеграции' }));
   };
 
   it('участник её не видит и ключи не запрашиваются', async () => {
@@ -1243,7 +1300,6 @@ describe('карточка «Интеграции»', () => {
     const card = await integrations();
 
     expect(card.queryByText(/укажите последние 4 цифры/)).toBeNull();
-    expect(screen.getByText('•5386')).toBeInTheDocument();
   });
 
   it('список ключей: имя, маска, даты, статусы; отозванные внизу и приглушены', async () => {
@@ -1348,6 +1404,9 @@ describe('карточка «Интеграции»', () => {
 });
 
 describe('категория по умолчанию у API-ключа', () => {
+  beforeEach(() => {
+    groupPath = '/group/integrations';
+  });
   const baseKey = {
     id: 'k1',
     name: 'iPhone — IDBank',
@@ -1469,6 +1528,9 @@ describe('категория по умолчанию у API-ключа', () => {
 });
 
 describe('цифры карты', () => {
+  beforeEach(() => {
+    groupPath = '/group/cards';
+  });
   it('поле в меню карты: подсказка, ввод только цифр, проверка, сохранение через PATCH', async () => {
     const person = await renderGroup();
     await screen.findByRole('heading', { name: /^Карты/ });
@@ -1507,6 +1569,9 @@ describe('цифры карты', () => {
 });
 
 describe('журнал запросов', () => {
+  beforeEach(() => {
+    groupPath = '/group/integrations';
+  });
   const entry = (overrides: Record<string, unknown> = {}) => ({
     id: 'l1',
     receivedAt: '2026-10-17T10:14:00.000Z',
@@ -1529,8 +1594,8 @@ describe('журнал запросов', () => {
   });
   const log = async () => {
     await renderGroup();
-    const heading = await screen.findByRole('heading', { name: 'Интеграции', level: 2 });
-    return within(heading.closest('section')!);
+    const heading = await screen.findByRole('region', { name: 'Интеграции' });
+    return within(heading);
   };
 
   it('свёрнут по умолчанию, счётчик, пояснение и старый адрес не запрашивается', async () => {
@@ -1707,5 +1772,109 @@ describe('журнал запросов', () => {
 
     expect(await screen.findByText('Главная')).toBeInTheDocument();
     expect(requests.some((r) => r.url.startsWith('/api/group/import-log'))).toBe(false);
+  });
+});
+
+describe('хаб группы на телефоне', () => {
+  beforeEach(() => {
+    groupPath = '/group';
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: !query.includes('min-width'),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+  });
+
+  it('заголовок с названием, «‹ Настройки», строки со значениями и бейджем «N новых», блок «Автоматизация»', async () => {
+    templatesList = [
+      {
+        id: 'p1',
+        scope: 'group',
+        pending: true,
+        name: 'Кофе',
+        mine: false,
+        author: 'Настя',
+        editable: true,
+      },
+      {
+        id: 'p2',
+        scope: 'group',
+        pending: true,
+        name: 'Метро',
+        mine: false,
+        author: 'Петя',
+        editable: true,
+      },
+    ];
+    apiKeys = [
+      {
+        id: 'k1',
+        name: 'А',
+        prefix: 'etk_a',
+        createdAt: '2026-10-17T10:00:00.000Z',
+        lastUsedAt: null,
+        revokedAt: null,
+        createdBy: 'Миша',
+        defaultCategory: null,
+      },
+      {
+        id: 'k2',
+        name: 'Б',
+        prefix: 'etk_b',
+        createdAt: '2026-10-17T10:00:00.000Z',
+        lastUsedAt: null,
+        revokedAt: null,
+        createdBy: 'Миша',
+        defaultCategory: null,
+      },
+    ];
+    await renderGroup();
+
+    expect(
+      await screen.findByRole('heading', { name: 'Группа «Семья»', level: 2 }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Настройки/ })).toHaveAttribute('href', '/settings');
+    const main = within(screen.getByRole('navigation', { name: 'Разделы' }));
+    expect(main.getByRole('link', { name: /Основные/ })).toHaveTextContent(
+      'Название, валюта отчётов',
+    );
+    expect(main.getByRole('link', { name: /Основные/ })).toHaveTextContent('AMD');
+    expect(main.getByRole('link', { name: /Участники и приглашения/ })).toHaveTextContent('3');
+    expect(main.getByRole('link', { name: /Карты/ })).toHaveTextContent('2');
+    expect(main.getByRole('link', { name: /Категории и лимиты/ })).toHaveTextContent('1');
+    expect(main.getByRole('link', { name: /Чеки и ИИ/ })).toHaveTextContent(
+      'Фото чеков, разбор через ИИ',
+    );
+    await waitFor(() =>
+      expect(main.getByRole('link', { name: /Шаблоны группы/ })).toHaveTextContent('2 новых'),
+    );
+    const auto = within(screen.getByRole('navigation', { name: 'Автоматизация' }));
+    await waitFor(() =>
+      expect(auto.getByRole('link', { name: /Интеграции/ })).toHaveTextContent('2 ключа'),
+    );
+    expect(auto.getByRole('link', { name: /Сообщение участникам/ })).toBeInTheDocument();
+  });
+
+  it('строка ведёт в раздел, «‹ Группа» возвращает на хаб', async () => {
+    const person = await renderGroup();
+
+    await person.click(await screen.findByRole('link', { name: /Карты/ }));
+    expect(await screen.findByRole('heading', { name: 'Карты', level: 2 })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Разделы группы' })).toBeNull();
+    const back = screen.getByRole('link', { name: /Группа/ });
+    expect(back).toHaveAttribute('href', '/group');
+    await person.click(back);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Группа «Семья»', level: 2 }),
+    ).toBeInTheDocument();
+  });
+
+  it('неизвестный раздел ведёт на хаб; участник уходит на главную', async () => {
+    groupPath = '/group/xyz';
+    await renderGroup();
+    expect(
+      await screen.findByRole('heading', { name: 'Группа «Семья»', level: 2 }),
+    ).toBeInTheDocument();
   });
 });

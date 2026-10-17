@@ -1,3 +1,4 @@
+import { Link } from 'react-router';
 import type { GroupCard, GroupCategory } from '../../group/api/group.api.ts';
 import { SettingsSection } from '../../settings/components/SettingsSection.tsx';
 import { ApiKeysSection } from './ApiKeysSection.tsx';
@@ -24,15 +25,12 @@ export function IntegrationsCard({
       {!hasLast4 && (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           Чтобы расходы попадали на карту,{' '}
-          <button
-            type="button"
-            onClick={() =>
-              document.getElementById('group-cards')?.scrollIntoView?.({ behavior: 'smooth' })
-            }
+          <Link
+            to="/group/cards"
             className="font-medium text-indigo-600 underline dark:text-indigo-400"
           >
             укажите последние 4 цифры в настройках карты
-          </button>
+          </Link>
         </p>
       )}
       <ApiKeysSection

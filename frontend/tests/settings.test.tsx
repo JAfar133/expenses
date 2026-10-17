@@ -80,13 +80,16 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
+// The settings are sections now: a test opens the section it checks
+let startPath = '/settings/account';
+
 function renderSettings() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/settings']}>
+      <MemoryRouter initialEntries={[startPath]}>
         <Routes>
-          <Route path="settings" element={<SettingsPage />} />
+          <Route path="settings/*" element={<SettingsPage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -95,23 +98,27 @@ function renderSettings() {
 }
 
 const puts = () => requests.filter((r) => r.method === 'PUT' && r.url === '/api/preferences');
-const section = (name: string) => screen.getByRole('heading', { name }).closest('section')!;
+const section = (name: string) => screen.getByRole('region', { name });
 
 describe('страница настроек', () => {
-  it('шесть карточек: аккаунт, безопасность, шаблоны, уведомления, оформление, настройки аналитики; прав пользователей нет', async () => {
+  beforeEach(() => {
+    startPath = '/settings/account';
+  });
+
+  it('на компьютере /settings открывает «Аккаунт»; слева меню разделов, справа выбранный; прав пользователей нет', async () => {
+    startPath = '/settings';
     renderSettings();
 
-    expect(await screen.findByRole('heading', { name: 'Настройки' })).toBeInTheDocument();
-    const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
-    expect(headings).toEqual([
-      'Настройки',
-      'Аккаунт',
-      'Безопасность',
-      'Шаблоны',
-      'Уведомления',
-      'Оформление',
-      'Настройки аналитики',
-    ]);
+    expect(await screen.findByRole('heading', { name: 'Аккаунт', level: 2 })).toBeInTheDocument();
+    const menu = within(screen.getByRole('navigation', { name: 'Разделы настроек' }));
+    const titles = ['Аккаунт', 'Шаблоны расходов', 'Уведомления', 'Оформление', 'Аналитика'];
+    const links = menu.getAllByRole('link');
+    expect(links).toHaveLength(5);
+    links.forEach((link, index) => expect(link.textContent).toContain(titles[index]));
+    expect(menu.getByRole('link', { name: /Аккаунт/ })).toHaveAttribute('aria-current', 'page');
+    // The account section: the account card and, under it, the security card
+    expect(section('Аккаунт')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Безопасность' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Права пользователей' })).toBeNull();
     expect(requests.some((r) => r.url === '/api/users')).toBe(false);
   });
@@ -127,6 +134,9 @@ describe('страница настроек', () => {
 });
 
 describe('аккаунт', () => {
+  beforeEach(() => {
+    startPath = '/settings/account';
+  });
   const account = () => within(section('Аккаунт'));
 
   it('имя — поле; логин — обычный текст с подписью «Не изменяется»; карта и пояс — селекты', async () => {
@@ -311,6 +321,9 @@ describe('аккаунт', () => {
 });
 
 describe('безопасность: смена пароля', () => {
+  beforeEach(() => {
+    startPath = '/settings/account';
+  });
   const security = () => within(section('Безопасность'));
   const dialog = () => within(screen.getByRole('dialog'));
 
@@ -495,13 +508,16 @@ describe('безопасность: смена пароля', () => {
 });
 
 describe('настройки аналитики', () => {
+  beforeEach(() => {
+    startPath = '/settings/analytics';
+  });
   const analytics = () => within(section('Настройки аналитики'));
   const sectionButton = (name: string) =>
     analytics().getByRole('button', { name: new RegExp(`^${name}`) });
 
   it('сверху одна подпись; общие настройки видны сразу и без длинных пояснений', async () => {
     renderSettings();
-    await screen.findByRole('heading', { name: 'Настройки аналитики' });
+    await screen.findByRole('heading', { name: 'Аналитика', level: 2 });
 
     expect(
       analytics().getByText(
@@ -521,7 +537,7 @@ describe('настройки аналитики', () => {
   it('аккордеон: три секции закрыты, под заголовком текущие значения, aria-expanded/aria-controls', async () => {
     server = { 'category.type': 'pie', 'category.tab': 'structure' };
     renderSettings();
-    await screen.findByRole('heading', { name: 'Настройки аналитики' });
+    await screen.findByRole('heading', { name: 'Аналитика', level: 2 });
 
     for (const name of ['Динамика расходов', 'Расходы по категориям', 'Сравнение месяцев']) {
       const button = sectionButton(name);
@@ -538,7 +554,7 @@ describe('настройки аналитики', () => {
 
   it('можно открыть несколько секций одновременно; у открытой сводки под заголовком нет', async () => {
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Настройки аналитики' });
+    await screen.findByRole('heading', { name: 'Аналитика', level: 2 });
 
     await person.click(sectionButton('Динамика расходов'));
     await person.click(sectionButton('Сравнение месяцев'));
@@ -561,7 +577,7 @@ describe('настройки аналитики', () => {
 
   it('все настройки на месте: в открытых секциях есть переключатели всех ключей', async () => {
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Настройки аналитики' });
+    await screen.findByRole('heading', { name: 'Аналитика', level: 2 });
     for (const name of ['Динамика расходов', 'Расходы по категориям', 'Сравнение месяцев']) {
       await person.click(sectionButton(name));
     }
@@ -584,7 +600,7 @@ describe('настройки аналитики', () => {
 
   it('выбор сразу сохраняется на сервере (только изменённая настройка)', async () => {
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Настройки аналитики' });
+    await screen.findByRole('heading', { name: 'Аналитика', level: 2 });
     await person.click(sectionButton('Динамика расходов'));
 
     const type = analytics().getAllByRole('radiogroup', { name: 'Тип графика' })[0]!;
@@ -598,7 +614,7 @@ describe('настройки аналитики', () => {
   it('«Сбросить настройки аналитики» просит подтверждение; «Отмена» ничего не отправляет', async () => {
     server = { 'daily.type': 'area' };
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Настройки аналитики' });
+    await screen.findByRole('heading', { name: 'Аналитика', level: 2 });
 
     await person.click(analytics().getByRole('button', { name: 'Сбросить настройки аналитики' }));
     const dialog = within(screen.getByRole('dialog'));
@@ -614,7 +630,7 @@ describe('настройки аналитики', () => {
   it('подтверждённый сброс отправляет значения по умолчанию для настроек аналитики, тему не трогает', async () => {
     server = { 'daily.type': 'area', 'category.type': 'pie' };
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Настройки аналитики' });
+    await screen.findByRole('heading', { name: 'Аналитика', level: 2 });
 
     await person.click(analytics().getByRole('button', { name: 'Сбросить настройки аналитики' }));
     await person.click(
@@ -636,7 +652,7 @@ describe('настройки аналитики', () => {
   it('сервер не принял: выбор остаётся в этом браузере и показано предупреждение', async () => {
     preferencesPut = () => failure('X', 'сбой', 500);
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Настройки аналитики' });
+    await screen.findByRole('heading', { name: 'Аналитика', level: 2 });
     await person.click(sectionButton('Динамика расходов'));
 
     const type = analytics().getAllByRole('radiogroup', { name: 'Тип графика' })[0]!;
@@ -650,11 +666,14 @@ describe('настройки аналитики', () => {
 });
 
 describe('оформление: тема', () => {
+  beforeEach(() => {
+    startPath = '/settings/appearance';
+  });
   const appearance = () => within(section('Оформление'));
 
   it('три варианта: «Системная» (по умолчанию), «Светлая», «Тёмная»', async () => {
     renderSettings();
-    await screen.findByRole('heading', { name: 'Оформление' });
+    await screen.findByRole('heading', { name: 'Оформление', level: 2 });
 
     const group = appearance().getByRole('radiogroup', { name: 'Тема приложения' });
     expect(
@@ -667,7 +686,7 @@ describe('оформление: тема', () => {
 
   it('один округлый трек с тремя равными сегментами: иконка над подписью, выбранный — белая приподнятая плашка', async () => {
     renderSettings();
-    await screen.findByRole('heading', { name: 'Оформление' });
+    await screen.findByRole('heading', { name: 'Оформление', level: 2 });
 
     const group = appearance().getByRole('radiogroup', { name: 'Тема приложения' });
     expect(appearance().getByText('Тема приложения')).toBeInTheDocument();
@@ -688,7 +707,7 @@ describe('оформление: тема', () => {
 
   it('стрелки двигают выбор и сохраняют его; фокус переходит на новый сегмент', async () => {
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Оформление' });
+    await screen.findByRole('heading', { name: 'Оформление', level: 2 });
     const group = appearance().getByRole('radiogroup', { name: 'Тема приложения' });
     within(group).getByRole('radio', { name: 'Системная' }).focus();
 
@@ -703,7 +722,7 @@ describe('оформление: тема', () => {
 
   it('выбор сохраняется на сервере ключом theme и отражается в localStorage', async () => {
     const person = renderSettings();
-    await screen.findByRole('heading', { name: 'Оформление' });
+    await screen.findByRole('heading', { name: 'Оформление', level: 2 });
 
     await person.click(appearance().getByRole('radio', { name: 'Тёмная' }));
 
@@ -715,7 +734,7 @@ describe('оформление: тема', () => {
   it('сохранённая на сервере тема показана выбранной', async () => {
     server = { theme: 'light' };
     renderSettings();
-    await screen.findByRole('heading', { name: 'Оформление' });
+    await screen.findByRole('heading', { name: 'Оформление', level: 2 });
 
     await waitFor(() => expect(appearance().getByRole('radio', { name: 'Светлая' })).toBeChecked());
   });

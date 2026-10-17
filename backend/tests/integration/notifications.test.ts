@@ -124,7 +124,7 @@ describe('проблемы импорта', () => {
         type: 'import_problem',
         title: 'Не удалось добавить расход',
         body: expect.stringContaining('Wallet:'),
-        link: '/group',
+        link: '/group/integrations',
       }),
     ]);
     expect((await feed('nastya')).items).toHaveLength(0);
