@@ -1,0 +1,62 @@
+/** An earlier expense of the group: its name and the category it went to (newest first). */
+export interface PastExpense {
+  name: string;
+  category: string;
+}
+
+/** Words that say nothing about which shop it is. */
+const NOISE = new Set([
+  'llc',
+  'ltd',
+  'cjsc',
+  'ojsc',
+  'inc',
+  'co',
+  'shop',
+  'store',
+  'market',
+  'ооо',
+  'зао',
+  'оао',
+  'ип',
+  'магазин',
+]);
+/** A shared word shorter than this is too common to tell two shops apart. */
+const MIN_SHARED_WORD = 4;
+
+/** «URARTU ZAQYAN, AM» → ['urartu', 'zaqyan']: lower case, letters and digits only, no noise, no bare numbers. */
+export function merchantWords(name: string): string[] {
+  return (name.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter(
+    (word) => !NOISE.has(word) && !/^\d+$/.test(word),
+  );
+}
+
+/**
+ * The category the group already uses for this shop. The same name wins; otherwise a name that is part of the other
+ * («Urartu» and «URARTU ZAQYAN») counts as the same shop, if what they share is a real word, not «a» or «of».
+ * The most specific match wins, and among equal ones the newest expense. `undefined` when nothing is alike.
+ */
+export function categoryForMerchant(merchant: string, history: PastExpense[]): string | undefined {
+  const wanted = merchantWords(merchant);
+  if (wanted.length === 0) return undefined;
+
+  let best: { score: number; category: string } | undefined;
+  for (const past of history) {
+    const score = similarity(wanted, merchantWords(past.name));
+    // `history` is newest first: a later entry replaces the best one only when it is strictly better
+    if (score > 0 && (!best || score > best.score)) best = { score, category: past.category };
+  }
+  return best?.category;
+}
+
+/** 0: not alike; 3: the same words; 1..2: one name is part of the other (the closer in length, the higher). */
+function similarity(a: string[], b: string[]): number {
+  if (a.length === 0 || b.length === 0) return 0;
+  const setA = new Set(a);
+  const setB = new Set(b);
+  const shared = [...setA].filter((word) => setB.has(word));
+  if (shared.length === setA.size && shared.length === setB.size) return 3;
+  const part = shared.length === setA.size || shared.length === setB.size;
+  if (!part || !shared.some((word) => word.length >= MIN_SHARED_WORD)) return 0;
+  return 1 + shared.length / Math.max(setA.size, setB.size);
+}

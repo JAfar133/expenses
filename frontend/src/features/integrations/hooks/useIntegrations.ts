@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createApiKey, fetchApiKeys, fetchImports, revokeApiKey } from '../api/integrations.api.ts';
+import {
+  createApiKey,
+  fetchApiKeys,
+  fetchImports,
+  revokeApiKey,
+  updateApiKey,
+} from '../api/integrations.api.ts';
 
 const KEYS = ['group', 'api-keys'];
 const IMPORTS = ['group', 'imports'];
@@ -28,6 +34,21 @@ export function useRevokeApiKey() {
   return useMutation({
     retry: false,
     mutationFn: revokeApiKey,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: KEYS }),
+  });
+}
+
+export function useUpdateApiKey() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    retry: false,
+    mutationFn: ({
+      id,
+      patch,
+    }: {
+      id: string;
+      patch: { name?: string; defaultCategory?: string | null };
+    }) => updateApiKey(id, patch),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: KEYS }),
   });
 }

@@ -134,6 +134,8 @@ export interface ExpenseListItem {
   updatedBy: string | null;
   /** A receipt photo is attached */
   hasReceipt: boolean;
+  /** The expense was created from a bank push notification (v5) */
+  fromBank: boolean;
   /** Positions of the receipt and how many of them the AI generated */
   itemsCount: number;
   aiItemsCount: number;

@@ -135,6 +135,22 @@ describe('импорт уведомления IDBank', () => {
     ]);
   });
 
+  it('расход из банка помечен в списке операций, введённый вручную нет', async () => {
+    const { key } = await createKey();
+    await send(key, notification());
+    await database.query(
+      "INSERT INTO expenses (id, date, card, category, name, amount, source, excel_status, created_by, group_id) SELECT gen_random_uuid(), '2026-10-16', 'Миша', 'кафе', 'Вручную', 5, 'app', 'pending', 'misha', id FROM groups",
+    );
+
+    const items = (await call('GET', '/api/expenses', 'misha')).json().data.items as {
+      name: string;
+      fromBank: boolean;
+    }[];
+
+    expect(items.find((item) => item.name === 'URARTU ZAQYAN')?.fromBank).toBe(true);
+    expect(items.find((item) => item.name === 'Вручную')?.fromBank).toBe(false);
+  });
+
   it('повторная отправка того же уведомления: успех без второго расхода', async () => {
     const { key } = await createKey();
     const first = (await send(key, notification())).json();
@@ -180,6 +196,22 @@ describe('импорт уведомления IDBank', () => {
     expect(imported?.category).toBe('продукты');
   });
 
+  it('категория по похожему названию: «Urartu» и «URARTU ZAQYAN» один магазин', async () => {
+    const { key } = await createKey();
+    await database.query(
+      "INSERT INTO categories (group_id, name, position) SELECT id, 'бытовые расходы', 9 FROM groups",
+    );
+    await database.query(
+      "INSERT INTO expenses (id, date, card, category, name, amount, source, excel_status, created_by, group_id) SELECT gen_random_uuid(), '2026-10-02', 'Миша', 'бытовые расходы', 'Urartu', 400, 'app', 'pending', 'misha', id FROM groups",
+    );
+
+    await send(key, notification());
+
+    expect((await expenses()).find((row) => row.name === 'URARTU ZAQYAN')?.category).toBe(
+      'бытовые расходы',
+    );
+  });
+
   it('другая валюта сохраняется в своей валюте', async () => {
     const { key } = await createKey();
 
@@ -193,6 +225,71 @@ describe('импорт уведомления IDBank', () => {
       'SELECT original_currency FROM expenses WHERE amount IS NOT NULL ORDER BY created_at DESC LIMIT 1',
     );
     expect(rows[0]!.original_currency).toBe('USD');
+  });
+});
+
+describe('категория по умолчанию у ключа', () => {
+  it('задаётся при создании и меняется; применяется, когда по продавцу ничего не известно', async () => {
+    const created = await call('POST', '/api/group/api-keys', 'misha', {
+      name: 'iPhone',
+      defaultCategory: 'продукты',
+    });
+    const { id, key } = created.json().data;
+
+    expect((await call('GET', '/api/group/api-keys', 'misha')).json().data[0].defaultCategory).toBe(
+      'продукты',
+    );
+    await send(key, notification());
+    expect((await expenses())[0]!.category).toBe('продукты');
+
+    expect(
+      (await call('PATCH', `/api/group/api-keys/${id}`, 'misha', { defaultCategory: 'кафе' }))
+        .statusCode,
+    ).toBe(200);
+    await send(
+      key,
+      notification(BODY.replace('20:40', '21:00').replace('URARTU ZAQYAN', 'ANOTHER PLACE')),
+    );
+    expect((await expenses()).map((row) => row.category).sort()).toEqual(['кафе', 'продукты']);
+
+    await call('PATCH', `/api/group/api-keys/${id}`, 'misha', { defaultCategory: null });
+    expect((await call('GET', '/api/group/api-keys', 'misha')).json().data[0].defaultCategory).toBe(
+      null,
+    );
+  });
+
+  it('прежняя категория продавца важнее категории ключа', async () => {
+    const { key } = (
+      await call('POST', '/api/group/api-keys', 'misha', { name: 'k', defaultCategory: 'продукты' })
+    ).json().data;
+    await database.query(
+      "INSERT INTO expenses (id, date, card, category, name, amount, source, excel_status, created_by, group_id) SELECT gen_random_uuid(), '2026-10-02', 'Миша', 'кафе', 'Urartu', 400, 'app', 'pending', 'misha', id FROM groups",
+    );
+
+    await send(key, notification());
+
+    expect((await expenses()).find((row) => row.name === 'URARTU ZAQYAN')?.category).toBe('кафе');
+  });
+
+  it('неизвестная категория отвергается, менять может только владелец', async () => {
+    expect(
+      (
+        await call('POST', '/api/group/api-keys', 'misha', {
+          name: 'k',
+          defaultCategory: 'нет такой',
+        })
+      ).statusCode,
+    ).toBe(422);
+    const { id } = await createKey();
+
+    expect(
+      (await call('PATCH', `/api/group/api-keys/${id}`, 'nastya', { defaultCategory: 'кафе' }))
+        .statusCode,
+    ).toBe(403);
+    expect(
+      (await call('PATCH', `/api/group/api-keys/${id}`, 'misha', { defaultCategory: 'нет такой' }))
+        .statusCode,
+    ).toBe(422);
   });
 });
 

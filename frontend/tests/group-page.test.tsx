@@ -1197,6 +1197,7 @@ describe('карточка «Интеграции»', () => {
     lastUsedAt: null,
     revokedAt: null,
     createdBy: 'Миша',
+    defaultCategory: null,
     ...overrides,
   });
   const integrations = async () => {
@@ -1412,6 +1413,127 @@ describe('карточка «Интеграции»', () => {
     expect(card.getByText('Несколько карт с цифрами 1111')).toBeInTheDocument();
     expect(card.getByText('Ошибка')).toBeInTheDocument();
     expect(card.getAllByText(/•5386/).length).toBeGreaterThan(0);
+  });
+});
+
+describe('категория по умолчанию у API-ключа', () => {
+  const baseKey = {
+    id: 'k1',
+    name: 'iPhone — IDBank',
+    prefix: 'etk_ab12',
+    createdAt: '2026-10-17T10:00:00.000Z',
+    lastUsedAt: null,
+    revokedAt: null,
+    createdBy: 'Миша',
+    defaultCategory: null,
+  };
+
+  it('в строке ключа видно категорию или «не выбрана»', async () => {
+    apiKeys = [
+      { ...baseKey, defaultCategory: 'Еда' },
+      { ...baseKey, id: 'k2', name: 'Планшет' },
+    ];
+    await renderGroup();
+
+    expect(await screen.findByText('Категория по умолчанию: Еда')).toBeInTheDocument();
+    expect(screen.getByText('Категория по умолчанию: не выбрана')).toBeInTheDocument();
+  });
+
+  it('создание: выбор из активных категорий, пояснение и первый пункт; категория уходит в POST', async () => {
+    const person = await renderGroup();
+
+    await person.click(await screen.findByRole('button', { name: 'Создать API-ключ' }));
+    const select = screen.getByLabelText('Категория по умолчанию');
+    const options = within(select)
+      .getAllByRole('option')
+      .map((option) => option.textContent);
+    expect(options).toEqual(['Не выбрана (будет «другое»)', 'Еда']);
+    expect(
+      screen.getByText('Для расходов из банка, если по такому магазину у вас ещё нет трат'),
+    ).toBeInTheDocument();
+    await person.selectOptions(select, 'Еда');
+    await person.click(screen.getByRole('button', { name: 'Создать' }));
+
+    await screen.findByRole('dialog', { name: 'Ключ создан' });
+    expect(sent('POST', '/api/group/api-keys')).toEqual({
+      name: 'iPhone — IDBank',
+      defaultCategory: 'Еда',
+    });
+  });
+
+  it('без выбора категории в POST её нет', async () => {
+    const person = await renderGroup();
+    await person.click(await screen.findByRole('button', { name: 'Создать API-ключ' }));
+    await person.click(screen.getByRole('button', { name: 'Создать' }));
+
+    await screen.findByRole('dialog', { name: 'Ключ создан' });
+    expect(sent('POST', '/api/group/api-keys')).toEqual({ name: 'iPhone — IDBank' });
+  });
+
+  it('«Изменить» открывает окно с именем и категорией, PATCH шлёт изменения', async () => {
+    apiKeys = [{ ...baseKey, defaultCategory: 'Еда' }];
+    const person = await renderGroup();
+
+    await person.click(await screen.findByRole('button', { name: 'Действия: iPhone — IDBank' }));
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'Изменить',
+      'Отозвать',
+    ]);
+    await person.click(screen.getByRole('menuitem', { name: 'Изменить' }));
+    const name = screen.getByLabelText('Название ключа');
+    expect(name).toHaveValue('iPhone — IDBank');
+    expect(screen.getByLabelText('Категория по умолчанию')).toHaveValue('Еда');
+    await person.clear(name);
+    await person.type(name, 'Планшет');
+    await person.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() =>
+      expect(sent('PATCH', '/api/group/api-keys/k1')).toEqual({
+        name: 'Планшет',
+        defaultCategory: 'Еда',
+      }),
+    );
+  });
+
+  it('выбор «Не выбрана» очищает категорию: PATCH с null', async () => {
+    apiKeys = [{ ...baseKey, defaultCategory: 'Еда' }];
+    const person = await renderGroup();
+
+    await person.click(await screen.findByRole('button', { name: 'Действия: iPhone — IDBank' }));
+    await person.click(screen.getByRole('menuitem', { name: 'Изменить' }));
+    await person.selectOptions(screen.getByLabelText('Категория по умолчанию'), '');
+    await person.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() =>
+      expect(sent('PATCH', '/api/group/api-keys/k1')).toEqual({
+        name: 'iPhone — IDBank',
+        defaultCategory: null,
+      }),
+    );
+  });
+
+  it('ошибка сервера (категория не из списка) показывается в окне, окно остаётся', async () => {
+    apiKeys = [{ ...baseKey }];
+    override = (method, url) =>
+      method === 'PATCH' && url === '/api/group/api-keys/k1'
+        ? failure('INVALID_CATEGORY', 'Выберите категорию из списка', 422)
+        : undefined;
+    const person = await renderGroup();
+
+    await person.click(await screen.findByRole('button', { name: 'Действия: iPhone — IDBank' }));
+    await person.click(screen.getByRole('menuitem', { name: 'Изменить' }));
+    await person.click(screen.getByRole('button', { name: 'Сохранить' }));
+
+    expect(await screen.findByText('Выберите категорию из списка')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /Изменить ключ/ })).toBeInTheDocument();
+  });
+
+  it('у отозванного ключа меню нет', async () => {
+    apiKeys = [{ ...baseKey, revokedAt: '2026-10-16T10:00:00.000Z' }];
+    await renderGroup();
+
+    expect(await screen.findByText('Отозван')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Действия: iPhone — IDBank' })).toBeNull();
   });
 });
 

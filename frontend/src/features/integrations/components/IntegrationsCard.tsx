@@ -1,11 +1,17 @@
-import type { GroupCard } from '../../group/api/group.api.ts';
+import type { GroupCard, GroupCategory } from '../../group/api/group.api.ts';
 import { SettingsSection } from '../../settings/components/SettingsSection.tsx';
 import { ApiKeysSection } from './ApiKeysSection.tsx';
 import { ImportsSection } from './ImportsSection.tsx';
 import { SetupInstructions } from './SetupInstructions.tsx';
 
 /** «Интеграции» on the owner's page: API keys, the iPhone setup instruction and the history of imports. */
-export function IntegrationsCard({ cards }: { cards: GroupCard[] }) {
+export function IntegrationsCard({
+  cards,
+  categories,
+}: {
+  cards: GroupCard[];
+  categories: GroupCategory[];
+}) {
   const hasLast4 = cards.some((card) => !card.archived && card.last4);
 
   return (
@@ -28,7 +34,11 @@ export function IntegrationsCard({ cards }: { cards: GroupCard[] }) {
           </button>
         </p>
       )}
-      <ApiKeysSection />
+      <ApiKeysSection
+        categories={categories
+          .filter((category) => !category.archived)
+          .map((category) => category.name)}
+      />
       <details className="rounded-xl border border-zinc-200 dark:border-zinc-800">
         <summary className="flex min-h-11 cursor-pointer items-center px-3 text-sm font-medium">
           Как настроить автоматизацию на iPhone

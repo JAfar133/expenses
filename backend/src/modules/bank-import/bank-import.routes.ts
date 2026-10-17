@@ -66,10 +66,17 @@ export const bankImportRoutes =
     }));
 
     app.post('/group/api-keys', async (request, reply) => {
-      const body = (request.body ?? {}) as { name?: unknown };
-      const created = await keys.create(request.user!, body.name);
+      const body = (request.body ?? {}) as { name?: unknown; defaultCategory?: unknown };
+      const created = await keys.create(request.user!, body.name, body.defaultCategory);
       // The key itself is in this response only: it cannot be read again
       return reply.code(201).send({ success: true, data: created });
+    });
+
+    /** Body: `{ name?, defaultCategory? }` (`defaultCategory: null` removes it). */
+    app.patch('/group/api-keys/:id', async (request) => {
+      const body = (request.body ?? {}) as { name?: unknown; defaultCategory?: unknown };
+      await keys.update(request.user!, idOf(request), body);
+      return { success: true };
     });
 
     app.delete('/group/api-keys/:id', async (request) => {

@@ -993,3 +993,27 @@ describe('правка участником своих трат', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('может только владелец группы');
   });
 });
+
+describe('операции: пометка «из уведомления банка»', () => {
+  const TEXT = 'Добавлено автоматически из уведомления банка';
+
+  it('у записи из банка есть значок с доступным именем и подсказкой, в таблице и в списке для телефона', async () => {
+    serve([item(1, { fromBank: true }), item(2)]);
+    renderAnalytics(OPS);
+    await screen.findByRole('table', { name: 'Операции' });
+
+    const marks = await screen.findAllByRole('img', { name: TEXT });
+    expect(marks).toHaveLength(2);
+    expect(marks[0]).toHaveAttribute('title', TEXT);
+    expect(within(rowOf('Позиция 1')).getByRole('img', { name: TEXT })).toBeInTheDocument();
+    expect(within(rowOf('Позиция 2')).queryByRole('img', { name: TEXT })).toBeNull();
+  });
+
+  it('без fromBank значка нет', async () => {
+    serve([item(1, { fromBank: false }), item(2)]);
+    renderAnalytics(OPS);
+    await screen.findByRole('table', { name: 'Операции' });
+
+    expect(screen.queryByRole('img', { name: TEXT })).toBeNull();
+  });
+});

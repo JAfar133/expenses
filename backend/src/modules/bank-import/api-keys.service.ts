@@ -24,13 +24,14 @@ export class ApiKeysService {
   constructor(private readonly repository: ApiKeysRepository) {}
 
   /** Only the owner of the group manages keys. */
-  async create(owner: AuthUser, name: unknown): Promise<{ id: string; key: string }> {
+  async create(
+    owner: AuthUser,
+    name: unknown,
+    defaultCategory?: unknown,
+  ): Promise<{ id: string; key: string }> {
     const groupId = this.requireOwner(owner);
-    const clean = typeof name === 'string' ? name.trim() : '';
-    if (!clean) throw validationError('INVALID_NAME', 'Введите название ключа');
-    if (clean.length > MAX_NAME) {
-      throw validationError('INVALID_NAME', `Название не длиннее ${MAX_NAME} символов`);
-    }
+    const clean = this.cleanName(name);
+    const defaultCategoryId = await this.categoryIdOf(groupId, defaultCategory);
     const active = (await this.repository.list(groupId)).filter((key) => !key.revokedAt);
     if (active.length >= MAX_KEYS) {
       throw new AppError(409, 'TOO_MANY_KEYS', 'Слишком много активных ключей: отзовите ненужные');
@@ -42,12 +43,24 @@ export class ApiKeysService {
       name: clean,
       prefix: key.slice(0, SHOWN_CHARS),
       hash: hashKey(key),
+      defaultCategoryId: defaultCategoryId ?? null,
     });
     return { id, key };
   }
 
   async list(owner: AuthUser): Promise<ApiKeyView[]> {
     return this.repository.list(this.requireOwner(owner));
+  }
+
+  /** Renames a key and/or sets its default category (`null` removes it). */
+  async update(owner: AuthUser, id: string, patch: { name?: unknown; defaultCategory?: unknown }) {
+    const groupId = this.requireOwner(owner);
+    const update: { name?: string; defaultCategoryId?: string | null } = {};
+    if (patch.name !== undefined) update.name = this.cleanName(patch.name);
+    if (patch.defaultCategory !== undefined) {
+      update.defaultCategoryId = (await this.categoryIdOf(groupId, patch.defaultCategory)) ?? null;
+    }
+    if (!(await this.repository.update(groupId, id, update))) throw notFoundError();
   }
 
   async revoke(owner: AuthUser, id: string): Promise<void> {
@@ -60,6 +73,24 @@ export class ApiKeysService {
     const key = await this.repository.findActive(hashKey(presented));
     if (key) await this.repository.touch(key.id);
     return key;
+  }
+
+  private cleanName(name: unknown): string {
+    const clean = typeof name === 'string' ? name.trim() : '';
+    if (!clean) throw validationError('INVALID_NAME', 'Введите название ключа');
+    if (clean.length > MAX_NAME) {
+      throw validationError('INVALID_NAME', `Название не длиннее ${MAX_NAME} символов`);
+    }
+    return clean;
+  }
+
+  /** A category of the group by its name; undefined for «none»; an unknown name is an error. */
+  private async categoryIdOf(groupId: string, name: unknown): Promise<string | undefined> {
+    if (name === undefined || name === null || name === '') return undefined;
+    const id =
+      typeof name === 'string' ? await this.repository.categoryId(groupId, name) : undefined;
+    if (!id) throw validationError('INVALID_CATEGORY', 'Выберите категорию из списка');
+    return id;
   }
 
   private requireOwner(user: AuthUser): string {

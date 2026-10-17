@@ -1,20 +1,27 @@
 import { useState } from 'react';
 import { ActionMenu } from '../../../shared/ui/ActionMenu.tsx';
 import { Notice } from '../../../shared/ui/Notice.tsx';
-import { KeyIcon, PlusIcon, TrashIcon } from '../../../shared/ui/icons.tsx';
+import { KeyIcon, PencilIcon, PlusIcon, TrashIcon } from '../../../shared/ui/icons.tsx';
 import { ConfirmDialog } from '../../analytics/components/ConfirmDialog.tsx';
 import { toErrorMessage } from '../../group/model/error-message.ts';
 import type { ApiKey } from '../api/integrations.api.ts';
-import { useApiKeys, useCreateApiKey, useRevokeApiKey } from '../hooks/useIntegrations.ts';
+import {
+  useApiKeys,
+  useCreateApiKey,
+  useRevokeApiKey,
+  useUpdateApiKey,
+} from '../hooks/useIntegrations.ts';
 import { formatDate, lastUsedText } from '../model/format.ts';
-import { CreateKeyDialog } from './CreateKeyDialog.tsx';
+import { KeyDialog } from './KeyDialog.tsx';
 import { KeyCreatedDialog } from './KeyCreatedDialog.tsx';
 
 /** «API-ключи»: the list (active first, revoked muted), create (the key is shown once) and revoke. */
-export function ApiKeysSection() {
+export function ApiKeysSection({ categories }: { categories: string[] }) {
   const query = useApiKeys();
   const create = useCreateApiKey();
   const revoke = useRevokeApiKey();
+  const update = useUpdateApiKey();
+  const [editing, setEditing] = useState<ApiKey | null>(null);
   const [creating, setCreating] = useState(false);
   // The full key lives only here, only while its window is open
   const [issued, setIssued] = useState<string | null>(null);
@@ -56,11 +63,22 @@ export function ApiKeysSection() {
           <div className="truncate text-xs text-zinc-500 dark:text-zinc-400">
             Создан {formatDate(key.createdAt)} · {lastUsedText(key.lastUsedAt)}
           </div>
+          <div className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+            Категория по умолчанию: {key.defaultCategory ?? 'не выбрана'}
+          </div>
         </div>
         {!off && (
           <ActionMenu
             label={`Действия: ${key.name}`}
             actions={[
+              {
+                label: 'Изменить',
+                icon: <PencilIcon />,
+                onSelect: () => {
+                  update.reset();
+                  setEditing(key);
+                },
+              },
               {
                 label: 'Отозвать',
                 icon: <TrashIcon />,
@@ -107,17 +125,37 @@ export function ApiKeysSection() {
       {revoke.isError && <Notice variant="error">{toErrorMessage(revoke.error)}</Notice>}
 
       {creating && issued === null && (
-        <CreateKeyDialog
+        <KeyDialog
+          title="Новый API-ключ"
+          submitLabel="Создать"
+          categories={categories}
           busy={create.isPending}
           error={create.error}
           onClose={() => setCreating(false)}
-          onSubmit={(name) =>
-            create.mutate(name, {
-              onSuccess: (result) => {
-                setCreating(false);
-                setIssued(result.key);
+          onSubmit={({ name, defaultCategory }) =>
+            create.mutate(
+              { name, ...(defaultCategory ? { defaultCategory } : {}) },
+              {
+                onSuccess: (result) => {
+                  setCreating(false);
+                  setIssued(result.key);
+                },
               },
-            })
+            )
+          }
+        />
+      )}
+      {editing && (
+        <KeyDialog
+          title={`Изменить ключ: ${editing.name}`}
+          submitLabel="Сохранить"
+          initial={{ name: editing.name, defaultCategory: editing.defaultCategory }}
+          categories={categories}
+          busy={update.isPending}
+          error={update.error}
+          onClose={() => setEditing(null)}
+          onSubmit={(values) =>
+            update.mutate({ id: editing.id, patch: values }, { onSuccess: () => setEditing(null) })
           }
         />
       )}

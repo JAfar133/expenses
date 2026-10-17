@@ -458,3 +458,10 @@ export const GripIcon = () => (
     <circle cx="15" cy="18" r="1.2" />
   </Icon>
 );
+
+/** A bank building: «from a bank notification» */
+export const BankIcon = () => (
+  <Icon>
+    <path d="M3 9.5 12 4l9 5.5M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18" />
+  </Icon>
+);

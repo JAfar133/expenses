@@ -203,6 +203,8 @@ export class AnalyticsRepository {
                 exchange_rate::float8 AS exchange_rate,
                 EXISTS (SELECT 1 FROM expense_attachments a
                          WHERE a.expense_id = expenses.id AND a.deleted_at IS NULL) AS has_receipt,
+                EXISTS (SELECT 1 FROM bank_imports b
+                         WHERE b.expense_id = expenses.id AND b.status = 'created') AS from_bank,
                 (SELECT count(*)::int FROM expense_items i WHERE i.expense_id = expenses.id) AS items_count,
                 (SELECT count(*)::int FROM expense_items i
                   WHERE i.expense_id = expenses.id AND i.source = 'ai') AS ai_items_count,
@@ -246,6 +248,7 @@ interface ListRow {
   original_currency: string | null;
   exchange_rate: number | null;
   has_receipt: boolean;
+  from_bank: boolean;
   items_count: number;
   ai_items_count: number;
   name_source: 'default' | 'manual' | 'ai';
@@ -300,6 +303,7 @@ const toListItem = (row: ListRow, baseCurrency: string): ExpenseListItem => ({
   deletedReason: row.deleted_reason,
   updatedBy: row.updated_by,
   hasReceipt: row.has_receipt,
+  fromBank: row.from_bank,
   itemsCount: row.items_count,
   aiItemsCount: row.ai_items_count,
   nameSource: row.name_source,

@@ -31,6 +31,8 @@ export interface OperationItem {
   /** What was typed, if its currency differed from the card's */
   original: { amount: number; currency: string; rate: number } | null;
   /** May the current user edit or delete this record (owner: any live record; member: own, window open, card access) */
+  /** The record was created automatically from a bank notification */
+  fromBank?: boolean;
   /** The record has a photo of a receipt */
   hasReceipt?: boolean;
   /** How many receipt positions the record has, and how many of them the AI generated */

@@ -6,6 +6,7 @@ import type { GroupsRepository } from '../groups/groups.repository.ts';
 import type { SyncService } from '../sync/sync.service.ts';
 import type { ActiveKey } from './api-keys.repository.ts';
 import type { BankImportsRepository, ImportRecord, ImportStatus } from './imports.repository.ts';
+import { categoryForMerchant } from './merchant-category.ts';
 import type { ParsedPurchase } from './parsers/parser.types.ts';
 import { parserFor } from './parsers/registry.ts';
 
@@ -134,7 +135,7 @@ export class BankImportService {
     }
 
     const categories = await groups.categoryNames(key.groupId, tx);
-    const category = await this.categoryFor(key.groupId, purchase.merchant, categories, tx);
+    const category = await this.categoryFor(key, purchase.merchant, categories, tx);
     const saved = await expenses.create(
       tx,
       {
@@ -153,15 +154,19 @@ export class BankImportService {
     return { status: 'created', transactionId: saved.id };
   }
 
-  /** What the group did with this merchant before; else «другое»; else the first category of the group. */
+  /** What the group did with this shop before (the same or a similar name); else the key's category; else «другое»; else the first. */
   private async categoryFor(
-    groupId: string,
+    key: ActiveKey,
     merchant: string,
     categories: string[],
-    tx: Parameters<BankImportsRepository['categoryOfMerchant']>[2],
+    tx: Parameters<BankImportsRepository['pastExpenses']>[1],
   ): Promise<string> {
-    const known = await this.options.imports.categoryOfMerchant(groupId, merchant, tx);
+    const known = categoryForMerchant(
+      merchant,
+      await this.options.imports.pastExpenses(key.groupId, tx),
+    );
     if (known && categories.includes(known)) return known;
+    if (key.defaultCategory && categories.includes(key.defaultCategory)) return key.defaultCategory;
     if (categories.includes(FALLBACK_CATEGORY)) return FALLBACK_CATEGORY;
     const first = categories[0];
     if (!first) throw new AppError(422, 'NO_CATEGORIES', 'В группе нет категорий');

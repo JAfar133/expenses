@@ -1,3 +1,4 @@
+import type { PastExpense } from './merchant-category.ts';
 import type { Database, SqlExecutor } from '../../infrastructure/database/database.ts';
 
 export type ImportStatus =
@@ -116,19 +117,14 @@ export class BankImportsRepository {
     return rows.map((row) => row.name);
   }
 
-  /** The category of the latest expense of the group with the same name (the merchant), if there was one. */
-  async categoryOfMerchant(
-    groupId: string,
-    merchant: string,
-    db: SqlExecutor,
-  ): Promise<string | undefined> {
-    const [row] = await db.query<{ category: string }>(
-      `SELECT category FROM expenses
-        WHERE group_id = $1 AND deleted_at IS NULL AND lower(name) = lower($2)
-        ORDER BY created_at DESC LIMIT 1`,
-      [groupId, merchant],
+  /** The names of the group's expenses with their categories, the newest first (one entry per name and category). */
+  async pastExpenses(groupId: string, db: SqlExecutor, limit = 2000): Promise<PastExpense[]> {
+    return db.query<PastExpense>(
+      `SELECT name, category FROM expenses
+        WHERE group_id = $1 AND deleted_at IS NULL
+        GROUP BY name, category ORDER BY max(created_at) DESC LIMIT $2`,
+      [groupId, limit],
     );
-    return row?.category;
   }
 
   async recent(groupId: string, limit: number): Promise<ImportView[]> {

@@ -51,7 +51,7 @@ function GroupContent({ currentUsername }: { currentUsername: string }) {
       </div>
       <CategoriesCard categories={data.categories} />
       <GroupTemplatesCard />
-      <IntegrationsCard cards={data.cards} />
+      <IntegrationsCard cards={data.cards} categories={data.categories} />
     </div>
   );
 }
