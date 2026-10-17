@@ -1,5 +1,6 @@
+import type { NotificationSettingsRepository, PushSettings } from './notification-settings.ts';
 import type { NotificationsRepository } from './notifications.repository.ts';
-import type { NotificationEvent, NotificationView } from './notifications.types.ts';
+import type { DeliveryItem, NotificationEvent, NotificationView } from './notifications.types.ts';
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 30;
@@ -13,6 +14,9 @@ export class NotificationsService {
   constructor(
     private readonly repository: NotificationsRepository,
     private readonly logger?: { warn: (object: object, message: string) => void },
+    /** Other channels fed from the same events (Web Push) */
+    private readonly delivery?: { deliver(items: DeliveryItem[]): void },
+    private readonly settings?: NotificationSettingsRepository,
   ) {}
 
   /** Stores the event for everyone it concerns. Returns how many people got it. */
@@ -20,7 +24,7 @@ export class NotificationsService {
     try {
       const userIds = await this.repository.recipients(event.audience);
       if (userIds.length === 0) return 0;
-      return await this.repository.add({
+      const added = await this.repository.add({
         userIds,
         groupId: event.audience.groupId,
         type: event.type,
@@ -30,10 +34,56 @@ export class NotificationsService {
         data: event.data,
         dedupeKey: event.dedupeKey,
       });
+      await this.forward(event, added);
+      return added.length;
     } catch (error) {
       this.logger?.warn({ err: error, type: event.type }, 'Failed to store a notification');
       return 0;
     }
+  }
+
+  /** Hands the new entries to the other channels (their sending runs on in the background); never throws. */
+  private async forward(
+    event: NotificationEvent,
+    added: { id: string; userId: string; createdAt: Date }[],
+  ): Promise<void> {
+    if (!this.delivery || added.length === 0) return;
+    try {
+      const items: DeliveryItem[] = [];
+      for (const row of added) {
+        items.push({
+          id: row.id,
+          userId: row.userId,
+          type: event.type,
+          title: event.title,
+          body: event.body,
+          privateBody: event.privateBody,
+          link: event.link,
+          createdAt: row.createdAt,
+          unread: await this.repository.unreadCount(row.userId),
+        });
+      }
+      this.delivery.deliver(items);
+    } catch (error) {
+      this.logger?.warn({ err: error, type: event.type }, 'Failed to hand a notification on');
+    }
+  }
+
+  async pushSettings(userId: string): Promise<PushSettings> {
+    return this.settings!.get(userId);
+  }
+
+  async savePushSettings(
+    userId: string,
+    patch: { types?: Partial<PushSettings['types']>; hideAmounts?: boolean },
+  ): Promise<PushSettings> {
+    const current = await this.settings!.get(userId);
+    const next: PushSettings = {
+      types: { ...current.types, ...patch.types },
+      hideAmounts: patch.hideAmounts ?? current.hideAmounts,
+    };
+    await this.settings!.save(userId, next);
+    return next;
   }
 
   /** Takes back notifications by their dedupe keys (the problem they reported was solved by a later event). */

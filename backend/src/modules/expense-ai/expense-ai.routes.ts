@@ -71,6 +71,7 @@ export const expenseAiRoutes =
           type: 'receipt_parsed',
           title: 'Чек распознан',
           body: parts.filter(Boolean).join(' · ') || 'Данные чека добавлены к расходу',
+          privateBody: 'Данные чека добавлены к расходу',
           link: '/analytics/operations',
           data: { expenseId: id },
           audience: { type: 'user', groupId: user.groupId, userId: user.id },

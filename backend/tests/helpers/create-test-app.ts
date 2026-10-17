@@ -29,6 +29,15 @@ import { ReceiptsRepository } from '../../src/modules/receipts/receipts.reposito
 import { ReceiptsService } from '../../src/modules/receipts/receipts.service.ts';
 import { ReceiptStore } from '../../src/modules/receipts/receipts.store.ts';
 import { BudgetsService } from '../../src/modules/budgets/budgets.service.ts';
+import { NotificationSettingsRepository } from '../../src/modules/notifications/notification-settings.ts';
+import { PushRepository } from '../../src/modules/push/push.repository.ts';
+import { PushService } from '../../src/modules/push/push.service.ts';
+import type {
+  PushPayload,
+  PushSender,
+  PushTarget,
+  SendResult,
+} from '../../src/modules/push/push.types.ts';
 import { NotificationsRepository } from '../../src/modules/notifications/notifications.repository.ts';
 import { NotificationsService } from '../../src/modules/notifications/notifications.service.ts';
 import { createBankImportModule } from '../../src/modules/bank-import/bank-import.module.ts';
@@ -147,6 +156,20 @@ export type TestUsername = 'misha' | 'nastya' | (string & {});
 let sharedPasswordHash: Promise<string> | undefined;
 const passwordHash = () => (sharedPasswordHash ??= hashPassword(TEST_PASSWORD));
 
+/** A push service that records what it was asked to send; `results` decide how each endpoint answers. */
+export class FakePushSender implements PushSender {
+  readonly sent: { target: PushTarget; payload: PushPayload }[] = [];
+  /** Endpoint → answers in order (the last one repeats); default: success */
+  readonly answers = new Map<string, SendResult[]>();
+
+  async send(target: PushTarget, payload: PushPayload): Promise<SendResult> {
+    this.sent.push({ target, payload });
+    const queue = this.answers.get(target.endpoint);
+    if (!queue || queue.length === 0) return { ok: true };
+    return queue.length > 1 ? queue.shift()! : queue[0]!;
+  }
+}
+
 export interface TestApp {
   app: FastifyInstance;
   database: Database;
@@ -159,6 +182,9 @@ export interface TestApp {
   invitations: InvitationsService;
   /** The AI provider of the app: tests put its answers in `answers` and read `calls` */
   llmProvider: FakeProvider;
+  /** The fake push service and the push service of the app (Web Push is on in tests) */
+  pushSender: FakePushSender;
+  push: PushService;
   /** A request as the logged-in user (misha by default): with login cookies and the site Origin header */
   inject: (options: InjectOptions, as?: TestUsername) => Promise<LightMyRequestResponse>;
   /** Login cookies for a user: creates a session directly, without checking the password */
@@ -272,7 +298,21 @@ export async function createTestApp(
     items: ai.items,
     aiParse: ai.aiParse,
   });
-  const notifications = new NotificationsService(new NotificationsRepository(database));
+  const pushSender = new FakePushSender();
+  const notificationSettings = new NotificationSettingsRepository(database);
+  const push = new PushService({
+    repository: new PushRepository(database),
+    settings: notificationSettings,
+    sender: pushSender,
+    publicKey: 'test-public-key',
+    retryDelaysMs: [0, 0],
+  });
+  const notifications = new NotificationsService(
+    new NotificationsRepository(database),
+    undefined,
+    push,
+    notificationSettings,
+  );
   const bankImport = createBankImportModule({
     database,
     notifications,
@@ -290,6 +330,7 @@ export async function createTestApp(
     expenseService,
     bankImport,
     notifications,
+    push,
     groups,
     invitations,
     receipts,
@@ -383,6 +424,8 @@ export async function createTestApp(
     authRepository,
     invitations,
     llmProvider,
+    pushSender,
+    push,
     inject,
     sessionCookies,
   };

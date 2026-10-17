@@ -3,9 +3,10 @@ import { AccountCard } from '../components/AccountCard.tsx';
 import { AppearanceCard } from '../components/AppearanceCard.tsx';
 import { AnalyticsSettingsCard } from '../components/AnalyticsSettingsCard.tsx';
 import { TemplatesCard } from '../../templates/components/TemplatesCard.tsx';
+import { NotificationsCard } from '../components/NotificationsCard.tsx';
 import { SecurityCard } from '../components/SecurityCard.tsx';
 
-/** User settings: cards: the account, security, templates, appearance and the analytics display. */
+/** User settings: cards: the account, security, templates, notifications, appearance and the analytics display. */
 export default function SettingsPage() {
   const { data: user } = useCurrentUser();
   if (!user) return null;
@@ -16,6 +17,7 @@ export default function SettingsPage() {
       <AccountCard user={user} />
       <SecurityCard />
       <TemplatesCard />
+      <NotificationsCard />
       <AppearanceCard />
       <AnalyticsSettingsCard />
     </div>

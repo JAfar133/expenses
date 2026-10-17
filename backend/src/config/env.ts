@@ -73,6 +73,31 @@ const envSchema = z.object({
   GEMINI_BASE_URL: z.string().url().default('https://generativelanguage.googleapis.com/v1beta'),
   /** Parsings per group per day when neither the administrator nor the group set a limit */
   AI_DAILY_LIMIT: z.coerce.number().int().min(0).default(30),
+  // Web Push (v5). All three set: pushes to phones and computers are on; otherwise the feature is simply off.
+  // Make the pair once with `npm run push:keys` and never change it (a new pair disconnects every device).
+  VAPID_PUBLIC_KEY: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+  VAPID_PRIVATE_KEY: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+  /** Who sends: `mailto:you@example.com` or the site address; push services may contact it */
+  VAPID_SUBJECT: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+  /** Extra hosts (comma separated, also as `*.example.com` suffixes) allowed as push endpoints besides the known services */
+  PUSH_ALLOWED_HOSTS: z
+    .string()
+    .optional()
+    .transform((value) =>
+      (value ?? '')
+        .split(',')
+        .map((host) => host.trim().toLowerCase())
+        .filter(Boolean),
+    ),
   BACKUP_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
 
   // PostgreSQL ↔ Excel sync

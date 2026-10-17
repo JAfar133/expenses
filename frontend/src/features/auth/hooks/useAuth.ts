@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { clearAllDrafts } from '../../offline-queue/model/draft-store.ts';
+import { unsubscribeThisDevice } from '../../push/hooks/usePush.ts';
 import { fetchCurrentUser, login, logout, type AuthUser } from '../api/auth.api.ts';
 
 export const CURRENT_USER_KEY = ['auth', 'current-user'];
@@ -38,7 +39,11 @@ export function useLogout() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: logout,
+    // This browser's push subscription goes first (best effort, it never holds the logout for long)
+    mutationFn: async () => {
+      await unsubscribeThisDevice();
+      return logout();
+    },
     onSuccess: () => {
       resetCacheFor(queryClient, null);
       // The unsaved form of the signed-out person does not stay on the device

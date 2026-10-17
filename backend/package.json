@@ -10,7 +10,8 @@
     "typecheck": "tsc -p .",
     "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -R src/infrastructure/database/migrations dist/infrastructure/database/",
     "start:prod": "node dist/server.js",
-    "ai:parse": "tsx scripts/parse-receipt.ts"
+    "ai:parse": "tsx scripts/parse-receipt.ts",
+    "push:keys": "tsx scripts/push-keys.ts"
   },
   "keywords": [],
   "author": "",
@@ -24,6 +25,7 @@
     "fastify-plugin": "^6.0.1",
     "jszip": "^3.10.2",
     "pg": "^8.23.1",
+    "web-push": "^3.6.7",
     "zod": "^4.6.5"
   },
   "devDependencies": {
@@ -31,6 +33,7 @@
     "@electric-sql/pglite-socket": "^0.2.11",
     "@types/node": "^26.6.5",
     "@types/pg": "^8.23.1",
+    "@types/web-push": "^3.6.4",
     "prettier": "^3.9.10",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",

@@ -40,3 +40,4 @@ Before finishing work: `typecheck`, `test`, `format`.
 - The code is clean and structured: small components, one task per module, wrap long expressions (Prettier).
 - Tests live nearby by meaning in `tests/`; mock `fetch`, query elements by role and accessible name.
 - Settings for people must be self-explanatory: a title, the choice shown in words (a segmented control with icons or a labeled control, not a bare switch), and one helper line describing the current choice; avoid negative phrasing. See `features/templates/components/ChoiceSetting.tsx`.
+- Web Push (`features/push`, `public/sw.js`): the service worker has no `fetch` handler and no cache and must show a notification for EVERY push (iOS revokes silent subscriptions); the permission is requested only inside the click handler of «Включить уведомления на этом устройстве» (nothing awaited before `requestPermission`); on logout this browser's subscription is removed (best effort).

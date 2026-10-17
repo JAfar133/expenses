@@ -19,6 +19,10 @@ import { ReceiptsService } from './modules/receipts/receipts.service.ts';
 import { ReceiptStore } from './modules/receipts/receipts.store.ts';
 import { BudgetsRepository } from './modules/budgets/budgets.repository.ts';
 import { BudgetsService } from './modules/budgets/budgets.service.ts';
+import { NotificationSettingsRepository } from './modules/notifications/notification-settings.ts';
+import { PushRepository } from './modules/push/push.repository.ts';
+import { PushService } from './modules/push/push.service.ts';
+import { WebPushSender } from './modules/push/web-push.sender.ts';
 import { NotificationsRepository } from './modules/notifications/notifications.repository.ts';
 import { NotificationsService } from './modules/notifications/notifications.service.ts';
 import { createBankImportModule } from './modules/bank-import/bank-import.module.ts';
@@ -190,9 +194,41 @@ const expenseService = new ExpenseService(expenses, {
   },
   logger: { warn: (object, message) => app.log.warn(object, message) },
 });
-const notifications = new NotificationsService(new NotificationsRepository(database), {
-  warn: (object, message) => app.log.warn(object, message),
+const notificationSettings = new NotificationSettingsRepository(database);
+// Web Push is on only when the whole VAPID set is given; otherwise the bell works and the phone push is just off
+const vapid =
+  env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY && env.VAPID_SUBJECT
+    ? {
+        publicKey: env.VAPID_PUBLIC_KEY,
+        privateKey: env.VAPID_PRIVATE_KEY,
+        subject: env.VAPID_SUBJECT,
+      }
+    : undefined;
+function createPushSender(): WebPushSender | undefined {
+  if (!vapid) return undefined;
+  try {
+    return new WebPushSender(vapid);
+  } catch (error) {
+    // A mistyped key must not stop the app: the bell works, only the phone push stays off
+    console.error('Web Push is off: the VAPID settings are not valid', (error as Error).message);
+    return undefined;
+  }
+}
+const pushSender = createPushSender();
+const push = new PushService({
+  repository: new PushRepository(database),
+  settings: notificationSettings,
+  sender: pushSender,
+  publicKey: pushSender ? vapid?.publicKey : undefined,
+  allowedHosts: env.PUSH_ALLOWED_HOSTS,
+  logger: { warn: (object, message) => app.log.warn(object, message) },
 });
+const notifications = new NotificationsService(
+  new NotificationsRepository(database),
+  { warn: (object, message) => app.log.warn(object, message) },
+  push,
+  notificationSettings,
+);
 const bankImport = createBankImportModule({
   database,
   notifications,
@@ -232,6 +268,7 @@ const app = buildApp({
   templates,
   bankImport,
   notifications,
+  push,
   ai,
   groupService: new GroupService(
     new GroupAdminRepository(database),

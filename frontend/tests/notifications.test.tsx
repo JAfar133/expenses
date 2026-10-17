@@ -380,3 +380,41 @@ describe('панель', () => {
     await waitFor(() => expect(panel.queryByRole('status', { name: 'Загрузка' })).toBeNull());
   });
 });
+
+describe('значок на иконке и ссылка на настройки', () => {
+  it('число непрочитанных уходит в setAppBadge, ноль сбрасывает значок; ошибки молчат', async () => {
+    const setAppBadge = vi.fn(async () => undefined);
+    const clearAppBadge = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'setAppBadge', { value: setAppBadge, configurable: true });
+    Object.defineProperty(navigator, 'clearAppBadge', { value: clearAppBadge, configurable: true });
+    unread = 5;
+    renderBell();
+
+    await waitFor(() => expect(setAppBadge).toHaveBeenCalledWith(5));
+    expect(clearAppBadge).not.toHaveBeenCalled();
+    delete (navigator as unknown as Record<string, unknown>).setAppBadge;
+    delete (navigator as unknown as Record<string, unknown>).clearAppBadge;
+  });
+
+  it('при нуле вызывается clearAppBadge', async () => {
+    const clearAppBadge = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, 'clearAppBadge', { value: clearAppBadge, configurable: true });
+    unread = 0;
+    renderBell();
+
+    await waitFor(() => expect(clearAppBadge).toHaveBeenCalled());
+    delete (navigator as unknown as Record<string, unknown>).clearAppBadge;
+  });
+
+  it('внизу панели ссылка «Настроить уведомления» ведёт в настройки', async () => {
+    const person = renderBell();
+    const panel = await openPanel(person);
+
+    const link = await panel.findByRole('link', { name: 'Настроить уведомления' });
+    expect(link).toHaveAttribute('href', '/settings#notifications');
+    await person.click(link);
+
+    expect(screen.getByTestId('where')).toHaveTextContent('/settings');
+    expect(screen.queryByRole('dialog', { name: 'Уведомления' })).toBeNull();
+  });
+});

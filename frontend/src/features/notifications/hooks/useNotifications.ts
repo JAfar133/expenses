@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import {
   useInfiniteQuery,
   useMutation,
@@ -25,7 +26,7 @@ const POLL_MS = 60_000;
  * to the tab; a failed poll is silent (the old number stays).
  */
 export function useUnreadCount() {
-  return useQuery({
+  const query = useQuery({
     queryKey: UNREAD_KEY,
     queryFn: fetchUnreadCount,
     refetchInterval: () => (document.hidden ? false : POLL_MS),
@@ -33,6 +34,21 @@ export function useUnreadCount() {
     refetchOnWindowFocus: true,
     retry: false,
   });
+  const unread = query.data;
+  // The number on the app icon, where the platform has it; a failure is silent
+  useEffect(() => {
+    if (unread === undefined) return;
+    try {
+      const nav = navigator as Navigator & {
+        setAppBadge?: (count: number) => Promise<void>;
+        clearAppBadge?: () => Promise<void>;
+      };
+      void (unread > 0 ? nav.setAppBadge?.(unread) : nav.clearAppBadge?.())?.catch(() => undefined);
+    } catch {
+      // The badge is a convenience
+    }
+  }, [unread]);
+  return query;
 }
 
 /** The feed, a page of 30 at a time; it is only read while the panel is open (it mounts with it). */

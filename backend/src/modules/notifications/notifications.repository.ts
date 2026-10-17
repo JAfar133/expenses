@@ -27,7 +27,7 @@ export class NotificationsRepository {
     return rows.map((row) => row.user_id);
   }
 
-  /** One row per person; a person who already has this dedupe key is skipped. Returns how many were added. */
+  /** One row per person; a person who already has this dedupe key is skipped. Returns the rows that were added. */
   async add(
     entry: {
       userIds: string[];
@@ -40,14 +40,14 @@ export class NotificationsRepository {
       dedupeKey?: string;
     },
     db: SqlExecutor = this.database,
-  ): Promise<number> {
-    let added = 0;
+  ): Promise<{ id: string; userId: string; createdAt: Date }[]> {
+    const added: { id: string; userId: string; createdAt: Date }[] = [];
     for (const userId of entry.userIds) {
-      const rows = await db.query(
+      const rows = await db.query<{ id: string; created_at: Date }>(
         `INSERT INTO notifications (user_id, group_id, type, title, body, link, data, dedupe_key)
          VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
          ON CONFLICT (user_id, dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
-         RETURNING id`,
+         RETURNING id, created_at`,
         [
           userId,
           entry.groupId,
@@ -59,7 +59,7 @@ export class NotificationsRepository {
           entry.dedupeKey ?? null,
         ],
       );
-      added += rows.length;
+      for (const row of rows) added.push({ id: row.id, userId, createdAt: row.created_at });
     }
     return added;
   }

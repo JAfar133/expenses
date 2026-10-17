@@ -17,6 +17,8 @@ export interface NotificationEvent {
   /** A path of the app opened by a tap */
   link?: string;
   data?: Record<string, unknown>;
+  /** The same text without amounts and shops (push in private mode); default: the push says only the title */
+  privateBody?: string;
   /** The same key for the same person is stored once */
   dedupeKey?: string;
   audience: Audience;
@@ -31,4 +33,19 @@ export interface NotificationView {
   data: Record<string, unknown> | null;
   createdAt: string;
   read: boolean;
+}
+
+/** A new feed entry on its way to a person's devices. */
+export interface DeliveryItem {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  /** The text without amounts and shops, for people who hide them on the lock screen */
+  privateBody?: string;
+  link?: string;
+  createdAt: Date;
+  /** The person's unread count after this entry (the badge on the icon) */
+  unread: number;
 }

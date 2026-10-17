@@ -98,6 +98,11 @@ services:
       # AI receipt parsing (v4). The key is normally entered by the administrator in the app (stored encrypted with
       # SECRETS_KEY); GEMINI_API_KEY is only a fallback. Both can stay empty: the AI is then simply unavailable.
       SECRETS_KEY: ${SECRETS_KEY:-}
+      # Web Push (v5): the whole set turns pushes to phones on; make the pair once with `npm run push:keys` and never change it
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      PUSH_ALLOWED_HOSTS: ${PUSH_ALLOWED_HOSTS:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.8-flash}
       AI_DAILY_LIMIT: ${AI_DAILY_LIMIT:-30}

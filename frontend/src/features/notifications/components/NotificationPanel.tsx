@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import type { AppNotification } from '../api/notifications.api.ts';
 import { useMarkRead, useNotificationFeed } from '../hooks/useNotifications.ts';
 import { NotificationRow } from './NotificationRow.tsx';
@@ -84,6 +84,13 @@ export function NotificationPanel({ onClose }: { onClose: () => void }) {
           Показать ещё
         </button>
       )}
+      <Link
+        to="/settings#notifications"
+        onClick={onClose}
+        className="flex h-11 items-center justify-center text-sm font-medium text-indigo-600 dark:text-indigo-300"
+      >
+        Настроить уведомления
+      </Link>
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { forbiddenError, validationError } from '../../errors/app-error.ts';
 import type { ApiKeysService } from './api-keys.service.ts';
 import type { BankImportService, ImportResult } from './import.service.ts';
 import type { ImportLogRepository } from './import-log.repository.ts';
-import { RateLimiter } from './rate-limit.ts';
+import { RateLimiter } from '../../infrastructure/rate-limit.ts';
 
 const idOf = (request: { params: unknown }): string => {
   const parsed = z.uuid().safeParse((request.params as { id: string }).id);

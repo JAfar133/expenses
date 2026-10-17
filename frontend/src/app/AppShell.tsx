@@ -1,8 +1,9 @@
 import { Suspense } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import type { AuthUser } from '../features/auth/api/auth.api.ts';
 import { UserBar } from '../features/auth/components/UserBar.tsx';
 import { useTheme } from '../features/preferences/hooks/useTheme.ts';
+import { useRegisterServiceWorker } from '../features/push/hooks/usePush.ts';
 import { NotificationBell } from '../features/notifications/components/NotificationBell.tsx';
 import { SyncIndicator } from '../features/sync/components/SyncIndicator.tsx';
 import { OfflineBanner } from '../features/offline-queue/components/OfflineBanner.tsx';
@@ -30,6 +31,9 @@ const sectionClass = ({ isActive }: { isActive: boolean }) =>
  */
 export function AppShell({ user }: { user: AuthUser }) {
   useQueueSync();
+  const navigate = useNavigate();
+  // Web Push: the service worker is registered once the server has it; a click on a notification may ask for a page
+  useRegisterServiceWorker((url) => void navigate(url));
   useTheme();
   // The form fits a narrow column; the analytics page uses the full width
   const { pathname } = useLocation();
