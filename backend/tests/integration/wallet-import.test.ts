@@ -53,6 +53,8 @@ const logRows = () =>
     'SELECT source, status, raw_payload, parsed, match, expense_id FROM import_log ORDER BY received_at',
   );
 
+const BANK_AT = (time: string) => ({ ...BANK, body: BANK.body.replace('20:40', time) });
+
 let key: string;
 
 beforeAll(async () => {
@@ -128,6 +130,17 @@ describe('Apple Wallet: приём и журнал', () => {
     expect(await logRows()).toEqual([
       expect.objectContaining({ status: 'unrecognized', raw_payload: payload }),
     ]);
+  });
+
+  it('дата в том виде, как её показывает телефон («17 окт. 2026 г., 15:26»), читается', async () => {
+    const response = await send(
+      key,
+      wallet({ cardLast4: '5386', receivedAt: '17 окт. 2026 г., 15:26', amount: '2 150,00 AMD' }),
+    );
+
+    expect(response.json().status).toBe('created');
+    expect((await expenses())[0]).toMatchObject({ amount: 2150, date: '2026-10-17' });
+    expect((await logRows())[0]!.parsed).toMatchObject({ occurredAt: '2026-10-17T11:26:00.000Z' });
   });
 
   it('нет суммы или валюты: тоже unrecognized, ничего не создаётся', async () => {
@@ -296,6 +309,64 @@ describe('одна покупка из двух источников', () => {
     const again = await send(key, wallet({ cardLast4: '5386' }));
 
     expect(again.json().status).toBe('created');
+  });
+});
+
+describe('приложение учится на исправлениях', () => {
+  it('название и категория, которые человек выбрал для магазина, берутся при следующем импорте', async () => {
+    const first = (await send(key, BANK)).json();
+    await database.query(
+      "UPDATE expenses SET name = 'Урарту', category = 'продукты' WHERE id = $1",
+      [first.transactionId],
+    );
+
+    await send(key, BANK_AT('21:30'));
+
+    const rows = await database.query<{ name: string; category: string }>(
+      'SELECT name, category FROM expenses ORDER BY created_at',
+    );
+    expect(rows).toEqual([
+      { name: 'Урарту', category: 'продукты' },
+      { name: 'Урарту', category: 'продукты' },
+    ]);
+  });
+
+  it('похожее название получает категорию, но не имя (это может быть другой филиал)', async () => {
+    const first = (await send(key, BANK)).json();
+    await database.query(
+      "UPDATE expenses SET name = 'Урарту', category = 'продукты' WHERE id = $1",
+      [first.transactionId],
+    );
+
+    await send(
+      key,
+      BANK_AT('21:30').body === undefined
+        ? BANK
+        : {
+            ...BANK_AT('21:30'),
+            body: BANK_AT('21:30').body.replace('URARTU ZAQYAN', 'URARTU ZAQYAN BRANCH 2'),
+          },
+    );
+
+    const rows = await database.query<{ name: string; category: string }>(
+      "SELECT name, category FROM expenses WHERE name <> 'Урарту'",
+    );
+    expect(rows).toEqual([{ name: 'URARTU ZAQYAN BRANCH 2', category: 'продукты' }]);
+  });
+
+  it('то же для Wallet: исправленное имя применяется к следующей покупке в том же месте', async () => {
+    const first = (await send(key, wallet({ cardLast4: '5386' }))).json();
+    await database.query(
+      "UPDATE expenses SET name = 'Автобус', category = 'продукты' WHERE id = $1",
+      [first.transactionId],
+    );
+
+    await send(key, wallet({ cardLast4: '5386', receivedAt: '2026-10-17T10:00:00+04:00' }));
+
+    const rows = await database.query<{ name: string; category: string }>(
+      'SELECT name, category FROM expenses ORDER BY created_at',
+    );
+    expect(rows.map((row) => row.name)).toEqual(['Автобус', 'Автобус']);
   });
 });
 

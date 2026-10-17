@@ -55,13 +55,24 @@ export const bankImportRoutes =
         const body = request.body;
         const source = isRecord(body) ? textOf(body.source)?.trim() : undefined;
         if (!isRecord(body) || !source || source.length > 40) {
-          return reply.code(400).send({ success: false, status: 'invalid_request' });
+          const reason = 'В запросе нет поля source (или оно слишком длинное)';
+          const importId = isRecord(body)
+            ? await imports.reject(key, sanitizePayload(body), '', reason)
+            : undefined;
+          return reply
+            .code(400)
+            .send({ success: false, status: 'invalid_request', message: reason, importId });
         }
         const title = textOf(body.title) ?? '';
         const text = textOf(body.body) ?? '';
         // The bank's notice is nothing without its text; Wallet may carry its data in other fields
         if (source.toLowerCase() === 'idbank' && !text.trim()) {
-          return reply.code(400).send({ success: false, status: 'invalid_request' });
+          const reason =
+            'Пустой текст уведомления (поле body). При пробном запуске автоматизации без настоящего уведомления или SMS переменные пустые: запустите её событием';
+          const importId = await imports.reject(key, sanitizePayload(body), source, reason);
+          return reply
+            .code(400)
+            .send({ success: false, status: 'invalid_request', message: reason, importId });
         }
         const result = await imports.import(key, {
           source,

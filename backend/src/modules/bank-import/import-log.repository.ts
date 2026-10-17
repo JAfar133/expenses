@@ -10,6 +10,7 @@ export type LogStatus =
   | 'card_not_found'
   | 'card_ambiguous'
   | 'unknown_source'
+  | 'invalid_request'
   | 'error';
 
 export interface LogEntry {

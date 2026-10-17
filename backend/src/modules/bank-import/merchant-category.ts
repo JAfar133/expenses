@@ -64,3 +64,27 @@ function similarity(a: string[], b: string[]): number {
   if (!part || !shared.some((word) => word.length >= MIN_SHARED_WORD)) return 0;
   return 1 + shared.length / Math.max(setA.size, setB.size);
 }
+
+/** What the group made of this shop before, from earlier imports (the newest first). */
+export interface Remembered {
+  /** The name a person gave it; only for the very same shop name */
+  name?: string;
+  category: string;
+}
+
+/**
+ * Corrections are remembered: when a person renamed or re-filed an imported expense, the next import of the same
+ * shop gets the same name and category. The very same shop name brings both; a similar one («Urartu» and
+ * «URARTU ZAQYAN») only the category, because it may be another branch.
+ */
+export function rememberedFor(
+  merchant: string,
+  shops: { merchant: string; name: string; category: string }[],
+): Remembered | undefined {
+  const wanted = merchantWords(merchant).join(' ');
+  if (!wanted) return undefined;
+  const exact = shops.find((shop) => merchantWords(shop.merchant).join(' ') === wanted);
+  if (exact) return { name: exact.name, category: exact.category };
+  const alike = shops.find((shop) => sameShop(shop.merchant, merchant));
+  return alike ? { category: alike.category } : undefined;
+}

@@ -442,6 +442,15 @@ describe('что не создаёт расход', () => {
     const { key } = await createKey();
 
     expect((await send(key, { source: 'idbank', title: TITLE, body: '' })).statusCode).toBe(400);
+    const empty = await send(key, { source: 'idbank', title: 'IDBank', body: '' });
+    expect(empty.json()).toMatchObject({
+      success: false,
+      status: 'invalid_request',
+      message: expect.stringContaining('Пустой текст'),
+      importId: expect.any(String),
+    });
+    const log = (await call('GET', '/api/group/import-log', 'misha')).json().data;
+    expect(log[0]).toMatchObject({ status: 'invalid_request', source: 'idbank' });
     expect((await send(key, { title: TITLE })).statusCode).toBe(400);
     expect(
       (await send(key, { source: 'idbank', title: TITLE, body: 'x'.repeat(40_000) })).statusCode,

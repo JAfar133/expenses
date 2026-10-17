@@ -73,11 +73,20 @@ export function logStatus(entry: ImportLogEntry): { text: string; tone: Tone; de
       return { text: 'Другой вид уведомления', tone: 'muted' };
     case 'card_not_found':
       return {
-        text: `Нет карты с цифрами ${digits} · укажите их в настройках карты`,
+        text: digits
+          ? `Нет карты с цифрами ${digits} · укажите их в настройках карты`
+          : 'Не удалось определить карту',
         tone: 'warn',
+        detail: digits ? undefined : (entry.error ?? undefined),
       };
     case 'card_ambiguous':
-      return { text: `Несколько карт с цифрами ${digits}`, tone: 'warn' };
+      return {
+        text: digits ? `Несколько карт с цифрами ${digits}` : 'Подходит несколько карт',
+        tone: 'warn',
+        detail: digits ? undefined : (entry.error ?? undefined),
+      };
+    case 'invalid_request':
+      return { text: 'Запрос не принят', tone: 'warn', detail: entry.error ?? undefined };
     case 'unknown_source':
       return { text: 'Неизвестный источник', tone: 'warn', detail: entry.error ?? undefined };
     default:

@@ -121,18 +121,97 @@ function lastFour(text: string | undefined): string | undefined {
   return digits.length >= 4 ? digits.slice(-4) : undefined;
 }
 
-/** When it happened: `receivedAt` if it reads as a time, else now. The date is the one the text itself shows. */
+/**
+ * When it happened: `receivedAt` if it reads as a time, else now. An ISO time with an offset names the date where it
+ * happened; a time written the way the phone shows it («17 окт. 2026 г., 15:26», «17.10.2026 15:26») has no zone and
+ * is read in the person's time zone.
+ */
 function momentOf(
   text: string | undefined,
   input: NotificationInput,
 ): { at: Date; localDate: string } {
-  const parsed = text ? new Date(text) : undefined;
-  if (text && parsed && !Number.isNaN(parsed.getTime())) {
-    // An ISO time with its own offset names the date in the place where it happened
+  const iso = text ? new Date(text) : undefined;
+  if (text && iso && !Number.isNaN(iso.getTime())) {
     const explicit = /^(\d{4}-\d{2}-\d{2})T[\d:.]+(?:Z|[+-]\d{2}:?\d{2})$/.exec(text);
-    return { at: parsed, localDate: explicit ? explicit[1]! : localDateIn(parsed, input.timezone) };
+    return { at: iso, localDate: explicit ? explicit[1]! : localDateIn(iso, input.timezone) };
   }
+  const phone = text ? phoneTime(text, input.timezone) : undefined;
+  if (phone) return phone;
   return { at: input.receivedAt, localDate: localDateIn(input.receivedAt, input.timezone) };
+}
+
+const MONTHS: Record<string, number> = {
+  янв: 1,
+  фев: 2,
+  мар: 3,
+  апр: 4,
+  мая: 5,
+  май: 5,
+  июн: 6,
+  июл: 7,
+  авг: 8,
+  сен: 9,
+  окт: 10,
+  ноя: 11,
+  дек: 12,
+  jan: 1,
+  feb: 2,
+  mar: 3,
+  apr: 4,
+  may: 5,
+  jun: 6,
+  jul: 7,
+  aug: 8,
+  sep: 9,
+  oct: 10,
+  nov: 11,
+  dec: 12,
+};
+
+/** «17 окт. 2026 г., 15:26», «17 Oct 2026, 15:26», «17.10.2026 15:26» in a time zone. */
+function phoneTime(text: string, timezone: string): { at: Date; localDate: string } | undefined {
+  const named =
+    /(\d{1,2})\s+([A-Za-zА-Яа-яЁё]{3,})\.?,?\s+(\d{4})(?:\s*г\.?)?,?\s*(?:at\s+)?(\d{1,2}):(\d{2})/.exec(
+      text,
+    );
+  const numeric = /(\d{1,2})\.(\d{1,2})\.(\d{4}),?\s+(\d{1,2}):(\d{2})/.exec(text);
+  let parts: [number, number, number, number, number] | undefined;
+  if (named) {
+    const month = MONTHS[named[2]!.toLowerCase().slice(0, 3)];
+    if (month) parts = [+named[3]!, month, +named[1]!, +named[4]!, +named[5]!];
+  } else if (numeric) {
+    parts = [+numeric[3]!, +numeric[2]!, +numeric[1]!, +numeric[4]!, +numeric[5]!];
+  }
+  if (!parts) return undefined;
+  const [year, month, day, hour, minute] = parts;
+  if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59) return undefined;
+  const at = zonedMoment(year, month, day, hour, minute, timezone);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return { at, localDate: `${year}-${pad(month)}-${pad(day)}` };
+}
+
+/** The moment when the wall clock of a time zone shows this date and time. */
+function zonedMoment(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  timezone: string,
+): Date {
+  const guess = Date.UTC(year, month - 1, day, hour, minute);
+  const shown = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).formatToParts(new Date(guess));
+  const get = (type: string) => Number(shown.find((part) => part.type === type)?.value);
+  const asIfUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'));
+  return new Date(guess - (asIfUtc - guess));
 }
 
 /** YYYY-MM-DD of a moment in a time zone. */

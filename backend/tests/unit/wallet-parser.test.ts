@@ -131,6 +131,31 @@ describe('парсер Apple Wallet', () => {
     }
   });
 
+  it('время так, как его показывает телефон («17 окт. 2026 г., 15:26»), читается в поясе человека', () => {
+    const russian = read({
+      merchant: 'Shop',
+      amount: '1 AMD',
+      receivedAt: '17 окт. 2026 г., 15:26',
+    });
+    const numeric = read({ merchant: 'Shop', amount: '1 AMD', receivedAt: '17.10.2026 15:26' });
+
+    for (const result of [russian, numeric]) {
+      expect(result.kind === 'expense' && result.purchase.occurredAt.toISOString()).toBe(
+        '2026-10-17T11:26:00.000Z',
+      );
+      expect(result.kind === 'expense' && result.purchase.localDate).toBe('2026-10-17');
+    }
+  });
+
+  it('сумма с пробелом-разделителем и запятой, как её присылает Wallet', () => {
+    const result = read({ merchant: 'Food Court 7', amount: '2 150,00 AMD' });
+
+    expect(result.kind === 'expense' && result.purchase).toMatchObject({
+      amount: 2150,
+      currency: 'AMD',
+    });
+  });
+
   it('нечитаемое время получения заменяется временем сервера', () => {
     const result = read({ merchant: 'Shop', amount: '1 AMD', receivedAt: 'вчера' });
 

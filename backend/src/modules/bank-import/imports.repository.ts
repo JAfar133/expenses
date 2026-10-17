@@ -22,6 +22,13 @@ export interface ImportRecord {
 }
 
 /** An operation imported earlier from another source that may be the same purchase. */
+/** An earlier import: the shop as written by the source, and what its expense is called and filed under now. */
+export interface ImportedShop {
+  merchant: string;
+  name: string;
+  category: string;
+}
+
 export interface CrossSourceMatch {
   importId: string;
   expenseId: string;
@@ -144,6 +151,21 @@ export class BankImportsRepository {
       [groupId, last4],
     );
     return rows.map((row) => row.name);
+  }
+
+  /**
+   * What earlier imports became NOW: the shop as the source wrote it, and the name and category the expense has today
+   * (a person may have changed them). The newest first. This is how the app learns from corrections.
+   */
+  async importedHistory(groupId: string, db: SqlExecutor, limit = 500): Promise<ImportedShop[]> {
+    return db.query<ImportedShop>(
+      `SELECT b.merchant, e.name, e.category
+         FROM bank_imports b JOIN expenses e ON e.id = b.expense_id
+        WHERE b.group_id = $1 AND b.status = 'created' AND b.merchant IS NOT NULL
+          AND e.deleted_at IS NULL
+        ORDER BY b.created_at DESC LIMIT $2`,
+      [groupId, limit],
+    );
   }
 
   /** The names of the group's expenses with their categories, the newest first (one entry per name and category). */

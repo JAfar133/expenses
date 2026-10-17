@@ -16,7 +16,12 @@ import type {
   CrossSourceMatch,
   ImportStatus,
 } from './imports.repository.ts';
-import { categoryForMerchant, merchantWords, sameShop } from './merchant-category.ts';
+import {
+  categoryForMerchant,
+  merchantWords,
+  rememberedFor,
+  sameShop,
+} from './merchant-category.ts';
 import type { ParsedPurchase } from './parsers/parser.types.ts';
 import { parserFor } from './parsers/registry.ts';
 
@@ -81,6 +86,23 @@ const PRIORITY_SOURCE = 'apple_wallet';
  */
 export class BankImportService {
   constructor(private readonly options: BankImportOptions) {}
+
+  /** A request that cannot be read at all (no source, an empty text): kept in the log with the reason. */
+  async reject(
+    key: ActiveKey,
+    raw: Record<string, unknown>,
+    source: string,
+    reason: string,
+  ): Promise<string> {
+    return this.options.log.add({
+      groupId: key.groupId,
+      keyId: key.id,
+      source: source.slice(0, 40) || 'unknown',
+      rawPayload: raw,
+      status: 'invalid_request',
+      error: reason,
+    });
+  }
 
   async import(key: ActiveKey, payload: NotificationPayload): Promise<ImportResult> {
     const receivedAt = (this.options.now ?? (() => new Date()))();
@@ -247,11 +269,15 @@ export class BankImportService {
       };
     }
 
-    // 4. Wallet requests that wait for this very purchase give it their (better) shop name
+    // 4. What the group made of this shop before (names and categories a person chose), then the better shop name
+    const remembered = rememberedFor(
+      purchase.merchant,
+      await imports.importedHistory(key.groupId, tx),
+    );
     const waiting = await this.waitingWallet(tx, key.groupId, source, purchase);
-    const name = waiting[0]?.merchant ?? purchase.merchant;
+    const name = remembered?.name ?? waiting[0]?.merchant ?? purchase.merchant;
     const categories = await groups.categoryNames(key.groupId, tx);
-    const category = await this.categoryFor(key, name, purchase, categories, tx);
+    const category = await this.categoryFor(key, name, purchase, categories, remembered, tx);
     const saved = await expenses.create(
       tx,
       {
@@ -358,16 +384,19 @@ export class BankImportService {
   }
 
   /**
-   * What the group did with this shop before (the same or a similar name); else the category the source names, if the
-   * group has exactly that one; else the key's category; else «другое»; else the first.
+   * What a person chose for this shop in an earlier import; else what the group did with an expense of the same or a
+   * similar name; else the category the source names, if the group has exactly that one; else the key's category;
+   * else «другое»; else the first.
    */
   private async categoryFor(
     key: ActiveKey,
     merchant: string,
     purchase: ParsedPurchase,
     categories: string[],
+    remembered: { category: string } | undefined,
     tx: SqlExecutor,
   ): Promise<string> {
+    if (remembered && categories.includes(remembered.category)) return remembered.category;
     const known = categoryForMerchant(
       merchant,
       await this.options.imports.pastExpenses(key.groupId, tx),
