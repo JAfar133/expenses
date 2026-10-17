@@ -455,6 +455,7 @@ const summaryOf = (purchase: ParsedPurchase): Record<string, unknown> => ({
   ...(purchase.cardHint ? { cardHint: purchase.cardHint } : {}),
   ...(purchase.categoryHint ? { categoryHint: purchase.categoryHint } : {}),
   ...(purchase.transactionId ? { transactionId: purchase.transactionId } : {}),
+  ...(purchase.channel ? { channel: purchase.channel } : {}),
 });
 
 /**

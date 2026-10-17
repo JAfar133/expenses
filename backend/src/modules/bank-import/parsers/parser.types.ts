@@ -17,6 +17,8 @@ export interface ParsedPurchase {
   cardHint?: string;
   /** The source's own category of the operation; a hint for the category of the expense */
   categoryHint?: string;
+  /** How the text reached us (`push`, `sms`), when the request said so */
+  channel?: string;
   /** The source's own id of the operation, if it gives one */
   transactionId?: string;
   /** When the operation happened, as a moment in time and as the date shown in the bank's own time zone */

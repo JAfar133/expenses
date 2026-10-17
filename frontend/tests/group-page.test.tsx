@@ -1342,7 +1342,8 @@ describe('карточка «Интеграции»', () => {
     ).toBeInTheDocument();
     expect(within(details).getByText(/Это переменные Команд/)).toBeInTheDocument();
     expect(within(details).getByText(/проверьте на реальном уведомлении/)).toBeInTheDocument();
-    expect(within(details).getAllByRole('listitem')).toHaveLength(6);
+    expect(within(details).getAllByRole('listitem')).toHaveLength(7);
+    expect(within(details).getByText(/Необязательно: поле/)).toBeInTheDocument();
   });
 });
 

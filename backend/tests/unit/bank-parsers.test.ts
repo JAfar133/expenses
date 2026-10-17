@@ -101,6 +101,40 @@ describe('парсер IDBank: покупка по SMS', () => {
   });
 });
 
+describe('парсер IDBank: поле type (push / sms)', () => {
+  const SMS =
+    'GNUM\n5,632.00 AMD\n4703***7181,\nYEREVAN CITY AVAN ARINJ, AM\n17.10.2026 19:40\nMNACORD: 94,218.04 AMD';
+  const withType = (title: string, body: string, type: string) =>
+    idbankParser.parse({
+      title,
+      body,
+      fields: { type },
+      receivedAt: new Date('2026-10-17T10:00:00Z'),
+      timezone: 'Asia/Yerevan',
+    });
+
+  it('type=sms читает SMS и отмечает канал; type=push читает push', () => {
+    const sms = withType('IDBank', SMS, 'SMS');
+    const push = withType('IDBank: GNUM', BODY, 'push');
+
+    expect(sms.kind === 'expense' && sms.purchase).toMatchObject({ amount: 5632, channel: 'sms' });
+    expect(push.kind === 'expense' && push.purchase).toMatchObject({
+      amount: 1540,
+      channel: 'push',
+    });
+  });
+
+  it('указанный тип строгий: SMS, названный push, и push, названный sms, не читаются', () => {
+    expect(withType('IDBank', SMS, 'push').kind).toBe('unsupported');
+    expect(withType('IDBank: GNUM', BODY, 'sms').kind).toBe('unsupported');
+  });
+
+  it('без type или с другим значением читаются обе формы, как раньше', () => {
+    expect(withType('IDBank', SMS, 'whatever').kind).toBe('expense');
+    expect(read(TITLE, BODY).kind).toBe('expense');
+  });
+});
+
 describe('реестр банков', () => {
   it('находит парсер по источнику без учёта регистра, неизвестный банк даёт undefined', () => {
     expect(parserFor('IDBank')?.source).toBe('idbank');

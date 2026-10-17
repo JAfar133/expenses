@@ -1,4 +1,5 @@
 import { parseAmount } from '../money-text.ts';
+import { textField } from './apple-wallet.ts';
 import type { NotificationParser, ParsedNotification } from './parser.types.ts';
 
 /** Armenia has no daylight saving time: the bank's local time is always UTC+4. */
@@ -37,17 +38,18 @@ const TIME_LINE = /^(\d{2})\.(\d{2})\.(\d{4})\s+(\d{1,2}):(\d{2})$/;
 export const idbankParser: NotificationParser = {
   source: 'idbank',
 
-  parse({ title, body }): ParsedNotification {
+  parse({ title, body, fields }): ParsedNotification {
     const lines = body
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean);
-    const type = noticeType(title, lines);
+    const channel = channelOf(fields);
+    const type = noticeType(title, lines, channel);
     if (type !== PURCHASE_TYPE) return { kind: 'unsupported' };
 
     const amountLine = lines.map((line) => AMOUNT_LINE.exec(line)).find(Boolean);
-    const last4 = cardDigits(lines);
-    const place = placeOf(lines);
+    const last4 = cardDigits(lines, channel);
+    const place = placeOf(lines, channel);
     if (!amountLine || !last4 || !place) {
       return { kind: 'error', reason: 'Не найдены сумма, карта или место и время операции' };
     }
@@ -67,6 +69,7 @@ export const idbankParser: NotificationParser = {
         currency: amountLine[2]!.toUpperCase(),
         merchant: merchant.trim().replace(/\s+/g, ' '),
         cardLast4: last4,
+        channel: channel === 'auto' ? undefined : channel,
         occurredAt,
         localDate: `${year}-${month}-${day}`,
       },
@@ -74,10 +77,23 @@ export const idbankParser: NotificationParser = {
   },
 };
 
-/** The last four digits of the card, from either shape of the card line. */
-function cardDigits(lines: string[]): string | undefined {
+/**
+ * How the text reached us, if the request says so (`type`: «push» or «sms»). Then only that shape is read, which
+ * makes a mistake visible instead of guessing; without it (or with another value) both shapes are tried.
+ */
+type Channel = 'push' | 'sms' | 'auto';
+
+function channelOf(fields: Record<string, unknown>): Channel {
+  const value = textField(fields, 'type')?.toLowerCase();
+  return value === 'push' || value === 'sms' ? value : 'auto';
+}
+
+/** The last four digits of the card, from the card line of the shape in use. */
+function cardDigits(lines: string[], channel: Channel): string | undefined {
   for (const line of lines) {
-    const match = CARD_LINE.exec(line) ?? MASKED_CARD_LINE.exec(line);
+    const match =
+      (channel !== 'sms' ? CARD_LINE.exec(line) : null) ??
+      (channel !== 'push' ? MASKED_CARD_LINE.exec(line) : null);
     if (match) return match[1];
   }
   return undefined;
@@ -93,8 +109,8 @@ interface Place {
 }
 
 /** The shop and the time: on one line (push) or on two lines, the shop first (SMS). */
-function placeOf(lines: string[]): Place | undefined {
-  for (const line of lines) {
+function placeOf(lines: string[], channel: Channel): Place | undefined {
+  for (const line of channel === 'sms' ? [] : lines) {
     const one = PLACE_LINE.exec(line);
     if (one) {
       const [, merchant, day, month, year, hour, minute] = one;
@@ -108,6 +124,7 @@ function placeOf(lines: string[]): Place | undefined {
       };
     }
   }
+  if (channel === 'push') return undefined;
   const timeAt = lines.findIndex((line) => TIME_LINE.test(line));
   if (timeAt <= 0) return undefined;
   const [, day, month, year, hour, minute] = TIME_LINE.exec(lines[timeAt]!)!;
@@ -121,11 +138,14 @@ function placeOf(lines: string[]): Place | undefined {
  * The kind of the operation: the word after «IDBank:» in the title or in the first line (push), or the first line
  * on its own (SMS: «GNUM»).
  */
-function noticeType(title: string, lines: string[]): string | undefined {
-  for (const text of [title, lines[0] ?? '']) {
-    const match = /IDBank\s*:\s*([A-Za-z0-9_]+)/i.exec(text);
-    if (match) return match[1]!.toUpperCase();
+function noticeType(title: string, lines: string[], channel: Channel): string | undefined {
+  if (channel !== 'sms') {
+    for (const text of [title, lines[0] ?? '']) {
+      const match = /IDBank\s*:\s*([A-Za-z0-9_]+)/i.exec(text);
+      if (match) return match[1]!.toUpperCase();
+    }
   }
+  if (channel === 'push') return undefined;
   const first = lines[0] ?? '';
   return /^[A-Za-z]{3,6}$/.test(first) ? first.toUpperCase() : undefined;
 }
