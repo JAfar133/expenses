@@ -90,7 +90,7 @@ export class NotificationsRepository {
       read_at: Date | null;
     }>(
       `SELECT id, type, title, body, link, data, created_at, read_at FROM notifications
-        WHERE user_id = $1 AND ($3::timestamptz IS NULL OR created_at < $3)
+        WHERE user_id = $1 AND dismissed_at IS NULL AND ($3::timestamptz IS NULL OR created_at < $3)
         ORDER BY created_at DESC, id DESC LIMIT $2`,
       [userId, limit, before ?? null],
     );
@@ -108,7 +108,7 @@ export class NotificationsRepository {
 
   async unreadCount(userId: string): Promise<number> {
     const [row] = await this.database.query<{ count: number }>(
-      'SELECT count(*)::int AS count FROM notifications WHERE user_id = $1 AND read_at IS NULL',
+      'SELECT count(*)::int AS count FROM notifications WHERE user_id = $1 AND read_at IS NULL AND dismissed_at IS NULL',
       [userId],
     );
     return row?.count ?? 0;
@@ -120,6 +120,25 @@ export class NotificationsRepository {
       `UPDATE notifications SET read_at = now()
         WHERE user_id = $1 AND read_at IS NULL AND ($2::uuid[] IS NULL OR id = ANY($2::uuid[]))`,
       [userId, ids ?? null],
+    );
+  }
+
+  /** Hides the given rows of this person (no ids: all they see); a hidden row counts as read. Returns the ids hidden. */
+  async dismiss(userId: string, ids?: string[]): Promise<string[]> {
+    const rows = await this.database.query<{ id: string }>(
+      `UPDATE notifications SET dismissed_at = now(), read_at = COALESCE(read_at, now())
+        WHERE user_id = $1 AND dismissed_at IS NULL AND ($2::uuid[] IS NULL OR id = ANY($2::uuid[]))
+        RETURNING id`,
+      [userId, ids ?? null],
+    );
+    return rows.map((row) => row.id);
+  }
+
+  /** Brings back rows hidden a moment ago (undo). Rows of others are not touched. */
+  async restore(userId: string, ids: string[]): Promise<void> {
+    await this.database.query(
+      'UPDATE notifications SET dismissed_at = NULL WHERE user_id = $1 AND id = ANY($2::uuid[])',
+      [userId, ids],
     );
   }
 

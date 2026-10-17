@@ -94,6 +94,19 @@ export class NotificationsService {
     return next;
   }
 
+  /** Hides notifications (one, some, or all); returns their ids so that the person can undo. */
+  async dismiss(userId: string, ids?: string[]): Promise<string[]> {
+    const hidden = await this.repository.dismiss(userId, ids);
+    this.hub.publish(userId, { unread: await this.repository.unreadCount(userId) });
+    return hidden;
+  }
+
+  /** Undo of a fresh hide. */
+  async restore(userId: string, ids: string[]): Promise<void> {
+    await this.repository.restore(userId, ids);
+    this.hub.publish(userId, { unread: await this.repository.unreadCount(userId) });
+  }
+
   /** Takes back notifications by their dedupe keys (the problem they reported was solved by a later event). */
   async retract(dedupeKeys: string[]): Promise<void> {
     if (dedupeKeys.length === 0) return;

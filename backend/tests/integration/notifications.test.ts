@@ -212,6 +212,62 @@ describe('лента: чтение и права', () => {
   });
 });
 
+describe('скрыть уведомления', () => {
+  it('одно или все: скрытое не видно и не считается; новые события приходят как обычно', async () => {
+    await send(BANK);
+    await send({ ...BANK, body: BANK.body.replace('20:40', '21:30') });
+    await send({ ...BANK, body: BANK.body.replace('20:40', '22:10') });
+    const before = await feed('misha');
+
+    const one = await call('POST', '/api/notifications/dismiss', 'misha', {
+      ids: [before.items[0]!.id],
+    });
+
+    expect(one.json().data.ids).toEqual([before.items[0]!.id]);
+    const after = await feed('misha');
+    expect(after.items).toHaveLength(2);
+    expect(after.unread).toBe(2);
+
+    const all = await call('POST', '/api/notifications/dismiss', 'misha', {});
+    expect(all.json().data.ids).toHaveLength(2);
+    expect(await feed('misha')).toMatchObject({ items: [], unread: 0 });
+    // Другой человек не затронут
+    expect((await feed('nastya')).items).toHaveLength(3);
+
+    await send({ ...BANK, body: BANK.body.replace('20:40', '23:00') });
+    expect((await feed('misha')).items).toHaveLength(1);
+  });
+
+  it('то же событие после скрытия не возвращается (повтор запроса банка)', async () => {
+    await send(BANK);
+    await call('POST', '/api/notifications/dismiss', 'misha', {});
+
+    await send(BANK);
+
+    expect((await feed('misha')).items).toHaveLength(0);
+  });
+
+  it('отмена: только что скрытое возвращается; чужие номера ничего не возвращают', async () => {
+    await send(BANK);
+    const hidden = (await call('POST', '/api/notifications/dismiss', 'misha', {})).json().data.ids;
+
+    await call('POST', '/api/notifications/restore', 'nastya', { ids: hidden });
+    expect((await feed('misha')).items).toHaveLength(0);
+
+    await call('POST', '/api/notifications/restore', 'misha', { ids: hidden });
+    expect((await feed('misha')).items).toHaveLength(1);
+  });
+
+  it('чужие номера при скрытии игнорируются; запрос без ids в restore отвергается', async () => {
+    await send(BANK);
+    const mine = (await feed('misha')).items[0]!.id;
+
+    await call('POST', '/api/notifications/dismiss', 'nastya', { ids: [mine] });
+    expect((await feed('misha')).items).toHaveLength(1);
+    expect((await call('POST', '/api/notifications/restore', 'misha', {})).statusCode).toBe(422);
+  });
+});
+
 describe('поток: счётчик меняется сразу, без опроса', () => {
   /** Opens the stream like the app does and collects the `unread` numbers it sends. */
   const openStream = async (as: 'misha' | 'nastya') => {

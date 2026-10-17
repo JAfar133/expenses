@@ -1,15 +1,33 @@
+import { useRef } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { Notice } from '../../../shared/ui/Notice.tsx';
 import type { AppNotification } from '../api/notifications.api.ts';
-import { useMarkRead, useNotificationFeed } from '../hooks/useNotifications.ts';
+import { useAutoRead } from '../hooks/useAutoRead.ts';
+import { useDismiss, useMarkRead, useNotificationFeed } from '../hooks/useNotifications.ts';
 import { NotificationRow } from './NotificationRow.tsx';
 
 /** The content of the bell panel: «Прочитать все», the list, «Показать ещё» and the empty, loading and error states. */
-export function NotificationPanel({ onClose }: { onClose: () => void }) {
+export function NotificationPanel({
+  onClose,
+  onHidden,
+}: {
+  onClose: () => void;
+  /** Something was hidden: the ids for the «Вернуть» of the toast */
+  onHidden: (ids: string[]) => void;
+}) {
   const feed = useNotificationFeed();
   const markRead = useMarkRead();
+  const dismiss = useDismiss();
+  const list = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const items = feed.data?.pages.flatMap((page) => page.items) ?? [];
   const unread = feed.data?.pages[0]?.unread ?? 0;
+
+  // Rows that are really seen (also those that arrive through the live stream) turn read by themselves
+  useAutoRead(list, items, (ids) => markRead.mutate(ids));
+
+  const hide = (ids?: string[]) =>
+    dismiss.mutate(ids, { onSuccess: (result) => result.ids.length > 0 && onHidden(result.ids) });
 
   const open = (item: AppNotification) => {
     if (!item.read) markRead.mutate([item.id]);
@@ -21,7 +39,15 @@ export function NotificationPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-1">
+        <button
+          type="button"
+          disabled={items.length === 0 || dismiss.isPending}
+          onClick={() => hide(undefined)}
+          className="h-9 rounded-lg px-3 text-sm font-medium text-zinc-600 hover:bg-zinc-100 disabled:opacity-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        >
+          Скрыть все
+        </button>
         <button
           type="button"
           disabled={unread === 0 || markRead.isPending}
@@ -66,13 +92,22 @@ export function NotificationPanel({ onClose }: { onClose: () => void }) {
         </p>
       )}
 
-      {items.length > 0 && (
-        <ul aria-label="Уведомления" className="space-y-0.5">
-          {items.map((item) => (
-            <NotificationRow key={item.id} item={item} onOpen={open} />
-          ))}
-        </ul>
-      )}
+      {dismiss.isError && <Notice variant="error">Не удалось скрыть уведомление</Notice>}
+
+      <div ref={list}>
+        {items.length > 0 && (
+          <ul aria-label="Уведомления" className="space-y-0.5">
+            {items.map((item) => (
+              <NotificationRow
+                key={item.id}
+                item={item}
+                onOpen={open}
+                onHide={(target) => hide([target.id])}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
 
       {feed.hasNextPage && (
         <button

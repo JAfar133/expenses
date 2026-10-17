@@ -37,3 +37,16 @@ export const fetchUnreadCount = async () =>
 /** Without ids everything is marked read. */
 export const markNotificationsRead = (ids?: string[]) =>
   apiRequest('/notifications/read', { method: 'POST', body: JSON.stringify(ids ? { ids } : {}) });
+
+/** Hides notifications from the feed (no ids: everything the person sees); the answer lists what was hidden. */
+export const dismissNotifications = async (ids?: string[]) =>
+  (
+    await apiRequest<{ ids: string[] }>('/notifications/dismiss', {
+      method: 'POST',
+      body: JSON.stringify(ids ? { ids } : {}),
+    })
+  ).data;
+
+/** The undo of a hide. */
+export const restoreNotifications = (ids: string[]) =>
+  apiRequest('/notifications/restore', { method: 'POST', body: JSON.stringify({ ids }) });

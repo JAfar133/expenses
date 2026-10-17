@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -28,12 +28,14 @@ let unread: number;
 let calls: { method: string; url: string; body?: { ids?: string[] } }[];
 let feedFails: boolean;
 let readFails: boolean;
+let dismissFails: boolean;
 
 beforeEach(() => {
   feed = [];
   unread = 0;
   feedFails = false;
   readFails = false;
+  dismissFails = false;
   calls = [];
   vi.stubGlobal(
     'fetch',
@@ -52,6 +54,15 @@ beforeEach(() => {
         unread = feed.filter((item) => !item.read).length;
         return ok({});
       }
+      if (url === '/api/notifications/dismiss' && method === 'POST') {
+        if (dismissFails)
+          return json({ success: false, error: { code: 'X', message: 'Ошибка' } }, 500);
+        const ids = body?.ids ?? feed.map((item) => item.id);
+        feed = feed.filter((item) => !ids.includes(item.id));
+        unread = feed.filter((item) => !item.read).length;
+        return ok({ ids });
+      }
+      if (url === '/api/notifications/restore' && method === 'POST') return ok({});
       if (url.startsWith('/api/notifications?')) {
         if (feedFails)
           return json({ success: false, error: { code: 'X', message: 'Ошибка' } }, 500);
@@ -273,7 +284,7 @@ describe('панель', () => {
 
     const row = (await panel.findByText('Не удалось добавить расход')).closest('li')!;
     expect(row).toHaveAttribute('data-type', 'import_problem');
-    expect(row.querySelector('button')!.className).toContain('bg-amber-50');
+    expect(row.querySelector('div[style]')!.className).toContain('bg-amber-50');
   });
 
   it('тап по строке: отмечает прочитанным (POST ids), переходит по ссылке и закрывает панель', async () => {
@@ -441,27 +452,28 @@ describe('значок на иконке и ссылка на настройки
   });
 });
 
-describe('живая линия (SSE)', () => {
-  class FakeEventSource {
-    static instances: FakeEventSource[] = [];
-    listeners = new Map<string, ((event: Event) => void)[]>();
-    close = vi.fn();
-    constructor(public url: string) {
-      FakeEventSource.instances.push(this);
-    }
-    addEventListener(type: string, handler: (event: Event) => void) {
-      this.listeners.set(type, [...(this.listeners.get(type) ?? []), handler]);
-    }
-    removeEventListener(type: string, handler: (event: Event) => void) {
-      this.listeners.set(
-        type,
-        (this.listeners.get(type) ?? []).filter((item) => item !== handler),
-      );
-    }
-    emit(type: string, data: string) {
-      for (const handler of this.listeners.get(type) ?? []) handler({ data } as unknown as Event);
-    }
+class FakeEventSource {
+  static instances: FakeEventSource[] = [];
+  listeners = new Map<string, ((event: Event) => void)[]>();
+  close = vi.fn();
+  constructor(public url: string) {
+    FakeEventSource.instances.push(this);
   }
+  addEventListener(type: string, handler: (event: Event) => void) {
+    this.listeners.set(type, [...(this.listeners.get(type) ?? []), handler]);
+  }
+  removeEventListener(type: string, handler: (event: Event) => void) {
+    this.listeners.set(
+      type,
+      (this.listeners.get(type) ?? []).filter((item) => item !== handler),
+    );
+  }
+  emit(type: string, data: string) {
+    for (const handler of this.listeners.get(type) ?? []) handler({ data } as unknown as Event);
+  }
+}
+
+describe('живая линия (SSE)', () => {
   const polls = () => calls.filter((c) => c.url === '/api/notifications/unread-count').length;
 
   beforeEach(() => {
@@ -578,5 +590,362 @@ describe('живая линия (SSE)', () => {
     await act(() => vi.advanceTimersByTimeAsync(31_000));
 
     await waitFor(() => expect(polls()).toBe(2));
+  });
+});
+
+class FakeIntersectionObserver {
+  static instances: FakeIntersectionObserver[] = [];
+  observed = new Set<Element>();
+  disconnect = vi.fn(() => this.observed.clear());
+  constructor(
+    public callback: (entries: Partial<IntersectionObserverEntry>[]) => void,
+    public options?: IntersectionObserverInit,
+  ) {
+    FakeIntersectionObserver.instances.push(this);
+  }
+  observe(element: Element) {
+    this.observed.add(element);
+  }
+  /** Reports how much of a row is visible. */
+  see(id: string, ratio: number) {
+    const target = [...this.observed].find((element) => element.getAttribute('data-id') === id);
+    if (!target) throw new Error(`row ${id} is not observed`);
+    this.callback([{ target, intersectionRatio: ratio, isIntersecting: ratio > 0 }]);
+  }
+}
+const lastObserver = () => FakeIntersectionObserver.instances.at(-1)!;
+const readCalls = () => calls.filter((c) => c.url === '/api/notifications/read');
+
+describe('автопрочтение', () => {
+  beforeEach(() => {
+    FakeIntersectionObserver.instances = [];
+    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  it('строки, которые видно на 60% и больше около 0,8 с, помечаются одним запросом после паузы', async () => {
+    feed = [note(1), note(2), note(3)];
+    unread = 3;
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findAllByRole('listitem');
+
+    await act(async () => {
+      lastObserver().see('n1', 0.8);
+      lastObserver().see('n2', 1);
+      lastObserver().see('n3', 0.3);
+    });
+    await act(() => vi.advanceTimersByTimeAsync(700));
+    expect(readCalls()).toHaveLength(0);
+    await act(() => vi.advanceTimersByTimeAsync(200));
+    expect(readCalls()).toHaveLength(0);
+    await act(() => vi.advanceTimersByTimeAsync(600));
+
+    await waitFor(() => expect(readCalls()).toHaveLength(1));
+    expect(readCalls()[0]!.body).toEqual({ ids: ['n1', 'n2'] });
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Уведомления, непрочитанных: 1' }),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it('строка, которая ушла из видимости раньше 0,8 с, не помечается', async () => {
+    feed = [note(1)];
+    unread = 1;
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findByText('Расход добавлен');
+
+    await act(async () => lastObserver().see('n1', 1));
+    await act(() => vi.advanceTimersByTimeAsync(400));
+    await act(async () => lastObserver().see('n1', 0.2));
+    await act(() => vi.advanceTimersByTimeAsync(2000));
+
+    expect(readCalls()).toHaveLength(0);
+  });
+
+  it('вкладка скрыта: ничего не помечается', async () => {
+    feed = [note(1)];
+    unread = 1;
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findByText('Расход добавлен');
+
+    await act(async () => lastObserver().see('n1', 1));
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    await act(async () => document.dispatchEvent(new Event('visibilitychange')));
+    await act(() => vi.advanceTimersByTimeAsync(2000));
+
+    expect(readCalls()).toHaveLength(0);
+  });
+
+  it('панель закрыта: наблюдателя нет и ничего не помечается', async () => {
+    feed = [note(1)];
+    unread = 1;
+    renderBell();
+
+    await screen.findByRole('button', { name: 'Уведомления, непрочитанных: 1' });
+    await act(() => vi.advanceTimersByTimeAsync(3000));
+
+    expect(FakeIntersectionObserver.instances).toHaveLength(0);
+    expect(readCalls()).toHaveLength(0);
+  });
+
+  it('новая строка из потока при открытой панели тоже наблюдается и помечается', async () => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    FakeEventSource.instances = [];
+    feed = [note(1, { read: true })];
+    unread = 0;
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findByText('1 540 AMD · Магазин 1');
+    feed = [note(2), note(1, { read: true })];
+    unread = 1;
+
+    await act(async () =>
+      FakeEventSource.instances[0]!.emit('unread', JSON.stringify({ unread: 1 })),
+    );
+    await panel.findByText('1 540 AMD · Магазин 2');
+    await waitFor(() =>
+      expect([...lastObserver().observed].some((el) => el.getAttribute('data-id') === 'n2')).toBe(
+        true,
+      ),
+    );
+    await act(async () => lastObserver().see('n2', 1));
+    await act(() => vi.advanceTimersByTimeAsync(1400));
+
+    await waitFor(() => expect(readCalls()[0]?.body).toEqual({ ids: ['n2'] }));
+  });
+
+  it('без IntersectionObserver загруженные непрочитанные помечаются через 1,5 с', async () => {
+    vi.stubGlobal('IntersectionObserver', undefined);
+    feed = [note(1), note(2)];
+    unread = 2;
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findAllByRole('listitem');
+
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    expect(readCalls()).toHaveLength(0);
+    await act(() => vi.advanceTimersByTimeAsync(700));
+
+    await waitFor(() => expect(readCalls()[0]?.body).toEqual({ ids: ['n1', 'n2'] }));
+  });
+
+  it('точка непрочитанного гаснет (прозрачность), когда строка стала прочитанной', async () => {
+    feed = [note(1)];
+    unread = 1;
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findByText('Расход добавлен');
+
+    await act(async () => lastObserver().see('n1', 1));
+    await act(() => vi.advanceTimersByTimeAsync(1400));
+
+    await waitFor(() => expect(panel.queryByRole('img', { name: 'Не прочитано' })).toBeNull());
+    expect(screen.getByRole('listitem').querySelector('.opacity-0')).not.toBeNull();
+  });
+});
+
+describe('скрытие уведомлений', () => {
+  const rowOf = (text: string) => screen.getByText(text).closest('li')!;
+  const front = (row: HTMLElement) => row.querySelector<HTMLElement>('div[style*="touch-action"]')!;
+
+  beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+      configurable: true,
+      get: () => 300,
+    });
+    feed = [note(1), note(2), note(3)];
+    unread = 3;
+  });
+  afterEach(() => {
+    delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetWidth;
+  });
+
+  const dismissCalls = () => calls.filter((c) => c.url === '/api/notifications/dismiss');
+
+  it('свайп влево дальше 40% ширины: строка уходит, уходит запрос с её id, число падает, тост «Скрыто: 1»', async () => {
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findByText('1 540 AMD · Магазин 1');
+    const target = front(rowOf('1 540 AMD · Магазин 1'));
+
+    fireEvent.pointerDown(target, { clientX: 300, clientY: 20, pointerId: 1 });
+    fireEvent.pointerMove(target, { clientX: 250, clientY: 22, pointerId: 1 });
+    expect(target.style.transform).toBe('translateX(-50px)');
+    expect(screen.getByText('Скрыть', { selector: 'div' })).toBeInTheDocument();
+    fireEvent.pointerMove(target, { clientX: 140, clientY: 22, pointerId: 1 });
+    fireEvent.pointerUp(target, { clientX: 140, clientY: 22, pointerId: 1 });
+
+    await waitFor(() => expect(panel.queryByText('1 540 AMD · Магазин 1')).toBeNull());
+    expect(dismissCalls()[0]!.body).toEqual({ ids: ['n1'] });
+    expect(await screen.findByText('Скрыто: 1')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Вернуть' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: 'Уведомления, непрочитанных: 2' }),
+    ).toBeInTheDocument();
+  });
+
+  it('быстрый короткий взмах тоже скрывает (флик)', async () => {
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findByText('1 540 AMD · Магазин 1');
+    const target = front(rowOf('1 540 AMD · Магазин 1'));
+
+    fireEvent.pointerDown(target, { clientX: 300, clientY: 20, pointerId: 1 });
+    fireEvent.pointerMove(target, { clientX: 240, clientY: 20, pointerId: 1 });
+    fireEvent.pointerUp(target, { clientX: 240, clientY: 20, pointerId: 1 });
+
+    await waitFor(() => expect(dismissCalls()).toHaveLength(1));
+  });
+
+  it('короткий свайп: строка возвращается на место, ничего не скрыто', async () => {
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findByText('1 540 AMD · Магазин 1');
+    const target = front(rowOf('1 540 AMD · Магазин 1'));
+
+    fireEvent.pointerDown(target, { clientX: 300, clientY: 20, pointerId: 1 });
+    fireEvent.pointerMove(target, { clientX: 280, clientY: 20, pointerId: 1 });
+    fireEvent.pointerUp(target, { clientX: 280, clientY: 20, pointerId: 1 });
+
+    expect(target.style.transform).toBe('');
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    expect(dismissCalls()).toHaveLength(0);
+    expect(panel.getByText('1 540 AMD · Магазин 1')).toBeInTheDocument();
+  });
+
+  it('вертикальное движение не начинает свайп', async () => {
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findByText('1 540 AMD · Магазин 1');
+    const target = front(rowOf('1 540 AMD · Магазин 1'));
+
+    fireEvent.pointerDown(target, { clientX: 300, clientY: 20, pointerId: 1 });
+    fireEvent.pointerMove(target, { clientX: 290, clientY: 80, pointerId: 1 });
+    fireEvent.pointerMove(target, { clientX: 100, clientY: 90, pointerId: 1 });
+    fireEvent.pointerUp(target, { clientX: 100, clientY: 90, pointerId: 1 });
+
+    expect(target.style.transform).toBe('');
+    expect(dismissCalls()).toHaveLength(0);
+  });
+
+  it('кнопка «×» (aria-label «Скрыть уведомление») скрывает строку', async () => {
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findByText('1 540 AMD · Магазин 2');
+
+    await person.click(
+      within(rowOf('1 540 AMD · Магазин 2')).getByRole('button', { name: 'Скрыть уведомление' }),
+    );
+
+    await waitFor(() => expect(dismissCalls()[0]?.body).toEqual({ ids: ['n2'] }));
+    await waitFor(() => expect(panel.queryByText('1 540 AMD · Магазин 2')).toBeNull());
+  });
+
+  it('клавиша Delete на строке скрывает её', async () => {
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findByText('1 540 AMD · Магазин 3');
+    const main = within(rowOf('1 540 AMD · Магазин 3')).getAllByRole('button')[0]!;
+    main.focus();
+
+    await person.keyboard('{Delete}');
+
+    await waitFor(() => expect(dismissCalls()[0]?.body).toEqual({ ids: ['n3'] }));
+  });
+
+  it('уважает prefers-reduced-motion: строка пропадает сразу, без анимации', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('reduced-motion'),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findByText('1 540 AMD · Магазин 1');
+
+    await person.click(
+      within(rowOf('1 540 AMD · Магазин 1')).getByRole('button', { name: 'Скрыть уведомление' }),
+    );
+
+    expect(panel.queryByText('1 540 AMD · Магазин 1')).toBeNull();
+  });
+
+  it('«Скрыть все»: запрос без ids, пустое состояние, тост с числом, число на колокольчике 0', async () => {
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findAllByRole('listitem');
+
+    await person.click(panel.getByRole('button', { name: 'Скрыть все' }));
+
+    await waitFor(() => expect(dismissCalls()[0]?.body).toEqual({}));
+    expect(
+      await panel.findByText(
+        'Пока уведомлений нет. Здесь появятся новые расходы из банка, ошибки импорта и распознанные чеки',
+      ),
+    ).toBeInTheDocument();
+    expect(await screen.findByText('Скрыто: 3')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByTestId('bell-badge')).toBeNull());
+    expect(panel.getByRole('button', { name: 'Скрыть все' })).toBeDisabled();
+  });
+
+  it('«Вернуть» шлёт restore с id и перечитывает ленту', async () => {
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findAllByRole('listitem');
+    await person.click(panel.getByRole('button', { name: 'Скрыть все' }));
+    const undo = await screen.findByRole('button', { name: 'Вернуть' });
+    const before = calls.filter((c) => c.url.startsWith('/api/notifications?')).length;
+    feed = [note(1), note(2), note(3)];
+    unread = 3;
+
+    await person.click(undo);
+
+    await waitFor(() =>
+      expect(calls.find((c) => c.url === '/api/notifications/restore')?.body).toEqual({
+        ids: ['n1', 'n2', 'n3'],
+      }),
+    );
+    await waitFor(() =>
+      expect(calls.filter((c) => c.url.startsWith('/api/notifications?')).length).toBeGreaterThan(
+        before,
+      ),
+    );
+    expect(await panel.findByText('1 540 AMD · Магазин 1')).toBeInTheDocument();
+    expect(screen.queryByText('Скрыто: 3')).toBeNull();
+  });
+
+  it('второе скрытие заменяет тост первого', async () => {
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findAllByRole('listitem');
+
+    await person.click(
+      within(rowOf('1 540 AMD · Магазин 1')).getByRole('button', { name: 'Скрыть уведомление' }),
+    );
+    await screen.findByText('Скрыто: 1');
+    await person.click(
+      within(rowOf('1 540 AMD · Магазин 2')).getByRole('button', { name: 'Скрыть уведомление' }),
+    );
+
+    await waitFor(() => expect(screen.getAllByText(/^Скрыто: /)).toHaveLength(1));
+  });
+
+  it('ошибка скрытия: строки возвращаются, число как было, сообщение об ошибке', async () => {
+    dismissFails = true;
+    const person = renderBell();
+    const panel = await openPanel(person);
+    await panel.findAllByRole('listitem');
+
+    await person.click(panel.getByRole('button', { name: 'Скрыть все' }));
+
+    expect(await panel.findByText('Не удалось скрыть уведомление')).toBeInTheDocument();
+    expect(await panel.findByText('1 540 AMD · Магазин 1')).toBeInTheDocument();
+    expect(screen.getByTestId('bell-badge')).toHaveTextContent('3');
+    expect(screen.queryByText(/^Скрыто: /)).toBeNull();
   });
 });

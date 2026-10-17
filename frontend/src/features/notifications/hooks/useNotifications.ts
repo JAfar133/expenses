@@ -9,8 +9,10 @@ import {
 import {
   PAGE_SIZE,
   fetchNotifications,
+  dismissNotifications,
   fetchUnreadCount,
   markNotificationsRead,
+  restoreNotifications,
   type NotificationsPage,
 } from '../api/notifications.api.ts';
 
@@ -141,4 +143,58 @@ export function useNotificationStream() {
       stream.close();
     };
   }, [queryClient]);
+}
+
+/**
+ * Hides notifications (no ids: all of them). The rows go from the feed and the badge drops at once; an error brings
+ * them back. The answer carries the ids the server hid, for the «Вернуть» of the toast.
+ */
+export function useDismiss() {
+  const queryClient = useQueryClient();
+  return useMutation<{ ids: string[] }, Error, string[] | undefined, Context>({
+    retry: false,
+    mutationFn: (ids) => dismissNotifications(ids),
+    onMutate: async (ids) => {
+      await queryClient.cancelQueries({ queryKey: NOTIFICATIONS_KEY });
+      const feed = queryClient.getQueryData<Feed>(FEED_KEY);
+      const unread = queryClient.getQueryData<number>(UNREAD_KEY);
+      let removedUnread = 0;
+      if (feed) {
+        const pages = feed.pages.map((page) => ({
+          ...page,
+          items: page.items.filter((item) => {
+            if (ids && !ids.includes(item.id)) return true;
+            if (!item.read) removedUnread += 1;
+            return false;
+          }),
+        }));
+        queryClient.setQueryData<Feed>(FEED_KEY, {
+          ...feed,
+          pages: pages.map((page) => ({
+            ...page,
+            unread: ids ? Math.max(0, page.unread - removedUnread) : 0,
+          })),
+        });
+      }
+      if (unread !== undefined) {
+        queryClient.setQueryData<number>(UNREAD_KEY, ids ? Math.max(0, unread - removedUnread) : 0);
+      }
+      return { feed, unread };
+    },
+    onError: (_error, _ids, context) => {
+      if (context?.feed) queryClient.setQueryData(FEED_KEY, context.feed);
+      if (context?.unread !== undefined) queryClient.setQueryData(UNREAD_KEY, context.unread);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: UNREAD_KEY }),
+  });
+}
+
+/** The undo of a hide: the rows come back with the next read of the feed. */
+export function useRestore() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    retry: false,
+    mutationFn: (ids: string[]) => restoreNotifications(ids),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY }),
+  });
 }

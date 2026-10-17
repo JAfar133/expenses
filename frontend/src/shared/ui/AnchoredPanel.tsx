@@ -51,7 +51,10 @@ export function AnchoredPanel({
   useEffect(() => {
     if (!open) return;
     const onPointer = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) onOpenChange(false);
+      const target = event.target as Node;
+      // A notice floating over the panel (marked `data-panel-ignore`) is not «outside»
+      if ((target as Element).closest?.('[data-panel-ignore]')) return;
+      if (!root.current?.contains(target)) onOpenChange(false);
     };
     document.addEventListener('pointerdown', onPointer);
     return () => document.removeEventListener('pointerdown', onPointer);

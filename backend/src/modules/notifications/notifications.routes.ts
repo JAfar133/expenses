@@ -40,6 +40,24 @@ export const notificationsRoutes =
       };
     });
 
+    /** Body: `{ ids? }`; hides those notifications (no ids: all of them). Answers with the hidden ids for undo. */
+    app.post('/notifications/dismiss', async (request) => {
+      const parsed = readSchema.safeParse(request.body ?? {});
+      if (!parsed.success) throw validationError('INVALID_REQUEST', 'Некорректный запрос');
+      return {
+        success: true,
+        data: { ids: await service.dismiss(request.user!.id, parsed.data.ids) },
+      };
+    });
+
+    /** Body: `{ ids }`: brings back what was just hidden */
+    app.post('/notifications/restore', async (request) => {
+      const parsed = z.object({ ids: z.array(z.uuid()).min(1).max(200) }).safeParse(request.body);
+      if (!parsed.success) throw validationError('INVALID_REQUEST', 'Некорректный запрос');
+      await service.restore(request.user!.id, parsed.data.ids);
+      return { success: true };
+    });
+
     /** What reaches the phone as push (the bell always gets everything) */
     app.get('/notifications/settings', async (request) => ({
       success: true,
