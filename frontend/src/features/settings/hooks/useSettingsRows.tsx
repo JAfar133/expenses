@@ -1,12 +1,4 @@
-import {
-  BellIcon,
-  BoltIcon,
-  ChartIcon,
-  PaletteIcon,
-  ShieldIcon,
-  UserIcon,
-  UsersIcon,
-} from '../../../shared/ui/icons.tsx';
+import { BellIcon, BoltIcon, ChartIcon, PaletteIcon, UserIcon } from '../../../shared/ui/icons.tsx';
 import type { AuthUser } from '../../auth/api/auth.api.ts';
 import { usePreference } from '../../preferences/hooks/usePreferences.ts';
 import { PREFERENCES } from '../../preferences/model/preferences.ts';
@@ -27,8 +19,8 @@ const PUSH_VALUES: Record<PushStatus, string | undefined> = {
 const pushValue = (status: PushStatus) => PUSH_VALUES[status];
 
 /**
- * The rows of the personal settings: the sections «Для меня» (with the current values taken from what the app already
- * knows) and, below them, the group and the administration for those who may use them.
+ * The rows of the personal settings: the sections «Для меня», with the current values taken from what the app already
+ * knows. The group and the administration are reached from the user menu, not from here.
  */
 export function useSettingsRows(user: AuthUser) {
   const { data: templates } = useTemplates();
@@ -38,7 +30,6 @@ export function useSettingsRows(user: AuthUser) {
 
   const list = Array.isArray(templates) ? templates : [];
   const available = list.filter((template) => !template.pending).length;
-  const proposals = user.role === 'owner' ? list.filter((template) => template.pending).length : 0;
   const themeLabel = PREFERENCES.theme.options.find((option) => option.value === theme)?.label;
 
   const personal: RowData[] = [
@@ -79,23 +70,5 @@ export function useSettingsRows(user: AuthUser) {
     },
   ];
 
-  const app: RowData[] = [
-    ...(user.role === 'owner'
-      ? [
-          {
-            to: '/group',
-            tone: 'group' as const,
-            icon: <UsersIcon />,
-            title: 'Управление группой',
-            subtitle: 'Участники, карты, категории',
-            badge: proposals,
-          },
-        ]
-      : []),
-    ...(user.isAdmin
-      ? [{ to: '/admin', tone: 'admin' as const, icon: <ShieldIcon />, title: 'Админ' }]
-      : []),
-  ];
-
-  return { personal, app };
+  return { personal };
 }

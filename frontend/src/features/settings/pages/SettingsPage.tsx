@@ -42,17 +42,14 @@ export default function SettingsPage() {
 }
 
 function Settings({ user }: { user: AuthUser }) {
-  const { personal, app } = useSettingsRows(user);
+  const { personal } = useSettingsRows(user);
   return (
     <SectionsPage
       base="/settings"
       hubTitle="Настройки"
       hubTop={<SettingsProfile user={user} />}
       hubFooter={<SettingsLogout />}
-      groups={[
-        { label: 'Для меня', menuLabel: 'Разделы настроек', rows: personal },
-        ...(app.length > 0 ? [{ label: 'Группа и приложение', rows: app }] : []),
-      ]}
+      groups={[{ label: 'Для меня', menuLabel: 'Разделы настроек', rows: personal }]}
       sections={SECTIONS}
       firstSection="account"
       backLabel="Настройки"

@@ -110,7 +110,6 @@ function Sections({ data, currentUsername }: { data: GroupOverview; currentUsern
     <SectionsPage
       base="/group"
       hubTitle={`Группа «${data.group.name}»`}
-      hubBack={{ to: '/settings', label: 'Настройки' }}
       groups={groups}
       sections={SECTIONS}
       firstSection="general"

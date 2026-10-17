@@ -171,19 +171,15 @@ describe('главный экран настроек на телефоне', () 
     expect(rows.getByRole('link', { name: /Аналитика/ })).toHaveTextContent('AMD');
   });
 
-  it('владелец: «Владелец группы «Семья»», строка управления группой с числом предложений', async () => {
+  it('владелец: «Владелец группы «Семья»»; управления группой и админа среди настроек нет', async () => {
     user = { ...BASE, role: 'owner' };
     renderAt('/settings');
 
     const profile = await screen.findByRole('link', { name: 'Профиль: Миша' });
     await waitFor(() => expect(profile).toHaveTextContent('Владелец группы «Семья»'));
-    const group = within(screen.getByRole('navigation', { name: 'Группа и приложение' }));
-    const row = group.getByRole('link', { name: /Управление группой/ });
-    expect(row).toHaveTextContent('Участники, карты, категории');
-    await waitFor(() =>
-      expect(within(row).getByLabelText('1 ждут решения')).toHaveTextContent('1'),
-    );
-    expect(group.queryByText('Админ')).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Группа и приложение' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Управление группой/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Админ/ })).toBeNull();
   });
 
   it('администратор и владелец: одна короткая строка «Администратор и владелец группы»', async () => {
@@ -195,25 +191,14 @@ describe('главный экран настроек на телефоне', () 
     );
   });
 
-  it('владелец без предложений: бейджа нет', async () => {
-    user = { ...BASE, role: 'owner' };
-    templates = [tpl('a')];
-    renderAt('/settings');
-
-    const row = await screen.findByRole('link', { name: /Управление группой/ });
-    await waitFor(() => expect(calls.some((c) => c.url === '/api/templates')).toBe(true));
-    expect(within(row).queryByLabelText(/ждут решения/)).toBeNull();
-  });
-
-  it('администратор: «Администратор» и строка «Админ»', async () => {
+  it('администратор: профиль «Администратор», строки «Админ» среди настроек нет (он в меню пользователя)', async () => {
     user = { ...BASE, isAdmin: true };
-    const person = renderAt('/settings');
+    renderAt('/settings');
 
     expect(await screen.findByRole('link', { name: 'Профиль: Миша' })).toHaveTextContent(
       'Администратор',
     );
-    await person.click(screen.getByRole('link', { name: /Админ/ }));
-    expect(await screen.findByText('Страница админа')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Админ/ })).toBeNull();
   });
 
   it('строки ведут в разделы; профиль ведёт в аккаунт; «‹ Настройки» возвращает на главный экран', async () => {
@@ -311,10 +296,7 @@ describe('настройки на компьютере', () => {
       /^Шаблоны расходов$/,
     );
     expect(menu.getByRole('link', { name: /Аналитика/ })).toHaveTextContent(/^Аналитика$/);
-    const group = within(screen.getByRole('navigation', { name: 'Группа и приложение' }));
-    await waitFor(() =>
-      expect(group.getByRole('link', { name: /Управление группой/ })).toHaveTextContent('1'),
-    );
+    expect(screen.queryByRole('navigation', { name: 'Группа и приложение' })).toBeNull();
   });
 
   it('/settings сразу открывает «Аккаунт»; слева меню, справа раздел, кнопки «назад» нет', async () => {
@@ -345,15 +327,14 @@ describe('настройки на компьютере', () => {
     expect(menu().getByRole('link', { name: /Аккаунт/ })).not.toHaveAttribute('aria-current');
   });
 
-  it('владелец: в меню слева «Управление группой» с бейджем; участнику её нет', async () => {
-    user = { ...BASE, role: 'owner' };
+  it('в меню слева только личные разделы: ни «Управления группой», ни «Админа»', async () => {
+    user = { ...BASE, role: 'owner', isAdmin: true };
     renderAt('/settings/account');
-    const menu = within(await screen.findByRole('navigation', { name: 'Группа и приложение' }));
+    const menu = within(await screen.findByRole('navigation', { name: 'Разделы настроек' }));
 
-    expect(menu.getByRole('link', { name: /Управление группой/ })).toHaveAttribute(
-      'href',
-      '/group',
-    );
+    expect(menu.getAllByRole('link')).toHaveLength(5);
+    expect(screen.queryByRole('link', { name: /Управление группой/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Админ/ })).toBeNull();
   });
 
   it('/settings#notifications на компьютере тоже ведёт в раздел', async () => {

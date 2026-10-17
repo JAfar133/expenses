@@ -9,6 +9,7 @@ import {
 } from '../../../shared/ui/icons.tsx';
 import { hasBackupProblem, useAdminBackup } from '../../admin/hooks/useAdminBackup.ts';
 import type { AuthUser } from '../api/auth.api.ts';
+import { useTemplates } from '../../templates/hooks/useTemplates.ts';
 import { useLogout } from '../hooks/useAuth.ts';
 
 const roleLabel = (user: AuthUser) =>
@@ -47,6 +48,12 @@ export function UserBar({ user }: { user: AuthUser }) {
   // Only an application admin asks about the backup: nobody else ever requests the endpoint
   const backup = useAdminBackup(user.isAdmin);
   const problem = user.isAdmin && hasBackupProblem(backup.data?.state);
+  // Template proposals of the members wait for the owner: the number is shown by «Управление группой»
+  const { data: templates } = useTemplates();
+  const proposals =
+    user.role === 'owner' && Array.isArray(templates)
+      ? templates.filter((template) => template.pending).length
+      : 0;
   const { pathname } = useLocation();
 
   const [open, setOpen] = useState(false);
@@ -127,7 +134,17 @@ export function UserBar({ user }: { user: AuthUser }) {
           <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
           {user.role === 'owner' && (
             <MenuItem to="/group" icon={<UsersIcon />}>
-              Управление группой
+              <span className="flex items-center gap-2">
+                Управление группой
+                {proposals > 0 && (
+                  <span
+                    aria-label={`Предложений шаблонов: ${proposals}`}
+                    className="rounded-full bg-red-500 px-1.5 text-xs font-semibold text-white"
+                  >
+                    {proposals}
+                  </span>
+                )}
+              </span>
             </MenuItem>
           )}
           {user.isAdmin && (

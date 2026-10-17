@@ -1785,7 +1785,7 @@ describe('хаб группы на телефоне', () => {
     }));
   });
 
-  it('заголовок с названием, «‹ Настройки», строки со значениями и бейджем «N новых», блок «Автоматизация»', async () => {
+  it('заголовок с названием, строки со значениями и бейджем «N новых», блок «Автоматизация»', async () => {
     templatesList = [
       {
         id: 'p1',
@@ -1833,7 +1833,7 @@ describe('хаб группы на телефоне', () => {
     expect(
       await screen.findByRole('heading', { name: 'Группа «Семья»', level: 2 }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Настройки/ })).toHaveAttribute('href', '/settings');
+    expect(screen.queryByRole('link', { name: /Настройки/ })).toBeNull();
     const main = within(screen.getByRole('navigation', { name: 'Разделы' }));
     expect(main.getByRole('link', { name: /Основные/ })).toHaveTextContent(
       'Название, валюта отчётов',
