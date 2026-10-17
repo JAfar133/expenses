@@ -98,7 +98,7 @@ const puts = () => requests.filter((r) => r.method === 'PUT' && r.url === '/api/
 const section = (name: string) => screen.getByRole('heading', { name }).closest('section')!;
 
 describe('страница настроек', () => {
-  it('четыре карточки: аккаунт, безопасность, оформление, настройки аналитики; прав пользователей нет', async () => {
+  it('пять карточек: аккаунт, безопасность, шаблоны, оформление, настройки аналитики; прав пользователей нет', async () => {
     renderSettings();
 
     expect(await screen.findByRole('heading', { name: 'Настройки' })).toBeInTheDocument();
@@ -107,6 +107,7 @@ describe('страница настроек', () => {
       'Настройки',
       'Аккаунт',
       'Безопасность',
+      'Шаблоны',
       'Оформление',
       'Настройки аналитики',
     ]);

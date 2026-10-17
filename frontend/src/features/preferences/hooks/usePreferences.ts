@@ -8,6 +8,7 @@ import {
   PREFERENCE_KEYS,
   PREFERENCES,
   sanitizePreferences,
+  type BooleanPreferenceKey,
   type PreferenceKey,
   type PreferenceValue,
   type Preferences,
@@ -117,4 +118,15 @@ export function useChosenPreference<K extends PreferenceKey>(
 ): PreferenceValue<K> | undefined {
   const { data } = usePreferences();
   return (data?.[key] ?? readLocal(key)) as PreferenceValue<K> | undefined;
+}
+
+/** A yes/no preference and a way to change it; until the user chooses, `fallback` is the value. */
+export function useBooleanPreference(
+  key: BooleanPreferenceKey,
+  fallback: boolean,
+): [boolean, (value: boolean) => void] {
+  const { data } = usePreferences();
+  const { save } = useSavePreferences();
+  const change = useCallback((next: boolean) => void save({ [key]: next }), [key, save]);
+  return [data?.[key] ?? fallback, change];
 }

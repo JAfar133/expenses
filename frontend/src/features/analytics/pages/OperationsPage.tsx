@@ -14,6 +14,7 @@ import { ItemsSection } from '../../items/components/ItemsSection.tsx';
 import { ReceiptEditor } from '../../receipts/components/ReceiptEditor.tsx';
 import { ReceiptViewer } from '../../receipts/components/ReceiptViewer.tsx';
 import { useReceiptSettings } from '../../receipts/hooks/useReceiptSettings.ts';
+import { TemplateDialog, type TemplateDraft } from '../../templates/components/TemplateDialog.tsx';
 import { ConfirmDialog } from '../components/ConfirmDialog.tsx';
 import { EditExpenseDialog } from '../components/EditExpenseDialog.tsx';
 import { OperationsTable } from '../components/OperationsTable.tsx';
@@ -46,6 +47,18 @@ function cardsForEditing(
   if (!cards) return [];
   const own = item.currency || reporting;
   return cards.filter((card) => card.currency === own).map((card) => card.name);
+}
+
+/** The template dialog starts from the record: its category, card, name and amount (as it was typed). */
+function templateFrom(item: OperationItem): TemplateDraft {
+  return {
+    name: item.name,
+    expenseName: item.name,
+    category: item.category,
+    card: item.card,
+    amount: item.original?.amount ?? item.amount,
+    currency: item.original?.currency ?? item.currency,
+  };
 }
 
 /** "Operations" tab: all records with sorting and pages; editors can edit, delete and restore. */
@@ -82,6 +95,7 @@ export default function OperationsPage() {
     : undefined;
 
   const [editing, setEditing] = useState<OperationItem>();
+  const [templateDraft, setTemplateDraft] = useState<TemplateDraft>();
   const [deleting, setDeleting] = useState<OperationItem>();
   const [viewingReceipt, setViewingReceipt] = useState<OperationItem>();
   const receiptSettings = useReceiptSettings().data;
@@ -212,6 +226,7 @@ export default function OperationsPage() {
           }}
           onDelete={setDeleting}
           onViewReceipt={setViewingReceipt}
+          onSaveAsTemplate={(item) => setTemplateDraft(templateFrom(item))}
           onRestore={(item) =>
             restore.mutate(item.id, {
               onSuccess: () => done(`Запись «${item.name}» возвращена`),
@@ -246,6 +261,14 @@ export default function OperationsPage() {
             </button>
           </span>
         </nav>
+      )}
+
+      {templateDraft && (
+        <TemplateDialog
+          draft={templateDraft}
+          onClose={() => setTemplateDraft(undefined)}
+          onSaved={() => done('Шаблон сохранён')}
+        />
       )}
 
       {editing && (

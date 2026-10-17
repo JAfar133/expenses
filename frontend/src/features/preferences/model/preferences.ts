@@ -104,12 +104,17 @@ export type PreferenceValue<K extends PreferenceKey> =
 export const PREFERENCE_KEYS = Object.keys(PREFERENCES) as PreferenceKey[];
 
 /** Flags that are plain booleans, not a choice from a list: kept apart from `PREFERENCES`. */
-export const BOOLEAN_PREFERENCES = ['ai.noticeSeen'] as const;
+export const BOOLEAN_PREFERENCES = [
+  'ai.noticeSeen',
+  'templates.hideGroup',
+  'templates.strip',
+] as const;
 export type BooleanPreferenceKey = (typeof BOOLEAN_PREFERENCES)[number];
 
 /** All saved preferences: only those the user changed. */
 export type Preferences = { [K in PreferenceKey]?: PreferenceValue<K> } & {
-  /** The person has seen the notice that a receipt photo is sent to the AI service */
+  /** `ai.noticeSeen`: the person has seen the notice that a receipt photo is sent to the AI service;
+   * `templates.hideGroup`: group templates are hidden for this user; `templates.strip`: the row of chips above the form */
   [K in BooleanPreferenceKey]?: boolean;
 };
 

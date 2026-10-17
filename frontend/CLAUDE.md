@@ -17,7 +17,7 @@ Before finishing work: `typecheck`, `test`, `format`.
 
 ## Structure
 
-- `src/features/<name>/` by function: `auth`, `expenses`, `sync`, `analytics` (the analytics page: charts on Recharts, colors and palette in `index.css`), `group` (owner page `/group`: members, invitations, cards with access, categories; and the public invitation page `/invite/:token`, outside `AuthGate`), `admin` (application admin page `/admin`: groups, password reset links). Inside: `api/`, `hooks/`, `components/`, `schemas/`.
+- `src/features/<name>/` by function: `auth`, `expenses`, `sync`, `analytics` (the analytics page: charts on Recharts, colors and palette in `index.css`), `group` (owner page `/group`: members, invitations, cards with access, categories; and the public invitation page `/invite/:token`, outside `AuthGate`), `templates` (quick-action templates v5: the row of chips above the add form, the «Все» panel, the dialog, the settings card), `admin` (application admin page `/admin`: groups, password reset links). Inside: `api/`, `hooks/`, `components/`, `schemas/`.
 - User settings (chart views, etc.) are stored on the server: `features/preferences` (described in `model/preferences.ts`, the `usePreference` hook). The settings page `features/settings` is assembled from blocks.
 - `src/pages/` pages, `src/app/` the app root, routes (React Router) and the shared `AppShell` frame. The analytics page is loaded lazily.
 - `src/shared/` shared code: `api/http.ts` (requests), `ui/` (Button, Field, Notice), `utils/`.
@@ -25,6 +25,8 @@ Before finishing work: `typecheck`, `test`, `format`.
 - Server data goes through TanStack Query, forms through React Hook Form + zod.
 
 ## Rules
+
+- **Templates (v5) add nothing to the form fields.** The row above them exists only if the user has usable templates and `templates.strip` is on; a template with an amount creates the expense at once (notice with «Отменить»), without an amount or offline it fills the form (`template` prop of `ExpenseForm`).
 
 - **The UI of a regular user (role `member`) stays exactly as it was.** New things are visible only to an owner (link "Группа") and to an application admin (link "Админ"); for others they are not rendered at all (pages also redirect to `/`). Roles are managed only on the group page.
 
@@ -37,3 +39,4 @@ Before finishing work: `typecheck`, `test`, `format`.
 - UI texts are in Russian, identifiers are in English.
 - The code is clean and structured: small components, one task per module, wrap long expressions (Prettier).
 - Tests live nearby by meaning in `tests/`; mock `fetch`, query elements by role and accessible name.
+- Settings for people must be self-explanatory: a title, the choice shown in words (a segmented control with icons or a labeled control, not a bare switch), and one helper line describing the current choice; avoid negative phrasing. See `features/templates/components/ChoiceSetting.tsx`.

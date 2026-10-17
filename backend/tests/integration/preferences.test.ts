@@ -54,6 +54,13 @@ describe('настройки пользователя', () => {
     expect((await get('nastya')).json().data['daily.type']).toBe('area');
   });
 
+  it('настройки шаблонов булевы', async () => {
+    expect(
+      (await put({ 'templates.hideGroup': true, 'templates.strip': false })).json().data,
+    ).toEqual({ 'templates.hideGroup': true, 'templates.strip': false });
+    expect((await put({ 'templates.strip': 'нет' })).statusCode).toBe(422);
+  });
+
   it('тема сохраняется, неизвестное значение отвергается', async () => {
     expect((await put({ theme: 'dark' })).json().data).toEqual({ theme: 'dark' });
     expect((await put({ theme: 'blue' })).statusCode).toBe(422);

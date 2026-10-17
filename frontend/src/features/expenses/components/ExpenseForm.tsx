@@ -12,6 +12,7 @@ import { crossRate, currencyDigits } from '../../../shared/utils/conversion.ts';
 import {
   formatAmountInput,
   formatAmount,
+  formatDecimalInput,
   formatMoney,
   parseAmount,
   parseDecimal,
@@ -44,6 +45,7 @@ import { useReceiptPreparse } from '../hooks/useReceiptPreparse.ts';
 import { ReceiptItemsField } from '../../items/components/ReceiptItemsField.tsx';
 import { draftsToInputs, inputsToDrafts, type DraftItem } from '../../items/model/draft-items.ts';
 import { NameSuggestions } from './NameSuggestions.tsx';
+import type { Template } from '../../templates/api/templates.api.ts';
 
 /** The last category is remembered per user: two people may share one device. */
 const lastCategoryKey = (username: string) => `expenses.lastCategory.${username}`;
@@ -60,6 +62,14 @@ interface ExpenseFormProps {
   /** An expense taken back from the offline queue to be corrected: its values go into the form */
   draft?: QueuedExpense;
   onDraftApplied?: () => void;
+  /** A template to put into the form (a tap on a template without an amount, or «В форму») */
+  template?: Template;
+  onTemplateApplied?: () => void;
+  /** After a save: offer to keep the expense as a template (not offered when one like it exists) */
+  templateOffer?: {
+    exists: (category: string, name: string) => boolean;
+    onSave: (created: CreatedExpense) => void;
+  };
 }
 
 /** The user's last choice, if it is still in the reference data. */
@@ -121,6 +131,9 @@ export function ExpenseForm({
   user,
   draft,
   onDraftApplied,
+  template,
+  onTemplateApplied,
+  templateOffer,
 }: ExpenseFormProps) {
   const { state, submit: submitExpense, reset: resetState } = useSubmitExpense();
   // The date counts as typed by a person only when they changed it: the AI may replace the default
@@ -271,6 +284,38 @@ export function ExpenseForm({
     // Only a new draft matters
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft]);
+
+  // A template: its card, category, name and, if it has one, the amount go into the form
+  useEffect(() => {
+    if (!template) return;
+    const card = cardNames.includes(template.effectiveCard)
+      ? template.effectiveCard
+      : getValues('card');
+    const cardCurrency = cardCurrencyOf(card);
+    const typed = template.amount !== null ? (template.currency ?? cardCurrency) : cardCurrency;
+    setValue('card', card);
+    setValue('category', categories.includes(template.category) ? template.category : '', {
+      shouldValidate: true,
+    });
+    setValue('name', template.expenseName, { shouldValidate: true, shouldDirty: true });
+    setValue('currency', typed);
+    setValue(
+      'rate',
+      typed !== baseCurrency && typed !== cardCurrency ? rateText(rates, typed) : '',
+    );
+    setValue(
+      'amount',
+      template.amount === null
+        ? ''
+        : formatDecimalInput(String(template.amount), { maxDecimals: 2, group: true }),
+      { shouldValidate: template.amount !== null },
+    );
+    resetState();
+    if (template.amount === null) setFocus('amount');
+    onTemplateApplied?.();
+    // Only a new template matters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [template]);
 
   // A new card: the typed currency goes back to the card's one, the rate is not needed
   const resetCurrencyFor = (cardName: string) => {
@@ -515,6 +560,17 @@ export function ExpenseForm({
             Расход сохранён. В Excel он появится позже, когда файл освободится
           </Notice>
         ))}
+      {state.status === 'sent' &&
+        templateOffer &&
+        !templateOffer.exists(state.created.category, state.created.name) && (
+          <button
+            type="button"
+            onClick={() => templateOffer.onSave(state.created)}
+            className="-mt-2 h-10 rounded-lg px-1 text-sm font-semibold text-indigo-600 dark:text-indigo-300"
+          >
+            Сохранить как шаблон
+          </button>
+        )}
       {state.status === 'queued' && <Notice variant="info">{QUEUED_MESSAGE}</Notice>}
       {state.status === 'sent' && state.photoFailed && (
         <Notice variant="info">

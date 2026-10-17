@@ -79,6 +79,10 @@ describe('драйвер pg', () => {
       '0021_category_ai.sql',
       '0022_ai_languages.sql',
       '0023_ai_usage_request_key.sql',
+      '0024_templates.sql',
+      '0025_template_proposals.sql',
+      '0026_template_updated_by.sql',
+      '0027_template_order.sql',
     ]);
   });
 

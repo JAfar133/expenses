@@ -5,10 +5,11 @@ import { CardsCard } from '../components/CardsCard.tsx';
 import { CategoriesCard } from '../components/CategoriesCard.tsx';
 import { GroupSettingsCard } from '../components/GroupSettingsCard.tsx';
 import { MembersCard } from '../components/MembersCard.tsx';
+import { GroupTemplatesCard } from '../../templates/components/GroupTemplatesCard.tsx';
 import { useGroup } from '../hooks/useGroup.ts';
 import { toErrorMessage } from '../model/error-message.ts';
 
-/** Owner's page: four cards, the group settings, members, cards, and categories with limits. */
+/** Owner's page: five cards: the group settings, members, cards, categories with limits, and the group's templates. */
 export default function GroupPage() {
   const { data: user } = useCurrentUser();
   if (!user) return null;
@@ -46,6 +47,7 @@ function GroupContent({ currentUsername }: { currentUsername: string }) {
         reportingCurrency={data.group.reportingCurrency}
       />
       <CategoriesCard categories={data.categories} />
+      <GroupTemplatesCard />
     </div>
   );
 }

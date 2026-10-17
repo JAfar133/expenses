@@ -31,6 +31,7 @@ describe('миграции', () => {
       'expense_attachments',
       'expense_changes',
       'expense_items',
+      'expense_templates',
       'expenses',
       'groups',
       'idempotency_keys',
@@ -38,6 +39,8 @@ describe('миграции', () => {
       'memberships',
       'schema_migrations',
       'sync_state',
+      'template_hidden',
+      'template_order',
       'users',
     ]);
   });

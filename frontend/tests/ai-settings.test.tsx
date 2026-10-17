@@ -97,7 +97,7 @@ beforeEach(() => {
           invitations: [],
         });
       }
-      if (url === '/api/budgets') return ok([]);
+      if (url === '/api/budgets' || url === '/api/templates') return ok([]);
       if (url === '/api/receipts/settings') return ok(receiptSettings);
       if (url === '/api/config') return ok({ currency: 'AMD', baseCurrency: 'AMD' });
       return ok({});

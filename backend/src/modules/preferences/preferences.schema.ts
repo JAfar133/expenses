@@ -24,6 +24,10 @@ export const preferencesSchema = z
     'ai.noticeSeen': z.boolean(),
     /** Color theme: follow the system or force light/dark */
     theme: z.enum(['system', 'light', 'dark']),
+    /** Templates: hide every group template for this user */
+    'templates.hideGroup': z.boolean(),
+    /** Templates: the row of the first chips above the add form (on by default) */
+    'templates.strip': z.boolean(),
   })
   .partial()
   .strict();

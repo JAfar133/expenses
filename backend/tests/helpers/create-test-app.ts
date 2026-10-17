@@ -29,6 +29,8 @@ import { ReceiptsRepository } from '../../src/modules/receipts/receipts.reposito
 import { ReceiptsService } from '../../src/modules/receipts/receipts.service.ts';
 import { ReceiptStore } from '../../src/modules/receipts/receipts.store.ts';
 import { BudgetsService } from '../../src/modules/budgets/budgets.service.ts';
+import { TemplatesRepository } from '../../src/modules/templates/templates.repository.ts';
+import { TemplatesService } from '../../src/modules/templates/templates.service.ts';
 import { ReportService } from '../../src/modules/reports/report.service.ts';
 import { SyncSwitch } from '../../src/modules/sync/sync-switch.ts';
 import { SyncScheduler } from '../../src/modules/sync/sync.scheduler.ts';
@@ -272,6 +274,11 @@ export async function createTestApp(
     groups,
     invitations,
     receipts,
+    templates: new TemplatesService({
+      repository: new TemplatesRepository(database),
+      groups,
+      currencies: ['AMD', 'USD', 'RUB', 'EUR'],
+    }),
     ai,
     budgets: new BudgetsService({
       repository: budgetsRepository,

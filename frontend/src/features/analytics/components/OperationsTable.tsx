@@ -11,7 +11,13 @@ import { todayIso } from '../../../shared/utils/date.ts';
 import { capitalize, dayLabel, groupByDate } from '../model/operations.ts';
 import { formatShortDateTime } from '../../admin/model/backup.ts';
 import { ActionMenu, type MenuAction } from '../../../shared/ui/ActionMenu.tsx';
-import { CameraIcon, PencilIcon, TrashIcon, UndoIcon } from '../../../shared/ui/icons.tsx';
+import {
+  BoltIcon,
+  CameraIcon,
+  PencilIcon,
+  TrashIcon,
+  UndoIcon,
+} from '../../../shared/ui/icons.tsx';
 import { ExcelStateBadge } from './ExcelStateBadge.tsx';
 
 interface OperationsTableProps {
@@ -34,6 +40,8 @@ interface OperationsTableProps {
   onDelete: (item: OperationItem) => void;
   onRestore: (item: OperationItem) => void;
   onViewReceipt?: (item: OperationItem) => void;
+  /** «Сохранить как шаблон» in the menu of a live record */
+  onSaveAsTemplate?: (item: OperationItem) => void;
   /** Phone list: records grouped under a plate per day (only while sorted by date) */
   groupByDay?: boolean;
   /** The whole-day totals in the display currency, by YYYY-MM-DD; a day without a total shows no sum */
@@ -110,7 +118,11 @@ function Actions({
   onDelete,
   onRestore,
   onViewReceipt,
-}: Pick<OperationsTableProps, 'onEdit' | 'onDelete' | 'onRestore' | 'onViewReceipt'> & {
+  onSaveAsTemplate,
+}: Pick<
+  OperationsTableProps,
+  'onEdit' | 'onDelete' | 'onRestore' | 'onViewReceipt' | 'onSaveAsTemplate'
+> & {
   item: OperationItem;
   busy: boolean;
 }) {
@@ -129,6 +141,15 @@ function Actions({
           : []),
         ...(item.hasReceipt && onViewReceipt
           ? [{ label: 'Посмотреть чек', icon: <CameraIcon />, onSelect: () => onViewReceipt(item) }]
+          : []),
+        ...(onSaveAsTemplate
+          ? [
+              {
+                label: 'Сохранить как шаблон',
+                icon: <BoltIcon />,
+                onSelect: () => onSaveAsTemplate(item),
+              },
+            ]
           : []),
         ...(item.editable
           ? [
@@ -246,6 +267,7 @@ export function OperationsTable(props: OperationsTableProps) {
         onDelete={props.onDelete}
         onRestore={props.onRestore}
         onViewReceipt={props.onViewReceipt}
+        onSaveAsTemplate={props.onSaveAsTemplate}
       />
     );
 

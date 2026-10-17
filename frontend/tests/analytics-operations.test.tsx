@@ -359,7 +359,11 @@ describe('права', () => {
 
     await user.click(within(rowOf('Позиция 1')).getByRole('button', { name: 'Действия' }));
     const items = screen.getAllByRole('menuitem');
-    expect(items.map((i) => i.textContent)).toEqual(['Изменить', 'Удалить']);
+    expect(items.map((i) => i.textContent)).toEqual([
+      'Изменить',
+      'Сохранить как шаблон',
+      'Удалить',
+    ]);
     expect(screen.getByRole('menuitem', { name: 'Удалить' }).className).toContain('text-red-600');
   });
 

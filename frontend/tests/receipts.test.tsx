@@ -102,7 +102,8 @@ describe('фото на форме «Добавить»', () => {
         if (url === '/api/categories') return ok(['кафе', 'продукты']);
         if (url === '/api/config') return ok({ currency: 'AMD', baseCurrency: 'AMD' });
         if (url === '/api/rates') return ok({ base: 'AMD', currencies: ['AMD'], rates: [] });
-        if (url === '/api/name-suggestions' || url === '/api/budgets') return ok([]);
+        if (url === '/api/name-suggestions' || url === '/api/budgets' || url === '/api/templates')
+          return ok([]);
         if (url === '/api/receipts/settings') return ok(settings);
         if (url.startsWith('/api/analytics/')) throw new Error('no analytics');
         if (url === '/api/expenses' && method === 'POST')
@@ -478,7 +479,7 @@ describe('«Фото чеков» в настройках группы', () => {
           settings = body;
           return ok({});
         }
-        return ok(url === '/api/budgets' ? [] : {});
+        return ok(url === '/api/budgets' || url === '/api/templates' ? [] : {});
       }),
     );
   });

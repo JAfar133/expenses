@@ -314,6 +314,12 @@ export const CameraIcon = () => (
   </Icon>
 );
 
+export const BoltIcon = ({ size = 16 }: { size?: number }) => (
+  <Icon size={size}>
+    <path d="M13 2 4 14h7l-1 8 9-12h-7z" />
+  </Icon>
+);
+
 export const MoreIcon = () => (
   <Icon>
     <circle cx="5" cy="12" r="1.3" />
@@ -402,5 +408,53 @@ export const SunIcon = () => (
 export const MoonIcon = () => (
   <Icon>
     <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+  </Icon>
+);
+
+export const SmileIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M8.5 14a4 4 0 0 0 7 0M9 9.5h.01M15 9.5h.01" />
+  </Icon>
+);
+
+export const EyeIcon = () => (
+  <Icon>
+    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </Icon>
+);
+
+export const EyeOffIcon = () => (
+  <Icon>
+    <path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4M6.5 6.6A17 17 0 0 0 2 12s3.6 7 10 7a10 10 0 0 0 4-.8M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+  </Icon>
+);
+
+/** Three stacked lines: «a list» */
+export const ListIcon = () => (
+  <Icon>
+    <path d="M4 6h16M4 12h16M4 18h16" />
+  </Icon>
+);
+
+/** Three chips in a row: «buttons above the form» */
+export const ChipsIcon = () => (
+  <Icon>
+    <rect x="2.5" y="8" width="5" height="8" rx="2" />
+    <rect x="9.5" y="8" width="5" height="8" rx="2" />
+    <rect x="16.5" y="8" width="5" height="8" rx="2" />
+  </Icon>
+);
+
+/** Six dots: a drag handle */
+export const GripIcon = () => (
+  <Icon>
+    <circle cx="9" cy="6" r="1.2" />
+    <circle cx="15" cy="6" r="1.2" />
+    <circle cx="9" cy="12" r="1.2" />
+    <circle cx="15" cy="12" r="1.2" />
+    <circle cx="9" cy="18" r="1.2" />
+    <circle cx="15" cy="18" r="1.2" />
   </Icon>
 );

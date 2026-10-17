@@ -77,6 +77,7 @@ let override: (method: string, url: string) => Response | undefined;
 // Limits of the group as the server returns them for GET /api/budgets
 let budgetsList: Record<string, unknown>[];
 let receipts: { enabled: boolean; categories: string[] };
+let templatesList: Record<string, unknown>[];
 
 const budget = (overrides: Record<string, unknown> = {}) => ({
   id: 'b1',
@@ -100,6 +101,7 @@ beforeEach(() => {
   override = () => undefined;
   budgetsList = [];
   receipts = { enabled: false, categories: [] };
+  templatesList = [];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -110,6 +112,11 @@ beforeEach(() => {
       const forced = override(method, url);
       if (forced) return forced;
       if (url === '/api/group' && method === 'GET') return ok(overview());
+      if (url === '/api/templates' && method === 'GET') return ok(templatesList);
+      if (url === '/api/cards') return ok([{ name: 'Миша', currency: 'AMD' }]);
+      if (url === '/api/categories') return ok(['Еда']);
+      if (url === '/api/rates') return ok({ base: 'AMD', currencies: ['AMD'], rates: [] });
+      if (url === '/api/name-suggestions') return ok([]);
       if (url === '/api/budgets') return ok(budgetsList);
       if (url === '/api/receipts/settings') return ok(receipts);
       if (url === '/api/config') return ok({ currency: 'AMD', baseCurrency: 'AMD' });
@@ -159,7 +166,7 @@ const confirmDialog = () =>
   within(screen.getByRole('dialog', { name: 'Сменить валюту отчётности?' }));
 
 describe('страница «Группа»', () => {
-  it('ровно четыре карточки в порядке: настройки, участники, карты, категории и лимиты', async () => {
+  it('ровно пять карточек в порядке: настройки, участники, карты, категории и лимиты, шаблоны группы', async () => {
     await renderGroup();
     await screen.findByRole('heading', { name: 'Настройки группы' });
 
@@ -170,6 +177,7 @@ describe('страница «Группа»', () => {
       'Участники (3)',
       'Карты (2)',
       'Категории и лимиты (1)',
+      'Шаблоны группы',
     ]);
   });
 
@@ -1000,5 +1008,172 @@ describe('диалог лимита', () => {
       expect(requests.filter((r) => r.url === '/api/budgets').length).toBeGreaterThan(before),
     );
     expect(await card(/^Категории и лимиты/).findByText('3 000 AMD')).toBeInTheDocument();
+  });
+});
+
+describe('карточка «Шаблоны группы»', () => {
+  const groupTemplate = (overrides: Record<string, unknown> = {}) => ({
+    id: 'g1',
+    scope: 'group',
+    pending: false,
+    sharedStatus: null,
+    name: 'Аренда',
+    emoji: null,
+    category: 'Еда',
+    card: null,
+    effectiveCard: 'Миша',
+    expenseName: 'Аренда',
+    amount: 5000,
+    currency: 'AMD',
+    author: 'Миша',
+    updatedBy: null,
+    updatedAt: null,
+    editable: true,
+    mine: true,
+    hidden: false,
+    unavailable: false,
+    ...overrides,
+  });
+
+  it('пустое состояние и пояснение', async () => {
+    await renderGroup();
+
+    const templates = within(
+      (await screen.findByRole('heading', { name: 'Шаблоны группы', level: 2 })).closest(
+        'section',
+      )!,
+    );
+    expect(
+      templates.getByText(
+        'Быстрые траты для всех участников. Каждый может скрыть их у себя в личных настройках',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await templates.findByText(
+        'Групповых шаблонов пока нет. Создайте свой или включите предложение участника',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('предложения сверху с автором, счётчик в заголовке; «Включить» и «Отклонить» зовут нужные запросы', async () => {
+    templatesList = [
+      groupTemplate({ id: 'p1', name: 'Кофе', pending: true, mine: false, author: 'Настя' }),
+      groupTemplate({ id: 'p2', name: 'Метро', pending: true, mine: false, author: 'Петя' }),
+      groupTemplate(),
+    ];
+    const person = await renderGroup();
+
+    const heading = await screen.findByRole('heading', { name: 'Шаблоны группы · 2 новых' });
+    const templates = within(heading.closest('section')!);
+    expect(await templates.findByText('Предложения участников')).toBeInTheDocument();
+    expect(templates.getByText('Автор: Настя')).toBeInTheDocument();
+    expect(templates.getByText('ваш шаблон')).toBeInTheDocument();
+
+    await person.click(templates.getByRole('button', { name: 'Включить «Кофе»' }));
+    await person.click(templates.getByRole('button', { name: 'Отклонить «Метро»' }));
+
+    await waitFor(() => {
+      expect(
+        requests.some((r) => r.method === 'POST' && r.url === '/api/templates/p1/approve'),
+      ).toBe(true);
+      expect(requests.some((r) => r.method === 'DELETE' && r.url === '/api/templates/p2')).toBe(
+        true,
+      );
+    });
+  });
+
+  it('в строке шаблона группы: кто изменил и когда', async () => {
+    templatesList = [
+      groupTemplate({
+        mine: false,
+        author: 'Настя',
+        updatedBy: 'Петя',
+        updatedAt: '2026-10-17T10:00:00Z',
+      }),
+    ];
+    await renderGroup();
+
+    expect(await screen.findByText('Автор: Настя · изменил Петя, 17 окт.')).toBeInTheDocument();
+  });
+
+  it('удаление активного шаблона идёт через подтверждение', async () => {
+    templatesList = [groupTemplate(), groupTemplate({ id: 'g2', name: 'Свет' })];
+    const person = await renderGroup();
+    await screen.findByText('Аренда', { exact: false });
+
+    await choose(person, 'Аренда', 'Удалить');
+    expect(requests.some((r) => r.method === 'DELETE')).toBe(false);
+    await person.click(
+      within(screen.getByRole('dialog', { name: 'Удалить шаблон?' })).getByRole('button', {
+        name: 'Удалить',
+      }),
+    );
+
+    await waitFor(() =>
+      expect(requests.some((r) => r.method === 'DELETE' && r.url === '/api/templates/g1')).toBe(
+        true,
+      ),
+    );
+  });
+
+  it('порядок: ручка, пробел, стрелка вниз, пробел шлёт новый порядок; «Выше/Ниже» в меню нет', async () => {
+    templatesList = [groupTemplate(), groupTemplate({ id: 'g2', name: 'Свет' })];
+    const person = await renderGroup();
+
+    const handle = await screen.findByRole('button', { name: 'Переместить шаблон: Аренда' });
+    handle.focus();
+    await person.keyboard(' {ArrowDown} ');
+    await waitFor(() =>
+      expect(sent('PUT', '/api/templates/group-order')).toEqual({ ids: ['g2', 'g1'] }),
+    );
+    expect(requests.some((r) => r.url === '/api/templates/order')).toBe(false);
+
+    await person.click(screen.getByRole('button', { name: 'Действия: Свет' }));
+    expect(screen.queryByRole('menuitem', { name: 'Ниже' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Выше' })).toBeNull();
+  });
+
+  it('«Новый» создаёт групповой шаблон без выбора, кому он виден', async () => {
+    const person = await renderGroup();
+    const heading = await screen.findByRole('heading', { name: 'Шаблоны группы', level: 2 });
+
+    await person.click(within(heading.closest('section')!).getByRole('button', { name: 'Новый' }));
+    const form = screen.getByRole('dialog', { name: 'Новый шаблон' });
+
+    expect(within(form).queryByText('Кому виден')).toBeNull();
+    await person.type(within(form).getByLabelText('Название кнопки'), 'Свет');
+    await person.type(within(form).getByLabelText('Наименование расхода'), 'Свет');
+    await person.selectOptions(within(form).getByLabelText('Категория'), 'Еда');
+    await person.click(within(form).getByRole('button', { name: 'Сохранить' }));
+
+    await waitFor(() =>
+      expect(sent('POST', '/api/templates')).toMatchObject({ scope: 'group', name: 'Свет' }),
+    );
+  });
+
+  it('под заголовком объяснение про порядок по умолчанию', async () => {
+    await renderGroup();
+
+    expect(
+      await screen.findByText(
+        'Порядок по умолчанию. Если участник расставил шаблоны сам, новые групповые встанут у него наверх',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('без предложений нет лишнего заголовка раздела; с предложениями он есть', async () => {
+    await renderGroup();
+    const heading = await screen.findByRole('heading', { name: 'Шаблоны группы', level: 2 });
+    const card = within(heading.closest('section')!);
+    expect(card.queryByRole('heading', { level: 3 })).toBeNull();
+  });
+
+  it('нажатие на ряд открывает правку', async () => {
+    templatesList = [groupTemplate()];
+    const person = await renderGroup();
+
+    await person.click(await screen.findByRole('button', { name: 'Изменить шаблон: Аренда' }));
+
+    expect(screen.getByRole('dialog', { name: 'Изменить шаблон' })).toBeInTheDocument();
   });
 });

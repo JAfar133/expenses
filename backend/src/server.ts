@@ -19,6 +19,8 @@ import { ReceiptsService } from './modules/receipts/receipts.service.ts';
 import { ReceiptStore } from './modules/receipts/receipts.store.ts';
 import { BudgetsRepository } from './modules/budgets/budgets.repository.ts';
 import { BudgetsService } from './modules/budgets/budgets.service.ts';
+import { TemplatesRepository } from './modules/templates/templates.repository.ts';
+import { TemplatesService } from './modules/templates/templates.service.ts';
 import { ReportService } from './modules/reports/report.service.ts';
 import { AnalyticsService } from './modules/analytics/analytics.service.ts';
 import { todayIn } from './modules/analytics/date-math.ts';
@@ -153,6 +155,11 @@ const budgets = new BudgetsService({
     available: env.CURRENCIES,
   },
 });
+const templates = new TemplatesService({
+  repository: new TemplatesRepository(database),
+  groups,
+  currencies: env.CURRENCIES,
+});
 const report = new ReportService(analytics, { base: env.DEFAULT_CURRENCY });
 
 const sync = new SyncService({
@@ -196,6 +203,7 @@ const app = buildApp({
   invitations,
   budgets,
   receipts,
+  templates,
   ai,
   groupService: new GroupService(
     new GroupAdminRepository(database),
