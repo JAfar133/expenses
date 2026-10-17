@@ -21,16 +21,17 @@ export interface ImportRecord {
   body: string;
 }
 
-export interface ImportView {
-  id: string;
-  createdAt: string;
+/** An operation imported earlier from another source that may be the same purchase. */
+export interface CrossSourceMatch {
+  importId: string;
+  expenseId: string;
   source: string;
-  status: ImportStatus;
   merchant: string | null;
-  amount: number | null;
-  currency: string | null;
   cardLast4: string | null;
-  expenseId: string | null;
+  occurredAt: Date;
+  /** What the expense is called now and on which card (it may have been changed by a person) */
+  expenseName: string;
+  expenseCard: string;
 }
 
 /** SQL for the log of imported notifications. */
@@ -66,6 +67,58 @@ export class BankImportsRepository {
     return row?.id;
   }
 
+  /**
+   * Created imports of ANOTHER source around the same moment with the same amount and currency: the same purchase may
+   * have come from two places (the bank's notice and Apple Wallet). Deleted expenses do not count.
+   */
+  async otherSourceMatches(
+    groupId: string,
+    source: string,
+    amount: number,
+    currency: string,
+    around: Date,
+    windowMs: number,
+    db: SqlExecutor,
+  ): Promise<CrossSourceMatch[]> {
+    const rows = await db.query<{
+      import_id: string;
+      expense_id: string;
+      source: string;
+      merchant: string | null;
+      card_last4: string | null;
+      occurred_at: Date;
+      expense_name: string;
+      expense_card: string;
+    }>(
+      `SELECT b.id AS import_id, b.expense_id, b.source, b.merchant, b.card_last4, b.occurred_at,
+              e.name AS expense_name, e.card AS expense_card
+         FROM bank_imports b JOIN expenses e ON e.id = b.expense_id
+        WHERE b.group_id = $1 AND b.status = 'created' AND b.source <> $2
+          AND b.amount = $3 AND b.currency = $4 AND e.deleted_at IS NULL
+          AND b.occurred_at BETWEEN $5 AND $6
+        ORDER BY abs(extract(epoch FROM (b.occurred_at - $7::timestamptz)))`,
+      [
+        groupId,
+        source,
+        amount,
+        currency,
+        new Date(around.getTime() - windowMs),
+        new Date(around.getTime() + windowMs),
+        around,
+      ],
+    );
+    return rows.map((row) => ({
+      importId: row.import_id,
+      expenseId: row.expense_id,
+      source: row.source,
+      merchant: row.merchant,
+      cardLast4: row.card_last4,
+      occurredAt: row.occurred_at,
+      expenseName: row.expense_name,
+      expenseCard: row.expense_card,
+    }));
+  }
+
   async attachExpense(importId: string, expenseId: string, db: SqlExecutor): Promise<void> {
     await db.query('UPDATE bank_imports SET expense_id = $2 WHERE id = $1', [importId, expenseId]);
   }
@@ -82,30 +135,6 @@ export class BankImportsRepository {
       [groupId, fingerprint],
     );
     return row?.expense_id ?? null;
-  }
-
-  /** An attempt that created nothing: kept with the reason. */
-  async recordFailure(record: ImportRecord): Promise<void> {
-    await this.database.query(
-      `INSERT INTO bank_imports
-         (group_id, key_id, source, status, error_code, fingerprint, merchant, amount, currency,
-          card_last4, occurred_at, title, body)
-       VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8, $9, $10, $11, $12)`,
-      [
-        record.groupId,
-        record.keyId,
-        record.source,
-        record.status,
-        record.errorCode ?? null,
-        record.merchant ?? null,
-        record.amount ?? null,
-        record.currency ?? null,
-        record.cardLast4 ?? null,
-        record.occurredAt ?? null,
-        record.title,
-        record.body,
-      ],
-    );
   }
 
   /** The active cards of the group with these last four digits. */
@@ -125,34 +154,5 @@ export class BankImportsRepository {
         GROUP BY name, category ORDER BY max(created_at) DESC LIMIT $2`,
       [groupId, limit],
     );
-  }
-
-  async recent(groupId: string, limit: number): Promise<ImportView[]> {
-    const rows = await this.database.query<{
-      id: string;
-      created_at: Date;
-      source: string;
-      status: ImportStatus;
-      merchant: string | null;
-      amount: number | null;
-      currency: string | null;
-      card_last4: string | null;
-      expense_id: string | null;
-    }>(
-      `SELECT id, created_at, source, status, merchant, amount::float8 AS amount, currency, card_last4, expense_id
-         FROM bank_imports WHERE group_id = $1 ORDER BY created_at DESC LIMIT $2`,
-      [groupId, limit],
-    );
-    return rows.map((row) => ({
-      id: row.id,
-      createdAt: row.created_at.toISOString(),
-      source: row.source,
-      status: row.status,
-      merchant: row.merchant,
-      amount: row.amount,
-      currency: row.currency,
-      cardLast4: row.card_last4,
-      expenseId: row.expense_id,
-    }));
   }
 }

@@ -37,6 +37,7 @@ describe('миграции', () => {
       'expenses',
       'groups',
       'idempotency_keys',
+      'import_log',
       'invitations',
       'memberships',
       'schema_migrations',

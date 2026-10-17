@@ -2,18 +2,22 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createApiKey,
   fetchApiKeys,
-  fetchImports,
+  fetchImportLog,
   revokeApiKey,
   updateApiKey,
 } from '../api/integrations.api.ts';
 
 const KEYS = ['group', 'api-keys'];
-const IMPORTS = ['group', 'imports'];
 
 export const useApiKeys = () => useQuery({ queryKey: KEYS, queryFn: fetchApiKeys, retry: false });
 
-export const useImports = () =>
-  useQuery({ queryKey: IMPORTS, queryFn: fetchImports, retry: false });
+/** The log of requests; the source is part of the key, so each filter has its own list. */
+export const useImportLog = (source?: string) =>
+  useQuery({
+    queryKey: ['group', 'import-log', source ?? 'all'],
+    queryFn: () => fetchImportLog(source),
+    retry: false,
+  });
 
 /**
  * Creating a key. The answer (with the full key) is NOT kept in the query cache: it goes to the caller only, and the

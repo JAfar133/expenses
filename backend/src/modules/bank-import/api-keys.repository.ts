@@ -22,6 +22,8 @@ export interface ActiveKey {
   role: 'owner' | 'member';
   /** The key's default category (an active one), if it has one */
   defaultCategory: string | null;
+  /** The time zone of the key's author: a date without a zone is read in it */
+  timezone: string;
 }
 
 /** How often `last_used_at` is refreshed: a busy key does not write on every request. */
@@ -129,8 +131,10 @@ export class ApiKeysRepository {
       username: string;
       role: 'owner' | 'member';
       default_category: string | null;
+      timezone: string;
     }>(
-      `SELECT k.id, k.group_id, k.created_by, u.username, m.role, c.name AS default_category
+      `SELECT k.id, k.group_id, k.created_by, u.username, m.role, c.name AS default_category,
+              COALESCE(u.custom_timezone, u.timezone_default) AS timezone
          FROM api_keys k
          JOIN users u ON u.id = k.created_by
          JOIN memberships m ON m.user_id = k.created_by AND m.group_id = k.group_id
@@ -146,6 +150,7 @@ export class ApiKeysRepository {
         username: row.username,
         role: row.role,
         defaultCategory: row.default_category,
+        timezone: row.timezone,
       }
     );
   }

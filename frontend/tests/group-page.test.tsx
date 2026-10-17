@@ -79,7 +79,7 @@ let budgetsList: Record<string, unknown>[];
 let receipts: { enabled: boolean; categories: string[] };
 let templatesList: Record<string, unknown>[];
 let apiKeys: Record<string, unknown>[];
-let importsList: Record<string, unknown>[];
+let importLog: Record<string, unknown>[];
 
 const budget = (overrides: Record<string, unknown> = {}) => ({
   id: 'b1',
@@ -105,7 +105,7 @@ beforeEach(() => {
   receipts = { enabled: false, categories: [] };
   templatesList = [];
   apiKeys = [];
-  importsList = [];
+  importLog = [];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
@@ -120,7 +120,10 @@ beforeEach(() => {
       if (url === '/api/group/api-keys' && method === 'POST')
         return ok({ id: 'k9', key: 'etk_FULLSECRETKEY123' }, 201);
       if (url.startsWith('/api/group/api-keys/') && method === 'DELETE') return ok({});
-      if (url === '/api/group/imports') return ok(importsList);
+      if (url.startsWith('/api/group/import-log')) {
+        const source = new URL(url, 'http://x').searchParams.get('source');
+        return ok(importLog.filter((entry) => !source || entry.source === source));
+      }
       if (url === '/api/templates' && method === 'GET') return ok(templatesList);
       if (url === '/api/cards') return ok([{ name: 'Миша', currency: 'AMD' }]);
       if (url === '/api/categories') return ok(['Еда']);
@@ -1305,7 +1308,7 @@ describe('карточка «Интеграции»', () => {
     expect(dialog.getByLabelText('Адрес для запроса (URL)')).toHaveValue(
       `${window.location.origin}/api/v1/transactions/import`,
     );
-    expect(dialog.getByText('Как настроить автоматизацию на iPhone')).toBeInTheDocument();
+    expect(dialog.getByText('Как настроить IDBank (push-уведомления)')).toBeInTheDocument();
 
     await person.click(dialog.getByRole('button', { name: 'Готово, ключ сохранён' }));
 
@@ -1331,7 +1334,7 @@ describe('карточка «Интеграции»', () => {
 
   it('инструкция закрыта по умолчанию, внутри шаги и примечание', async () => {
     const card = await integrations();
-    const details = card.getByText('Как настроить автоматизацию на iPhone').closest('details')!;
+    const details = card.getByText('Как настроить IDBank (push-уведомления)').closest('details')!;
 
     expect(details).not.toHaveAttribute('open');
     expect(
@@ -1340,79 +1343,6 @@ describe('карточка «Интеграции»', () => {
     expect(within(details).getByText(/Это переменные Команд/)).toBeInTheDocument();
     expect(within(details).getByText(/проверьте на реальном уведомлении/)).toBeInTheDocument();
     expect(within(details).getAllByRole('listitem')).toHaveLength(6);
-  });
-
-  it('последние импорты: счётчик и статусы простыми словами', async () => {
-    const base = { createdAt: '2026-10-17T10:00:00.000Z', source: 'idbank', expenseId: null };
-    importsList = [
-      {
-        ...base,
-        id: 'i1',
-        status: 'created',
-        merchant: 'Sorriso',
-        amount: 1500,
-        currency: 'AMD',
-        cardLast4: '5386',
-      },
-      {
-        ...base,
-        id: 'i2',
-        status: 'parse_error',
-        merchant: null,
-        amount: null,
-        currency: null,
-        cardLast4: null,
-      },
-      {
-        ...base,
-        id: 'i3',
-        status: 'unsupported',
-        merchant: 'Реклама',
-        amount: null,
-        currency: null,
-        cardLast4: null,
-      },
-      {
-        ...base,
-        id: 'i4',
-        status: 'card_not_found',
-        merchant: 'Кафе',
-        amount: 900,
-        currency: 'AMD',
-        cardLast4: '5386',
-      },
-      {
-        ...base,
-        id: 'i5',
-        status: 'card_ambiguous',
-        merchant: 'Метро',
-        amount: 300,
-        currency: 'AMD',
-        cardLast4: '1111',
-      },
-      {
-        ...base,
-        id: 'i6',
-        status: 'error',
-        merchant: 'Такси',
-        amount: 700,
-        currency: 'AMD',
-        cardLast4: '5386',
-      },
-    ];
-    const card = await integrations();
-
-    const summary = await card.findByText('Последние импорты');
-    expect(summary.closest('details')).not.toHaveAttribute('open');
-    await waitFor(() => expect(summary.parentElement).toHaveTextContent('6'));
-    expect(card.getByText('Добавлено')).toBeInTheDocument();
-    expect(card.getByText('Не распознано')).toBeInTheDocument();
-    expect(card.getByText('Другой вид уведомления')).toBeInTheDocument();
-    const warn = card.getByText('Нет карты с цифрами 5386 · укажите их в настройках карты');
-    expect(warn.closest('li')).toHaveAttribute('data-tone', 'warn');
-    expect(card.getByText('Несколько карт с цифрами 1111')).toBeInTheDocument();
-    expect(card.getByText('Ошибка')).toBeInTheDocument();
-    expect(card.getAllByText(/•5386/).length).toBeGreaterThan(0);
   });
 });
 
@@ -1572,5 +1502,209 @@ describe('цифры карты', () => {
     await person.click(screen.getByRole('button', { name: 'Сохранить' }));
 
     await waitFor(() => expect(sent('PATCH', '/api/group/cards/11')).toEqual({ last4: null }));
+  });
+});
+
+describe('журнал запросов', () => {
+  const entry = (overrides: Record<string, unknown> = {}) => ({
+    id: 'l1',
+    receivedAt: '2026-10-17T10:14:00.000Z',
+    source: 'idbank',
+    keyName: 'iPhone — IDBank',
+    status: 'created',
+    error: null,
+    rawPayload: { source: 'idbank', title: 'GNUM', body: 'Покупка 1500 AMD' },
+    parsed: {
+      amount: 1500,
+      currency: 'AMD',
+      merchant: 'Sorriso',
+      occurredAt: '2026-10-17T10:14:00.000Z',
+      localDate: '2026-10-17',
+      cardLast4: '5386',
+    },
+    match: null,
+    expenseId: 'e1',
+    ...overrides,
+  });
+  const log = async () => {
+    await renderGroup();
+    const heading = await screen.findByRole('heading', { name: 'Интеграции', level: 2 });
+    return within(heading.closest('section')!);
+  };
+
+  it('свёрнут по умолчанию, счётчик, пояснение и старый адрес не запрашивается', async () => {
+    importLog = [entry(), entry({ id: 'l2' })];
+    const card = await log();
+
+    const summary = await card.findByText('Журнал запросов');
+    expect(summary.closest('details')).not.toHaveAttribute('open');
+    await waitFor(() => expect(summary.parentElement).toHaveTextContent('2'));
+    expect(
+      card.getByText('Что пришло на сервер и что с этим сделано. Хранится 30 дней'),
+    ).toBeInTheDocument();
+    expect(requests.some((r) => r.url === '/api/group/imports')).toBe(false);
+    expect(card.queryByText('Последние импорты')).toBeNull();
+  });
+
+  it('строка: время, источник, ключ, продавец и сумма, статус «Добавлено»', async () => {
+    importLog = [entry()];
+    const card = await log();
+
+    expect(await card.findByText('Sorriso')).toBeInTheDocument();
+    expect(card.getByText('1500 AMD')).toBeInTheDocument();
+    expect(card.getByText('IDBank', { selector: 'span' })).toBeInTheDocument();
+    expect(card.getByText('iPhone — IDBank', { selector: 'span' })).toBeInTheDocument();
+    expect(card.getByText('Добавлено')).toBeInTheDocument();
+  });
+
+  it('фильтр источников шлёт source в запросе', async () => {
+    importLog = [
+      entry(),
+      entry({
+        id: 'l2',
+        source: 'apple_wallet',
+        keyName: 'iPhone — Wallet',
+        parsed: null,
+        status: 'unrecognized',
+      }),
+    ];
+    const person = await renderGroup();
+    await screen.findByText('Журнал запросов');
+
+    await person.click(await screen.findByRole('radio', { name: 'Apple Wallet' }));
+
+    await waitFor(() =>
+      expect(
+        requests.some((r) => r.url === '/api/group/import-log?limit=30&source=apple_wallet'),
+      ).toBe(true),
+    );
+    expect(screen.getByRole('radio', { name: 'Apple Wallet' })).toBeChecked();
+    await waitFor(() => expect(screen.queryByText('Sorriso')).toBeNull());
+  });
+
+  it('статусы: «Уже было» с пояснением, «Объединено», «Не распознано» с причиной и подсказкой', async () => {
+    importLog = [
+      entry({
+        id: 'd',
+        status: 'duplicate',
+        source: 'apple_wallet',
+        match: {
+          reason: 'merchant',
+          source: 'idbank',
+          importId: 'i1',
+          expenseId: 'e1',
+          renamed: { from: 'URARTU ZAQYAN', to: 'Urartu Zaqyan' },
+        },
+      }),
+      entry({ id: 'm', status: 'merged', match: { mergedWalletEvents: ['w1'] } }),
+      entry({ id: 'u', status: 'unrecognized', error: 'Нет суммы', parsed: null }),
+      entry({ id: 'c', status: 'card_not_found' }),
+    ];
+    const card = await log();
+
+    expect(await card.findByText('Уже было')).toBeInTheDocument();
+    expect(
+      card.getByText(
+        'совпало с операцией из IDBank, название обновлено: URARTU ZAQYAN → Urartu Zaqyan',
+      ),
+    ).toBeInTheDocument();
+    expect(card.getByText('Объединено')).toBeInTheDocument();
+    expect(card.getByText('взято банковским уведомлением')).toBeInTheDocument();
+    expect(card.getByText('Не распознано')).toBeInTheDocument();
+    expect(
+      card.getByText('Нет суммы. Данных недостаточно: запрос сохранён, смотрите JSON'),
+    ).toBeInTheDocument();
+    const warn = card.getByText('Не распознано').closest('li');
+    expect(warn).toHaveAttribute('data-tone', 'warn');
+    expect(
+      card.getByText('Нет карты с цифрами 5386 · укажите их в настройках карты').closest('li'),
+    ).toHaveAttribute('data-tone', 'warn');
+  });
+
+  it('раскрытие строки: JSON запроса с неизвестным полем, блок «Устройство», что прочитал сервер', async () => {
+    importLog = [
+      entry({
+        source: 'apple_wallet',
+        rawPayload: {
+          source: 'apple_wallet',
+          merchant: 'Sorriso',
+          mysteryField: 'неожиданное',
+          device: { model: 'iPhone 15', os: '18.1' },
+        },
+      }),
+    ];
+    const person = await renderGroup();
+
+    const row = await screen.findByRole('button', { name: /Показать запрос/ });
+    expect(row).toHaveAttribute('aria-expanded', 'false');
+    await person.click(row);
+
+    expect(row).toHaveAttribute('aria-expanded', 'true');
+    const json = screen.getByLabelText('JSON запроса');
+    expect(json.tagName).toBe('PRE');
+    expect(json.textContent).toContain('"mysteryField": "неожиданное"');
+    expect(json.textContent).toContain('\n  "merchant": "Sorriso"');
+    expect(screen.getByText('Устройство')).toBeInTheDocument();
+    expect(screen.getByLabelText('Устройство').textContent).toContain('"model": "iPhone 15"');
+    expect(screen.getByText('Что прочитал сервер')).toBeInTheDocument();
+    expect(screen.getByText('Продавец').nextElementSibling).toHaveTextContent('Sorriso');
+  });
+
+  it('JSON показывается как текст, не как разметка', async () => {
+    importLog = [entry({ rawPayload: { title: '<img src=x onerror=alert(1)>' } })];
+    const person = await renderGroup();
+
+    await person.click(await screen.findByRole('button', { name: /Показать запрос/ }));
+
+    expect(screen.getByLabelText('JSON запроса').textContent).toContain('<img src=x');
+    expect(document.querySelector('img[src="x"]')).toBeNull();
+  });
+
+  it('«Копировать JSON» кладёт весь запрос в буфер', async () => {
+    const writeText = vi.fn(async () => undefined);
+    importLog = [entry({ rawPayload: { source: 'idbank', extra: 1 } })];
+    const person = await renderGroup();
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+
+    await person.click(await screen.findByRole('button', { name: /Показать запрос/ }));
+    await person.click(screen.getByRole('button', { name: 'Копировать JSON' }));
+
+    expect(writeText).toHaveBeenCalledWith(JSON.stringify({ source: 'idbank', extra: 1 }, null, 2));
+    expect(await screen.findByText('Скопировано')).toBeInTheDocument();
+  });
+
+  it('«Обновить» запрашивает журнал заново', async () => {
+    importLog = [entry()];
+    const person = await renderGroup();
+    await screen.findByText('Sorriso');
+    const count = () => requests.filter((r) => r.url.startsWith('/api/group/import-log')).length;
+    const before = count();
+
+    await person.click(screen.getByRole('button', { name: 'Обновить' }));
+
+    await waitFor(() => expect(count()).toBe(before + 1));
+  });
+
+  it('инструкция Apple Wallet есть, закрыта по умолчанию, с полями и примечаниями', async () => {
+    const card = await log();
+    const details = card.getByText('Как настроить Apple Wallet (транзакции)').closest('details')!;
+
+    expect(details).not.toHaveAttribute('open');
+    expect(within(details).getByText(/«Транзакция»: любая категория/)).toBeInTheDocument();
+    expect(within(details).getByText(/= apple_wallet/)).toBeInTheDocument();
+    expect(within(details).getByText(/Информация об устройстве/)).toBeInTheDocument();
+    expect(within(details).getByText(/сначала посмотрите журнал/)).toBeInTheDocument();
+    expect(within(details).getByText(/объединит их в один расход/)).toBeInTheDocument();
+    expect(within(details).getByLabelText('Адрес для запроса Wallet (URL)')).toHaveValue(
+      `${window.location.origin}/api/v1/transactions/import`,
+    );
+  });
+
+  it('участник журнал не видит и не запрашивает', async () => {
+    me = { ...OWNER, role: 'member' };
+    await renderGroup();
+
+    expect(await screen.findByText('Главная')).toBeInTheDocument();
+    expect(requests.some((r) => r.url.startsWith('/api/group/import-log'))).toBe(false);
   });
 });

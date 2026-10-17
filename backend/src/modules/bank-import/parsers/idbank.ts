@@ -1,3 +1,4 @@
+import { parseAmount } from '../money-text.ts';
 import type { NotificationParser, ParsedNotification } from './parser.types.ts';
 
 /** Armenia has no daylight saving time: the bank's local time is always UTC+4. */
@@ -21,7 +22,7 @@ const PLACE_LINE = /^(.+),\s*[A-Za-z]{2}\s+(\d{2})\.(\d{2})\.(\d{4})\s+(\d{1,2})
 export const idbankParser: NotificationParser = {
   source: 'idbank',
 
-  parse(title, body): ParsedNotification {
+  parse({ title, body }): ParsedNotification {
     const lines = body
       .split(/\r?\n/)
       .map((line) => line.trim())
@@ -65,31 +66,6 @@ function noticeType(title: string, lines: string[]): string | undefined {
     if (match) return match[1]!.toUpperCase();
   }
   return undefined;
-}
-
-/** «1,540.00», «1 540,00», «1540» → a number; undefined when it is not one. */
-function parseAmount(text: string): number | undefined {
-  const compact = text.replace(/\s/g, '');
-  const lastDot = compact.lastIndexOf('.');
-  const lastComma = compact.lastIndexOf(',');
-  const decimalAt = Math.max(lastDot, lastComma);
-  let normalized: string;
-  if (decimalAt < 0) {
-    normalized = compact;
-  } else if (lastDot >= 0 && lastComma >= 0) {
-    // Both signs: the last one is the decimal point, the other groups thousands
-    normalized =
-      compact.slice(0, decimalAt).replace(/[.,]/g, '') + '.' + compact.slice(decimalAt + 1);
-  } else {
-    const tail = compact.length - decimalAt - 1;
-    // A single separator followed by exactly three digits groups thousands («1,540»); otherwise it is decimal
-    normalized =
-      tail === 3 && compact.indexOf(compact[decimalAt]!) === decimalAt
-        ? compact.replace(/[.,]/g, '')
-        : compact.slice(0, decimalAt).replace(/[.,]/g, '') + '.' + compact.slice(decimalAt + 1);
-  }
-  const value = Number(normalized);
-  return Number.isFinite(value) ? Math.round(value * 100) / 100 : undefined;
 }
 
 /** A moment from the bank's local date and time, or undefined for an impossible one. */

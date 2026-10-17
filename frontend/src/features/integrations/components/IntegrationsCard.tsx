@@ -1,10 +1,11 @@
 import type { GroupCard, GroupCategory } from '../../group/api/group.api.ts';
 import { SettingsSection } from '../../settings/components/SettingsSection.tsx';
 import { ApiKeysSection } from './ApiKeysSection.tsx';
-import { ImportsSection } from './ImportsSection.tsx';
+import { ImportLogSection } from './ImportLogSection.tsx';
 import { SetupInstructions } from './SetupInstructions.tsx';
+import { WalletInstructions } from './WalletInstructions.tsx';
 
-/** «Интеграции» on the owner's page: API keys, the iPhone setup instruction and the history of imports. */
+/** «Интеграции» on the owner's page: API keys, the iPhone and Wallet setup instructions and the log of requests. */
 export function IntegrationsCard({
   cards,
   categories,
@@ -41,13 +42,21 @@ export function IntegrationsCard({
       />
       <details className="rounded-xl border border-zinc-200 dark:border-zinc-800">
         <summary className="flex min-h-11 cursor-pointer items-center px-3 text-sm font-medium">
-          Как настроить автоматизацию на iPhone
+          Как настроить IDBank (push-уведомления)
         </summary>
         <div className="px-3 pb-3">
           <SetupInstructions />
         </div>
       </details>
-      <ImportsSection />
+      <details className="rounded-xl border border-zinc-200 dark:border-zinc-800">
+        <summary className="flex min-h-11 cursor-pointer items-center px-3 text-sm font-medium">
+          Как настроить Apple Wallet (транзакции)
+        </summary>
+        <div className="px-3 pb-3">
+          <WalletInstructions />
+        </div>
+      </details>
+      <ImportLogSection />
     </SettingsSection>
   );
 }

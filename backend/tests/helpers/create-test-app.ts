@@ -273,6 +273,7 @@ export async function createTestApp(
   const bankImport = createBankImportModule({
     database,
     expenses: expenseService,
+    editor,
     groups,
     sync,
     limits: options.importLimits,

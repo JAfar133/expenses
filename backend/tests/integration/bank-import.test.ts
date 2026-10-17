@@ -381,7 +381,7 @@ describe('что не создаёт расход', () => {
     expect(broken.statusCode).toBe(422);
     expect(broken.json()).toMatchObject({ success: false, status: 'parse_error' });
     expect(await expenses()).toHaveLength(0);
-    const history = (await call('GET', '/api/group/imports', 'misha')).json().data;
+    const history = (await call('GET', '/api/group/import-log', 'misha')).json().data;
     expect(history.map((row: { status: string }) => row.status).sort()).toEqual([
       'parse_error',
       'unsupported',
@@ -438,14 +438,14 @@ describe('что не создаёт расход', () => {
     expect(await expenses()).toHaveLength(0);
   });
 
-  it('пустое или слишком длинное тело запроса отвергается', async () => {
+  it('пустой текст IDBank и запрос без источника: 400; слишком большой запрос: 413', async () => {
     const { key } = await createKey();
 
     expect((await send(key, { source: 'idbank', title: TITLE, body: '' })).statusCode).toBe(400);
-    expect(
-      (await send(key, { source: 'idbank', title: TITLE, body: 'x'.repeat(5000) })).statusCode,
-    ).toBe(400);
     expect((await send(key, { title: TITLE })).statusCode).toBe(400);
+    expect(
+      (await send(key, { source: 'idbank', title: TITLE, body: 'x'.repeat(40_000) })).statusCode,
+    ).toBe(413);
   });
 });
 

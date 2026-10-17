@@ -188,7 +188,13 @@ const expenseService = new ExpenseService(expenses, {
   },
   logger: { warn: (object, message) => app.log.warn(object, message) },
 });
-const bankImport = createBankImportModule({ database, expenses: expenseService, groups, sync });
+const bankImport = createBankImportModule({
+  database,
+  expenses: expenseService,
+  editor,
+  groups,
+  sync,
+});
 
 const scheduler = new SyncScheduler({
   sync,
@@ -251,14 +257,23 @@ const app = buildApp({
   expenseService,
 });
 
-/** Removes stale backups and idempotency keys. */
+/** How long the diagnostic log of imported notifications is kept */
+const IMPORT_LOG_DAYS = 30;
+
+/** Removes stale backups, idempotency keys and old import log rows. */
 async function runMaintenance(): Promise<void> {
   const removedBackups = await backups.cleanup();
   const removedSessions = await auth.deleteStaleSessions();
   const removedKeys = await idempotency.deleteOlderThan(
     new Date(Date.now() - env.BACKUP_RETENTION_DAYS * DAY_MS),
   );
-  app.log.info({ removedBackups, removedKeys, removedSessions }, 'Maintenance completed');
+  const removedImportLog = await bankImport.log.deleteOlderThan(
+    new Date(Date.now() - IMPORT_LOG_DAYS * DAY_MS),
+  );
+  app.log.info(
+    { removedBackups, removedKeys, removedSessions, removedImportLog },
+    'Maintenance completed',
+  );
 }
 
 await waitForDatabase(database, {

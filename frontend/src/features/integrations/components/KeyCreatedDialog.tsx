@@ -22,7 +22,7 @@ export function KeyCreatedDialog({ apiKey, onClose }: { apiKey: string; onClose:
         </div>
         <CopyField label="API-ключ" value={apiKey} />
         <CopyField label="Адрес для запроса (URL)" value={importUrl()} />
-        <h3 className="text-sm font-semibold">Как настроить автоматизацию на iPhone</h3>
+        <h3 className="text-sm font-semibold">Как настроить IDBank (push-уведомления)</h3>
         <SetupInstructions showUrl={false} />
         <button
           type="button"

@@ -13,18 +13,54 @@ export interface ApiKey {
   defaultCategory: string | null;
 }
 
-export type ImportStatus =
-  'created' | 'parse_error' | 'unsupported' | 'card_not_found' | 'card_ambiguous' | 'error';
+export type LogStatus =
+  | 'created'
+  | 'duplicate'
+  | 'merged'
+  | 'unrecognized'
+  | 'parse_error'
+  | 'unsupported'
+  | 'card_not_found'
+  | 'card_ambiguous'
+  | 'unknown_source'
+  | 'error';
 
-export interface BankImport {
+/** What the server read from a request. */
+export interface ParsedImport {
+  amount: number;
+  currency: string;
+  merchant: string;
+  occurredAt: string;
+  localDate: string;
+  cardLast4?: string;
+  cardHint?: string;
+  categoryHint?: string;
+  transactionId?: string;
+}
+
+/** With which earlier record a request was joined, or which Wallet requests a bank notice took over. */
+export type ImportMatch =
+  | {
+      reason: 'merchant' | 'card' | 'same request';
+      source: string;
+      importId: string;
+      expenseId: string;
+      renamed?: { from: string; to: string };
+    }
+  | { mergedWalletEvents: string[] };
+
+/** One authorised request to the import endpoint, as the server logged it (kept for 30 days). */
+export interface ImportLogEntry {
   id: string;
-  createdAt: string;
+  receivedAt: string;
   source: string;
-  status: ImportStatus;
-  merchant: string | null;
-  amount: number | null;
-  currency: string | null;
-  cardLast4: string | null;
+  keyName: string | null;
+  status: LogStatus;
+  error: string | null;
+  /** The whole JSON as it came, with unknown fields and `device` */
+  rawPayload: Record<string, unknown>;
+  parsed: ParsedImport | null;
+  match: ImportMatch | null;
   expenseId: string | null;
 }
 
@@ -51,4 +87,10 @@ export const updateApiKey = (
 export const revokeApiKey = (id: string) =>
   apiRequest(`/group/api-keys/${id}`, { method: 'DELETE' });
 
-export const fetchImports = async () => (await apiRequest<BankImport[]>('/group/imports')).data;
+/** The log of the import endpoint, newest first; `source` narrows it. */
+export const fetchImportLog = async (source?: string) =>
+  (
+    await apiRequest<ImportLogEntry[]>(
+      `/group/import-log?limit=30${source ? `&source=${encodeURIComponent(source)}` : ''}`,
+    )
+  ).data;

@@ -49,6 +49,10 @@ export function categoryForMerchant(merchant: string, history: PastExpense[]): s
   return best?.category;
 }
 
+/** Whether two names are one shop (the same words, or one is part of the other by a real word). */
+export const sameShop = (a: string, b: string): boolean =>
+  similarity(merchantWords(a), merchantWords(b)) > 0;
+
 /** 0: not alike; 3: the same words; 1..2: one name is part of the other (the closer in length, the higher). */
 function similarity(a: string[], b: string[]): number {
   if (a.length === 0 || b.length === 0) return 0;
