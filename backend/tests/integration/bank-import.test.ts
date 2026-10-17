@@ -145,9 +145,14 @@ describe('импорт уведомления IDBank', () => {
     const items = (await call('GET', '/api/expenses', 'misha')).json().data.items as {
       name: string;
       fromBank: boolean;
+      importKeyName: string | null;
     }[];
 
-    expect(items.find((item) => item.name === 'URARTU ZAQYAN')?.fromBank).toBe(true);
+    expect(items.find((item) => item.name === 'URARTU ZAQYAN')).toMatchObject({
+      fromBank: true,
+      importKeyName: 'iPhone — IDBank',
+      importSource: 'idbank',
+    });
     expect(items.find((item) => item.name === 'Вручную')?.fromBank).toBe(false);
   });
 

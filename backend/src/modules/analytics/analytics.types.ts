@@ -136,6 +136,9 @@ export interface ExpenseListItem {
   hasReceipt: boolean;
   /** The expense was created from a bank push notification (v5) */
   fromBank: boolean;
+  /** Which API key brought it and from which bank (`idbank`), for the note on the list row */
+  importKeyName: string | null;
+  importSource: string | null;
   /** Positions of the receipt and how many of them the AI generated */
   itemsCount: number;
   aiItemsCount: number;

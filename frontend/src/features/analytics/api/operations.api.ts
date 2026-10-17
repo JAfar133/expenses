@@ -33,6 +33,9 @@ export interface OperationItem {
   /** May the current user edit or delete this record (owner: any live record; member: own, window open, card access) */
   /** The record was created automatically from a bank notification */
   fromBank?: boolean;
+  /** The name of the API key it came through, and the bank source («idbank»); null when unknown */
+  importKeyName?: string | null;
+  importSource?: string | null;
   /** The record has a photo of a receipt */
   hasReceipt?: boolean;
   /** How many receipt positions the record has, and how many of them the AI generated */

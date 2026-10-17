@@ -205,6 +205,10 @@ export class AnalyticsRepository {
                          WHERE a.expense_id = expenses.id AND a.deleted_at IS NULL) AS has_receipt,
                 EXISTS (SELECT 1 FROM bank_imports b
                          WHERE b.expense_id = expenses.id AND b.status = 'created') AS from_bank,
+                (SELECT k.name FROM bank_imports b JOIN api_keys k ON k.id = b.key_id
+                  WHERE b.expense_id = expenses.id AND b.status = 'created' LIMIT 1) AS import_key_name,
+                (SELECT b.source FROM bank_imports b
+                  WHERE b.expense_id = expenses.id AND b.status = 'created' LIMIT 1) AS import_source,
                 (SELECT count(*)::int FROM expense_items i WHERE i.expense_id = expenses.id) AS items_count,
                 (SELECT count(*)::int FROM expense_items i
                   WHERE i.expense_id = expenses.id AND i.source = 'ai') AS ai_items_count,
@@ -249,6 +253,8 @@ interface ListRow {
   exchange_rate: number | null;
   has_receipt: boolean;
   from_bank: boolean;
+  import_key_name: string | null;
+  import_source: string | null;
   items_count: number;
   ai_items_count: number;
   name_source: 'default' | 'manual' | 'ai';
@@ -304,6 +310,8 @@ const toListItem = (row: ListRow, baseCurrency: string): ExpenseListItem => ({
   updatedBy: row.updated_by,
   hasReceipt: row.has_receipt,
   fromBank: row.from_bank,
+  importKeyName: row.import_key_name,
+  importSource: row.import_source,
   itemsCount: row.items_count,
   aiItemsCount: row.ai_items_count,
   nameSource: row.name_source,

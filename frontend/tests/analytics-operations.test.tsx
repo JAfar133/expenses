@@ -1,3 +1,4 @@
+import userEvent from '@testing-library/user-event';
 import { screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildPatch } from '../src/features/analytics/components/EditExpenseDialog.tsx';
@@ -994,19 +995,36 @@ describe('правка участником своих трат', () => {
   });
 });
 
-describe('операции: пометка «из уведомления банка»', () => {
-  const TEXT = 'Добавлено автоматически из уведомления банка';
+describe('операции: пометка «добавлено автоматически»', () => {
+  const NAME = 'Добавлено автоматически из уведомления банка, ключ iPhone — IDBank';
+  const bank = { fromBank: true, importKeyName: 'iPhone — IDBank', importSource: 'idbank' };
 
-  it('у записи из банка есть значок с доступным именем и подсказкой, в таблице и в списке для телефона', async () => {
-    serve([item(1, { fromBank: true }), item(2)]);
+  it('у записи из банка есть кнопка-значок с именем ключа в названии и подсказке, у обычной её нет', async () => {
+    serve([item(1, bank), item(2)]);
     renderAnalytics(OPS);
     await screen.findByRole('table', { name: 'Операции' });
 
-    const marks = await screen.findAllByRole('img', { name: TEXT });
+    const marks = await screen.findAllByRole('button', { name: NAME });
+    // The table and the list for a phone
     expect(marks).toHaveLength(2);
-    expect(marks[0]).toHaveAttribute('title', TEXT);
-    expect(within(rowOf('Позиция 1')).getByRole('img', { name: TEXT })).toBeInTheDocument();
-    expect(within(rowOf('Позиция 2')).queryByRole('img', { name: TEXT })).toBeNull();
+    expect(marks[0]).toHaveAttribute('title', 'Добавлено автоматически · ключ «iPhone — IDBank»');
+    expect(marks[0]).toHaveAttribute('aria-expanded', 'false');
+    expect(within(rowOf('Позиция 1')).getByRole('button', { name: NAME })).toBeInTheDocument();
+    expect(within(rowOf('Позиция 2')).queryByRole('button', { name: /автоматически/ })).toBeNull();
+  });
+
+  it('«Добавлено» с датой и временем показывается, когда есть createdAt', async () => {
+    serve([item(1, { ...bank, createdAt: '2026-10-16T16:40:00.000Z' })]);
+    renderAnalytics(OPS);
+    await screen.findByRole('table', { name: 'Операции' });
+    const person = userEvent.setup();
+
+    await person.click(within(rowOf('Позиция 1')).getByRole('button', { name: NAME }));
+
+    const popover = within(screen.getByRole('dialog', { name: 'Как добавлен расход' }));
+    expect(popover.getByText('Добавлено').nextElementSibling).toHaveTextContent(
+      /16 окт\.?,? \d\d:\d\d/,
+    );
   });
 
   it('без fromBank значка нет', async () => {
@@ -1014,6 +1032,58 @@ describe('операции: пометка «из уведомления бан�
     renderAnalytics(OPS);
     await screen.findByRole('table', { name: 'Операции' });
 
-    expect(screen.queryByRole('img', { name: TEXT })).toBeNull();
+    expect(screen.queryByRole('button', { name: /автоматически/ })).toBeNull();
+  });
+
+  it('нажатие открывает окошко: «Добавлено автоматически», ключ и банк; Escape закрывает', async () => {
+    serve([item(1, bank)]);
+    renderAnalytics(OPS);
+    await screen.findByRole('table', { name: 'Операции' });
+    const person = userEvent.setup();
+
+    const mark = within(rowOf('Позиция 1')).getByRole('button', { name: NAME });
+    await person.click(mark);
+
+    const popover = within(screen.getByRole('dialog', { name: 'Как добавлен расход' }));
+    expect(popover.getByText('Добавлено автоматически')).toBeInTheDocument();
+    expect(popover.getByText('из уведомления банка')).toBeInTheDocument();
+    expect(popover.getByText('API-ключ').nextElementSibling).toHaveTextContent('iPhone — IDBank');
+    expect(popover.getByText('Банк').nextElementSibling).toHaveTextContent('IDBank');
+    expect(mark).toHaveAttribute('aria-expanded', 'true');
+
+    await person.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Как добавлен расход' })).toBeNull();
+    expect(mark).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('без имени ключа: в окошке нет строки про ключ, неизвестный источник показан как есть', async () => {
+    serve([item(1, { fromBank: true, importKeyName: null, importSource: 'newbank' })]);
+    renderAnalytics(OPS);
+    await screen.findByRole('table', { name: 'Операции' });
+    const person = userEvent.setup();
+
+    const mark = within(rowOf('Позиция 1')).getByRole('button', {
+      name: 'Добавлено автоматически из уведомления банка',
+    });
+    expect(mark).toHaveAttribute('title', 'Добавлено автоматически');
+    await person.click(mark);
+
+    const popover = within(screen.getByRole('dialog', { name: 'Как добавлен расход' }));
+    expect(popover.queryByText('API-ключ')).toBeNull();
+    expect(popover.getByText('Банк').nextElementSibling).toHaveTextContent('newbank');
+  });
+
+  it('нажатие вне окошка закрывает его и не раскрывает строку', async () => {
+    serve([item(1, { ...bank, itemsCount: 2 })]);
+    renderAnalytics(OPS);
+    await screen.findByRole('table', { name: 'Операции' });
+    const person = userEvent.setup();
+
+    await person.click(within(rowOf('Позиция 1')).getByRole('button', { name: NAME }));
+    expect(screen.getByRole('dialog', { name: 'Как добавлен расход' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Позиции' })).toBeNull();
+    await person.click(document.body);
+
+    expect(screen.queryByRole('dialog', { name: 'Как добавлен расход' })).toBeNull();
   });
 });

@@ -459,9 +459,29 @@ export const GripIcon = () => (
   </Icon>
 );
 
-/** A bank building: «from a bank notification» */
-export const BankIcon = () => (
-  <Icon>
-    <path d="M3 9.5 12 4l9 5.5M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18" />
+/**
+ * A cog («done automatically»). Plain, it is a gear at any size. With `badge` (for sizes of 24px and more) the cog
+ * is smaller and two circular arrows go round it at a clear distance.
+ */
+export const AutomationIcon = ({ badge = false, size }: { badge?: boolean; size?: number }) => (
+  <Icon size={size}>
+    {badge ? (
+      <>
+        <path
+          d="M2.2 7.4A10.8 10.8 0 0 1 20.3 5.1M18.0 4.2L20.3 5.1M19.9 2.7L20.3 5.1M21.8 16.6A10.8 10.8 0 0 1 3.7 18.9M6.0 19.8L3.7 18.9M4.1 21.3L3.7 18.9"
+          strokeWidth={1.75}
+        />
+        <path
+          d="M17.4 12.7 L19.0 13.7 L18.1 15.8 L16.3 15.3 L15.3 16.3 L15.8 18.1 L13.7 19.0 L12.7 17.4 L11.3 17.4 L10.3 19.0 L8.2 18.1 L8.7 16.3 L7.7 15.3 L5.9 15.8 L5.0 13.7 L6.6 12.7 L6.6 11.3 L5.0 10.3 L5.9 8.2 L7.7 8.7 L8.7 7.7 L8.2 5.9 L10.3 5.0 L11.3 6.6 L12.7 6.6 L13.7 5.0 L15.8 5.9 L15.3 7.7 L16.3 8.7 L18.1 8.2 L19.0 10.3 L17.4 11.3Z"
+          strokeWidth={1.75}
+        />
+        <circle cx="12" cy="12" r="1.9" strokeWidth={1.75} />
+      </>
+    ) : (
+      <>
+        <path d="M19.5 13.0 L21.7 14.3 L20.5 17.2 L18.0 16.6 L16.6 18.0 L17.2 20.5 L14.3 21.7 L13.0 19.5 L11.0 19.5 L9.7 21.7 L6.8 20.5 L7.4 18.0 L6.0 16.6 L3.5 17.2 L2.3 14.3 L4.5 13.0 L4.5 11.0 L2.3 9.7 L3.5 6.8 L6.0 7.4 L7.4 6.0 L6.8 3.5 L9.7 2.3 L11.0 4.5 L13.0 4.5 L14.3 2.3 L17.2 3.5 L16.6 6.0 L18.0 7.4 L20.5 6.8 L21.7 9.7 L19.5 11.0Z" />
+        <circle cx="12" cy="12" r="3" />
+      </>
+    )}
   </Icon>
 );

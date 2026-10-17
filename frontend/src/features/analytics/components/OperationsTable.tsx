@@ -2,7 +2,7 @@ import { Fragment, useState } from 'react';
 import { currencyDigits } from '../../../shared/utils/conversion.ts';
 import { formatAmount, formatMoney } from '../../../shared/utils/money.ts';
 import type { OperationItem, SortColumn, SortDirection } from '../api/operations.api.ts';
-import { BankBadge } from './BankBadge.tsx';
+import { ImportBadge } from './ImportBadge.tsx';
 import { AiMark } from '../../ai/components/AiMark.tsx';
 import { ParsingBadge } from '../../ai/components/ParsingBadge.tsx';
 import { ItemsCount } from '../../items/components/ItemsCount.tsx';
@@ -337,7 +337,13 @@ export function OperationsTable(props: OperationsTableProps) {
                       <div className="flex items-center gap-1">
                         <span>{item.name}</span>
                         {item.nameSource === 'ai' && <AiMark />}
-                        {item.fromBank && <BankBadge />}
+                        {item.fromBank && (
+                          <ImportBadge
+                            keyName={item.importKeyName}
+                            source={item.importSource}
+                            createdAt={item.createdAt}
+                          />
+                        )}
                         {item.hasReceipt && props.onViewReceipt && (
                           <ReceiptBadge onClick={() => props.onViewReceipt?.(item)} />
                         )}
@@ -399,7 +405,13 @@ export function OperationsTable(props: OperationsTableProps) {
                       <div className={`flex items-center gap-1 font-medium ${nameClass(item)}`}>
                         <span className="truncate">{item.name}</span>
                         {item.nameSource === 'ai' && <AiMark />}
-                        {item.fromBank && <BankBadge />}
+                        {item.fromBank && (
+                          <ImportBadge
+                            keyName={item.importKeyName}
+                            source={item.importSource}
+                            createdAt={item.createdAt}
+                          />
+                        )}
                         {item.hasReceipt && props.onViewReceipt && (
                           <ReceiptBadge onClick={() => props.onViewReceipt?.(item)} />
                         )}
