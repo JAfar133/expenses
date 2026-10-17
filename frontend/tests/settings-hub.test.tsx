@@ -133,7 +133,7 @@ const personal = () => within(screen.getByRole('navigation', { name: 'Для м�
 describe('главный экран настроек на телефоне', () => {
   beforeEach(phone);
 
-  it('участник: заголовок, профиль, пять разделов, строки «Выйти»; управления группой и админки нет', async () => {
+  it('участник: заголовок, профиль (он же вход в аккаунт), четыре раздела, «Выйти»; управления группой и админки нет', async () => {
     renderAt('/settings');
 
     expect(await screen.findByRole('heading', { name: 'Настройки', level: 2 })).toBeInTheDocument();
@@ -145,13 +145,14 @@ describe('главный экран настроек на телефоне', () 
         .getAllByRole('link')
         .map((link) => link.getAttribute('href')),
     ).toEqual([
-      '/settings/account',
       '/settings/templates',
       '/settings/notifications',
       '/settings/appearance',
       '/settings/analytics',
     ]);
-    expect(screen.getByText('Имя, карта, пароль')).toBeInTheDocument();
+    // Аккаунт открывается строкой профиля, отдельной строки «Аккаунт» на телефоне нет
+    expect(profile).toHaveAttribute('href', '/settings/account');
+    expect(profile).toHaveTextContent('Имя, карта по умолчанию, пароль');
     expect(screen.queryByText('Управление группой')).toBeNull();
     expect(screen.queryByText('Админ')).toBeNull();
     expect(screen.queryByRole('navigation', { name: 'Группа и приложение' })).toBeNull();

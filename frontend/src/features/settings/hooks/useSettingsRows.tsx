@@ -39,6 +39,8 @@ export function useSettingsRows(user: AuthUser) {
       icon: <UserIcon />,
       title: 'Аккаунт',
       subtitle: 'Имя, карта, пароль',
+      // On the phone the profile row at the top opens the same screen
+      hiddenInHub: true,
     },
     {
       to: '/settings/templates',

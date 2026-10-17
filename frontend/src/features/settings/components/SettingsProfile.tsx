@@ -39,6 +39,9 @@ export function SettingsProfile({ user }: { user: AuthUser }) {
         <span className="block truncate text-sm text-zinc-500 dark:text-zinc-400">
           {roleLine(user)}
         </span>
+        <span className="block truncate text-sm text-zinc-500 dark:text-zinc-400">
+          Имя, карта по умолчанию, пароль
+        </span>
       </span>
       <span aria-hidden="true" className="text-zinc-400">
         <ChevronRightIcon />

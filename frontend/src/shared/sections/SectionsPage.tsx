@@ -126,9 +126,11 @@ function Hub(props: SectionsPageProps) {
             aria-label={group.label ?? 'Разделы'}
             className={`${GROUP} divide-y divide-zinc-100 dark:divide-zinc-800 ${group.label ? '' : 'mt-3'}`}
           >
-            {group.rows.map((row) => (
-              <SectionRow key={row.to} row={row} />
-            ))}
+            {group.rows
+              .filter((row) => !row.hiddenInHub)
+              .map((row) => (
+                <SectionRow key={row.to} row={row} />
+              ))}
           </nav>
         </div>
       ))}

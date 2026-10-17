@@ -31,6 +31,8 @@ export interface RowData {
   /** A red badge with a number; `badgeSuffix` adds a word on the phone list («2 новых») */
   badge?: number;
   badgeSuffix?: string;
+  /** Not in the phone list (another row of it already leads here, e.g. the profile); the side menu of a desktop keeps it */
+  hiddenInHub?: boolean;
 }
 
 export interface RowGroup {
