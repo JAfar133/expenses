@@ -14,6 +14,7 @@ const settingsSchema = z
             import_problem: z.boolean().optional(),
             receipt_parsed: z.boolean().optional(),
             announcement: z.boolean().optional(),
+            member_joined: z.boolean().optional(),
           })
           .strict()
           .optional(),

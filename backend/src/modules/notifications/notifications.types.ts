@@ -4,6 +4,8 @@ export const NOTIFICATION_TYPES = [
   'receipt_parsed',
   /** A message the owner of a group or the administrator sent from the app */
   'announcement',
+  /** A person joined the group (accepted an invitation) */
+  'member_joined',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -11,6 +13,8 @@ export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export type Audience =
   /** Everyone who may see the card: the owners and the members with access to it */
   | { type: 'card'; groupId: string; card: string }
+  /** Everyone in the group, optionally except one person */
+  | { type: 'group'; groupId: string; exceptUserId?: string }
   /** The owners of the group (they manage keys and see the import log) */
   | { type: 'owners'; groupId: string }
   /** One person */

@@ -28,6 +28,8 @@ import { parserFor } from './parsers/registry.ts';
 
 /** What the request carried: the three common fields and the whole JSON as it came. */
 export interface NotificationPayload {
+  /** When the request first came (a retry keeps the original moment, not the time of the retry) */
+  receivedAt?: Date;
   source: string;
   title: string;
   body: string;
@@ -117,7 +119,7 @@ export class BankImportService {
   }
 
   async import(key: ActiveKey, payload: NotificationPayload): Promise<ImportResult> {
-    const receivedAt = (this.options.now ?? (() => new Date()))();
+    const receivedAt = payload.receivedAt ?? (this.options.now ?? (() => new Date()))();
     const parser = parserFor(payload.source);
     const source = parser?.source ?? payload.source.trim().toLowerCase();
     const entry = { groupId: key.groupId, keyId: key.id, source, rawPayload: payload.raw };
@@ -448,8 +450,8 @@ export class BankImportService {
       title: 'Расход добавлен',
       body: `${money(purchase.amount, purchase.currency)} · ${created.name} · ${created.card} · из ${sourceLabel(source)}`,
       privateBody: `Из ${sourceLabel(source)}`,
-      link: '/analytics/operations',
-      data: { expenseId: created.transactionId, source },
+      link: `/analytics/operations?expense=${created.transactionId}&date=${purchase.localDate}`,
+      data: { expenseId: created.transactionId, source, date: purchase.localDate },
       dedupeKey: `expense_imported:${created.transactionId}`,
       audience: { type: 'card', groupId: key.groupId, card: created.card },
     });
@@ -471,7 +473,7 @@ export class BankImportService {
       body: `${sourceLabel(source)}: ${message}`,
       privateBody: 'Откройте приложение, чтобы посмотреть причину',
       link: '/group/integrations',
-      data: { importId, status, source },
+      data: { importId, status, source, sourceLabel: sourceLabel(source), reason: message },
       dedupeKey: `import_problem:${importId}`,
       audience: { type: 'owners', groupId },
     });

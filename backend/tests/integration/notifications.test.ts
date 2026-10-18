@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Database } from '../../src/infrastructure/database/database.ts';
-import { createTestApp, type TestApp } from '../helpers/create-test-app.ts';
+import { createTestApp, TEST_ORIGIN, type TestApp } from '../helpers/create-test-app.ts';
 import { createTestDatabase } from '../helpers/test-database.ts';
 
 /** The bell: who is told what, no duplicates, only your own feed. */
@@ -76,7 +76,7 @@ describe('расход из банка', () => {
           type: 'expense_imported',
           title: 'Расход добавлен',
           body: expect.stringMatching(/1\s540 AMD · URARTU ZAQYAN · Миша · из IDBank/),
-          link: '/analytics/operations',
+          link: expect.stringMatching(/^\/analytics\/operations\?expense=[\w-]+&date=2026-10-16$/),
           read: false,
         }),
       ]);
@@ -348,5 +348,40 @@ describe('поток: счётчик меняется сразу, без опр�
     }
 
     expect(t.notifications.hub.size).toBe(0);
+  });
+});
+
+describe('новый участник группы', () => {
+  const join = async (username = 'olya', displayName = 'Оля') => {
+    const token = (await call('POST', '/api/group/invitations', 'misha', { role: 'member' })).json()
+      .data.token as string;
+    return t.app.inject({
+      method: 'POST',
+      url: `/api/invitations/${token}/accept`,
+      headers: { origin: TEST_ORIGIN },
+      payload: { username, displayName, password: 'long-enough-password-1' },
+    });
+  };
+
+  it('все участники группы, кроме самого новичка, получают «Новый участник» со ссылкой на участников', async () => {
+    const response = await join();
+
+    expect(response.statusCode).toBe(201);
+    for (const user of ['misha', 'nastya']) {
+      expect((await feed(user)).items).toEqual([
+        expect.objectContaining({
+          type: 'member_joined',
+          title: 'Новый участник',
+          body: expect.stringContaining('Оля теперь в группе'),
+          link: '/group/members',
+        }),
+      ]);
+    }
+    const [newcomer] = await database.query<{ id: string }>(
+      "SELECT id FROM users WHERE username = 'olya'",
+    );
+    expect(
+      await database.query('SELECT 1 FROM notifications WHERE user_id = $1', [newcomer!.id]),
+    ).toHaveLength(0);
   });
 });

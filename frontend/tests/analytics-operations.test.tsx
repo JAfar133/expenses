@@ -1,6 +1,6 @@
 import userEvent from '@testing-library/user-event';
 import { screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildPatch } from '../src/features/analytics/components/EditExpenseDialog.tsx';
 import type { OperationItem } from '../src/features/analytics/api/operations.api.ts';
 import {
@@ -1085,5 +1085,64 @@ describe('операции: пометка «добавлено автомати
     await person.click(document.body);
 
     expect(screen.queryByRole('dialog', { name: 'Как добавлен расход' })).toBeNull();
+  });
+});
+
+describe('ссылка из уведомления: ?expense=<id>&date=<дата>', () => {
+  const scroll = vi.fn();
+  beforeEach(() => {
+    scroll.mockClear();
+    Element.prototype.scrollIntoView = scroll;
+  });
+  afterEach(() => {
+    delete (Element.prototype as unknown as Record<string, unknown>).scrollIntoView;
+  });
+
+  it('период уходит на месяц даты, фильтры сброшены, строка найдена, прокручена и подсвечена, параметры ссылки убраны', async () => {
+    serve([item(1), item(2)]);
+    renderAnalytics(`${OPS}?expense=${ID(2)}&date=2026-09-20&card=Настя&q=кофе&min=500`);
+
+    await waitFor(() => expect(scroll).toHaveBeenCalled());
+    const request = lastList();
+    expect(request).toContain('2026-09-01');
+    expect(request).toContain('2026-09-30');
+    expect(request).not.toContain('Настя');
+    expect(request).not.toContain('кофе');
+    expect(rowOf('Позиция 2').className).toContain('bg-indigo-100');
+    expect(rowOf('Позиция 1').className).not.toContain('bg-indigo-100');
+    const where = screen.getByTestId('location').textContent!;
+    expect(where).not.toContain('expense=');
+    expect(where).not.toContain('date=');
+    expect(where).toContain('month=2026-09');
+  });
+
+  it('подсветка гаснет через 3 секунды', async () => {
+    serve([item(1), item(2)]);
+    renderAnalytics(`${OPS}?expense=${ID(1)}&date=2026-10-10`);
+    await waitFor(() => expect(scroll).toHaveBeenCalled());
+    expect(rowOf('Позиция 1').className).toContain('bg-indigo-100');
+
+    // The timers of this page are real (only the date is faked): wait for the three seconds
+    await waitFor(() => expect(rowOf('Позиция 1').className).not.toContain('bg-indigo-100'), {
+      timeout: 4500,
+    });
+  }, 8000);
+
+  it('операции нет в этом периоде: «Операция не найдена в этом периоде», ничего не подсвечено', async () => {
+    serve([item(1)]);
+    renderAnalytics(`${OPS}?expense=${ID(9)}&date=2026-10-10`);
+
+    expect(await screen.findByText('Операция не найдена в этом периоде')).toBeInTheDocument();
+    expect(scroll).not.toHaveBeenCalled();
+    expect(screen.getByTestId('location').textContent).not.toContain('expense=');
+  });
+
+  it('без параметров всё как раньше: ни подсветки, ни сообщения', async () => {
+    serve([item(1)]);
+    renderAnalytics(OPS);
+
+    await waitFor(() => rowOf('Позиция 1'));
+    expect(screen.queryByText('Операция не найдена в этом периоде')).toBeNull();
+    expect(scroll).not.toHaveBeenCalled();
   });
 });

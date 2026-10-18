@@ -38,6 +38,7 @@ import type {
   PushTarget,
   SendResult,
 } from '../../src/modules/push/push.types.ts';
+import { announceMemberJoined } from '../../src/modules/notifications/member-joined.ts';
 import { BroadcastRepository } from '../../src/modules/notifications/broadcast.repository.ts';
 import { BroadcastService } from '../../src/modules/notifications/broadcast.service.ts';
 import { NotificationsRepository } from '../../src/modules/notifications/notifications.repository.ts';
@@ -317,6 +318,7 @@ export async function createTestApp(
     push,
     notificationSettings,
   );
+  invitations.onJoined = (event) => announceMemberJoined(database, notifications, event);
   const broadcast = new BroadcastService(new BroadcastRepository(database), notifications);
   const bankImport = createBankImportModule({
     database,

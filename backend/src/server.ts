@@ -20,6 +20,7 @@ import { ReceiptStore } from './modules/receipts/receipts.store.ts';
 import { BudgetsRepository } from './modules/budgets/budgets.repository.ts';
 import { BudgetsService } from './modules/budgets/budgets.service.ts';
 import { NotificationSettingsRepository } from './modules/notifications/notification-settings.ts';
+import { announceMemberJoined } from './modules/notifications/member-joined.ts';
 import { BroadcastRepository } from './modules/notifications/broadcast.repository.ts';
 import { BroadcastService } from './modules/notifications/broadcast.service.ts';
 import { PushRepository } from './modules/push/push.repository.ts';
@@ -231,6 +232,7 @@ const notifications = new NotificationsService(
   push,
   notificationSettings,
 );
+invitations.onJoined = (event) => announceMemberJoined(database, notifications, event);
 const broadcast = new BroadcastService(new BroadcastRepository(database), notifications);
 const bankImport = createBankImportModule({
   database,

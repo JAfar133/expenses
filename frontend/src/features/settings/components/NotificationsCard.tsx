@@ -225,6 +225,13 @@ export function NotificationsCard() {
                     onChange={(value) => save.mutate({ push: { types: { announcement: value } } })}
                   />
                   <TypeChoice
+                    title="Новые участники группы"
+                    on={types.member_joined}
+                    explainOn="Придёт уведомление, когда кто-то вступит в вашу группу"
+                    explainOff="Не присылаем. В колокольчике это останется"
+                    onChange={(value) => save.mutate({ push: { types: { member_joined: value } } })}
+                  />
+                  <TypeChoice
                     title="Распознанные чеки"
                     on={types.receipt_parsed}
                     explainOn="Придёт уведомление, когда чек, который вы отправили, распознан"

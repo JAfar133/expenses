@@ -48,6 +48,8 @@ const invalidInvitation = () =>
 
 /** Invitations to a group and password reset links. The token is shown once; only its hash is stored. */
 export class InvitationsService {
+  /** Told after a person has joined a group (the bell): set by the server once the notifications exist */
+  onJoined?: (event: { username: string; groupId: string }) => void | Promise<void>;
   private readonly ttlMs: number;
   private readonly now: () => Date;
 
@@ -93,7 +95,8 @@ export class InvitationsService {
     this.validatePassword(input.password);
     const passwordHash = await hashPassword(input.password);
 
-    return this.options.database.transaction(async (tx) => {
+    const joined: { groupId: string | null } = { groupId: null };
+    const result = await this.options.database.transaction(async (tx) => {
       const [invitation] = await tx.query<InvitationRow>(
         `SELECT id, kind, group_id, role, user_id FROM invitations
           WHERE token_hash = $1 AND used_at IS NULL AND revoked_at IS NULL AND expires_at > $2
@@ -116,11 +119,20 @@ export class InvitationsService {
         username = user.username;
       } else {
         username = await this.createMember(tx, invitation, input, passwordHash);
+        joined.groupId = invitation.group_id;
       }
 
       await tx.query('UPDATE invitations SET used_at = now() WHERE id = $1', [invitation.id]);
       return { username };
     });
+    if (joined.groupId && this.onJoined) {
+      try {
+        await this.onJoined({ username: result.username, groupId: joined.groupId });
+      } catch {
+        // A lost notification must not undo the registration
+      }
+    }
+    return result;
   }
 
   private async createMember(

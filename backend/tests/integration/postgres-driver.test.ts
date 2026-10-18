@@ -90,6 +90,7 @@ describe('драйвер pg', () => {
       '0032_web_push.sql',
       '0033_broadcasts.sql',
       '0034_notification_dismissed.sql',
+      '0035_member_joined_push.sql',
     ]);
   });
 

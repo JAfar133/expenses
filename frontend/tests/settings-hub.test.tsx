@@ -88,6 +88,7 @@ beforeEach(() => {
               import_problem: true,
               receipt_parsed: false,
               announcement: true,
+              member_joined: true,
             },
             hideAmounts: false,
           },

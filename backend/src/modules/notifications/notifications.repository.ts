@@ -16,6 +16,14 @@ export class NotificationsRepository {
       );
       return rows.map((row) => row.id);
     }
+    if (audience.type === 'group') {
+      const rows = await db.query<{ user_id: string }>(
+        `SELECT m.user_id FROM memberships m JOIN users u ON u.id = m.user_id
+          WHERE m.group_id = $1 AND u.disabled_at IS NULL AND ($2::uuid IS NULL OR m.user_id <> $2)`,
+        [audience.groupId, audience.exceptUserId ?? null],
+      );
+      return rows.map((row) => row.user_id);
+    }
     if (audience.type === 'owners') {
       const rows = await db.query<{ user_id: string }>(
         `SELECT m.user_id FROM memberships m JOIN users u ON u.id = m.user_id

@@ -11,6 +11,8 @@ export type LogStatus =
   | 'card_ambiguous'
   | 'unknown_source'
   | 'invalid_request'
+  /** The request was processed again by the owner and it worked */
+  | 'retried'
   | 'error';
 
 export interface LogEntry {
@@ -37,7 +39,18 @@ export interface LogView {
   parsed: Record<string, unknown> | null;
   match: Record<string, unknown> | null;
   expenseId: string | null;
+  /** The owner may process it again (the stored request is complete and nothing worked yet) */
+  retryable: boolean;
 }
+
+/** The statuses where processing the same request again can give a different result (after the owner fixed the cause). */
+const RETRYABLE: LogStatus[] = [
+  'unrecognized',
+  'parse_error',
+  'card_not_found',
+  'card_ambiguous',
+  'error',
+];
 
 /** A Wallet request that was received but did not become an expense: a later bank notice may claim it. */
 export interface PendingWalletEvent {
@@ -99,7 +112,63 @@ export class ImportLogRepository {
       parsed: row.parsed,
       match: row.match,
       expenseId: row.expense_id,
+      retryable: RETRYABLE.includes(row.status),
     }));
+  }
+
+  /** One entry of the group with what is needed to process it again. */
+  async find(
+    groupId: string,
+    id: string,
+  ): Promise<(LogView & { keyId: string | null; receivedAtDate: Date }) | undefined> {
+    const [row] = await this.database.query<{
+      id: string;
+      received_at: Date;
+      source: string;
+      key_id: string | null;
+      key_name: string | null;
+      status: LogStatus;
+      error: string | null;
+      raw_payload: Record<string, unknown>;
+      parsed: Record<string, unknown> | null;
+      match: Record<string, unknown> | null;
+      expense_id: string | null;
+    }>(
+      `SELECT l.id, l.received_at, l.source, l.key_id, k.name AS key_name, l.status, l.error, l.raw_payload,
+              l.parsed, l.match, l.expense_id
+         FROM import_log l LEFT JOIN api_keys k ON k.id = l.key_id
+        WHERE l.group_id = $1 AND l.id = $2`,
+      [groupId, id],
+    );
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      receivedAt: row.received_at.toISOString(),
+      receivedAtDate: row.received_at,
+      source: row.source,
+      keyId: row.key_id,
+      keyName: row.key_name,
+      status: row.status,
+      error: row.error,
+      rawPayload: row.raw_payload,
+      parsed: row.parsed,
+      match: row.match,
+      expenseId: row.expense_id,
+      retryable: RETRYABLE.includes(row.status),
+    };
+  }
+
+  /** After a successful retry the old entry points at the expense it became. */
+  async markRetried(id: string, expenseId: string | null): Promise<void> {
+    await this.database.query(
+      "UPDATE import_log SET status = 'retried', expense_id = COALESCE($2, expense_id) WHERE id = $1",
+      [id, expenseId],
+    );
+  }
+
+  /** A failed retry leaves no new entry: the first one already tells what is wrong. */
+  async remove(id: string): Promise<void> {
+    await this.database.query('DELETE FROM import_log WHERE id = $1', [id]);
   }
 
   /**

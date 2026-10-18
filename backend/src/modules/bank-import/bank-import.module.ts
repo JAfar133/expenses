@@ -8,6 +8,7 @@ import { ApiKeysRepository } from './api-keys.repository.ts';
 import { ApiKeysService } from './api-keys.service.ts';
 import type { BankImportRoutesDeps } from './bank-import.routes.ts';
 import { ImportLogRepository } from './import-log.repository.ts';
+import { ImportRetryService } from './import-retry.service.ts';
 import { BankImportService } from './import.service.ts';
 import { BankImportsRepository } from './imports.repository.ts';
 
@@ -28,19 +29,27 @@ export function createBankImportModule(options: BankImportModuleOptions): BankIm
   const { database } = options;
   const imports = new BankImportsRepository(database);
   const log = new ImportLogRepository(database);
-  return {
-    keys: new ApiKeysService(new ApiKeysRepository(database)),
-    imports: new BankImportService({
-      database,
-      imports,
-      log,
-      expenses: options.expenses,
-      editor: options.editor,
-      groups: options.groups,
-      sync: options.sync,
-      notifications: options.notifications,
-    }),
+  const keysRepository = new ApiKeysRepository(database);
+  const importer = new BankImportService({
+    database,
+    imports,
     log,
+    expenses: options.expenses,
+    editor: options.editor,
+    groups: options.groups,
+    sync: options.sync,
+    notifications: options.notifications,
+  });
+  return {
+    keys: new ApiKeysService(keysRepository),
+    imports: importer,
+    log,
+    retry: new ImportRetryService({
+      log,
+      keys: keysRepository,
+      imports: importer,
+      notifications: options.notifications ?? { retract: async () => undefined },
+    }),
     limits: options.limits,
   };
 }

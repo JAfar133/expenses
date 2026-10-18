@@ -1,7 +1,7 @@
 import { apiRequest } from '../../../shared/api/http.ts';
 
 export type NotificationType =
-  'expense_imported' | 'import_problem' | 'receipt_parsed' | 'announcement';
+  'expense_imported' | 'import_problem' | 'receipt_parsed' | 'announcement' | 'member_joined';
 
 export interface AppNotification {
   id: string;

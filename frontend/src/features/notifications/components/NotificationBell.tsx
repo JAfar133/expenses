@@ -2,8 +2,15 @@ import { useState } from 'react';
 import { Toast } from '../../../shared/ui/Toast.tsx';
 import { AnchoredPanel } from '../../../shared/ui/AnchoredPanel.tsx';
 import { BellIcon } from '../../../shared/ui/icons.tsx';
-import { useNotificationStream, useRestore, useUnreadCount } from '../hooks/useNotifications.ts';
+import {
+  useDismiss,
+  useNotificationStream,
+  useRestore,
+  useUnreadCount,
+} from '../hooks/useNotifications.ts';
 import { badgeText } from '../model/time.ts';
+import type { AppNotification } from '../api/notifications.api.ts';
+import { PanelMenu, PanelTitle } from './PanelHeader.tsx';
 import { NotificationPanel } from './NotificationPanel.tsx';
 
 /**
@@ -15,9 +22,16 @@ export function NotificationBell() {
   // After a hide the toast offers to bring the rows back; a second hide replaces it
   const [hidden, setHidden] = useState<string[] | null>(null);
   const restore = useRestore();
+  const dismiss = useDismiss();
+  // The import problem whose details are shown inside the panel
+  const [details, setDetails] = useState<AppNotification | null>(null);
   useNotificationStream();
   const { data } = useUnreadCount();
   const unread = data ?? 0;
+  const closePanel = () => {
+    setOpen(false);
+    setDetails(null);
+  };
   const badge = badgeText(unread);
 
   return (
@@ -25,7 +39,19 @@ export function NotificationBell() {
       <AnchoredPanel
         label="Уведомления"
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setDetails(null);
+        }}
+        title={details ? 'Уведомление' : <PanelTitle />}
+        onBack={details ? () => setDetails(null) : undefined}
+        headerExtra={
+          details ? undefined : (
+            <PanelMenu onClose={closePanel} onHidden={setHidden} dismiss={dismiss} />
+          )
+        }
+        maxHeightClass="max-h-[75dvh] sm:max-h-[70dvh]"
+        compactBody
         align="right"
         widthClass="sm:w-96"
         trigger={(props) => (
@@ -48,7 +74,13 @@ export function NotificationBell() {
           </button>
         )}
       >
-        <NotificationPanel onClose={() => setOpen(false)} onHidden={setHidden} />
+        <NotificationPanel
+          onClose={closePanel}
+          onHidden={setHidden}
+          details={details}
+          dismiss={dismiss}
+          onDetails={setDetails}
+        />
       </AnchoredPanel>
       {hidden && (
         <div data-panel-ignore>

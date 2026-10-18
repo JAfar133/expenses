@@ -24,7 +24,13 @@ import { useDisplayCurrency } from '../hooks/useDisplayCurrency.tsx';
 import { useFilterOptions } from '../hooks/useFilterOptions.ts';
 import { useFilterState } from '../hooks/useFilterState.ts';
 import { useExpenseActions, useOperations } from '../hooks/useOperations.ts';
-import { toApiFilters } from '../model/filter-state.ts';
+import {
+  mergeFilterParams,
+  parseFilterState,
+  toApiFilters,
+  withoutFilters,
+} from '../model/filter-state.ts';
+import { monthOf } from '../model/periods.ts';
 import {
   clampPage,
   nextSort,
@@ -103,6 +109,42 @@ export default function OperationsPage() {
     !!receiptSettings?.enabled && receiptSettings.categories.includes(item.category);
   const [notice, setNotice] = useState<{ kind: 'success' | 'error'; text: string }>();
 
+  // A link from a notification: `?expense=<id>&date=YYYY-MM-DD`. The period goes to that month, the filters that could
+  // hide the record are cleared, the row is found, scrolled to and marked for 3 s; the link parameters are then removed
+  // so that a reload does not repeat it.
+  const [target, setTarget] = useState<{ id: string; month: string } | null>(() => {
+    const id = params.get('expense');
+    if (!id) return null;
+    const date = params.get('date');
+    return { id, month: /^\d{4}-\d{2}-\d{2}$/.test(date ?? '') ? monthOf(date!) : monthOf(today) };
+  });
+  const [highlightId, setHighlightId] = useState<string>();
+  const [notFound, setNotFound] = useState(false);
+  useEffect(() => {
+    if (!target) return;
+    setParams(
+      (current) => {
+        const merged = mergeFilterParams(
+          current,
+          {
+            ...withoutFilters(parseFilterState(current, today)),
+            period: 'month',
+            month: target.month,
+            includeArchived: true,
+          },
+          today,
+        );
+        merged.delete('expense');
+        merged.delete('date');
+        merged.delete('page');
+        return merged;
+      },
+      { replace: true },
+    );
+    // Only once, when the page opens with the link
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const setPage = (next: number) =>
     setParams(
       (current) => {
@@ -132,6 +174,47 @@ export default function OperationsPage() {
     if (list.data && lastPage !== page && !list.isPlaceholderData) setPage(lastPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list.data, lastPage, page]);
+
+  // Looking for the record: page by page of the month, until it is found or the pages are over
+  useEffect(() => {
+    // Only after the link parameters were taken off the address (the period and filters are then the new ones)
+    if (!target || params.has('expense')) return;
+    if (state.period !== 'month' || state.month !== target.month) return;
+    if (list.isPending || list.isPlaceholderData || !list.data) return;
+    if (list.data.items.some((item) => item.id === target.id)) {
+      setHighlightId(target.id);
+      setTarget(null);
+    } else if (page < pageCount(list.data.total)) {
+      setPage(page + 1);
+    } else {
+      setNotFound(true);
+      setTarget(null);
+    }
+    // setPage depends only on setParams
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    target,
+    params,
+    state.period,
+    state.month,
+    list.data,
+    list.isPending,
+    list.isPlaceholderData,
+    page,
+  ]);
+
+  // The row is scrolled to the middle of the screen and the mark goes away after 3 s
+  useEffect(() => {
+    if (!highlightId) return;
+    const rows = [...document.querySelectorAll<HTMLElement>(`[data-expense-id="${highlightId}"]`)];
+    const visible = rows.filter((row) => row.getClientRects().length > 0);
+    const reduced = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+    (visible.length > 0 ? visible : rows).forEach((row) =>
+      row.scrollIntoView?.({ block: 'center', behavior: reduced ? 'auto' : 'smooth' }),
+    );
+    const timer = setTimeout(() => setHighlightId(undefined), 3000);
+    return () => clearTimeout(timer);
+  }, [highlightId]);
 
   const changeSort = (column: SortColumn) => {
     const next = nextSort({ sort, direction }, column);
@@ -181,6 +264,12 @@ export default function OperationsPage() {
         </p>
       )}
 
+      {notFound && (
+        <div aria-live="polite">
+          <Notice variant="info">Операция не найдена в этом периоде</Notice>
+        </div>
+      )}
+
       {notice && (
         <div aria-live="polite">
           <Notice variant={notice.kind === 'success' ? 'success' : 'error'}>{notice.text}</Notice>
@@ -216,6 +305,7 @@ export default function OperationsPage() {
           excelEnabled={excelEnabled}
           authorLabel={authorLabel}
           busyId={busyId}
+          highlightId={highlightId}
           groupByDay={byDate}
           dayTotals={dayTotals}
           displayCurrency={displayCurrency}

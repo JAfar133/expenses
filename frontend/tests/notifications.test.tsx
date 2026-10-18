@@ -99,6 +99,18 @@ function renderBell() {
   return userEvent.setup();
 }
 const bell = () => screen.getByRole('button', { name: /^Уведомления/ });
+const chooseMenu = async (person: ReturnType<typeof userEvent.setup>, name: string) => {
+  await person.click(screen.getByRole('button', { name: 'Меню уведомлений' }));
+  await person.click(
+    within(screen.getByRole('menu', { name: 'Меню уведомлений' })).getByRole('menuitem', { name }),
+  );
+};
+const menuItem = async (person: ReturnType<typeof userEvent.setup>, name: string) => {
+  await person.click(screen.getByRole('button', { name: 'Меню уведомлений' }));
+  return within(screen.getByRole('menu', { name: 'Меню уведомлений' })).getByRole('menuitem', {
+    name,
+  });
+};
 const openPanel = async (person: ReturnType<typeof userEvent.setup>) => {
   await person.click(bell());
   return within(await screen.findByRole('dialog', { name: 'Уведомления' }));
@@ -269,7 +281,7 @@ describe('панель', () => {
 
     const rows = await panel.findAllByRole('listitem');
     expect(rows[0]).toHaveAttribute('data-type', 'announcement');
-    expect(within(rows[0]!).getByText('Отправитель: Миша')).toBeInTheDocument();
+    expect(within(rows[0]!).getByText(/^Миша · /)).toBeInTheDocument();
     expect(within(rows[0]!).getByText('Завтра обновление')).toBeInTheDocument();
     expect(within(rows[1]!).queryByText(/^От /)).toBeNull();
   });
@@ -284,7 +296,7 @@ describe('панель', () => {
 
     const row = (await panel.findByText('Не удалось добавить расход')).closest('li')!;
     expect(row).toHaveAttribute('data-type', 'import_problem');
-    expect(row.querySelector('div[style]')!.className).toContain('bg-amber-50');
+    expect(row.querySelector('div[style]')!.className).toContain('border-amber-400');
   });
 
   it('тап по строке: отмечает прочитанным (POST ids), переходит по ссылке и закрывает панель', async () => {
@@ -326,14 +338,14 @@ describe('панель', () => {
     const panel = await openPanel(person);
     await panel.findAllByRole('listitem');
 
-    await person.click(panel.getByRole('button', { name: 'Прочитать все' }));
+    await chooseMenu(person, 'Прочитать все');
 
     await waitFor(() =>
       expect(calls.find((c) => c.url === '/api/notifications/read')?.body).toEqual({}),
     );
     expect(panel.queryByRole('img', { name: 'Не прочитано' })).toBeNull();
     await waitFor(() => expect(screen.queryByTestId('bell-badge')).toBeNull());
-    expect(panel.getByRole('button', { name: 'Прочитать все' })).toBeDisabled();
+    expect(await menuItem(person, 'Прочитать все')).toBeDisabled();
   });
 
   it('ошибка при «Прочитать все»: всё возвращается как было', async () => {
@@ -344,7 +356,7 @@ describe('панель', () => {
     const panel = await openPanel(person);
     await panel.findByText('Расход добавлен');
 
-    await person.click(panel.getByRole('button', { name: 'Прочитать все' }));
+    await chooseMenu(person, 'Прочитать все');
 
     await waitFor(() => expect(calls.some((c) => c.url === '/api/notifications/read')).toBe(true));
     expect(await panel.findByRole('img', { name: 'Не прочитано' })).toBeInTheDocument();
@@ -357,7 +369,7 @@ describe('панель', () => {
     const panel = await openPanel(person);
     await panel.findByText('Расход добавлен');
 
-    expect(panel.getByRole('button', { name: 'Прочитать все' })).toBeDisabled();
+    expect(await menuItem(person, 'Прочитать все')).toBeDisabled();
   });
 
   it('«Показать ещё» подгружает следующую страницу с before и дописывает её', async () => {
@@ -379,10 +391,9 @@ describe('панель', () => {
     const person = renderBell();
     const panel = await openPanel(person);
 
+    expect(await panel.findByText('Пока уведомлений нет')).toBeInTheDocument();
     expect(
-      await panel.findByText(
-        'Пока уведомлений нет. Здесь появятся новые расходы из банка, ошибки импорта и распознанные чеки',
-      ),
+      panel.getByText('Здесь появятся новые расходы из банка, ошибки импорта и распознанные чеки'),
     ).toBeInTheDocument();
   });
 
@@ -439,15 +450,13 @@ describe('значок на иконке и ссылка на настройки
     delete (navigator as unknown as Record<string, unknown>).clearAppBadge;
   });
 
-  it('внизу панели ссылка «Настроить уведомления» ведёт в настройки', async () => {
+  it('в меню «⋯» пункт «Настроить уведомления» ведёт в настройки и закрывает панель', async () => {
     const person = renderBell();
-    const panel = await openPanel(person);
+    await openPanel(person);
 
-    const link = await panel.findByRole('link', { name: 'Настроить уведомления' });
-    expect(link).toHaveAttribute('href', '/settings/notifications');
-    await person.click(link);
+    await chooseMenu(person, 'Настроить уведомления');
 
-    expect(screen.getByTestId('where')).toHaveTextContent('/settings');
+    expect(screen.getByTestId('where')).toHaveTextContent('/settings/notifications');
     expect(screen.queryByRole('dialog', { name: 'Уведомления' })).toBeNull();
   });
 });
@@ -880,24 +889,23 @@ describe('скрытие уведомлений', () => {
     const panel = await openPanel(person);
     await panel.findAllByRole('listitem');
 
-    await person.click(panel.getByRole('button', { name: 'Скрыть все' }));
+    await chooseMenu(person, 'Скрыть все');
 
     await waitFor(() => expect(dismissCalls()[0]?.body).toEqual({}));
+    expect(await panel.findByText('Пока уведомлений нет')).toBeInTheDocument();
     expect(
-      await panel.findByText(
-        'Пока уведомлений нет. Здесь появятся новые расходы из банка, ошибки импорта и распознанные чеки',
-      ),
+      panel.getByText('Здесь появятся новые расходы из банка, ошибки импорта и распознанные чеки'),
     ).toBeInTheDocument();
     expect(await screen.findByText('Скрыто: 3')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByTestId('bell-badge')).toBeNull());
-    expect(panel.getByRole('button', { name: 'Скрыть все' })).toBeDisabled();
+    expect(await menuItem(person, 'Скрыть все')).toBeDisabled();
   });
 
   it('«Вернуть» шлёт restore с id и перечитывает ленту', async () => {
     const person = renderBell();
     const panel = await openPanel(person);
     await panel.findAllByRole('listitem');
-    await person.click(panel.getByRole('button', { name: 'Скрыть все' }));
+    await chooseMenu(person, 'Скрыть все');
     const undo = await screen.findByRole('button', { name: 'Вернуть' });
     const before = calls.filter((c) => c.url.startsWith('/api/notifications?')).length;
     feed = [note(1), note(2), note(3)];
@@ -941,7 +949,7 @@ describe('скрытие уведомлений', () => {
     const panel = await openPanel(person);
     await panel.findAllByRole('listitem');
 
-    await person.click(panel.getByRole('button', { name: 'Скрыть все' }));
+    await chooseMenu(person, 'Скрыть все');
 
     expect(await panel.findByText('Не удалось скрыть уведомление')).toBeInTheDocument();
     expect(await panel.findByText('1 540 AMD · Магазин 1')).toBeInTheDocument();

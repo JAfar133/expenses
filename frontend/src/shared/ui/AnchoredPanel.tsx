@@ -14,7 +14,15 @@ interface AnchoredPanelProps {
   /** The accessible name of the panel */
   label: string;
   /** The visible title of the panel; the header with it also has the close button */
-  title?: string;
+  title?: ReactNode;
+  /** Something at the right of the title, before the close button (a menu) */
+  headerExtra?: ReactNode;
+  /** A «←» button before the title (a screen inside the panel) */
+  onBack?: () => void;
+  /** The highest the panel gets: on a phone and from `sm` up (default: tall sheet, 75dvh popover) */
+  maxHeightClass?: string;
+  /** Little room under the content (no space for a bottom bar): the sheet is as short as its content */
+  compactBody?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   trigger: (props: PanelTriggerProps) => ReactNode;
@@ -34,6 +42,10 @@ interface AnchoredPanelProps {
 export function AnchoredPanel({
   label,
   title,
+  headerExtra,
+  onBack,
+  maxHeightClass = 'max-h-[90dvh] sm:max-h-[75dvh]',
+  compactBody = false,
   open,
   onOpenChange,
   trigger,
@@ -87,10 +99,26 @@ export function AnchoredPanel({
           <div
             role="dialog"
             aria-label={label}
-            className={`fixed inset-x-0 bottom-0 z-40 flex max-h-[90dvh] flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:absolute sm:inset-x-auto sm:bottom-auto ${align === 'right' ? 'sm:right-0' : 'sm:left-0'} sm:top-full sm:mt-2 sm:max-h-[75dvh] sm:rounded-2xl sm:border sm:border-zinc-200 sm:shadow-lg dark:bg-zinc-900 sm:dark:border-zinc-700 ${widthClass}`}
+            className={`fixed inset-x-0 bottom-0 z-40 flex ${maxHeightClass} flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl sm:absolute sm:inset-x-auto sm:bottom-auto ${align === 'right' ? 'sm:right-0' : 'sm:left-0'} sm:top-full sm:mt-2 sm:rounded-2xl sm:border sm:border-zinc-200 sm:shadow-lg dark:bg-zinc-900 sm:dark:border-zinc-700 ${widthClass}`}
           >
             <div className="flex shrink-0 items-center justify-between gap-2 bg-white px-4 pt-3 pb-1 dark:bg-zinc-900">
-              <h3 className="text-base font-semibold">{title ?? label}</h3>
+              {onBack && (
+                <button
+                  type="button"
+                  aria-label="Назад"
+                  title="Назад"
+                  onClick={onBack}
+                  className="-ml-2 flex size-11 shrink-0 items-center justify-center rounded-full text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  <span aria-hidden="true" className="text-xl leading-none">
+                    ←
+                  </span>
+                </button>
+              )}
+              <h3 className="flex min-w-0 flex-1 items-center gap-2 text-base font-semibold">
+                {title ?? label}
+              </h3>
+              {headerExtra}
               <button
                 type="button"
                 aria-label="Закрыть"
@@ -101,7 +129,9 @@ export function AnchoredPanel({
                 <CloseIcon />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+4rem)] sm:pb-4">
+            <div
+              className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-2 sm:pb-4 ${compactBody ? 'pb-[calc(env(safe-area-inset-bottom)+1rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+4rem)]'}`}
+            >
               {children}
             </div>
           </div>

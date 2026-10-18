@@ -109,6 +109,7 @@ beforeEach(() => {
         import_problem: true,
         receipt_parsed: false,
         announcement: true,
+        member_joined: true,
       },
       hideAmounts: false,
     },
@@ -454,6 +455,26 @@ describe('что присылать и приватность', () => {
     await waitFor(() =>
       expect(sent('PUT', '/api/notifications/settings')).toEqual({
         push: { types: { announcement: false } },
+      }),
+    );
+  });
+
+  it('строка «Новые участники группы»: по умолчанию «Присылать», пояснение и PUT', async () => {
+    const person = renderCard();
+    const rows = await screen.findByRole('region', { name: 'Что присылать' });
+    const group = within(
+      await within(rows).findByRole('radiogroup', { name: 'Новые участники группы' }),
+    );
+
+    expect(group.getByRole('radio', { name: 'Присылать' })).toBeChecked();
+    expect(
+      within(rows).getByText('Придёт уведомление, когда кто-то вступит в вашу группу'),
+    ).toBeInTheDocument();
+    await person.click(group.getByRole('radio', { name: 'Не присылать' }));
+
+    await waitFor(() =>
+      expect(sent('PUT', '/api/notifications/settings')).toEqual({
+        push: { types: { member_joined: false } },
       }),
     );
   });

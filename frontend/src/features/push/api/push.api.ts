@@ -21,6 +21,7 @@ export interface NotificationSettings {
       import_problem: boolean;
       receipt_parsed: boolean;
       announcement: boolean;
+      member_joined: boolean;
     };
     hideAmounts: boolean;
   };

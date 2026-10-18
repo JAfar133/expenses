@@ -403,3 +403,99 @@ describe('журнал: доступ и срок хранения', () => {
     expect(await logRows()).toHaveLength(1);
   });
 });
+
+describe('повторная обработка запроса из журнала', () => {
+  const retryOf = (id: string, as = 'misha') =>
+    t.inject({ method: 'POST', url: `/api/group/import-log/${id}/retry` }, as);
+  const entryOf = async (id: string, as = 'misha') =>
+    (await t.inject({ method: 'GET', url: `/api/group/import-log/${id}` }, as)).json().data;
+  const problem = async () => {
+    const response = await send(key, wallet({ card: 'IDBank Visa' }));
+    return response.json().importId as string;
+  };
+
+  it('подробности записи: весь запрос, причина, можно ли повторить', async () => {
+    const id = await problem();
+
+    const entry = await entryOf(id);
+
+    expect(entry).toMatchObject({
+      id,
+      source: 'apple_wallet',
+      status: 'unrecognized',
+      retryable: true,
+      rawPayload: expect.objectContaining({ card: 'IDBank Visa' }),
+    });
+    expect(entry.error).toContain('IDBank Visa');
+  });
+
+  it('после исправления причины повтор создаёт расход; старая запись становится «retried», а уведомление об ошибке исчезает', async () => {
+    const id = await problem();
+    expect(
+      (await t.inject({ method: 'GET', url: '/api/notifications' })).json().data.items,
+    ).toHaveLength(1);
+    // Владелец дал карте имя, которое Wallet присылает как `card`
+    await database.query("UPDATE cards SET name = 'IDBank Visa' WHERE name = 'Настя'");
+
+    const response = await retryOf(id);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data.status).toBe('created');
+    expect(await expenses()).toEqual([
+      expect.objectContaining({ name: 'Urartu Zaqyan', amount: 1540 }),
+    ]);
+    expect((await entryOf(id)).status).toBe('retried');
+    const items = (await t.inject({ method: 'GET', url: '/api/notifications' })).json().data.items;
+    expect(items.map((item: { type: string }) => item.type)).toEqual(['expense_imported']);
+  });
+
+  it('повтор, который не помогает: причина в ответе, новых записей и уведомлений нет', async () => {
+    const id = await problem();
+
+    const response = await retryOf(id);
+
+    expect(response.json().data).toMatchObject({ status: 'unrecognized' });
+    expect(await expenses()).toHaveLength(0);
+    expect(await logRows()).toHaveLength(1);
+    expect(
+      (await t.inject({ method: 'GET', url: '/api/notifications' })).json().data.items,
+    ).toHaveLength(1);
+  });
+
+  it('двойное нажатие не создаёт второй расход; уже обработанное повторять нельзя', async () => {
+    const id = await problem();
+    await database.query("UPDATE cards SET name = 'IDBank Visa' WHERE name = 'Настя'");
+
+    await Promise.all([retryOf(id), retryOf(id)]);
+
+    expect(await expenses()).toHaveLength(1);
+    expect((await retryOf(id)).statusCode).toBe(409);
+  });
+
+  it('только владелец группы; запись другой группы и несуществующая выглядят как отсутствующие', async () => {
+    const id = await problem();
+
+    expect((await retryOf(id, 'nastya')).statusCode).toBe(403);
+    expect(
+      (await t.inject({ method: 'GET', url: `/api/group/import-log/${id}` }, 'nastya')).statusCode,
+    ).toBe(403);
+    expect((await retryOf('00000000-0000-4000-8000-000000000000')).statusCode).toBe(404);
+  });
+
+  it('если ключ удалён, повторить нельзя', async () => {
+    const id = await problem();
+    await database.query('UPDATE import_log SET key_id = NULL');
+
+    expect((await retryOf(id)).statusCode).toBe(409);
+  });
+
+  it('запрос, который не имеет смысла повторять (создан, другой вид уведомления), не повторяется', async () => {
+    const created = await send(key, wallet({ cardLast4: '5386' }));
+    expect(created.json().status).toBe('created');
+    const [row] = await database.query<{ id: string }>(
+      "SELECT id FROM import_log WHERE status = 'created'",
+    );
+
+    expect((await retryOf(row!.id)).statusCode).toBe(409);
+  });
+});

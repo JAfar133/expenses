@@ -155,6 +155,39 @@ export class ApiKeysRepository {
     );
   }
 
+  /** The key behind a log entry, even if it was revoked since: the owner reprocesses the request in the key author's name. */
+  async findForRetry(id: string): Promise<ActiveKey | undefined> {
+    const [row] = await this.database.query<{
+      id: string;
+      group_id: string;
+      created_by: string;
+      username: string;
+      role: 'owner' | 'member';
+      default_category: string | null;
+      timezone: string;
+    }>(
+      `SELECT k.id, k.group_id, k.created_by, u.username, m.role, c.name AS default_category,
+              COALESCE(u.custom_timezone, u.timezone_default) AS timezone
+         FROM api_keys k
+         JOIN users u ON u.id = k.created_by
+         JOIN memberships m ON m.user_id = k.created_by AND m.group_id = k.group_id
+         LEFT JOIN categories c ON c.id = k.default_category_id AND c.archived_at IS NULL
+        WHERE k.id = $1`,
+      [id],
+    );
+    return (
+      row && {
+        id: row.id,
+        groupId: row.group_id,
+        userId: row.created_by,
+        username: row.username,
+        role: row.role,
+        defaultCategory: row.default_category,
+        timezone: row.timezone,
+      }
+    );
+  }
+
   async touch(id: string): Promise<void> {
     await this.database.query(
       `UPDATE api_keys SET last_used_at = now()

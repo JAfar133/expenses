@@ -44,6 +44,8 @@ interface OperationsTableProps {
   /** «Сохранить как шаблон» in the menu of a live record */
   onSaveAsTemplate?: (item: OperationItem) => void;
   /** Phone list: records grouped under a plate per day (only while sorted by date) */
+  /** The record a link from a notification points at: it is marked for a moment */
+  highlightId?: string;
   groupByDay?: boolean;
   /** The whole-day totals in the display currency, by YYYY-MM-DD; a day without a total shows no sum */
   dayTotals?: ReadonlyMap<string, number>;
@@ -229,6 +231,7 @@ export function OperationsTable(props: OperationsTableProps) {
     authorLabel,
     busyId,
     groupByDay = false,
+    highlightId,
     dayTotals,
     displayCurrency,
     currentUsername,
@@ -323,7 +326,10 @@ export function OperationsTable(props: OperationsTableProps) {
               ),
               ...group.items.map((item) => (
                 <Fragment key={item.id}>
-                  <tr className="border-b border-zinc-100 align-top dark:border-zinc-800">
+                  <tr
+                    data-expense-id={item.id}
+                    className={`border-b border-zinc-100 align-top transition-colors duration-700 dark:border-zinc-800 ${item.id === highlightId ? 'bg-indigo-100 dark:bg-indigo-950' : ''}`}
+                  >
                     <td
                       className={`py-2.5 pr-4 tabular-nums whitespace-nowrap ${group.date ? 'text-zinc-500 dark:text-zinc-400' : ''}`}
                     >
@@ -398,7 +404,8 @@ export function OperationsTable(props: OperationsTableProps) {
               return (
                 <li
                   key={item.id}
-                  className={`rounded-xl border-b border-zinc-100 px-2 py-2 transition-colors dark:border-zinc-800 ${open ? 'bg-indigo-50/50 dark:bg-indigo-950/20' : 'bg-transparent'} ${item.deletedAt ? 'opacity-70' : ''}`}
+                  data-expense-id={item.id}
+                  className={`rounded-xl border-b border-zinc-100 px-2 py-2 transition-colors duration-700 dark:border-zinc-800 ${item.id === highlightId ? 'bg-indigo-100 dark:bg-indigo-950' : open ? 'bg-indigo-50/50 dark:bg-indigo-950/20' : 'bg-transparent'} ${item.deletedAt ? 'opacity-70' : ''}`}
                 >
                   <div className="flex items-start gap-1">
                     <div className="min-w-0 flex-1">

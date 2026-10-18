@@ -4,6 +4,7 @@ import { sanitizePayload, textOf } from './payload.ts';
 import { forbiddenError, validationError } from '../../errors/app-error.ts';
 import type { ApiKeysService } from './api-keys.service.ts';
 import type { BankImportService, ImportResult } from './import.service.ts';
+import type { ImportRetryService } from './import-retry.service.ts';
 import type { ImportLogRepository } from './import-log.repository.ts';
 import { RateLimiter } from '../../infrastructure/rate-limit.ts';
 
@@ -24,6 +25,7 @@ export interface BankImportRoutesDeps {
   keys: ApiKeysService;
   imports: BankImportService;
   log: Pick<ImportLogRepository, 'list' | 'deleteOlderThan'>;
+  retry: Pick<ImportRetryService, 'entry' | 'retry'>;
   /** Requests per minute for one key and for one address with unknown keys (tests lower them) */
   limits?: { perKey: number; badKeysPerAddress: number };
   now?: () => number;
@@ -34,7 +36,7 @@ export interface BankImportRoutesDeps {
  * management of the keys (by login). The key never travels in a URL and is never logged.
  */
 export const bankImportRoutes =
-  ({ keys, imports, log, limits, now }: BankImportRoutesDeps): FastifyPluginAsync =>
+  ({ keys, imports, log, retry, limits, now }: BankImportRoutesDeps): FastifyPluginAsync =>
   async (app) => {
     const perKey = new RateLimiter(limits?.perKey ?? 60, 60_000, now);
     const badKeys = new RateLimiter(limits?.badKeysPerAddress ?? 20, 60_000, now);
@@ -94,6 +96,18 @@ export const bankImportRoutes =
       const query = request.query as { limit?: string; source?: string };
       const limit = Math.min(Math.max(Number(query.limit) || LOG_LIMIT, 1), 100);
       return { success: true, data: await log.list(user.groupId, limit, query.source) };
+    });
+
+    /** One entry of the log (the details screen of an import problem) */
+    app.get('/group/import-log/:id', async (request) => ({
+      success: true,
+      data: await retry.entry(request.user!, idOf(request)),
+    }));
+
+    /** The owner processes the stored request again (after fixing the cause, e.g. a card's last four digits) */
+    app.post('/group/import-log/:id/retry', async (request, reply) => {
+      const result = await retry.retry(request.user!, idOf(request));
+      return sendRetryResult(reply, result);
     });
 
     app.get('/group/api-keys', async (request) => ({
@@ -164,4 +178,18 @@ function sendResult(reply: FastifyReply, result: ImportResult) {
         message: result.message,
       });
   }
+}
+
+/** What the retry did, for the details screen: success or the reason it still does not work. */
+function sendRetryResult(reply: FastifyReply, result: ImportResult) {
+  if (result.status === 'created' || result.status === 'duplicate') {
+    return reply.send({
+      success: true,
+      data: { status: result.status, transactionId: result.transactionId },
+    });
+  }
+  return reply.send({
+    success: true,
+    data: { status: result.status, message: 'message' in result ? result.message : null },
+  });
 }

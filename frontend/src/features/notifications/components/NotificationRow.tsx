@@ -1,21 +1,59 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import {
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
   CloseIcon,
-  CreditCardIcon,
   DocumentIcon,
   MegaphoneIcon,
   TrashIcon,
+  UserIcon,
   WarningIcon,
 } from '../../../shared/ui/icons.tsx';
+import { sourceLabel } from '../../integrations/model/format.ts';
 import type { AppNotification, NotificationType } from '../api/notifications.api.ts';
 import { relativeTime } from '../model/time.ts';
 
 const ICONS: Record<NotificationType, ReactNode> = {
-  expense_imported: <CreditCardIcon />,
+  expense_imported: <CheckIcon />,
   import_problem: <WarningIcon />,
   receipt_parsed: <DocumentIcon />,
   announcement: <MegaphoneIcon />,
+  member_joined: <UserIcon />,
 };
+
+/** The soft square of the icon: green for an added expense, amber for a problem, blue for people, grey for a receipt. */
+const SQUARES: Record<NotificationType, string> = {
+  expense_imported: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300',
+  import_problem: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-300',
+  announcement: 'bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300',
+  member_joined: 'bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300',
+  receipt_parsed: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+};
+
+const text = (value: unknown) => (typeof value === 'string' && value ? value : null);
+
+/** The one muted line under the title: who or where it is from, and when. */
+export function metaLine(item: AppNotification): string {
+  const data = item.data ?? {};
+  const time = relativeTime(item.createdAt);
+  if (item.type === 'announcement') {
+    return [text(data.senderName), text(data.groupName), time].filter(Boolean).join(' · ');
+  }
+  if (item.type === 'import_problem' || item.type === 'expense_imported') {
+    const source =
+      text(data.sourceLabel) ?? (text(data.source) ? sourceLabel(String(data.source)) : null);
+    return [source, time].filter(Boolean).join(' · ');
+  }
+  return time;
+}
+
+/** The short text under the meta line: for a problem it is the reason. */
+export const bodyOf = (item: AppNotification): string =>
+  (item.type === 'import_problem' ? text(item.data?.reason) : null) ?? item.body;
+
+/** Long enough to be cut by the clamp: «Читать полностью» is offered. */
+export const isLong = (value: string) => value.length > 90 || value.includes('\n');
 
 const INTENT_PX = 8;
 const COMMIT_RATIO = 0.4;
@@ -48,6 +86,10 @@ export function NotificationRow({
   onHide: (item: AppNotification) => void;
 }) {
   const warn = item.type === 'import_problem';
+  const announcement = item.type === 'announcement';
+  const [expanded, setExpanded] = useState(false);
+  const body = bodyOf(item);
+  const long = announcement && isLong(body);
   const row = useRef<HTMLLIElement>(null);
   const front = useRef<HTMLDivElement>(null);
   const gesture = useRef<Gesture | null>(null);
@@ -120,9 +162,10 @@ export function NotificationRow({
   };
 
   const out = phase !== 'idle';
-  const base = warn
-    ? 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-950/60'
-    : 'bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800/60';
+  // A white card; a problem only gets a thin amber accent at the left
+  const base =
+    'bg-white hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800/60' +
+    (warn ? ' border-l-2 border-amber-400 dark:border-amber-500' : '');
 
   return (
     <li
@@ -136,7 +179,7 @@ export function NotificationRow({
           ? undefined
           : { height: phase === 'fold' ? 0 : height, transition: `height ${MOVE_MS}ms ease` }
       }
-      className="group relative overflow-hidden rounded-xl"
+      className="group relative overflow-hidden border-b border-zinc-100 last:border-b-0 dark:border-zinc-800"
     >
       {(offset < 0 || out) && (
         <div
@@ -174,18 +217,17 @@ export function NotificationRow({
       >
         <button
           type="button"
-          onClick={() => onOpen(item)}
+          aria-expanded={announcement ? expanded : undefined}
+          onClick={() => {
+            if (announcement) setExpanded((value) => !value);
+            onOpen(item);
+          }}
           onKeyDown={onKey}
           className="flex min-h-14 w-full items-start gap-3 rounded-xl px-2 py-2.5 text-left [@media(hover:hover)]:pr-9"
         >
           <span
             aria-hidden="true"
-            className={
-              'mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full ' +
-              (warn
-                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300'
-                : 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300')
-            }
+            className={`mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl ${SQUARES[item.type]}`}
           >
             {ICONS[item.type]}
           </span>
@@ -193,32 +235,47 @@ export function NotificationRow({
             <span
               className={
                 'block text-sm ' +
-                (item.read ? 'font-medium' : 'font-semibold text-zinc-900 dark:text-zinc-50')
+                (item.read ? 'font-semibold' : 'font-semibold text-zinc-900 dark:text-zinc-50')
               }
             >
               {item.title}
             </span>
-            {typeof item.data?.senderName === 'string' && item.data.senderName && (
-              <span className="block text-xs text-zinc-500 dark:text-zinc-400">
-                Отправитель: {item.data.senderName}
+            <span className="block text-xs text-zinc-500 dark:text-zinc-400">{metaLine(item)}</span>
+            <span
+              className={
+                'mt-0.5 block text-sm break-words whitespace-pre-line text-zinc-600 dark:text-zinc-300 ' +
+                (announcement && expanded ? '' : 'line-clamp-2')
+              }
+            >
+              {body}
+            </span>
+            {long && (
+              <span className="mt-0.5 block text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                {expanded ? 'Свернуть' : 'Читать полностью'}
               </span>
             )}
-            <span className="line-clamp-2 block text-sm text-zinc-600 dark:text-zinc-300">
-              {item.body}
-            </span>
-            <span className="block text-xs text-zinc-500 dark:text-zinc-400">
-              {relativeTime(item.createdAt)}
-            </span>
           </span>
-          <span
-            {...(item.read
-              ? { 'aria-hidden': true }
-              : { role: 'img', 'aria-label': 'Не прочитано' })}
-            className={
-              'mt-2 size-2.5 shrink-0 rounded-full bg-indigo-600 transition-opacity duration-500 dark:bg-indigo-400 ' +
-              (item.read ? 'opacity-0' : 'opacity-100')
-            }
-          />
+          <span className="flex shrink-0 flex-col items-center gap-2 pt-1">
+            <span
+              {...(item.read
+                ? { 'aria-hidden': true }
+                : { role: 'img', 'aria-label': 'Не прочитано' })}
+              className={
+                'size-2.5 rounded-full bg-indigo-600 transition-opacity duration-500 dark:bg-indigo-400 ' +
+                (item.read ? 'opacity-0' : 'opacity-100')
+              }
+            />
+            {(announcement ? long : true) && (
+              <span
+                aria-hidden="true"
+                className={
+                  'text-zinc-400 transition ' + (announcement && expanded ? 'rotate-180' : '')
+                }
+              >
+                {announcement ? <ChevronDownIcon /> : <ChevronRightIcon />}
+              </span>
+            )}
+          </span>
         </button>
         <button
           type="button"

@@ -63,6 +63,8 @@ export interface ImportLogEntry {
   parsed: ParsedImport | null;
   match: ImportMatch | null;
   expenseId: string | null;
+  /** The request may be processed again (the key still exists and nothing has been created from it) */
+  retryable?: boolean;
 }
 
 /** The address the iPhone automation calls (it is not used by this app). */
@@ -94,4 +96,22 @@ export const fetchImportLog = async (source?: string) =>
     await apiRequest<ImportLogEntry[]>(
       `/group/import-log?limit=30${source ? `&source=${encodeURIComponent(source)}` : ''}`,
     )
+  ).data;
+
+/** One request of the log with its `retryable` flag (a 404 or 403 means it is gone: the log is kept for 30 days). */
+export const fetchImportLogEntry = async (id: string) =>
+  (await apiRequest<ImportLogEntry>(`/group/import-log/${encodeURIComponent(id)}`)).data;
+
+export interface RetryResult {
+  status: string;
+  transactionId?: string;
+  message?: string;
+}
+
+/** Processes a logged request once more; the answer says what came out of it. */
+export const retryImportLogEntry = async (id: string) =>
+  (
+    await apiRequest<RetryResult>(`/group/import-log/${encodeURIComponent(id)}/retry`, {
+      method: 'POST',
+    })
   ).data;

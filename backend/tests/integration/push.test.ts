@@ -176,7 +176,7 @@ describe('кому и что отправляется', () => {
     expect(first).toMatchObject({
       type: 'expense_imported',
       title: 'Расход добавлен',
-      url: '/analytics/operations',
+      url: expect.stringMatching(/^\/analytics\/operations\?expense=[\w-]+&date=2026-10-16$/),
       unread: 1,
     });
     expect(first.body).toMatch(/1\s540 AMD · URARTU ZAQYAN · Миша · из IDBank/);
@@ -378,6 +378,7 @@ describe('настройки уведомлений', () => {
           import_problem: true,
           receipt_parsed: false,
           announcement: true,
+          member_joined: true,
         },
         hideAmounts: false,
       },
@@ -393,6 +394,7 @@ describe('настройки уведомлений', () => {
         import_problem: true,
         receipt_parsed: true,
         announcement: true,
+        member_joined: true,
       },
       hideAmounts: true,
     });
