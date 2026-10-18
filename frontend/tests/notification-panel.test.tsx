@@ -317,6 +317,35 @@ describe('карточки', () => {
     expect(main).toHaveAttribute('aria-expanded', 'false');
   });
 
+  it('«Читать полностью» только когда текст реально обрезан (по измеренной высоте)', async () => {
+    const body =
+      'Короткий текст, но с запасом по длине, чтобы эвристика по символам его не пропустила. 1234567890';
+    feed = [
+      note('s', {
+        type: 'announcement',
+        title: 'ВНИМАНИЕ',
+        body,
+        link: null,
+        data: { broadcastId: 'b1', senderName: 'Миша' },
+      }),
+    ];
+    unread = 1;
+    const size = (name: 'clientHeight' | 'scrollHeight', value: number) =>
+      Object.defineProperty(HTMLElement.prototype, name, { configurable: true, get: () => value });
+    size('clientHeight', 40);
+    size('scrollHeight', 40);
+    try {
+      const person = renderBell();
+      const panel = await openPanel(person);
+      const card = (await panel.findByText('ВНИМАНИЕ')).closest('li')!;
+
+      expect(within(card).queryByText('Читать полностью')).not.toBeInTheDocument();
+    } finally {
+      delete (HTMLElement.prototype as unknown as Record<string, unknown>).clientHeight;
+      delete (HTMLElement.prototype as unknown as Record<string, unknown>).scrollHeight;
+    }
+  });
+
   it('нажатие на «Расход добавлен» закрывает панель и открывает операцию по ссылке', async () => {
     feed = [note('a')];
     unread = 1;

@@ -1,4 +1,11 @@
-import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+} from 'react';
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -52,7 +59,7 @@ export function metaLine(item: AppNotification): string {
 export const bodyOf = (item: AppNotification): string =>
   (item.type === 'import_problem' ? text(item.data?.reason) : null) ?? item.body;
 
-/** Long enough to be cut by the clamp: «Читать полностью» is offered. */
+/** A guess for places without layout (tests): long enough to be cut by the clamp. The real check is the measurement. */
 export const isLong = (value: string) => value.length > 90 || value.includes('\n');
 
 const INTENT_PX = 8;
@@ -89,7 +96,22 @@ export function NotificationRow({
   const announcement = item.type === 'announcement';
   const [expanded, setExpanded] = useState(false);
   const body = bodyOf(item);
-  const long = announcement && isLong(body);
+  const bodyBox = useRef<HTMLSpanElement>(null);
+  // Whether the clamp really hides something, measured while the text is folded; unknown (null) without layout
+  const [overflows, setOverflows] = useState<boolean | null>(null);
+  useLayoutEffect(() => {
+    const box = bodyBox.current;
+    if (!announcement || !box || expanded) return;
+    const measure = () => {
+      if (box.clientHeight > 0) setOverflows(box.scrollHeight > box.clientHeight + 1);
+    };
+    measure();
+    const observer =
+      typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
+    observer?.observe(box);
+    return () => observer?.disconnect();
+  }, [announcement, expanded, body]);
+  const long = announcement && (overflows ?? isLong(body));
   const row = useRef<HTMLLIElement>(null);
   const front = useRef<HTMLDivElement>(null);
   const gesture = useRef<Gesture | null>(null);
@@ -242,6 +264,7 @@ export function NotificationRow({
             </span>
             <span className="block text-xs text-zinc-500 dark:text-zinc-400">{metaLine(item)}</span>
             <span
+              ref={bodyBox}
               className={
                 'mt-0.5 block text-sm break-words whitespace-pre-line text-zinc-600 dark:text-zinc-300 ' +
                 (announcement && expanded ? '' : 'line-clamp-2')
